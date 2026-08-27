@@ -46,6 +46,8 @@ import type {
   BoardPosition, BoardPositionHolder, AssignableMember,
 } from '@/app/actions/admin/chapters'
 import type { FamilyInvitation } from '@/app/actions/invitations'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Members & Access — one screen for what used to be three.
@@ -241,6 +243,7 @@ export function AdminAccessClient({
   legacy, approvals, organization, board, canViewApprovals, canViewAccess, canViewTemplates,
   canViewOrganization, canInvite,
 }: Props) {
+  const t = useT()
   const router = useRouter()
   const [error, setError] = useState('')
 
@@ -275,11 +278,11 @@ export function AdminAccessClient({
   // pane, and the same glyph meaning two things on one screen is worse than a new one.
   const tabs: MainRailItem<AccessTab>[] = [
     ...(canViewAccess ? [
-      { id: 'members' as const, label: 'Members', icon: Users, href: '/admin/members' },
+      { id: 'members' as const, label: t('access.tab.members'), icon: Users, href: '/admin/members' },
     ] : []),
     ...(canViewOrganization ? [{
       id: 'organization' as const,
-      label: 'Organization',
+      label: t('access.tab.organization'),
       icon: Network,
       // THE SAME URL `/admin/members/organization` REDIRECTS TO, and the caption is the same word the
       // permission grid prints for `admin/chapters` — AGENTS.md: the grid caption is the
@@ -289,13 +292,13 @@ export function AdminAccessClient({
     }] : []),
     ...(canViewApprovals ? [{
       id: 'approvals' as const,
-      label: 'Pending Approval',
+      label: t('access.tab.approvals'),
       icon: Clock,
       href: '/admin/members?tab=approvals',
     }] : []),
     ...(canViewTemplates ? [{
       id: 'templates' as const,
-      label: 'Permission Templates',
+      label: t('access.tab.templates'),
       icon: KeyRound,
       href: '/admin/members?tab=templates',
     }] : []),
@@ -305,7 +308,7 @@ export function AdminAccessClient({
     <div className="space-y-5">
       {legacy && (
         <div className="rounded-xl border border-brand-legacy/50 bg-brand-soft px-4 py-3 text-sm text-brand-on-soft">
-          <span className="font-medium">Permission tables not found.</span> Run the migrations in
+          <span className="font-medium">{t('access.noTables')}</span> Run the migrations in
           {' '}<code>supabase/migrations</code>. Until then access falls back to the old
           {' '}<code>is_admin</code> flag and nothing changed here takes effect.
         </div>
@@ -317,12 +320,12 @@ export function AdminAccessClient({
           applicants that they cannot change access settings is a non sequitur. */}
       {tab === 'members' && canViewAccess && !memberRights.edit && (
         <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          You can view the member list but not change who is on which template.
+          {t('access.readOnlyMembers')}
         </div>
       )}
       {tab === 'templates' && canViewTemplates && !templateRights.edit && (
         <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          You can view what each template grants but not change it.
+          {t('access.readOnlyTemplates')}
         </div>
       )}
       {/* Organization's own version, and it is NOT a fourth copy of the sentence above — this
@@ -342,7 +345,7 @@ export function AdminAccessClient({
         && !organization.mayCreateBoard && !organization.mayEditBoard
         && !organization.mayDeleteBoard && (
         <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          You can see how the family is organized but not change it.
+          {t('access.readOnlyOrg')}
         </div>
       )}
 
@@ -370,7 +373,7 @@ export function AdminAccessClient({
           roster administrator without the approvals grant sends an ordinary invitation
           and the dialog reports what actually happened. */}
       <MainRail
-        label="Members and access"
+        label={t('access.rail')}
         items={tabs}
         active={tab}
         onSelect={t => go({ tab: t })}
@@ -424,7 +427,7 @@ export function AdminAccessClient({
                   How the family divides itself up geographically. A chapter belongs to one
                   region, or it sits under National — which is where everything starts and
                   where a member with no chapter stays. Dues can be scoped to a region or a
-                  chapter under <Link href="/admin/accounting?section=dues">Accounting</Link>.
+                  chapter under <Link href="/admin/accounting?section=dues">{t('acct.heading')}</Link>.
                 </p>
                 {/* A SECOND PLACED HELP LINK ON THIS SCREEN, and the bar for one is the same
                     as the Permission Templates icon's: a control where a reader can be
@@ -480,10 +483,10 @@ export function AdminAccessClient({
           {organization.showBoard && (
             <div className={cn('space-y-6', organization.showGeography && 'border-t pt-8')}>
               <p className="text-sm text-muted-foreground">
-                The offices your family keeps. A <strong>Regional</strong> or{' '}
-                <strong>Chapter</strong> position is held for one region or one chapter — which
+                {t('access.officesKept')} <strong>{t('pos.regional')}</strong> or{' '}
+                <strong>{t('field.chapter')}</strong> position is held for one region or one chapter — which
                 one is chosen when it is given to somebody — and the same title can exist once
-                at each scope. <strong>Who holds what is set on the Members tab</strong>, from
+                at each scope. <strong>{t('access.whoHoldsWhat')}</strong>, from
                 the member’s own row.
               </p>
               <AdminBoardPositionsClient
@@ -514,11 +517,13 @@ export function AdminAccessClient({
 
 // ── Members ─────────────────────────────────────────────────────────────────
 
-const STATUS_BADGE: Record<string, { label: string; className: string } | null> = {
-  approved: null,
-  pending:  { label: 'Awaiting approval', className: 'bg-brand-legacy text-brand-on-legacy' },
-  disabled: { label: 'Disabled',          className: 'bg-destructive/10 text-destructive' },
-  rejected: { label: 'Declined',          className: 'bg-muted text-muted-foreground' },
+function statusBadge(t: T): Record<string, { label: string; className: string } | null> {
+  return {
+    approved: null,
+    pending:  { label: t('access.awaiting'), className: 'bg-brand-legacy text-brand-on-legacy' },
+    disabled: { label: t('access.disabled'), className: 'bg-destructive/10 text-destructive' },
+    rejected: { label: t('fam.declined'), className: 'bg-muted text-muted-foreground' },
+  }
 }
 
 /**
@@ -533,11 +538,13 @@ const STATUS_BADGE: Record<string, { label: string; className: string } | null> 
  * on almost every row of a table is noise, while a blank line in a panel of labelled facts
  * reads as something the product failed to look up. Different jobs, different answers.
  */
-const STATUS_WORDS: Record<string, string> = {
-  approved: 'Approved',
-  pending:  'Awaiting approval',
-  disabled: 'Disabled — no access to this family',
-  rejected: 'Declined',
+function statusWords(t: T): Record<string, string> {
+  return {
+    approved: t('access.approved'),
+    pending:  t('access.awaiting'),
+    disabled: t('access.disabledNoAccess'),
+    rejected: t('fam.declined'),
+  }
 }
 
 function MembersTab({ templates, rights, board, onError }: {
@@ -547,6 +554,7 @@ function MembersTab({ templates, rights, board, onError }: {
   board: MemberBoardData | null
   onError: (m: string) => void
 }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [isPending, startTransition] = useTransition()
@@ -590,18 +598,18 @@ function MembersTab({ templates, rights, board, onError }: {
     startTransition(async () => {
       const r = await action()
       if (r.success) { reload(); router.refresh() }
-      else onError(r.message ?? 'Something went wrong.')
+      else onError(r.message ?? t('meet.wentWrong'))
     })
   }
 
   return (
     <div className="space-y-3">
       <MemberSearchBox value={query} onChange={setQuery} pending={loading}
-        placeholder="Filter members by name or email…" />
+        placeholder={t('access.filterPh')} />
 
       {data.rows.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
-          {query ? 'No members match that filter.' : 'No members with accounts in this family yet.'}
+          {query ? t('access.noMatch') : t('access.noAccounts')}
         </p>
       ) : (
         <MemberTable rows={data.rows} templates={templates} rights={rights} board={board}
@@ -622,7 +630,7 @@ function MembersTab({ templates, rights, board, onError }: {
           there already, and the filter box above still matches on email even though it
           is no longer a column, which is why nothing about the search changed. */}
       <MemberDetailsDialog
-        member={viewed ? accessDetails(viewed) : null}
+        member={viewed ? accessDetails(viewed, t) : null}
         onClose={() => setViewingId(null)}
         // ── THE HANDOFF: ONE PANEL CLOSES, THE OTHER OPENS ─────────────────────
         // Offered only where the caller holds `admin/members:edit`, which the PAGE
@@ -692,7 +700,7 @@ function MembersTab({ templates, rights, board, onError }: {
  * rather than left blank — a member whose access is fine is a fact worth confirming on
  * the screen whose whole job is access.
  */
-function accessDetails(member: MemberSummary): MemberDetails {
+function accessDetails(member: MemberSummary, t: T): MemberDetails {
   return {
     name: member.name,
     phone: member.phone,
@@ -704,8 +712,8 @@ function accessDetails(member: MemberSummary): MemberDetails {
       // "Group" and not "Permission template": it is the caption this table's own column
       // prints and the word the Member Directory prints, and an administrator should not
       // have to translate between a column and the dialog behind it.
-      { label: 'Group', value: member.templateName ?? 'No template' },
-      { label: 'Status', value: STATUS_WORDS[member.status] ?? member.status },
+      { label: t('dir.group'), value: member.templateName ?? t('access.noTemplate') },
+      { label: t('money.status'), value: statusWords(t)[member.status] ?? member.status },
     ],
   }
 }
@@ -755,6 +763,7 @@ function MemberTable({ rows, templates, rights, board, busy, run, onView, onEdit
   onEdit: (personId: string) => void
   onPosition: (member: MemberSummary) => void
 }) {
+  const t = useT()
   // ── THE SAME FOUR SORTABLE COLUMNS THE DIRECTORY HAS ─────────────────────────────
   // AGENTS.md, "A table is a table": these two screens list the same people and answer the same
   // question, so a column added to one is owed to the other — and that now covers SORTING as
@@ -791,7 +800,7 @@ function MemberTable({ rows, templates, rights, board, busy, run, onView, onEdit
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            <SortTh label="Name" {...sortProps('name')} className="px-3 py-2 font-semibold" />
+            <SortTh label={t('field.name')} {...sortProps('name')} className="px-3 py-2 font-semibold" />
             {/* ── POSITION REPLACED REGION ON 2026-08-20 ──────────────────────────────
                 Region was DERIVED from the member's chapter (`people.chapter_id ->
                 chapters.region_id`), so the two columns beside each other answered one
@@ -807,13 +816,13 @@ function MemberTable({ rows, templates, rights, board, busy, run, onView, onEdit
                 caller may see the roster and not the family's offices, and a headed column of
                 em-dashes would tell them the family has no officers. */}
             {board && (
-              <SortTh label="Position" {...sortProps('position')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+              <SortTh label={t('dir.position')} {...sortProps('position')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
             )}
-            <SortTh label="Chapter" {...sortProps('chapter')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-            <SortTh label="Group" {...sortProps('group')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+            <SortTh label={t('field.chapter')} {...sortProps('chapter')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+            <SortTh label={t('dir.group')} {...sortProps('group')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
             {/* The menu column has no heading to give. An empty <th> would be announced
                 as a blank column header, so the label is present and hidden. */}
-            <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+            <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
           </tr>
         </thead>
         <tbody>
@@ -839,7 +848,8 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
   onEdit: (personId: string) => void
   onPosition: (member: MemberSummary) => void
 }) {
-  const badge = STATUS_BADGE[member.status]
+  const t = useT()
+  const badge = statusBadge(t)[member.status]
   const disabled = member.status === 'disabled'
 
   // EVERY office this member holds, as the phrases the dialog prints — from the same
@@ -891,10 +901,10 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
               Treasurer, Austin Chapter Chair" on one folded line is a string nobody can
               parse at 390px. Omitted entirely for a member with none, because a folded
               "Position —" is a line that says nothing. */}
-          {titles.map(t => <MetaIf key={t} value={t} prefix="Position" />)}
-          <MetaIf value={member.chapterName} prefix="Chapter" />
+          {titles.map(title => <MetaIf key={title} value={title} prefix={t('dir.position')} />)}
+          <MetaIf value={member.chapterName} prefix={t('field.chapter')} />
           <span className="mt-0.5 inline-block whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft">
-            {member.templateName ?? 'No template'}
+            {member.templateName ?? t('access.noTemplate')}
           </span>
         </RowMeta>
       </td>
@@ -909,7 +919,7 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
         <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
           {titles.length === 0 ? '—' : (
             <span className="flex flex-col gap-0.5">
-              {titles.map(t => <span key={t}>{t}</span>)}
+              {titles.map(title => <span key={title}>{title}</span>)}
             </span>
           )}
         </td>
@@ -919,7 +929,7 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
       </td>
       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>
         <span className="inline-block whitespace-nowrap rounded-full bg-brand-soft px-2.5 py-1 text-xs font-medium text-brand-on-soft">
-          {member.templateName ?? 'No template'}
+          {member.templateName ?? t('access.noTemplate')}
         </span>
       </td>
       <td className="w-10 px-3 py-2.5 text-right">
@@ -939,31 +949,31 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
                 promise the same keyboard behaviour by a side door. A heading that is read out
                 in order is what is actually here. */}
             <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-              Permissions
+              {t('access.permissions')}
             </p>
             {templates.length === 0 && (
-              <p className="px-3 pb-2 text-xs text-muted-foreground">No templates yet.</p>
+              <p className="px-3 pb-2 text-xs text-muted-foreground">{t('access.noTemplates')}</p>
             )}
-            {templates.map(t => {
-              const current = t.id === member.templateId
+            {templates.map(tpl => {
+              const current = tpl.id === member.templateId
               return (
-                <button key={t.id} type="button"
+                <button key={tpl.id} type="button"
                   className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft"
                   onClick={() => {
                     close()
                     if (current) return
                     run({
-                      title: 'Apply permissions template',
+                      title: t('access.applyTemplate'),
                       description:
-                        `Put ${member.name} on "${t.name}"? Their access becomes exactly what that ` +
+                        `Put ${member.name} on "${tpl.name}"? Their access becomes exactly what that ` +
                         `template grants${member.templateName ? `, replacing "${member.templateName}"` : ''}.`,
-                      confirmLabel: 'Apply template',
-                      destructive: !t.grantsAdmin && Boolean(member.templateId),
-                    }, () => applyTemplate(member.personId, t.id))
+                      confirmLabel: t('access.applyTemplateAction'),
+                      destructive: !tpl.grantsAdmin && Boolean(member.templateId),
+                    }, () => applyTemplate(member.personId, tpl.id))
                   }}>
                   <Check className={cn('h-3.5 w-3.5 shrink-0', current ? 'opacity-100' : 'opacity-0')} />
-                  <span className="min-w-0 flex-1 truncate">{t.name}</span>
-                  {t.grantsAdmin && <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
+                  <span className="min-w-0 flex-1 truncate">{tpl.name}</span>
+                  {tpl.grantsAdmin && <ShieldCheck className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
                 </button>
               )
             })}
@@ -996,14 +1006,14 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
               <>
                 <div className="my-1 border-t" />
                 <p className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                  Profile
+                  {t('access.profile')}
                 </p>
                 {rights.edit && (
                   <button type="button"
                     className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft"
                     onClick={() => { close(); onEdit(member.personId) }}>
                     <Pencil className="h-3.5 w-3.5 shrink-0" />
-                    <span className="min-w-0 flex-1 truncate">Edit profile</span>
+                    <span className="min-w-0 flex-1 truncate">{t('dir.editProfile')}</span>
                   </button>
                 )}
                 {board && (
@@ -1013,8 +1023,8 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
                     <Network className="h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 flex-1 truncate">
                       {titles.length === 0
-                        ? 'Give a board position'
-                        : titles.length === 1 ? 'Change board position' : 'Board positions'}
+                        ? t('access.givePosition')
+                        : titles.length === 1 ? t('access.changePosition') : t('access.boardPositions')}
                     </span>
                   </button>
                 )}
@@ -1027,11 +1037,11 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
               <Link href="/admin/members?tab=approvals" onClick={close}
                 className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft">
                 <UserCheck className="h-3.5 w-3.5 shrink-0" />
-                Review in Pending Approval
+                {t('access.reviewInApprovals')}
               </Link>
             ) : member.isSelf ? (
               <p className="px-3 py-1.5 text-xs text-muted-foreground">
-                You cannot disable your own access.
+                {t('access.cannotDisableSelf')}
               </p>
             ) : (
               <button type="button"
@@ -1042,21 +1052,21 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
                 onClick={() => {
                   close()
                   run(disabled ? {
-                    title: 'Enable member',
+                    title: t('access.enableMember'),
                     description: `Switch ${member.name}'s access back on? They regain everything their template grants.`,
-                    confirmLabel: 'Enable',
+                    confirmLabel: t('access.enable'),
                   } : {
-                    title: 'Disable member',
+                    title: t('access.disableMember'),
                     description:
                       `Switch off ${member.name}'s access? They keep their account and their profile, ` +
                       'but can see nothing in this family until you switch it back on.',
-                    confirmLabel: 'Disable',
+                    confirmLabel: t('access.disable'),
                     destructive: true,
                   }, () => setMemberEnabled(member.personId, disabled))
                 }}>
                 {disabled
-                  ? <><UserCheck className="h-3.5 w-3.5 shrink-0" /> Enable member</>
-                  : <><Ban className="h-3.5 w-3.5 shrink-0" /> Disable member</>}
+                  ? <><UserCheck className="h-3.5 w-3.5 shrink-0" /> {t('access.enableMember')}</>
+                  : <><Ban className="h-3.5 w-3.5 shrink-0" /> {t('access.disableMember')}</>}
               </button>
             )}
           </>
@@ -1088,13 +1098,13 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
  * summary failed to load. A new template is a complete grid of denials, so this is the state
  * every row is in for the minute after one is created.
  */
-function grantSummary(resource: ResourceSummary, policy: PolicyMap): string {
+function grantSummary(resource: ResourceSummary, policy: PolicyMap, t: T): string {
   const granted = ACTIONS
     .filter(action => scopesFor(resource, action).length > 0)
     .map(action => ({ action, scope: policy[`${resource.key}:${action}`] ?? 'none' }))
     .filter(({ scope }) => scope !== 'none')
 
-  if (granted.length === 0) return 'Nothing'
+  if (granted.length === 0) return t('access.nothing')
   return granted
     // Capitalised action, then the scope's own word — "View All", "Edit Own". `create` has no
     // own/any distinction (`SCOPES_FOR`), so its granted state reads "Create All", which is the
@@ -1115,6 +1125,7 @@ function TemplatesTab({
   onError: (m: string) => void
   onSelect: (id: string) => void
 }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [isPending, startTransition] = useTransition()
@@ -1137,13 +1148,13 @@ function TemplatesTab({
    * longer exists — the radio saying "A copy of…", the sentence beneath it saying
    * nothing is allowed, and Create sending an id the action can only refuse.
    */
-  const copySource = templates.find(t => t.id === copyFrom) ?? null
+  const copySource = templates.find(tpl => tpl.id === copyFrom) ?? null
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
   const [editDesc, setEditDesc] = useState('')
 
-  const selected = templates.find(t => t.id === selectedTemplateId) ?? null
-  const sections = groupResources(resources)
+  const selected = templates.find(tpl => tpl.id === selectedTemplateId) ?? null
+  const sections = groupResources(resources, t)
   /**
    * Which feature's switches are showing, or null for none — an accordion, one at a time.
    *
@@ -1229,7 +1240,7 @@ function TemplatesTab({
     startTransition(async () => {
       const result = await action()
       if (result.success) { after?.(); router.refresh() }
-      else onError(result.message ?? 'Something went wrong.')
+      else onError(result.message ?? t('meet.wentWrong'))
     })
   }
 
@@ -1255,18 +1266,18 @@ function TemplatesTab({
               span wrapping it is invalid even though every browser renders it. */}
           <div className="flex min-w-0 items-center gap-1">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Templates
+              {t('access.templates')}
             </h2>
             <HelpLink
               slug="members-and-access"
               section="templates"
-              label="Help: Permission templates"
+              label={t('access.templatesHelp')}
               className="size-6"
             />
           </div>
           {rights.create && (
             <button type="button" onClick={() => setCreating(c => !c)}
-              className="rounded-lg p-1 hover:bg-muted" aria-label="New template">
+              className="rounded-lg p-1 hover:bg-muted" aria-label={t('access.newTemplate')}>
               <Plus className="h-4 w-4" />
             </button>
           )}
@@ -1275,14 +1286,14 @@ function TemplatesTab({
         {creating && (
           <div className="space-y-2 rounded-xl border bg-card p-3">
             <div className="space-y-1">
-              <Label htmlFor="new-template-name">Name</Label>
+              <Label htmlFor="new-template-name">{t('field.name')}</Label>
               <Input id="new-template-name" value={newName} onChange={e => setNewName(e.target.value)}
-                placeholder="Reunion Committee" />
+                placeholder={t('access.templateNamePh')} />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="new-template-desc">Description</Label>
+              <Label htmlFor="new-template-desc">{t('common.description')}</Label>
               <Input id="new-template-desc" value={newDesc} onChange={e => setNewDesc(e.target.value)}
-                placeholder="Optional" />
+                placeholder={t('common.optional')} />
             </div>
 
             {/* A real <fieldset>/<legend> radio group rather than a styled div: the
@@ -1292,23 +1303,23 @@ function TemplatesTab({
                 implemented, and here the platform implements all of it. */}
             {rights.edit && templates.length > 0 && (
               <fieldset className="space-y-1">
-                <legend className="text-sm leading-none font-medium">Start from</legend>
+                <legend className="text-sm leading-none font-medium">{t('access.startFrom')}</legend>
                 <label className="flex items-center gap-2 text-sm">
                   <input type="radio" name="new-template-start" className="accent-brand-primary"
                     checked={!copySource} onChange={() => setCopyFrom('')} />
-                  Blank
+                  {t('access.blank')}
                 </label>
                 <label className="flex items-center gap-2 text-sm">
                   <input type="radio" name="new-template-start" className="accent-brand-primary"
                     checked={!!copySource}
                     onChange={() => setCopyFrom(templates[0].id)} />
-                  A copy of…
+                  {t('access.copyOf')}
                 </label>
                 {copySource && (
-                  <Select className="mt-1" aria-label="Template to copy"
+                  <Select className="mt-1" aria-label={t('access.templateToCopy')}
                     value={copySource.id} onChange={e => setCopyFrom(e.target.value)}>
-                    {templates.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
+                    {templates.map(tpl => (
+                      <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
                     ))}
                   </Select>
                 )}
@@ -1324,66 +1335,66 @@ function TemplatesTab({
               <Button size="sm" disabled={isPending || !newName.trim()}
                 onClick={() => run(null, () => createTemplate(newName, newDesc, copySource?.id ?? null),
                   () => { setNewName(''); setNewDesc(''); setCopyFrom(''); setCreating(false) })}>
-                Create
+                {t('access.create')}
               </Button>
-              <Button size="sm" variant="outline" onClick={() => setCreating(false)}>Cancel</Button>
+              <Button size="sm" variant="outline" onClick={() => setCreating(false)}>{t('action.cancel')}</Button>
             </div>
           </div>
         )}
 
         <ul className="space-y-1">
-          {templates.map(t => (
-            <li key={t.id}>
-              {editingId === t.id ? (
+          {templates.map(tpl => (
+            <li key={tpl.id}>
+              {editingId === tpl.id ? (
                 <div className="space-y-2 rounded-xl border bg-card p-3">
-                  <Input value={editName} onChange={e => setEditName(e.target.value)} aria-label="Template name" />
-                  <Input value={editDesc} onChange={e => setEditDesc(e.target.value)} placeholder="Description" />
+                  <Input value={editName} onChange={e => setEditName(e.target.value)} aria-label={t('access.templateName')} />
+                  <Input value={editDesc} onChange={e => setEditDesc(e.target.value)} placeholder={t('common.description')} />
                   <div className="flex gap-2">
                     <Button size="sm" disabled={isPending}
                       onClick={() => run({
-                        title: 'Save template',
-                        description: editName.trim() && editName.trim() !== t.name
-                          ? `Rename "${t.name}" to "${editName.trim()}" and save its description?`
-                          : `Save your changes to "${t.name}"?`,
-                        confirmLabel: 'Save changes',
-                      }, () => renameTemplate(t.id, editName, editDesc), () => setEditingId(null))}>
-                      Save
+                        title: t('access.saveTemplate'),
+                        description: editName.trim() && editName.trim() !== tpl.name
+                          ? `Rename "${tpl.name}" to "${editName.trim()}" and save its description?`
+                          : `Save your changes to "${tpl.name}"?`,
+                        confirmLabel: t('action.saveChanges'),
+                      }, () => renameTemplate(tpl.id, editName, editDesc), () => setEditingId(null))}>
+                      {t('action.save')}
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>Cancel</Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditingId(null)}>{t('action.cancel')}</Button>
                   </div>
                 </div>
               ) : (
                 <div className={cn(
                   'flex items-center gap-2 rounded-lg px-3 py-2 text-sm',
-                  t.id === selectedTemplateId
+                  tpl.id === selectedTemplateId
                     ? 'bg-brand-primary text-brand-on-primary'
                     : 'bg-brand-soft text-brand-on-soft hover:opacity-90',
                 )}>
-                  <button type="button" onClick={() => onSelect(t.id)} className="min-w-0 flex-1 text-left">
+                  <button type="button" onClick={() => onSelect(tpl.id)} className="min-w-0 flex-1 text-left">
                     <span className="flex items-center gap-1.5 font-medium">
-                      {t.isSystem && <ShieldCheck className="h-3.5 w-3.5 shrink-0 opacity-70" />}
-                      <span className="truncate">{t.name}</span>
+                      {tpl.isSystem && <ShieldCheck className="h-3.5 w-3.5 shrink-0 opacity-70" />}
+                      <span className="truncate">{tpl.name}</span>
                     </span>
-                    <span className={cn('text-xs', t.id === selectedTemplateId ? 'opacity-70' : 'text-muted-foreground')}>
-                      {t.memberCount} member{t.memberCount === 1 ? '' : 's'}
+                    <span className={cn('text-xs', tpl.id === selectedTemplateId ? 'opacity-70' : 'text-muted-foreground')}>
+                      {tpl.memberCount} member{tpl.memberCount === 1 ? '' : 's'}
                     </span>
                   </button>
                   {rights.edit && (
                     <span className="flex shrink-0 items-center gap-0.5">
-                      <button type="button" aria-label={`Rename ${t.name}`} className="rounded p-1 hover:bg-foreground/10"
-                        onClick={() => { setEditingId(t.id); setEditName(t.name); setEditDesc(t.description ?? '') }}>
+                      <button type="button" aria-label={`Rename ${tpl.name}`} className="rounded p-1 hover:bg-foreground/10"
+                        onClick={() => { setEditingId(tpl.id); setEditName(tpl.name); setEditDesc(tpl.description ?? '') }}>
                         <Pencil className="h-3.5 w-3.5" />
                       </button>
-                      {!t.isSystem && rights.remove && (
-                        <button type="button" aria-label={`Delete ${t.name}`} disabled={isPending}
+                      {!tpl.isSystem && rights.remove && (
+                        <button type="button" aria-label={`Delete ${tpl.name}`} disabled={isPending}
                           className="rounded p-1 hover:bg-foreground/10" onClick={() => run({
-                            title: 'Delete template',
-                            description: t.memberCount > 0
-                              ? `"${t.name}" still has ${t.memberCount} member${t.memberCount === 1 ? '' : 's'}. Move them to another template first.`
-                              : `Delete "${t.name}"? This cannot be undone.`,
-                            confirmLabel: 'Delete template',
+                            title: t('access.deleteTemplate'),
+                            description: tpl.memberCount > 0
+                              ? `"${tpl.name}" still has ${tpl.memberCount} member${tpl.memberCount === 1 ? '' : 's'}. Move them to another template first.`
+                              : `Delete "${tpl.name}"? This cannot be undone.`,
+                            confirmLabel: t('access.deleteTemplate'),
                             destructive: true,
-                          }, () => deleteTemplate(t.id))}>
+                          }, () => deleteTemplate(tpl.id))}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
@@ -1406,7 +1417,7 @@ function TemplatesTab({
                 {selected.name}
               </CardTitle>
               <CardDescription>
-                {selected.description || 'What members on this template may do.'}
+                {selected.description || t('access.whatMayDo')}
                 {' '}Changes apply immediately to all {selected.memberCount} member
                 {selected.memberCount === 1 ? '' : 's'} on it. Only features that have shipped
                 are listed; each row says what it grants today, and opening one shows the
@@ -1426,7 +1437,7 @@ function TemplatesTab({
                       allCollapsed ? new Set(sections.map(s => s.category)) : new Set())}
                     className="rounded-lg px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
                   >
-                    {allCollapsed ? 'Expand all' : 'Collapse all'}
+                    {allCollapsed ? t('access.expandAll') : t('access.collapseAll')}
                   </button>
                 </CardAction>
               )}
@@ -1495,7 +1506,7 @@ function TemplatesTab({
                   // level down. So the header carries how many features the area holds and how
                   // many of them this template grants anything on.
                   const grantedCount = rows.filter(({ resource }) =>
-                    grantSummary(resource, policy) !== 'Nothing').length
+                    grantSummary(resource, policy, t) !== t('access.nothing')).length
 
                   return (
                     <Card key={category} size="sm" className="ring-0 border">
@@ -1580,7 +1591,7 @@ function TemplatesTab({
                                     words a sighted reader sees, so nothing is announced that
                                     is not there and nothing on screen is unannounced. */}
                                 <span className="shrink-0 text-xs text-muted-foreground">
-                                  {grantSummary(r, policy)}
+                                  {grantSummary(r, policy, t)}
                                 </span>
                               </button>
 
@@ -1630,13 +1641,13 @@ function TemplatesTab({
                                             aria-pressed={current === scope}
                                             disabled={!rights.edit || isPending}
                                             onClick={() => run({
-                                              title: 'Change what this template grants',
+                                              title: t('access.changeGrants'),
                                               description:
                                                 `Set "${selected.name}" to ${action} ${SCOPE_LABEL[scope]}` +
                                                 `${scope === 'none' ? ' (not allowed)' : ''} on ${r.label}? ` +
                                                 `This applies to all ${selected.memberCount} member` +
                                                 `${selected.memberCount === 1 ? '' : 's'} on the template.`,
-                                              confirmLabel: 'Change',
+                                              confirmLabel: t('action.change'),
                                               destructive: scope === 'none',
                                             }, () => setTemplatePermission(selected.id, r.key, action, scope))}
                                             title={`${r.label} · ${action} · ${SCOPE_LABEL[scope]}`}
@@ -1664,14 +1675,14 @@ function TemplatesTab({
                 })}
               </div>
               <p className="mt-4 text-xs text-muted-foreground">
-                <span className="font-medium">All</span> = every record in the family ·
-                {' '}<span className="font-medium">Own</span> = only records this member created or belongs to ·
+                <span className="font-medium">{t('access.all')}</span> = every record in the family ·
+                {' '}<span className="font-medium">{t('access.own')}</span> = only records this member created or belongs to ·
                 {' '}<span className="font-medium">—</span> = not allowed
               </p>
             </CardContent>
           </Card>
         ) : (
-          <p className="text-sm text-muted-foreground">Select a template to edit what it grants.</p>
+          <p className="text-sm text-muted-foreground">{t('access.selectTemplate')}</p>
         )}
       </div>
     </div>

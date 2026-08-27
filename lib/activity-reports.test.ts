@@ -4,6 +4,14 @@ import {
   buildBoardReport, buildElectionsReport, buildGatheringsReport, buildMeetingsReport,
   isOverdue, turnout,
 } from './activity-reports'
+import { tFor } from '@/lib/i18n/catalogues'
+
+// AN ENGLISH `t` FOR THE FIXTURE. These modules build captions now, so their tests need
+// one — and English is the right choice: what is asserted below is the SHAPE of the
+// report, not a translation. `lib/i18n/t.test.ts` is where the words themselves are
+// pinned, and pinning them twice would make this file fail on a wording change it has
+// no opinion about.
+const t = tFor('en')
 
 /**
  * Per AGENTS.md §7b. A GREEN RUN IS NOT EVIDENCE UNTIL YOU HAVE SEEN IT FAIL, and each of the
@@ -302,7 +310,7 @@ const position = (over: Partial<Parameters<typeof buildBoardReport>[0]['position
 
 describe('buildBoardReport', () => {
   it('lists a vacant position as a row, which is the whole point of the report', () => {
-    const report = buildBoardReport({
+    const report = buildBoardReport({ t,
       positions: [position({ id: 'o1' }), position({ id: 'o2', name: 'Treasurer', sort_order: 2 })],
       assignments: [{ positionId: 'o1', personId: 'p1', personName: 'Ada', areaName: null }],
     })
@@ -313,7 +321,7 @@ describe('buildBoardReport', () => {
   })
 
   it('keeps the family\'s own sort order rather than putting vacancies first', () => {
-    const report = buildBoardReport({
+    const report = buildBoardReport({ t,
       positions: [
         position({ id: 'o1', name: 'President', sort_order: 1 }),
         position({ id: 'o2', name: 'Treasurer', sort_order: 2 }),
@@ -324,7 +332,7 @@ describe('buildBoardReport', () => {
   })
 
   it('lists every holder of one office, with the area each holds it for', () => {
-    const report = buildBoardReport({
+    const report = buildBoardReport({ t,
       positions: [position({ scope: 'chapter' })],
       assignments: [
         { positionId: 'o1', personId: 'p2', personName: 'Ben', areaName: 'Houston' },
@@ -339,7 +347,7 @@ describe('buildBoardReport', () => {
   })
 
   it('names somebody holding two offices and nobody holding one', () => {
-    const report = buildBoardReport({
+    const report = buildBoardReport({ t,
       positions: [position({ id: 'o1' }), position({ id: 'o2', name: 'Treasurer', sort_order: 2 })],
       assignments: [
         { positionId: 'o1', personId: 'p1', personName: 'Ada', areaName: null },
@@ -356,7 +364,7 @@ describe('buildBoardReport', () => {
   it('ignores an assignment naming a position this family does not have', () => {
     // Every read behind this is family-scoped, so such a row is one 20260819000004 should have
     // repointed. Counting it would inflate `assignments` past what the rows add up to.
-    const report = buildBoardReport({
+    const report = buildBoardReport({ t,
       positions: [position()],
       assignments: [
         { positionId: 'o1', personId: 'p1', personName: 'Ada', areaName: null },
@@ -368,7 +376,7 @@ describe('buildBoardReport', () => {
   })
 
   it('reports an empty board honestly rather than as no positions', () => {
-    const report = buildBoardReport({ positions: [position()], assignments: [] })
+    const report = buildBoardReport({ t, positions: [position()], assignments: [] })
     expect(report.totals).toMatchObject({
       positions: 1, filled: 0, vacant: 1, officers: 0, assignments: 0,
     })

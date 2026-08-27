@@ -17,7 +17,7 @@ import { AnswerText } from '@/components/gatherings/AnswerText'
 import { TaskStatusPill } from '@/components/gatherings/StatusPill'
 import { AnswerInput, answerFromDraft, draftFromAnswer } from '@/components/gatherings/AnswerInput'
 import { submitGatheringTask, type MyTaskRow } from '@/app/actions/gatherings'
-import { useT } from '@/components/layout/LocaleProvider'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * `/gatherings/my-tasks` — every gathering task assigned to the caller, with the form to
@@ -146,6 +146,7 @@ function TaskCard({ task, today, onSubmitted }: {
   today: string
   onSubmitted: (taskId: string, answer: unknown, note: string) => void
 }) {
+  const intl = useIntlTag()
   const t = useT()
   const uid = useId()
   // The stored answer, in the field. `useServerState` over a STRING adopts by value, so a
@@ -169,8 +170,8 @@ function TaskCard({ task, today, onSubmitted }: {
   const overdue = !!task.dueOn && task.dueOn < today && !approved
 
   const fieldId = `${uid}-answer`
-  const gatheringDate = formatDate(task.gatheringStartsOn)
-  const dueDate = formatDate(task.dueOn)
+  const gatheringDate = formatDate(task.gatheringStartsOn, intl)
+  const dueDate = formatDate(task.dueOn, intl)
 
   /**
    * WHETHER THERE IS A BUDGET LINE AT ALL — asked once, read three times below, so the guard
@@ -248,7 +249,7 @@ function TaskCard({ task, today, onSubmitted }: {
             </span>
           )}
           {dueDate && hasBudgetLine && <> · </>}
-          {hasBudgetLine && <>Budget {formatCurrency(task.budgetCents)}</>}
+          {hasBudgetLine && <>Budget {formatCurrency(task.budgetCents, intl)}</>}
         </p>
       )}
 
@@ -314,7 +315,7 @@ function TaskCard({ task, today, onSubmitted }: {
             <div className="rounded-lg border bg-muted/40 p-3 text-sm">
               <p className="text-xs font-medium text-muted-foreground">
                 {task.status === 'submitted' ? 'Sent for review' : 'What you sent'}
-                {formatDate(task.latest.createdAt) && ` · ${formatDate(task.latest.createdAt)}`}
+                {formatDate(task.latest.createdAt, intl) && ` · ${formatDate(task.latest.createdAt, intl)}`}
               </p>
               <div className="mt-1">
                 <AnswerText kind={kind} answer={task.answer} />

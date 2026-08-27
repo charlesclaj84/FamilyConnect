@@ -9,11 +9,12 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
-import { formatBoardTitle, POSITION_SCOPE_LABELS } from '@/lib/board-positions'
+import { formatBoardTitle, positionScopeLabel } from '@/lib/board-positions'
 import {
   assignBoardPosition, revokeBoardPosition,
   type BoardPosition, type BoardPositionHolder,
 } from '@/app/actions/admin/chapters'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * One member's board positions — give one, take one away.
@@ -77,6 +78,7 @@ export function MemberPositionDialog({
   mayAssign: boolean
   onClose: () => void
 }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [positionId, setPositionId] = useState('')
@@ -89,7 +91,7 @@ export function MemberPositionDialog({
   const placeOptions = chosen?.scope === 'chapter' ? chapters : regions
 
   async function handleAssign() {
-    if (!chosen) { setError('Choose a position'); return }
+    if (!chosen) { setError(t('pos.choose')); return }
     if (needsPlace && !placeId) {
       setError(`Choose which ${chosen.scope === 'chapter' ? 'chapter' : 'region'}`)
       return
@@ -103,7 +105,7 @@ export function MemberPositionDialog({
       regionId:  chosen.scope === 'regional' ? placeId || null : null,
     })
     setBusy(false)
-    if (!result.success) { setError(result.error ?? 'Could not give them that position'); return }
+    if (!result.success) { setError(result.error ?? t('pos.giveFailed')); return }
     setPositionId('')
     setPlaceId('')
     router.refresh()
@@ -113,17 +115,17 @@ export function MemberPositionDialog({
     if (busy) return
     setError('')
     const ok = await confirm({
-      title: 'Take away position',
+      title: t('pos.takeAway'),
       description: `Take "${holder.position_name}" away from ${personName}? `
-        + 'They stay a member of the family, and nothing else about them changes.',
-      confirmLabel: 'Take it away',
+        + t('pos.takeAwayBody'),
+      confirmLabel: t('pos.takeItAway'),
       destructive: true,
     })
     if (!ok) return
     setBusy(true)
     const result = await revokeBoardPosition(holder.assignment_id)
     setBusy(false)
-    if (!result.success) { setError(result.error ?? 'Could not take that position away'); return }
+    if (!result.success) { setError(result.error ?? t('pos.takeAwayFailed')); return }
     router.refresh()
   }
 
@@ -132,17 +134,17 @@ export function MemberPositionDialog({
       open
       onClose={onClose}
       title={`${personName}’s positions`}
-      description="An office is held nationally, or for one region, or for one chapter. Somebody can hold more than one."
+      description={t('pos.oneOrMore')}
       className="max-w-lg"
     >
       <div className="mt-2 space-y-5">
         {/* ── What they hold now ──────────────────────────────────────────────────── */}
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold">Holds now</h3>
+          <h3 className="text-sm font-semibold">{t('pos.holdsNow')}</h3>
           {holders.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               No position yet.{' '}
-              {mayAssign ? 'Give them one below.' : 'Somebody who can edit positions has to give them one.'}
+              {mayAssign ? t('pos.giveOneBelow') : t('pos.somebodyElse')}
             </p>
           ) : (
             <ul className="divide-y rounded-lg border">
@@ -182,7 +184,7 @@ export function MemberPositionDialog({
         {/* ── Give them one ───────────────────────────────────────────────────────── */}
         {mayAssign && (
           <div className="space-y-3 border-t pt-4">
-            <h3 className="text-sm font-semibold">Give a position</h3>
+            <h3 className="text-sm font-semibold">{t('pos.give')}</h3>
 
             {positions.length === 0 ? (
               // A DEAD END WITH A WAY OUT. The family has no offices, so there is nothing to
@@ -194,7 +196,7 @@ export function MemberPositionDialog({
             ) : (
               <>
                 <div className="space-y-1.5">
-                  <Label htmlFor="member-position">Position</Label>
+                  <Label htmlFor="member-position">{t('pos.position')}</Label>
                   <Select
                     id="member-position"
                     value={positionId}
@@ -208,10 +210,10 @@ export function MemberPositionDialog({
                       setError('')
                     }}
                   >
-                    <option value="">Choose one…</option>
+                    <option value="">{t('pos.chooseOne')}</option>
                     {positions.map(p => (
                       <option key={p.id} value={p.id}>
-                        {p.name} · {POSITION_SCOPE_LABELS[p.scope]}
+                        {p.name} · {positionScopeLabel(t, p.scope)}
                       </option>
                     ))}
                   </Select>
@@ -224,7 +226,7 @@ export function MemberPositionDialog({
                         for a `<Select>` that is not in the document. */}
                     {placeOptions.length > 0 && (
                       <Label required htmlFor="member-position-place">
-                        {chosen?.scope === 'chapter' ? 'Chapter' : 'Region'}
+                        {chosen?.scope === 'chapter' ? t('field.chapter') : t('dir.region')}
                       </Label>
                     )}
                     {placeOptions.length === 0 ? (
@@ -240,7 +242,7 @@ export function MemberPositionDialog({
                         disabled={busy}
                         onChange={e => { setPlaceId(e.target.value); setError('') }}
                       >
-                        <option value="">Choose one…</option>
+                        <option value="">{t('pos.chooseOne')}</option>
                         {placeOptions.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                       </Select>
                     )}
@@ -254,7 +256,7 @@ export function MemberPositionDialog({
         <FormError message={error} />
 
         <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
-          <Button variant="outline" disabled={busy} onClick={onClose}>Close</Button>
+          <Button variant="outline" disabled={busy} onClick={onClose}>{t('action.close')}</Button>
           {mayAssign && positions.length > 0 && (
             <Button
               variant="affirm"
@@ -264,7 +266,7 @@ export function MemberPositionDialog({
               disabled={busy || !positionId || (needsPlace && placeOptions.length === 0)}
               onClick={handleAssign}
             >
-              {busy ? 'Saving…' : 'Give position'}
+              {busy ? t('action.saving') : t('pos.givePosition')}
             </Button>
           )}
         </div>

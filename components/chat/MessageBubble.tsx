@@ -4,6 +4,11 @@ import { timeIn } from '@/lib/tz'
 import type { ChatMessage } from '@/app/actions/chat'
 
 interface Props {
+  /**
+   * The reader's `Intl` tag, for the dates and figures below. A PROP rather than
+   * `useIntlTag()`, because this is a Server Component. See lib/i18n/server.ts.
+   */
+  intl: string
   message: ChatMessage
   senderName: string
   isOwn: boolean
@@ -19,10 +24,10 @@ interface Props {
   zone: string
 }
 
-export function MessageBubble({ message, senderName, isOwn, zone }: Props) {
+export function MessageBubble({ message, senderName, isOwn, zone, intl }: Props) {
   // The app's one time voice (`formatTime`) over the instant resolved into the reader's
   // zone — so a message reads the same whoever renders it. See lib/tz.ts.
-  const time = formatTime(timeIn(message.created_at, zone)) ?? ''
+  const time = formatTime(timeIn(message.created_at, zone), intl) ?? ''
 
   return (
     <div className={cn('flex flex-col gap-0.5 max-w-[75%]', isOwn ? 'self-end items-end' : 'self-start items-start')}>

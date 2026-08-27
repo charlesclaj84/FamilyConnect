@@ -9,6 +9,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { FormError } from '@/components/ui/form-message'
 import { resendConfirmationEmail, appealMembershipDecision } from '@/app/actions/membership'
 import type { MembershipStatus } from '@/lib/auth/family'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * What a member sees while they are not a member.
@@ -44,14 +46,16 @@ interface PendingFamily {
   status: MembershipStatus
 }
 
-/** Heading, and the sentence that belongs under it, per status. */
-const COPY: Record<MembershipStatus, { heading: React.ReactNode; line: string }> = {
-  pending:  { heading: <><Clock className="h-4 w-4" /> Waiting for approval</>, line: 'With its administrators for review.' },
-  rejected: { heading: <><Ban className="h-4 w-4" /> Request declined</>,       line: 'An administrator declined your request to join.' },
-  disabled: { heading: <><Ban className="h-4 w-4" /> Access switched off</>,    line: 'An administrator has switched off your access.' },
-  // Unreachable — this screen renders only for a non-approved membership. Present so
-  // the lookup is total and a status can never resolve to `undefined.heading`.
-  approved: { heading: <><Clock className="h-4 w-4" /> Waiting for approval</>, line: 'With its administrators for review.' },
+/** Heading, and the sentence that belongs under it, per status. A function of `t`. */
+function copyFor(t: T): Record<MembershipStatus, { heading: React.ReactNode; line: string }> {
+  return {
+    pending:  { heading: <><Clock className="h-4 w-4" /> {t('pend.waiting')}</>, line: t('pend.withAdmins') },
+    rejected: { heading: <><Ban className="h-4 w-4" /> {t('pend.declined')}</>, line: t('pend.wasDeclined') },
+    disabled: { heading: <><Ban className="h-4 w-4" /> {t('pend.switchedOff')}</>, line: t('pend.wasSwitchedOff') },
+    // Unreachable — this screen renders only for a non-approved membership. Present so
+    // the lookup is total and a status can never resolve to `undefined.heading`.
+    approved: { heading: <><Clock className="h-4 w-4" /> {t('pend.waiting')}</>, line: t('pend.withAdmins') },
+  }
 }
 
 export function PendingApprovalScreen({
@@ -66,6 +70,7 @@ export function PendingApprovalScreen({
   /** Approved memberships elsewhere, so a multi-family account is not stranded. */
   otherFamilies: { familyCode: string; familyName: string }[]
 }) {
+  const t = useT()
   const router = useRouter()
   const [message, setMessage] = useState('')
   const [isPending, startTransition] = useTransition()
@@ -83,7 +88,7 @@ export function PendingApprovalScreen({
     startTransition(async () => {
       const result = await resendConfirmationEmail()
       setMessage(result.success
-        ? 'Sent. Check your inbox.'
+        ? t('pend.sentCheckInbox')
         : result.message)
     })
   }
@@ -123,21 +128,21 @@ export function PendingApprovalScreen({
   const single = pending.length === 1 ? pending[0] : null
 
   const heading = single
-    ? COPY[single.status].heading
+    ? copyFor(t)[single.status].heading
     : waiting
-      ? <><Clock className="h-4 w-4" /> Waiting for approval</>
-      : <><Ban className="h-4 w-4" /> Your family requests</>
+      ? <><Clock className="h-4 w-4" /> {t('pend.waiting')}</>
+      : <><Ban className="h-4 w-4" /> {t('pend.yourRequests')}</>
 
   const body = single
     ? {
-        pending: <>Your request to join <span className="font-medium">{single.familyName}</span> is with
+        pending: <>{t('fam.yourRequestTo')} <span className="font-medium">{single.familyName}</span> is with
           its administrators. You will be able to see the family once one of them approves you.</>,
-        rejected: <>An administrator of <span className="font-medium">{single.familyName}</span> declined
+        rejected: <>{t('pend.adminOf')} <span className="font-medium">{single.familyName}</span> declined
           your request to join. Get in touch with them if you think that was a mistake.</>,
-        disabled: <>An administrator of <span className="font-medium">{single.familyName}</span> has
+        disabled: <>{t('pend.adminOf')} <span className="font-medium">{single.familyName}</span> has
           switched off your access. Your account and your profile are untouched — get in touch
           with them if you think that was a mistake.</>,
-        approved: <>Your request to join <span className="font-medium">{single.familyName}</span> is with
+        approved: <>{t('fam.yourRequestTo')} <span className="font-medium">{single.familyName}</span> is with
           its administrators.</>,
       }[single.status]
     : <>You are waiting on {pending.length} families. Each one is reviewed by its own
@@ -162,15 +167,15 @@ export function PendingApprovalScreen({
                 <span className="text-sm font-medium">{family.familyName}</span>
                 {family.status === 'pending' ? (
                   <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-legacy px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-on-legacy">
-                    <Clock className="h-3 w-3" /> Pending
+                    <Clock className="h-3 w-3" /> {t('pend.pending')}
                   </span>
                 ) : (
                   <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    <Ban className="h-3 w-3" /> {family.status === 'rejected' ? 'Declined' : 'Switched off'}
+                    <Ban className="h-3 w-3" /> {family.status === 'rejected' ? t('pend.declinedShort') : t('pend.switchedOffShort')}
                   </span>
                 )}
                 <span className="w-full text-xs text-muted-foreground sm:w-auto sm:flex-1">
-                  {COPY[family.status].line}
+                  {copyFor(t)[family.status].line}
                 </span>
               </li>
             ))}
@@ -218,7 +223,7 @@ export function PendingApprovalScreen({
                   rows={4}
                   maxLength={2000}
                   className="mt-3"
-                  placeholder="I'm Martha's youngest — my mother was born in Bastrop and my cousin Ada is already a member."
+                  placeholder={t('pend.appealPh')}
                 />
                 <FormError message={appealError} className="mt-2" />
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -228,20 +233,20 @@ export function PendingApprovalScreen({
                     disabled={isPending || !appealNote.trim()}
                     className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
                   >
-                    {isPending ? 'Sending…' : 'Send to the administrators'}
+                    {isPending ? t('security.sending') : t('pend.sendToAdmins')}
                   </button>
                   <button
                     type="button"
                     onClick={() => { setAppealing(''); setAppealError('') }}
                     className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
                   >
-                    Cancel
+                    {t('action.cancel')}
                   </button>
                 </div>
               </>
             ) : (
               <>
-                <p className="text-sm font-medium">Think that was a mistake?</p>
+                <p className="text-sm font-medium">{t('pend.mistake')}</p>
                 <p className="mt-1 text-sm text-muted-foreground">
                   You can send {family.familyName}&apos;s administrators a note and ask them
                   to look at your request again. You get one reply per decision, so it is
@@ -252,7 +257,7 @@ export function PendingApprovalScreen({
                   onClick={() => { setAppealing(family.familyCode); setAppealNote(''); setAppealError('') }}
                   className="mt-3 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
                 >
-                  Ask them to look again
+                  {t('pend.lookAgain')}
                 </button>
               </>
             )}
@@ -272,7 +277,7 @@ export function PendingApprovalScreen({
         {waiting && !emailConfirmed && (
           <div className="rounded-xl border bg-muted/40 px-4 py-3">
             <p className="flex items-center gap-2 text-sm font-medium">
-              <Mail className="h-4 w-4" /> Confirm your email address
+              <Mail className="h-4 w-4" /> {t('pend.confirmEmail')}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               We sent a confirmation link when you signed up. Your request cannot be
@@ -284,7 +289,7 @@ export function PendingApprovalScreen({
               disabled={isPending}
               className="mt-3 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-60"
             >
-              {isPending ? 'Sending…' : 'Send it again'}
+              {isPending ? t('security.sending') : t('pend.sendAgain')}
             </button>
             {message && <p className="mt-2 text-sm text-muted-foreground">{message}</p>}
           </div>
@@ -293,13 +298,13 @@ export function PendingApprovalScreen({
         {otherFamilies.length > 0 && (
           <div className="rounded-xl border px-4 py-3">
             <p className="flex items-center gap-2 text-sm font-medium">
-              <Home className="h-4 w-4" /> Your other families
+              <Home className="h-4 w-4" /> {t('rem.otherFamilies')}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               You are already a member of{' '}
               {otherFamilies.map(f => f.familyName).join(', ')}. Switch to one from{' '}
               <Link href="/my-families" className="text-primary hover:underline">
-                My Families
+                {t('fam.heading')}
               </Link>
               .
             </p>

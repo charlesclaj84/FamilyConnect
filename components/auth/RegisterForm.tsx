@@ -19,6 +19,8 @@ import { APP_NAME } from '@/lib/brand'
 import { TIER_IS_SOLD, TIER_PRICE, formatPlanPrice } from '@/lib/plans'
 import { TIERS, TIER_LABEL, TIER_TAGLINE, type FamilyTier } from '@/lib/tiers'
 import { cn } from '@/lib/utils'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 type Mode = 'join' | 'create'
 
@@ -37,22 +39,24 @@ const PLAN_CHOICES: readonly FamilyTier[] = TIERS.filter(
   t => t === 'free' || (TIER_IS_SOLD[t] && TIER_PRICE[t] != null),
 )
 
-const schema = z
+// A FACTORY, not a constant: the messages are copy and a schema built at module load
+// cannot reach the reader's catalogue. `FormData` is inferred from the RETURN type.
+const schema = (t: T) => z
   .object({
-    firstName: z.string().min(1, 'First name is required'),
-    lastName: z.string().min(1, 'Last name is required'),
-    email: z.string().email('Enter a valid email address'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    firstName: z.string().min(1, t('reg.needFirstName')),
+    lastName: z.string().min(1, t('reg.needLastName')),
+    email: z.string().email(t('auth.badEmail')),
+    password: z.string().min(8, t('auth.tooShort')),
     confirmPassword: z.string(),
     familyCode: z.string().optional(),
     familyName: z.string().optional(),
   })
   .refine((d) => d.password === d.confirmPassword, {
-    message: 'Passwords do not match',
+    message: t('auth.noMatch'),
     path: ['confirmPassword'],
   })
 
-type FormData = z.infer<typeof schema>
+type FormData = z.infer<ReturnType<typeof schema>>
 
 /**
  * `invite` turns this into a third mode that is not on the toggle.
@@ -98,6 +102,7 @@ export function RegisterForm({
   invitedFirstName?: string
   invitedLastName?: string
 } = {}) {
+  const t = useT()
   const router = useRouter()
   // A plan can only be bought by the family that is being created, so arriving with one
   // opens on Create. Without this the pricing page's button lands on a family-code field,
@@ -125,7 +130,7 @@ export function RegisterForm({
     setError,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema(t)),
     defaultValues: {
       ...(invitedEmail ? { email: invitedEmail } : {}),
       ...(invitedFirstName ? { firstName: invitedFirstName } : {}),
@@ -144,11 +149,11 @@ export function RegisterForm({
 
     // Neither family question applies to an invitation — the token answers both.
     if (!inviteToken && mode === 'join' && !data.familyCode?.trim()) {
-      setError('familyCode', { message: 'Family code is required' })
+      setError('familyCode', { message: t('reg.needCode') })
       return
     }
     if (!inviteToken && mode === 'create' && !data.familyName?.trim()) {
-      setError('familyName', { message: 'Family name is required' })
+      setError('familyName', { message: t('reg.needFamilyName') })
       return
     }
 
@@ -235,22 +240,22 @@ export function RegisterForm({
     return (
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle as="h1" className="text-2xl text-primary">Family created!</CardTitle>
+          <CardTitle as="h1" className="text-2xl text-primary">{t('reg.familyCreated')}</CardTitle>
           <CardDescription>
-            Share this code with family members so they can join.
+            {t('reg.shareCode')}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-3">
           <div className="w-full rounded-lg border-2 border-primary/30 bg-primary/5 px-8 py-5 text-center">
-            <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">Your Family Code</p>
+            <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">{t('reg.yourCode')}</p>
             <p className="text-4xl font-bold tracking-widest text-primary">{newFamilyCode}</p>
           </div>
           <p className="text-center text-sm text-muted-foreground">
-            Write this down — you&apos;ll need it to invite family members.
+            {t('reg.writeDown')}
           </p>
           {!autoSignedIn && (
             <p className="text-center text-sm text-muted-foreground">
-              We also sent a confirmation link to your inbox. Click it to activate your account.
+              {t('reg.alsoSent')}
             </p>
           )}
           {/* ── THE PLAN IS WAITING, AND THIS SAYS SO IN THOSE WORDS ──────────────
@@ -265,7 +270,7 @@ export function RegisterForm({
               family is on Free until Stripe says otherwise. */}
           {recordedPlan && (
             <p className="text-center text-sm text-brand-on-soft">
-              Your family starts on <span className="font-medium">Free</span>. Nothing has
+              {t('reg.startsOn')} <span className="font-medium">Free</span>. Nothing has
               been charged — sign in and {APP_NAME} will ask you to set up{' '}
               <span className="font-medium">{TIER_LABEL[recordedPlan]}</span>.
             </p>
@@ -277,11 +282,11 @@ export function RegisterForm({
               href="/dashboard"
               className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80 transition-colors"
             >
-              Go to Dashboard →
+              {t('reg.goToDashboard')}
             </Link>
           ) : (
             <Link href="/login" className="text-sm font-medium text-primary hover:underline">
-              Back to sign in
+              {t('auth.backToSignIn')}
             </Link>
           )}
         </CardFooter>
@@ -293,14 +298,14 @@ export function RegisterForm({
     return (
       <Card className="w-full max-w-md text-center">
         <CardHeader>
-          <CardTitle as="h1" className="text-2xl text-primary">Check your email</CardTitle>
+          <CardTitle as="h1" className="text-2xl text-primary">{t('reg.checkEmail')}</CardTitle>
           <CardDescription>
-            We sent a confirmation link to your inbox. Click it to activate your account, then sign in.
+            {t('reg.confirmSent')}
           </CardDescription>
         </CardHeader>
         <CardFooter className="justify-center">
           <Link href="/login" className="text-sm font-medium text-primary hover:underline">
-            Back to sign in
+            {t('auth.backToSignIn')}
           </Link>
         </CardFooter>
       </Card>
@@ -310,7 +315,7 @@ export function RegisterForm({
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle as="h1" className="text-2xl">Create your account</CardTitle>
+        <CardTitle as="h1" className="text-2xl">{t('reg.createYours')}</CardTitle>
         <CardDescription>
           {inviteToken
             ? <>You have been invited to join{' '}
@@ -333,7 +338,7 @@ export function RegisterForm({
                 : 'text-brand-ink hover:bg-brand-primary/10'
             }`}
           >
-            Join a Family
+            {t('reg.joinFamily')}
           </button>
           <button
             type="button"
@@ -344,26 +349,26 @@ export function RegisterForm({
                 : 'text-brand-ink hover:bg-brand-primary/10'
             }`}
           >
-            Start a New Family
+            {t('reg.startFamily')}
           </button>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="firstName">First name</Label>
-              <Input id="firstName" placeholder="Jane" autoComplete="given-name" {...register('firstName')} />
+              <Label htmlFor="firstName">{t('field.firstNameLower')}</Label>
+              <Input id="firstName" placeholder={t('reg.firstNamePh')} autoComplete="given-name" {...register('firstName')} />
               <FieldError message={errors.firstName?.message} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="lastName">Last name</Label>
-              <Input id="lastName" placeholder="Doe" autoComplete="family-name" {...register('lastName')} />
+              <Label htmlFor="lastName">{t('field.lastNameLower')}</Label>
+              <Input id="lastName" placeholder={t('reg.lastNamePh')} autoComplete="family-name" {...register('lastName')} />
               <FieldError message={errors.lastName?.message} />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('field.email')}</Label>
             {/* readOnly for an invitation, because only this address can redeem it —
                 registering under another one would create an account the redemption
                 then refuses. A courtesy for the browser only: registerUser compares the
@@ -371,7 +376,7 @@ export function RegisterForm({
             <Input
               id="email"
               type="email"
-              placeholder="you@example.com"
+              placeholder={t('field.ph.email')}
               autoComplete="email"
               readOnly={Boolean(inviteToken)}
               className={inviteToken ? 'bg-muted' : undefined}
@@ -379,49 +384,49 @@ export function RegisterForm({
             />
             {inviteToken && (
               <p className="text-xs text-muted-foreground">
-                The address your invitation was sent to.
+                {t('reg.invitedAddress')}
               </p>
             )}
             <FieldError message={errors.email?.message} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" placeholder="Min. 8 characters" autoComplete="new-password" {...register('password')} />
+            <Label htmlFor="password">{t('auth.password')}</Label>
+            <Input id="password" type="password" placeholder={t('security.ph.minChars')} autoComplete="new-password" {...register('password')} />
             <FieldError message={errors.password?.message} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="confirmPassword">Confirm password</Label>
+            <Label htmlFor="confirmPassword">{t('reg.confirmPassword')}</Label>
             <Input id="confirmPassword" type="password" placeholder="••••••••" autoComplete="new-password" {...register('confirmPassword')} />
             <FieldError message={errors.confirmPassword?.message} />
           </div>
 
           {!inviteToken && mode === 'join' && (
             <div className="space-y-1.5">
-              <Label htmlFor="familyCode">Family Code</Label>
+              <Label htmlFor="familyCode">{t('fam.codeHeading')}</Label>
               <Input
                 id="familyCode"
-                placeholder="e.g. ABC123"
+                placeholder={t('reg.codePh')}
                 autoComplete="off"
                 className="uppercase"
                 {...register('familyCode')}
               />
-              <p className="text-xs text-muted-foreground">Enter the code shared with you by your family.</p>
+              <p className="text-xs text-muted-foreground">{t('reg.codeShared')}</p>
               <FieldError message={errors.familyCode?.message} />
             </div>
           )}
 
           {!inviteToken && mode === 'create' && (
             <div className="space-y-1.5">
-              <Label htmlFor="familyName">Family name</Label>
+              <Label htmlFor="familyName">{t('set.familyName')}</Label>
               <Input
                 id="familyName"
-                placeholder="e.g. The Smiths"
+                placeholder={t('reg.familyNamePh')}
                 autoComplete="off"
                 {...register('familyName')}
               />
-              <p className="text-xs text-muted-foreground">A unique family code will be generated for you to share.</p>
+              <p className="text-xs text-muted-foreground">{t('reg.codeGenerated')}</p>
               <FieldError message={errors.familyName?.message} />
             </div>
           )}
@@ -444,7 +449,7 @@ export function RegisterForm({
               Same argument MainRail makes for refusing `role="tablist"`. */}
           {!inviteToken && mode === 'create' && (
             <fieldset className="space-y-1.5">
-              <legend className="text-sm font-medium">Plan</legend>
+              <legend className="text-sm font-medium">{t('set.pane.plan')}</legend>
               <div className="space-y-2">
                 {PLAN_CHOICES.map(tier => {
                   const price = TIER_PRICE[tier]
@@ -473,7 +478,7 @@ export function RegisterForm({
                             {TIER_LABEL[tier]}
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            {price ? `${formatPlanPrice(price.monthlyCents)}/month` : 'Free forever'}
+                            {price ? `${formatPlanPrice(price.monthlyCents)}/month` : t('reg.freeForever')}
                           </span>
                         </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
@@ -487,7 +492,7 @@ export function RegisterForm({
               <p className="text-xs text-muted-foreground">
                 {chosenPlan
                   ? `Nothing is charged now. Once your family exists you will be asked to set up payment for ${TIER_LABEL[chosenPlan]}, and you can stay on Free instead.`
-                  : 'You can move to a paid plan at any time from Family Settings.'}
+                  : t('reg.canMove')}
               </p>
             </fieldset>
           )}
@@ -496,8 +501,8 @@ export function RegisterForm({
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting
-              ? mode === 'join' ? 'Joining…' : 'Creating family…'
-              : mode === 'join' ? 'Join Family' : 'Create Family'}
+              ? mode === 'join' ? t('reg.joining') : t('reg.creatingFamily')
+              : mode === 'join' ? t('reg.joinAction') : t('reg.createAction')}
           </Button>
         </form>
       </CardContent>
@@ -516,7 +521,7 @@ export function RegisterForm({
           invitation instead of being stranded on the dashboard. */}
       <CardFooter className="text-sm">
         <p>
-          <span className="text-muted-foreground">Already have an account?&nbsp;</span>
+          <span className="text-muted-foreground">{t('reg.haveAccount')}</span>
           {/* An invited visitor who turns out to have an account already must come back to
               the invitation after signing in, or the token is simply lost and they are in
               no family. Plain /login would strand them on the dashboard. */}
@@ -528,7 +533,7 @@ export function RegisterForm({
             }
             className="font-medium text-primary hover:underline"
           >
-            Sign in
+            {t('auth.signIn')}
           </Link>
         </p>
       </CardFooter>

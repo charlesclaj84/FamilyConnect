@@ -33,7 +33,7 @@ export default async function MeetingsReportPage() {
 
   await requireView(user.id, 'reporting/meetings')
 
-  const { t } = await callerI18n(user.id)
+  const { t, intl } = await callerI18n(user.id)
   if (!(await canAny(user.id, 'reporting/meetings', 'view'))) notFound()
 
   const report = await getMeetingsReport()
@@ -108,7 +108,7 @@ export default async function MeetingsReportPage() {
                           </span>
                         )}
                         <RowMeta>
-                          <span>{formatDate(row.meetsOn)}</span>
+                          <span>{formatDate(row.meetsOn, intl)}</span>
                           {row.secretaryName && (
                             <>
                               <MetaDot />
@@ -122,7 +122,7 @@ export default async function MeetingsReportPage() {
                         </RowMeta>
                       </td>
                       <td className={cn('px-3 py-2 tabular-nums', COLLAPSING_CELL)}>
-                        {formatDate(row.meetsOn)}
+                        {formatDate(row.meetsOn, intl)}
                       </td>
                       <td className={cn('px-3 py-2', COLLAPSING_CELL)}>
                         {row.secretaryName ?? <span className="text-muted-foreground">—</span>}

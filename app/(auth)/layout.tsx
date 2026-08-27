@@ -6,9 +6,21 @@ import {
   APP_NAME, APP_LOGO_ALT, APP_BANNER_ALT,
   BRAND_MARK_SRC, BRAND_LOCKUP_DARK_SRC, BRAND_LOCKUP_STACKED_DARK_SRC,
 } from '@/lib/brand'
+import { callerI18n } from '@/lib/i18n/server'
+import { LocaleProvider } from '@/components/layout/LocaleProvider'
 
-export default function AuthLayout({ children }: { children: React.ReactNode }) {
+export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+  const { locale } = await callerI18n(null)
+  // THE LANGUAGE, FOR SCREENS WITH NO STORED CHOICE.
+  //
+  // `callerI18n(null)` falls through to `Accept-Language`, which is the one place that
+  // header is the right source: the request is the reader's own browser and there is no
+  // preference to prefer over it. See lib/auth/locale.ts.
+  //
+  // A JSX COMMENT CANNOT LEAD A `return (` — it is not an element, and the parser says so
+  // three lines later with an unhelpful message. This is why the note is out here.
   return (
+    <LocaleProvider locale={locale}>
     <div className="min-h-screen flex flex-col bg-background">
       {/* z-30 is the app-wide header level — see the stacking note in
           components/layout/TopBar.tsx. */}
@@ -72,5 +84,6 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {children}
       </main>
     </div>
+    </LocaleProvider>
   )
 }

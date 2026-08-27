@@ -12,6 +12,7 @@ import { TIER_LABEL } from '@/lib/tiers'
 import { openBillingPortal, type PlatformBilling } from '@/app/actions/billing'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
 import { cn } from '@/lib/utils'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Settings → **Billing**: what this family has paid GENORRA, until when, and every receipt.
@@ -49,6 +50,8 @@ import { cn } from '@/lib/utils'
  * person about to assume otherwise.
  */
 export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
+  const intl = useIntlTag()
+  const t = useT()
   // NO `useRouter` HERE ANY MORE, which is the tell that this pane changed nothing. It held
   // one so it could `router.refresh()` after a purchase; the only action left opens Stripe's
   // portal in the same tab, so there is no local state to re-read and nothing to revalidate.
@@ -70,18 +73,18 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
     setError('')
     const result = await openBillingPortal()
     if (!result.success) {
-      setError(result.message ?? 'Something went wrong.')
+      setError(result.message ?? t('meet.wentWrong'))
       return
     }
     window.location.href = result.url
   })
 
   const term = billing.paidEntitlement
-  const paidThrough = formatDate(billing.paidThrough)
+  const paidThrough = formatDate(billing.paidThrough, intl)
   // INCLUSIVE, so the next payment is the day after — the same `+1` `scheduleDowngrade`
   // applies on the server. Only meaningful while a term is live; a lapsed one is already past.
   const nextDue = billing.paidThrough && !term.lapsed
-    ? formatDate(addDays(billing.paidThrough, 1))
+    ? formatDate(addDays(billing.paidThrough, 1), intl)
     : null
 
   // A PREPAID TERM RENEWS NOTHING, which makes "next payment" two different facts. On a
@@ -102,13 +105,13 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
           did; `formatDate` is what the rest of the app reads. */}
       <dl className="grid gap-4 rounded-lg border bg-muted/30 p-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Paid plan</dt>
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">{t('bill.paidPlan')}</dt>
           <dd className="font-medium">
-            {billing.paidTier ? TIER_LABEL[billing.paidTier] : 'None — on the free plan'}
+            {billing.paidTier ? TIER_LABEL[billing.paidTier] : t('bill.onFree')}
           </dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-muted-foreground">Paid through</dt>
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">{t('bill.paidThrough')}</dt>
           <dd className="font-medium">{paidThrough ?? '—'}</dd>
           {/* LAPSED IS ITS OWN SENTENCE, and `--brand-withheld` rather than `--destructive`:
               a term running out is not an error and nothing has been deleted. It is the same
@@ -122,16 +125,16 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
         </div>
         <div>
           <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-            {renews ? 'Next payment' : 'Next payment due'}
+            {renews ? t('bill.nextPayment') : t('bill.nextPaymentDue')}
           </dt>
           <dd className="font-medium">{nextDue ?? '—'}</dd>
         </div>
         <div>
-          <dt className="text-xs uppercase tracking-wide text-muted-foreground">How it renews</dt>
+          <dt className="text-xs uppercase tracking-wide text-muted-foreground">{t('bill.howRenews')}</dt>
           <dd className="font-medium">
             {billing.mode === 'recurring'
-              ? billing.cancelAtPeriodEnd ? 'Monthly — stopping at the end of this period' : 'Monthly, automatically'
-              : billing.mode === 'prepaid' ? 'Paid in advance — nothing renews it' : '—'}
+              ? billing.cancelAtPeriodEnd ? t('bill.stopping') : t('bill.monthlyAuto')
+              : billing.mode === 'prepaid' ? t('bill.inAdvance') : '—'}
           </dd>
         </div>
       </dl>
@@ -143,8 +146,8 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
         <div className="flex items-start gap-2 rounded-lg border border-brand-warm bg-brand-warm/10 p-3 text-sm text-brand-warm">
           <CalendarClock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <p>
-            Moving to <strong>{TIER_LABEL[billing.scheduledTier]}</strong> on{' '}
-            <strong>{formatDate(billing.scheduledTierOn) ?? billing.scheduledTierOn}</strong>.
+            {t('bill.movingTo')} <strong>{TIER_LABEL[billing.scheduledTier]}</strong> on{' '}
+            <strong>{formatDate(billing.scheduledTierOn, intl) ?? billing.scheduledTierOn}</strong>.
             Nothing changes before then, and there is no refund for the rest of this period —
             that is what keeps the pages open until it ends.
           </p>
@@ -165,9 +168,9 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
           <CreditCard className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <p>
             A card payment has been failing since{' '}
-            <strong>{formatDate(billing.delinquentSince) ?? billing.delinquentSince}</strong>.
+            <strong>{formatDate(billing.delinquentSince, intl) ?? billing.delinquentSince}</strong>.
             Nothing has changed about what this family can reach. Update the card under{' '}
-            <em>Cards and receipts</em> and Stripe will try again.
+            <em>{t('bill.cardsReceipts')}</em> and Stripe will try again.
           </p>
         </div>
       )}
@@ -177,7 +180,7 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
           <div className="flex flex-wrap items-center gap-3">
             <Button variant="outline" size="sm" disabled={pending} onClick={openPortal}>
               <ExternalLink className="h-4 w-4" />
-              Cards and receipts
+              {t('bill.cardsReceipts')}
             </Button>
             <p className="text-sm text-muted-foreground">
               Stripe&rsquo;s own portal, where the card on file is changed and every invoice can
@@ -204,35 +207,35 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
       <div className="space-y-2">
         <h2 className="text-lg font-semibold">
           <Receipt className="mr-2 inline h-4 w-4" aria-hidden="true" />
-          What GENORRA has charged
+          {t('bill.whatCharged')}
         </h2>
 
         {billing.payments.length === 0 ? (
           // AN EMPTY LEDGER IS A FACT, and a different one from a failed read at the top of
           // this file. It says which.
           <p className="text-sm text-muted-foreground">
-            Nothing yet — this family has never been charged.
+            {t('bill.neverCharged')}
           </p>
         ) : (
           <div className="overflow-hidden rounded-lg border">
             <table className="w-full text-left text-sm">
               <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
-                  <th scope="col" className="px-4 py-2">Plan</th>
+                  <th scope="col" className="px-4 py-2">{t('set.pane.plan')}</th>
                   {/* THE FOLDING COLUMNS. A phone keeps the plan and the amount — what was
                       bought and what it cost — and the two dates move into the `RowMeta`
                       under the plan name, which is the pattern AGENTS.md sets for every table
                       in the app. No `min-w-*` floor and no sideways scroll. */}
-                  <th scope="col" className={cn('px-4 py-2', COLLAPSING_CELL)}>Paid</th>
-                  <th scope="col" className={cn('px-4 py-2', COLLAPSING_CELL)}>Covers</th>
-                  <th scope="col" className="px-4 py-2 text-right">Amount</th>
+                  <th scope="col" className={cn('px-4 py-2', COLLAPSING_CELL)}>{t('money.paid')}</th>
+                  <th scope="col" className={cn('px-4 py-2', COLLAPSING_CELL)}>{t('bill.covers')}</th>
+                  <th scope="col" className="px-4 py-2 text-right">{t('common.amount')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {billing.payments.map(p => {
-                  const paid = formatDate(p.paidAt)
+                  const paid = formatDate(p.paidAt, intl)
                   const covers = p.coversThrough
-                    ? `${p.coversFrom ? `${formatDate(p.coversFrom)} – ` : 'through '}${formatDate(p.coversThrough)}`
+                    ? `${p.coversFrom ? `${formatDate(p.coversFrom, intl)} – ` : 'through '}${formatDate(p.coversThrough, intl)}`
                     : null
                   return (
                     <tr key={p.id} className="align-top sm:align-middle">
@@ -248,7 +251,7 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
                       <td className={cn('px-4 py-2', COLLAPSING_CELL)}>{paid ?? '—'}</td>
                       <td className={cn('px-4 py-2', COLLAPSING_CELL)}>{covers ?? '—'}</td>
                       <td className="px-4 py-2 text-right font-medium">
-                        {formatCurrency(p.amountCents)}
+                        {formatCurrency(p.amountCents, intl)}
                       </td>
                     </tr>
                   )

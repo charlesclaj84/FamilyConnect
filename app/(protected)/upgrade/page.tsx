@@ -6,6 +6,7 @@ import { getMyFamilyTier } from '@/lib/auth/tier'
 import { TIER_LABEL } from '@/lib/tiers'
 import { UpgradeScreen } from '@/components/features/UpgradeScreen'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Where `requireTier()` sends a member reaching for a page their family's plan does not
@@ -51,6 +52,8 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 
 export default async function UpgradePage({ searchParams }: Props) {
   const { user } = await currentUser()
+
+  const { t } = await callerI18n(user?.id)
   if (!user) redirect('/login')
 
   const { from } = await searchParams
@@ -77,6 +80,7 @@ export default async function UpgradePage({ searchParams }: Props) {
 
   return (
     <UpgradeScreen
+      t={t}
       label={label}
       blurb={blurb}
       currentTier={currentTier}

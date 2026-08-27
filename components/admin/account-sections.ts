@@ -1,3 +1,5 @@
+import type { T } from '@/lib/i18n/t'
+
 /**
  * Section registry for the Accounting admin page.
  *
@@ -69,14 +71,19 @@ export const DEFAULT_SECTION: AccountSection = 'dues'
  * The three under Transactions dropped their "History" suffix: the group says what
  * they are, and "Payment History" under "Transactions" said history twice.
  */
-export const SECTION_LABELS: Record<AccountSection, string> = {
-  dues: 'Dues',
-  donations: 'Donations',
-  funds: 'Funds',
-  routing: 'Routing',
-  milestones: 'Milestones',
-  processing: 'Processing',
-  bank: 'Bank Information',
+/**
+ * One section's caption, in the reader's language — `acct.section.<id>`.
+ *
+ * A FUNCTION TAKING `t` rather than a map, so this module stays pure: the `T` import is
+ * type-only and erased, and the page that resolves `?section=` still imports it without
+ * dragging a client boundary into its module graph. Same shape as `profileSectionLabel`.
+ *
+ * THE IDS ARE THE CONTRACT — they are `?section=`, they are what `SECTION_RESOURCE` keys
+ * the grants on, and the note above about one key per section is about them rather than
+ * about these words.
+ */
+export function sectionLabel(t: T, section: AccountSection): string {
+  return t(`acct.section.${section}`)
 }
 
 /**

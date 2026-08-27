@@ -10,7 +10,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { FieldError, FormError } from '@/components/ui/form-message'
 import { formatCurrency } from '@/lib/currency-utils'
 import { startDonationCheckout } from '@/app/actions/pay-dues'
-import { useT } from '@/components/layout/LocaleProvider'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Giving to one drive, by card.
@@ -38,6 +38,7 @@ export function GiveButton({ scheduleId, label, toGoalCents }: {
   /** What is left before the goal is met, or null when there is no goal or it is met. */
   toGoalCents: number | null
 }) {
+  const intl = useIntlTag()
   const t = useT()
   const [open, setOpen] = useState(false)
   const [amount, setAmount] = useState('')
@@ -96,7 +97,7 @@ export function GiveButton({ scheduleId, label, toGoalCents }: {
               />
               <p className="mt-1.5 text-xs text-muted-foreground">
                 {toGoalCents != null
-                  ? `${formatCurrency(toGoalCents)} would meet the goal — give what you like.`
+                  ? `${formatCurrency(toGoalCents, intl)} would meet the goal — give what you like.`
                   : t('drives.giveAnything')}
               </p>
             </div>

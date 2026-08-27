@@ -5,6 +5,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { FormError } from '@/components/ui/form-message'
 import { getOrCreateDmRoom, type RoomWithMeta } from '@/app/actions/chat'
+import { useT } from '@/components/layout/LocaleProvider'
 
 interface Props {
   open: boolean
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function NewDmDialog({ open, onClose, familyMembers, onRoomCreated }: Props) {
+  const t = useT()
   const [selectedId, setSelectedId] = useState('')
   const [loading, setLoading]       = useState(false)
   const [error, setError]           = useState('')
@@ -24,7 +26,7 @@ export function NewDmDialog({ open, onClose, familyMembers, onRoomCreated }: Pro
     setError('')
     const { room, error: err } = await getOrCreateDmRoom(selectedId)
     if (err || !room) {
-      setError(err ?? 'Something went wrong')
+      setError(err ?? t('action.wentWrong'))
       setLoading(false)
       return
     }
@@ -37,12 +39,12 @@ export function NewDmDialog({ open, onClose, familyMembers, onRoomCreated }: Pro
     <Dialog
       open={open}
       onClose={onClose}
-      title="New Direct Message"
-      description="Choose a family member to start a private conversation."
+      title={t('chat.newDmTitle')}
+      description={t('chat.newDmHint')}
     >
       <div className="space-y-4 mt-2">
         {familyMembers.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No other family members with accounts yet.</p>
+          <p className="text-sm text-muted-foreground">{t('chat.noOthers')}</p>
         ) : (
           <select
             className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
@@ -51,7 +53,7 @@ export function NewDmDialog({ open, onClose, familyMembers, onRoomCreated }: Pro
           >
             <option value="">— Select a family member —</option>
             {familyMembers.map(m => {
-              const name = [m.firstName, m.lastName].filter(Boolean).join(' ') || 'Family Member'
+              const name = [m.firstName, m.lastName].filter(Boolean).join(' ') || t('chat.familyMember')
               return <option key={m.userId} value={m.userId}>{name}</option>
             })}
           </select>
@@ -65,9 +67,9 @@ export function NewDmDialog({ open, onClose, familyMembers, onRoomCreated }: Pro
             disabled={!selectedId || loading}
             onClick={handleStart}
           >
-            {loading ? 'Starting…' : 'Start Conversation'}
+            {loading ? t('chat.starting') : t('chat.startConversation')}
           </Button>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="outline" onClick={onClose}>{t('action.cancel')}</Button>
         </div>
       </div>
     </Dialog>

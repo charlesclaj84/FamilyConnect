@@ -1,3 +1,5 @@
+import type { T } from '@/lib/i18n/t'
+
 /**
  * The vocabulary a board position is described in.
  *
@@ -39,15 +41,19 @@ export type PositionScope = (typeof POSITION_SCOPES)[number]
  */
 export const POSITION_NAME_MAX = 80
 
-export const POSITION_CATEGORY_LABELS: Record<PositionCategory, string> = {
-  executive_officer:  'Executive Officer',
-  appointed_position: 'Appointed Position',
+/**
+ * A position's category and scope, in the reader's language.
+ *
+ * FUNCTIONS TAKING `t` rather than maps, so this module stays pure — the `T` import is
+ * type-only and erased, and `npm test` still reaches the phrase-building below without
+ * React. The IDS are `family_roles.category` and `user_roles.scope`; only the words moved.
+ */
+export function positionCategoryLabel(t: T, category: PositionCategory): string {
+  return t(`pos.cat.${category}`)
 }
 
-export const POSITION_SCOPE_LABELS: Record<PositionScope, string> = {
-  national: 'National',
-  regional: 'Regional',
-  chapter:  'Chapter',
+export function positionScopeLabel(t: T, scope: PositionScope): string {
+  return t(`pos.scope.${scope}`)
 }
 
 /**

@@ -16,6 +16,8 @@ import {
   disconnectProcessor, refreshProcessorStatus, requestProcessorDisconnectCode,
   startProcessorOnboarding, type ProcessorStatus,
 } from '@/app/actions/admin/processing'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Accounting → Processing: the family's own Stripe account.
@@ -71,22 +73,21 @@ import {
  * "nobody" — and a family with no autopays should not be warned about an unwinding that will
  * not happen to them.
  */
-function disconnectConsequence(autopayCount: number): string {
-  const base = 'Members will no longer be able to pay online. Every payment already recorded '
-    + 'is kept, and the family’s own Stripe account is untouched.'
-  if (autopayCount === 0) {
-    return `${base} You can reconnect the same account at any time.`
-  }
-  const who = autopayCount === 1
-    ? '1 relative currently pays'
-    : `${autopayCount} relatives currently pay`
-  const them = autopayCount === 1 ? 'that relative' : 'each of them'
-  return `${base} ${who} their dues automatically, and those arrangements are cancelled at `
-    + `Stripe. Reconnecting brings the account back but NOT the payments — ${them} would `
-    + 'have to set theirs up again.'
+function disconnectConsequence(autopayCount: number, t: T): string {
+  // THREE WHOLE SENTENCES rather than a base plus two spliced fragments. The old form built
+  // "1 relative currently pays" / "4 relatives currently pay" and "that relative" / "each of
+  // them" separately and joined them — three English agreement rules in the source, none of
+  // which survives translation. Same split as `email.disconnect.autopay*`, which says the
+  // same thing to the same reader.
+  const base = t('proc.consequenceBase')
+  if (autopayCount === 0) return `${base} ${t('proc.consequenceNone')}`
+  return `${base} ${autopayCount === 1
+    ? t('proc.consequenceOne')
+    : t('proc.consequenceMany', { n: autopayCount })}`
 }
 
 export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [error, setError] = useState('')
@@ -159,11 +160,11 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
       // UI. The state is synced, the reason is stated, and the family presses the button —
       // one click to buy an escape hatch.
       setNotice(marker === 'refresh'
-        ? 'That Stripe link had expired before it was finished. Nothing was lost — press Continue in Stripe to pick up where the family left off.'
+        ? t('proc.linkExpired')
         : result.message)
       router.refresh()
     })
-  }, [canManage, router])
+  }, [canManage, router, t])
 
   // Null means the read was refused or failed — NOT "no processor" (§8). Saying so is the
   // point: the alternative invites a treasurer to connect a second account on top of a working
@@ -172,7 +173,7 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
   if (!status) {
     return (
       <Panel>
-        <p className="text-sm font-medium">Payment settings could not be loaded</p>
+        <p className="text-sm font-medium">{t('proc.loadFailed')}</p>
         <p className="text-sm text-muted-foreground max-w-md mx-auto">
           Refresh the page. If this keeps happening, do not try to connect an account — ask an
           administrator to check, because the family may already have one.
@@ -184,7 +185,7 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
   if (!status.available) {
     return (
       <Panel>
-        <p className="text-sm font-medium">Online payments are not switched on yet</p>
+        <p className="text-sm font-medium">{t('proc.notOn')}</p>
         <p className="text-sm text-muted-foreground max-w-md mx-auto">{status.unavailable}</p>
         <p className="text-xs text-muted-foreground">
           Dues are recorded by hand from the Transactions ledgers in the meantime, and every
@@ -201,7 +202,7 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
     setNotice('')
     const result = await run()
     if (!result.success) {
-      setError(result.message ?? 'Something went wrong.')
+      setError(result.message ?? t('meet.wentWrong'))
       return
     }
     // A URL means Stripe's own hosted page, and the browser goes there rather than opening a
@@ -239,16 +240,16 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
   async function beginDisconnect() {
     passwordRef.current = ''
     const okPassword = await confirm({
-      title: 'Disconnect Stripe?',
-      description: disconnectConsequence(status?.liveAutopayCount ?? 0),
+      title: t('proc.disconnectConfirm'),
+      description: disconnectConsequence(status?.liveAutopayCount ?? 0, t),
       body: (
         <PasswordReauthField
           valueRef={passwordRef}
           id="processor-disconnect-password"
-          hint="Your sign-in password. We will then email you a code to finish."
+          hint={t('proc.passwordHint')}
         />
       ),
-      confirmLabel: 'Continue',
+      confirmLabel: t('action.continue'),
       destructive: true,
       verify: async () => {
         const result = await verifyCurrentPassword(passwordRef.current)
@@ -272,14 +273,14 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
       // rewritten to avoid, so the note is surfaced rather than swallowed.
       if (!requested.emailed) {
         setError(requested.note
-          ?? 'We could not send the code. Nothing has changed — please try again.')
+          ?? t('proc.codeFailed'))
         return
       }
 
       codeRef.current = ''
       const okCode = await confirm({
-        title: 'Enter the code we emailed you',
-        description: disconnectConsequence(requested.autopayCount),
+        title: t('proc.enterCode'),
+        description: disconnectConsequence(requested.autopayCount, t),
         body: (
           <EmailedCodeField
             valueRef={codeRef}
@@ -287,7 +288,7 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
             sentTo={requested.sentTo}
           />
         ),
-        confirmLabel: 'Disconnect Stripe',
+        confirmLabel: t('proc.disconnectStripe'),
         destructive: true,
         // A SHAPE CHECK AND NOTHING MORE. This runs in the browser and cannot know whether the
         // code is right — only `consume_family_action_challenge` decides that. What it buys is
@@ -296,7 +297,7 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
         verify: async () =>
           /^\d{6}$/.test(codeRef.current.trim())
             ? null
-            : 'Enter the six digits from the email.',
+            : t('set.enterCode'),
       })
       const typed = codeRef.current.trim()
       codeRef.current = ''
@@ -329,12 +330,12 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
     return (
       <Panel>
         <p className="text-sm font-medium">
-          {returning ? 'Stripe is disconnected' : 'No payment processor connected'}
+          {returning ? t('proc.disconnected') : t('proc.noProcessor')}
         </p>
         <p className="text-sm text-muted-foreground max-w-md mx-auto">
           {returning
-            ? 'Members cannot pay their dues by card while this is disconnected. Reconnecting brings back the same Stripe account, with its history and its bank details exactly as they were.'
-            : 'Connect this family’s own Stripe account and members can pay their dues by card. Payments post to the ledger and route into funds on their own, exactly as a payment keyed in by hand does.'}
+            ? t('proc.cannotPay')
+            : t('proc.connectHint')}
         </p>
         {/* THE CLAUSE, ON THIS SCREEN TOO. Somebody looking at a disconnected panel is
             usually somebody deciding whether to undo it, and "the same account comes back"
@@ -358,8 +359,8 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
               <Button onClick={() => go(startProcessorOnboarding)} disabled={pending || busy}>
                 <CreditCard className="h-4 w-4" />
                 {pending
-                  ? 'Opening Stripe…'
-                  : returning ? 'Reconnect Stripe' : 'Connect a Stripe account'}
+                  ? t('proc.opening')
+                  : returning ? t('proc.reconnect') : t('proc.connect')}
               </Button>
               <FormError message={error} />
               {/* THE NOTICE BELONGS IN THIS BRANCH TOO, and it was in the connected one
@@ -386,17 +387,17 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
           <div className="space-y-1">
             <p className="text-sm font-medium">
               {status.chargesReady
-                ? 'Card payments are switched on'
+                ? t('proc.cardsOn')
                 : status.awaitingFamily
-                  ? 'Stripe still needs something from this family'
-                  : 'Stripe is reviewing this account'}
+                  ? t('proc.stripeNeeds')
+                  : t('proc.stripeReviewing')}
             </p>
             <p className="text-sm text-muted-foreground">
               {status.chargesReady
-                ? 'Members see a Pay Online button beside each due they owe.'
+                ? t('proc.membersSeeButton')
                 : status.awaitingFamily
-                  ? 'Members cannot pay online until this is finished. Continue in Stripe to complete it.'
-                  : 'Nothing more is needed from the family. Members cannot pay online until Stripe finishes.'}
+                  ? t('proc.finishFirst')
+                  : t('proc.nothingMore')}
             </p>
           </div>
           {/* THE STATUS IN STRIPE'S OWN WORD, not a translation of it. A treasurer on the
@@ -415,7 +416,7 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
 
         <dl className="grid gap-3 text-sm sm:grid-cols-2">
           <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Stripe account</dt>
+            <dt className="text-xs uppercase tracking-wide text-muted-foreground">{t('proc.stripeAccount')}</dt>
             {/* SHOWN IN FULL. It is the family's own identifier and it is the first thing
                 Stripe support asks for; hiding it would be security theatre over a string
                 that is useless without our platform key. */}
@@ -423,7 +424,7 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
           </div>
           <div>
             <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-              Members paying automatically
+              {t('proc.payingAuto')}
             </dt>
             <dd>{status.liveAutopayCount}</dd>
           </div>
@@ -434,16 +435,16 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
             {!status.chargesReady && (
               <Button onClick={() => go(startProcessorOnboarding)} disabled={pending || busy}>
                 <ExternalLink className="h-4 w-4" />
-                Continue in Stripe
+                {t('proc.continueStripe')}
               </Button>
             )}
             <Button variant="outline" onClick={() => go(refreshProcessorStatus)} disabled={pending || busy}>
               <RefreshCw className="h-4 w-4" />
-              Check with Stripe
+              {t('proc.checkStripe')}
             </Button>
             <Button variant="outline" disabled={pending || busy} onClick={beginDisconnect}>
               <Unplug className="h-4 w-4" />
-              Disconnect
+              {t('proc.disconnect')}
             </Button>
           </div>
         )}
@@ -457,7 +458,7 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
             deleted, which is the line AGENTS.md draws between the two tokens. */}
         {status.canManage && status.liveAutopayCount > 0 && (
           <p className="text-xs text-brand-withheld">
-            {disconnectConsequence(status.liveAutopayCount)}
+            {disconnectConsequence(status.liveAutopayCount, t)}
           </p>
         )}
 

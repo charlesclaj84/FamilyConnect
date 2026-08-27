@@ -45,7 +45,9 @@ import { useT } from '@/components/layout/LocaleProvider'
  * keeps its own border — that separates one drive from the next, which is a different
  * job from fencing off the list.
  */
-export function DonationsSection({ donations, chargesReady = false }: {
+export function DonationsSection({ donations, chargesReady = false, intl }: {
+  /** The reader's `Intl` tag. A prop — this is a Server Component. */
+  intl: string
   donations: DonationSummary[]
   /**
    * The family has a connected card processor whose card payments are active.
@@ -61,7 +63,7 @@ export function DonationsSection({ donations, chargesReady = false }: {
   return (
     <div className="space-y-4">
       {donations.map(d => (
-        <DonationRow key={d.schedule.id} donation={d} chargesReady={chargesReady} />
+        <DonationRow key={d.schedule.id} donation={d} chargesReady={chargesReady} intl={intl} />
       ))}
     </div>
   )
@@ -70,7 +72,9 @@ export function DonationsSection({ donations, chargesReady = false }: {
 /**
  * One drive: what it is, the window it runs in, and the family's progress to its goal.
  */
-function DonationRow({ donation: d, chargesReady }: {
+function DonationRow({ donation: d, chargesReady, intl }: {
+  /** The reader's `Intl` tag. A prop — this is a Server Component. */
+  intl: string
   donation: DonationSummary
   chargesReady: boolean
 }) {
@@ -80,8 +84,8 @@ function DonationRow({ donation: d, chargesReady }: {
   // for the giver, never a proposed amount — see `GiveButton`.
   const toGoalCents = goalCents && goalCents > raisedCents ? goalCents - raisedCents : null
   const window = [
-    schedule.start_date && `from ${formatDate(schedule.start_date)}`,
-    schedule.end_date && `${closed ? 'closed' : 'through'} ${formatDate(schedule.end_date)}`,
+    schedule.start_date && `from ${formatDate(schedule.start_date, intl)}`,
+    schedule.end_date && `${closed ? 'closed' : 'through'} ${formatDate(schedule.end_date, intl)}`,
   ].filter(Boolean).join(' · ')
 
   return (
@@ -127,17 +131,17 @@ function DonationRow({ donation: d, chargesReady }: {
         <>
           <GoalBar goalCents={goalCents} raisedCents={raisedCents} />
           <p className="text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">{formatCurrency(raisedCents)}</span>
-            {' raised of '}{formatCurrency(goalCents)} · {progressPercent}%
-            {raisedCents > goalCents && ` — ${formatCurrency(raisedCents - goalCents)} past the goal`}
-            {myGivenCents > 0 && ` · ${formatCurrency(myGivenCents)} from you`}
+            <span className="font-medium text-foreground">{formatCurrency(raisedCents, intl)}</span>
+            {' raised of '}{formatCurrency(goalCents, intl)} · {progressPercent}%
+            {raisedCents > goalCents && ` — ${formatCurrency(raisedCents - goalCents, intl)} past the goal`}
+            {myGivenCents > 0 && ` · ${formatCurrency(myGivenCents, intl)} from you`}
           </p>
         </>
       ) : (
         // No goal set: there is nothing to draw a bar against, so just the total.
         <p className="text-xs text-muted-foreground">
           {raisedCents > 0
-            ? <><span className="font-medium text-foreground">{formatCurrency(raisedCents)}</span> raised{myGivenCents > 0 && ` · ${formatCurrency(myGivenCents)} from you`}</>
+            ? <><span className="font-medium text-foreground">{formatCurrency(raisedCents, intl)}</span> raised{myGivenCents > 0 && ` · ${formatCurrency(myGivenCents, intl)} from you`}</>
             : t('drives.noGoal')}
         </p>
       )}

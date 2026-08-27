@@ -96,7 +96,7 @@ export default async function MembershipReportPage() {
         <h1 className="text-3xl font-bold">{t('page./reporting/membership.title')}</h1>
       </div>
 
-      <MembershipReportView report={report} rights={rights} />
+      <MembershipReportView report={report} rights={rights} t={t} />
     </PageShell>
   )
 }

@@ -17,6 +17,8 @@ import {
   createRegion, deleteRegion, createChapter, deleteChapter, setChapterRegion,
   type Region, type Chapter, type ScopeUsage,
 } from '@/app/actions/admin/chapters'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Regions & Chapters — two tables, and a create dialog behind each.
@@ -75,20 +77,26 @@ const NOTHING: ScopeAttached = {
  * ordinary state of a chapter somebody has just created, and a column of zeroes reads as a
  * problem.
  */
-function attachedCaption(a: ScopeAttached): string | null {
+function attachedCaption(a: ScopeAttached, t: T): string | null {
   const parts: string[] = []
-  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
-  if (a.members) parts.push(plural(a.members, 'member', 'members'))
-  if (a.schedules) parts.push(plural(a.schedules, 'due', 'dues'))
-  if (a.announcements) parts.push(plural(a.announcements, 'announcement', 'announcements'))
-  if (a.positions) parts.push(plural(a.positions, 'position', 'positions'))
-  if (a.elections) parts.push(plural(a.elections, 'election', 'elections'))
+  // ONE AND MANY ARE TWO KEYS PER COUNTABLE. The old `plural(n, one, many)` helper was an
+  // English rule in the source: a language with three plural forms cannot use it, and one
+  // that inflects the noun differently after a number cannot either.
+  const plural = (n: number, stem: string) => n === 1
+    ? t(`org.attached.${stem}One`)
+    : t(`org.attached.${stem}Many`, { n })
+  if (a.members) parts.push(plural(a.members, 'member'))
+  if (a.schedules) parts.push(plural(a.schedules, 'due'))
+  if (a.announcements) parts.push(plural(a.announcements, 'announcement'))
+  if (a.positions) parts.push(plural(a.positions, 'position'))
+  if (a.elections) parts.push(plural(a.elections, 'election'))
   return parts.length ? parts.join(' · ') : null
 }
 
 export function AdminRegionsChaptersClient({
   initialRegions, initialChapters, usage, mayCreate, mayEdit, mayDelete,
 }: Props) {
+  const t = useT()
   const confirm = useConfirm()
   // `useServerState` rather than `useState`: every write below refreshes, and a plain
   // initializer would be read once per visit and every later server render ignored — which
@@ -143,7 +151,7 @@ export function AdminRegionsChaptersClient({
     setRegionError('')
     startTransition(async () => {
       const result = await createRegion(name)
-      if (!result.success) { setRegionError(result.error ?? 'Could not add that region'); return }
+      if (!result.success) { setRegionError(result.error ?? t('org.addRegionFailed')); return }
       // Closed only on success. A refusal — a duplicate name, the reserved word "National" —
       // leaves the dialog open with what was typed still in it, because the fix is one edit
       // away and re-typing a name to read the reason is the wrong way round.
@@ -157,20 +165,20 @@ export function AdminRegionsChaptersClient({
   async function handleDeleteRegion(region: Region) {
     const moving = chaptersInRegion(region.id)
     const ok = await confirm({
-      title: 'Delete region',
+      title: t('org.deleteRegion'),
       // The chapters moving to National is the whole of what deleting a region does to
       // anything else, so the number is in the sentence rather than in a note beside it.
       description: moving
         ? `Delete the ${region.name} region? Its ${moving === 1 ? 'chapter moves' : `${moving} chapters move`} to National, and every member in them stays exactly where they are. This cannot be undone.`
         : `Delete the ${region.name} region? This cannot be undone.`,
-      confirmLabel: 'Delete region',
+      confirmLabel: t('org.deleteRegion'),
       destructive: true,
     })
     if (!ok) return
     setRegionError('')
     startTransition(async () => {
       const result = await deleteRegion(region.id)
-      if (!result.success) { setRegionError(result.error ?? 'Could not delete that region'); return }
+      if (!result.success) { setRegionError(result.error ?? t('org.deleteRegionFailed')); return }
       setRegions(prev => prev.filter(r => r.id !== region.id))
       // The database moved them (ON DELETE SET NULL); this keeps the table on screen saying
       // the same thing without a round trip.
@@ -186,7 +194,7 @@ export function AdminRegionsChaptersClient({
     startTransition(async () => {
       const regionId = newChapterRegion || null
       const result = await createChapter(name, regionId)
-      if (!result.success) { setChapterError(result.error ?? 'Could not add that chapter'); return }
+      if (!result.success) { setChapterError(result.error ?? t('org.addChapterFailed')); return }
       // Closed only on success — see `handleAddRegion`. The chosen region is read into
       // `regionId` above before the close clears it, so the optimistic row below still knows
       // which region it landed in.
@@ -201,16 +209,16 @@ export function AdminRegionsChaptersClient({
 
   async function handleDeleteChapter(chapter: Chapter) {
     const ok = await confirm({
-      title: 'Delete chapter',
+      title: t('org.deleteChapter'),
       description: `Delete the ${chapter.name} chapter? This cannot be undone.`,
-      confirmLabel: 'Delete chapter',
+      confirmLabel: t('org.deleteChapter'),
       destructive: true,
     })
     if (!ok) return
     setChapterError('')
     startTransition(async () => {
       const result = await deleteChapter(chapter.id)
-      if (!result.success) { setChapterError(result.error ?? 'Could not delete that chapter'); return }
+      if (!result.success) { setChapterError(result.error ?? t('org.deleteChapterFailed')); return }
       setChapters(prev => prev.filter(c => c.id !== chapter.id))
     })
   }
@@ -227,7 +235,7 @@ export function AdminRegionsChaptersClient({
     startTransition(async () => {
       const result = await setChapterRegion(chapter.id, next)
       if (!result.success) {
-        setChapterError(result.error ?? 'Could not move that chapter')
+        setChapterError(result.error ?? t('org.moveChapterFailed'))
         setChapters(prev => prev.map(c => c.id === chapter.id ? chapter : c))
       }
     })
@@ -242,7 +250,7 @@ export function AdminRegionsChaptersClient({
             inline form left behind: one button, and the table starts immediately under it. */}
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-lg">Regions</h2>
+            <h2 className="text-lg">{t('org.regions')}</h2>
             <p className="text-sm text-muted-foreground">
               A group of chapters — “Texas”, “Eastern”, “Southeast”. Optional: a family can run
               on chapters alone, or on neither.
@@ -250,7 +258,7 @@ export function AdminRegionsChaptersClient({
           </div>
           {mayCreate && (
             <Button size="sm" className="shrink-0" onClick={() => { setRegionError(''); setShowAddRegion(true) }}>
-              <Plus className="h-4 w-4" /> Add region
+              <Plus className="h-4 w-4" /> {t('org.addRegion')}
             </Button>
           )}
         </div>
@@ -264,17 +272,17 @@ export function AdminRegionsChaptersClient({
 
         {regions.length === 0 ? (
           <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-            No regions yet. Every chapter sits under National until you add one.
+            {t('org.noRegions')}
           </p>
         ) : (
           <div className="overflow-visible rounded-xl border">
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-semibold">Region</th>
-                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Chapters</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Attached</th>
-                  <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+                  <th scope="col" className="px-3 py-2 font-semibold">{t('dir.region')}</th>
+                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('rep.chapters')}</th>
+                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('org.attached')}</th>
+                  <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -287,13 +295,13 @@ export function AdminRegionsChaptersClient({
                         <span className="font-medium">{region.name}</span>
                         <RowMeta className="gap-x-2">
                           <MetaIf value={`${count} ${count === 1 ? 'chapter' : 'chapters'}`} />
-                          {attachedCaption(attached) && <MetaDot />}
-                          <MetaIf value={attachedCaption(attached)} />
+                          {attachedCaption(attached, t) && <MetaDot />}
+                          <MetaIf value={attachedCaption(attached, t)} />
                         </RowMeta>
                       </td>
                       <td className={cn('px-3 py-2.5 text-right tabular-nums text-muted-foreground', COLLAPSING_CELL)}>{count}</td>
                       <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
-                        {attachedCaption(attached) ?? '—'}
+                        {attachedCaption(attached, t) ?? '—'}
                       </td>
                       <td className="w-px px-3 py-2.5">
                         <div className="flex items-center justify-end">
@@ -307,9 +315,9 @@ export function AdminRegionsChaptersClient({
                                  this and returns the same sentence, so the title is a
                                  courtesy rather than the gate. */
                               title={attached.any
-                                ? `${region.name} still has ${attachedCaption(attached)} attached, so it cannot be deleted.`
+                                ? t('org.stillAttached', { name: region.name, what: attachedCaption(attached, t) ?? '' })
                                 : `Delete the ${region.name} region`}
-                              aria-label={`Delete the ${region.name} region`}
+                              aria-label={t('org.deleteRegionAria', { name: region.name })}
                               onClick={() => handleDeleteRegion(region)}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -330,17 +338,17 @@ export function AdminRegionsChaptersClient({
       <section className="space-y-3">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h2 className="text-lg">Chapters</h2>
+            <h2 className="text-lg">{t('rep.chapters')}</h2>
             <p className="text-sm text-muted-foreground">
               Where a member actually belongs. {nationalCount === 0
-                ? 'Nothing is under National.'
+                ? t('org.nothingNational')
                 : `${nationalCount} ${nationalCount === 1 ? 'chapter is' : 'chapters are'} under National.`}{' '}
               A member picks their chapter on their own profile.
             </p>
           </div>
           {mayCreate && (
             <Button size="sm" className="shrink-0" onClick={() => { setChapterError(''); setShowAddChapter(true) }}>
-              <Plus className="h-4 w-4" /> Add chapter
+              <Plus className="h-4 w-4" /> {t('org.addChapter')}
             </Button>
           )}
         </div>
@@ -357,11 +365,11 @@ export function AdminRegionsChaptersClient({
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-semibold">Chapter</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Region</th>
-                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Members</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Attached</th>
-                  <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+                  <th scope="col" className="px-3 py-2 font-semibold">{t('field.chapter')}</th>
+                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('dir.region')}</th>
+                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('rep.members')}</th>
+                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('org.attached')}</th>
+                  <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -377,14 +385,14 @@ export function AdminRegionsChaptersClient({
                       className="h-7 w-full sm:w-44"
                       value={chapter.region_id ?? ''}
                       disabled={isPending}
-                      aria-label={`Region for the ${chapter.name} chapter`}
+                      aria-label={t('org.regionForAria', { name: chapter.name })}
                       onChange={e => handleMoveChapter(chapter, e.target.value)}
                     >
-                      <option value="">National</option>
+                      <option value="">{t('common.national')}</option>
                       {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                     </Select>
                   ) : (
-                    <span className="text-muted-foreground">{chapter.region_name ?? 'National'}</span>
+                    <span className="text-muted-foreground">{chapter.region_name ?? t('common.national')}</span>
                   )
                   return (
                     <tr key={chapter.id} className="border-b align-top last:border-0 sm:align-middle">
@@ -394,19 +402,19 @@ export function AdminRegionsChaptersClient({
                           {/* LABELLED, because "National" under a chapter name is not
                               self-evident as the region once the heading has gone. */}
                           <span className="flex items-center gap-1.5">
-                            <span>Region</span>
+                            <span>{t('dir.region')}</span>
                             {regionSelect}
                           </span>
                           <MetaDot />
                           <MetaIf value={`${attached.members} ${attached.members === 1 ? 'member' : 'members'}`} />
                           {(attached.schedules || attached.announcements || attached.positions || attached.elections) ? <MetaDot /> : null}
-                          <MetaIf value={attachedCaption({ ...attached, members: 0 })} />
+                          <MetaIf value={attachedCaption({ ...attached, members: 0 }, t)} />
                         </RowMeta>
                       </td>
                       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>{regionSelect}</td>
                       <td className={cn('px-3 py-2.5 text-right tabular-nums text-muted-foreground', COLLAPSING_CELL)}>{attached.members}</td>
                       <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
-                        {attachedCaption({ ...attached, members: 0 }) ?? '—'}
+                        {attachedCaption({ ...attached, members: 0 }, t) ?? '—'}
                       </td>
                       <td className="w-px px-3 py-2.5">
                         <div className="flex items-center justify-end">
@@ -416,9 +424,9 @@ export function AdminRegionsChaptersClient({
                               className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                               disabled={isPending || attached.any}
                               title={attached.any
-                                ? `${chapter.name} still has ${attachedCaption(attached)} attached, so it cannot be deleted.`
+                                ? t('org.stillAttached', { name: chapter.name, what: attachedCaption(attached, t) ?? '' })
                                 : `Delete the ${chapter.name} chapter`}
-                              aria-label={`Delete the ${chapter.name} chapter`}
+                              aria-label={t('org.deleteChapterAria', { name: chapter.name })}
                               onClick={() => handleDeleteChapter(chapter)}
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -448,15 +456,15 @@ export function AdminRegionsChaptersClient({
       <Dialog
         open={showAddRegion && mayCreate}
         onClose={closeAddRegion}
-        title="Add a region"
-        description="A group of chapters. A family can run on chapters alone, or on neither."
+        title={t('org.addRegionTitle')}
+        description={t('org.addRegionHint')}
       >
         <form onSubmit={e => { e.preventDefault(); handleAddRegion() }} className="mt-2 space-y-3">
           <div className="space-y-1.5">
-            <Label required htmlFor="new-region">Region</Label>
+            <Label required htmlFor="new-region">{t('dir.region')}</Label>
             <Input
               id="new-region"
-              placeholder="e.g. Texas"
+              placeholder={t('org.regionPh')}
               autoFocus
               value={newRegion}
               onChange={e => { setNewRegion(e.target.value); setRegionError('') }}
@@ -466,15 +474,15 @@ export function AdminRegionsChaptersClient({
               `createRegion` rejects and the reason is not guessable: it is the ABSENCE of a
               region, which is why it needs no row. */}
           <p className="text-xs text-muted-foreground">
-            Every chapter you do not put in a region sits under <strong>National</strong>, so
+            {t('org.underNational')} <strong>{t('common.national')}</strong>, so
             there is no need to create one for it — and “National” is not a name a region can
             take.
           </p>
           <FormError message={regionError} />
           <div className="flex flex-wrap justify-end gap-2 pt-1">
-            <Button type="button" variant="outline" onClick={closeAddRegion}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={closeAddRegion}>{t('action.cancel')}</Button>
             <Button type="submit" disabled={!newRegion.trim() || isPending}>
-              {isPending ? 'Adding…' : 'Add region'}
+              {isPending ? t('action.adding') : t('org.addRegion')}
             </Button>
           </div>
         </form>
@@ -483,28 +491,28 @@ export function AdminRegionsChaptersClient({
       <Dialog
         open={showAddChapter && mayCreate}
         onClose={closeAddChapter}
-        title="Add a chapter"
-        description="Where a member actually belongs. They pick it on their own profile."
+        title={t('org.addChapterTitle')}
+        description={t('org.addChapterHint')}
       >
         <form onSubmit={e => { e.preventDefault(); handleAddChapter() }} className="mt-2 space-y-3">
           <div className="space-y-1.5">
-            <Label required htmlFor="new-chapter">Chapter</Label>
+            <Label required htmlFor="new-chapter">{t('field.chapter')}</Label>
             <Input
               id="new-chapter"
-              placeholder="e.g. Houston"
+              placeholder={t('org.chapterPh')}
               autoFocus
               value={newChapter}
               onChange={e => { setNewChapter(e.target.value); setChapterError('') }}
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="new-chapter-region">In region</Label>
+            <Label htmlFor="new-chapter-region">{t('org.inRegion')}</Label>
             <Select
               id="new-chapter-region"
               value={newChapterRegion}
               onChange={e => setNewChapterRegion(e.target.value)}
             >
-              <option value="">National</option>
+              <option value="">{t('common.national')}</option>
               {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </Select>
           </div>
@@ -514,13 +522,13 @@ export function AdminRegionsChaptersClient({
               what keeps the sentence reassuring rather than alarming. */}
           <p className="text-xs text-muted-foreground">
             A chapter’s region decides which regional dues its members owe. You can move a
-            chapter to another region at any time from the <strong>Region</strong> column.
+            chapter to another region at any time from the <strong>{t('dir.region')}</strong> column.
           </p>
           <FormError message={chapterError} />
           <div className="flex flex-wrap justify-end gap-2 pt-1">
-            <Button type="button" variant="outline" onClick={closeAddChapter}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={closeAddChapter}>{t('action.cancel')}</Button>
             <Button type="submit" disabled={!newChapter.trim() || isPending}>
-              {isPending ? 'Adding…' : 'Add chapter'}
+              {isPending ? t('action.adding') : t('org.addChapter')}
             </Button>
           </div>
         </form>

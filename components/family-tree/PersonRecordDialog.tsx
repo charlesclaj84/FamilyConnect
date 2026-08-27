@@ -16,6 +16,7 @@ import {
 import {
   LINK_KINDS, SPOUSE_TYPES, linkKindLabel, relationshipMeta, type LinkKind,
 } from '@/lib/family-tree'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * One connection this person has, as the dialog needs it.
@@ -102,6 +103,7 @@ export function PersonRecordDialog({
    */
   connections: TreeConnection[]
 }) {
+  const t = useT()
   const router = useRouter()
   // Keyed by relationship id, so a person with four connections has four independent
   // controls and a save on one does not put the others back. Seeded from the edges and
@@ -149,7 +151,7 @@ export function PersonRecordDialog({
       // rather than an error.
       const r = await setRelationshipType(connection.edge.id, next, connection.otherId)
       if (!r.success) {
-        setError(r.message ?? 'Could not change that connection.')
+        setError(r.message ?? t('rec.connectionFailed'))
         // Put the control back where the database still is.
         setTypes(prev => ({ ...prev, [connection.edge.id]: previous }))
         return
@@ -166,7 +168,7 @@ export function PersonRecordDialog({
     startTransition(async () => {
       const r = await setRelationshipKind(connection.edge.id, next)
       if (!r.success) {
-        setError(r.message ?? 'Could not change that connection.')
+        setError(r.message ?? t('rec.connectionFailed'))
         setKinds(prev => ({ ...prev, [connection.edge.id]: connection.edge.kind }))
         return
       }
@@ -179,7 +181,7 @@ export function PersonRecordDialog({
     setError('')
     setSaved(false)
     if (!firstName.trim() || !lastName.trim()) {
-      setError('Enter a first and last name')
+      setError(t('rec.needNames'))
       return
     }
     startTransition(async () => {
@@ -193,7 +195,7 @@ export function PersonRecordDialog({
         date_of_birth: dateOfBirth || null,
         gender: gender || null,
       })
-      if (!r.success) { setError(r.message ?? 'Could not save that.'); return }
+      if (!r.success) { setError(r.message ?? t('rec.saveFailed')); return }
       setSaved(true)
       router.refresh()
     })
@@ -203,7 +205,7 @@ export function PersonRecordDialog({
     setError('')
     startTransition(async () => {
       const r = await invitePersonRecord(person.id, email)
-      if (!r.success) { setError(r.message ?? 'Could not invite them.'); return }
+      if (!r.success) { setError(r.message ?? t('rec.inviteFailed')); return }
       setInvited({ emailed: Boolean(r.emailed) })
       router.refresh()
     })
@@ -215,8 +217,8 @@ export function PersonRecordDialog({
       onClose={close}
       title={`Manage ${name}`}
       description={person.hasAccount
-        ? 'They manage their own profile, so only the connection is yours to change.'
-        : 'They have no account, so anyone in the family can keep this record right.'}
+        ? t('rec.theirOwnProfile')
+        : t('rec.noAccountAnyone')}
     >
       <div className="space-y-6">
         {/* ── EVERY CONNECTION, EACH WITH THE CONTROL ITS RELATION ADMITS ────────────
@@ -289,7 +291,7 @@ export function PersonRecordDialog({
                         + (kind === 'blood'
                           ? ' Blood links carry the bloodline.'
                           : ` ${connection.otherName} does not reach the bloodline through this link.`)}
-                    {saved && <span className="ml-1 font-medium text-brand-affirm">Saved.</span>}
+                    {saved && <span className="ml-1 font-medium text-brand-affirm">{t('rec.saved')}</span>}
                   </p>
                 </div>
               )
@@ -304,7 +306,7 @@ export function PersonRecordDialog({
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="record-first">First name</Label>
+              <Label htmlFor="record-first">{t('field.firstNameLower')}</Label>
               <Input
                 id="record-first"
                 value={firstName}
@@ -313,7 +315,7 @@ export function PersonRecordDialog({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="record-last">Last name</Label>
+              <Label htmlFor="record-last">{t('field.lastNameLower')}</Label>
               <Input
                 id="record-last"
                 value={lastName}
@@ -325,17 +327,17 @@ export function PersonRecordDialog({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="record-nick">Nickname</Label>
+              <Label htmlFor="record-nick">{t('field.nickname')}</Label>
               <Input
                 id="record-nick"
                 value={nickName}
                 onChange={e => { setNickName(e.target.value); setSaved(false) }}
-                placeholder="Optional"
+                placeholder={t('common.optional')}
                 autoComplete="off"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="record-dob">Date of birth</Label>
+              <Label htmlFor="record-dob">{t('field.dobLower')}</Label>
               <Input
                 id="record-dob"
                 type="date"
@@ -346,14 +348,14 @@ export function PersonRecordDialog({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="record-gender">Gender</Label>
+            <Label htmlFor="record-gender">{t('field.gender')}</Label>
             <select
               id="record-gender"
               value={gender}
               onChange={e => { setGender(e.target.value); setSaved(false) }}
               className="h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
             >
-              <option value="">Not stated</option>
+              <option value="">{t('common.notStated')}</option>
               {GENDERS.map(g => (
                 <option key={g} value={g}>{GENDER_LABELS[g]}</option>
               ))}
@@ -368,7 +370,7 @@ export function PersonRecordDialog({
             {saved && (
               <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
                 <Check className="h-4 w-4 text-brand-affirm" aria-hidden="true" />
-                Saved
+                {t('rec.savedShort')}
               </span>
             )}
             <button
@@ -376,7 +378,7 @@ export function PersonRecordDialog({
               disabled={isPending}
               className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
             >
-              {isPending ? 'Saving…' : 'Save details'}
+              {isPending ? t('action.saving') : t('rec.saveDetails')}
             </button>
           </div>
         </form>
@@ -387,13 +389,13 @@ export function PersonRecordDialog({
           {!invited ? (
             <form className="space-y-3" onSubmit={e => { e.preventDefault(); invite() }}>
               <div className="space-y-1.5">
-                <Label htmlFor="record-email">Invite them</Label>
+                <Label htmlFor="record-email">{t('rel.inviteThem')}</Label>
                 <Input
                   id="record-email"
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="them@example.com"
+                  placeholder={t('field.ph.theirEmail')}
                   autoComplete="off"
                   spellCheck={false}
                 />
@@ -410,7 +412,7 @@ export function PersonRecordDialog({
                   disabled={isPending || !email.trim()}
                   className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-60"
                 >
-                  {isPending ? 'Inviting…' : 'Send invitation'}
+                  {isPending ? t('rec.inviting') : t('rec.sendInvitation')}
                 </button>
               </div>
             </form>
@@ -429,8 +431,8 @@ export function PersonRecordDialog({
                 : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" aria-hidden="true" />}
               <p className={invited.emailed ? 'text-muted-foreground' : ''}>
                 {invited.emailed
-                  ? 'We emailed them an invitation. When they accept it, their account joins this card.'
-                  : 'The invitation was created but we could not email it. Resend it from Admin › Members › Pending Approval.'}
+                  ? t('rel.emailedInvite')
+                  : t('rel.inviteNotEmailed')}
               </p>
             </div>
           )}
@@ -445,7 +447,7 @@ export function PersonRecordDialog({
             onClick={close}
             className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
           >
-            Done
+            {t('action.done')}
           </button>
         </div>
       </div>

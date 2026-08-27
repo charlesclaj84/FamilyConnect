@@ -4,13 +4,14 @@ import { revalidatePath } from 'next/cache'
 import { requireMember, requireScope } from '@/lib/auth/guard'
 import { belongsToFamily } from '@/lib/auth/family'
 import {
-  POSITION_CATEGORIES, POSITION_SCOPES, POSITION_SCOPE_LABELS, POSITION_NAME_MAX,
+  POSITION_CATEGORIES, POSITION_SCOPES, positionScopeLabel, POSITION_NAME_MAX,
   type PositionCategory, type PositionScope,
 } from '@/lib/board-positions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import {
   scopeAttachedTo, scopeAttachmentsFor, scopeAttachedMessage, type ScopeAttached,
 } from '@/lib/scope-attached'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Regions and chapters — how a large family divides itself up, and who leads each part.
@@ -577,6 +578,7 @@ export async function createBoardPosition(input: {
 }): Promise<{ success: boolean; error?: string }> {
   const g = await requireScope('admin/members/board-positions', 'create')
   if (!g.ok) return { success: false, error: g.message }
+  const { t } = await callerI18n(g.userId)
 
   const name = input.name.trim()
   if (!name) return { success: false, error: 'A position needs a name' }
@@ -626,8 +628,13 @@ export async function createBoardPosition(input: {
     if (error.code === '23505') {
       return {
         success: false,
-        error: `Your family already has a ${POSITION_SCOPE_LABELS[input.scope].toLowerCase()} `
-          + `position called "${name}". The same title can exist once at each scope.`,
+        // THE SCOPE WORD IS NOT LOWER-CASED ANY MORE, and that is the point:
+        // `.toLowerCase()` is an English sentence-casing rule. Spanish and French do not
+        // capitalise these mid-sentence at all, and a language that capitalises nouns
+        // would need the opposite. The catalogue carries the cased form each one wants.
+        error: t('pos.duplicateAtScope', {
+          scope: positionScopeLabel(t, input.scope), name,
+        }),
       }
     }
     return { success: false, error: error.message }
@@ -672,6 +679,7 @@ export async function renameBoardPosition(
 ): Promise<{ success: boolean; error?: string }> {
   const g = await requireScope('admin/members/board-positions', 'edit')
   if (!g.ok) return { success: false, error: g.message }
+  const { t } = await callerI18n(g.userId)
 
   const next = name.trim()
   if (!next) return { success: false, error: 'A position needs a name' }
@@ -706,8 +714,13 @@ export async function renameBoardPosition(
     if (error.code === '23505') {
       return {
         success: false,
-        error: `Your family already has a ${POSITION_SCOPE_LABELS[existing.scope as PositionScope].toLowerCase()} `
-          + `position called "${next}". The same title can exist once at each scope.`,
+        // THE SCOPE WORD IS NOT LOWER-CASED ANY MORE, and that is the point:
+        // `.toLowerCase()` is an English sentence-casing rule. Spanish and French do not
+        // capitalise these mid-sentence at all, and a language that capitalises nouns
+        // would need the opposite. The catalogue carries the cased form each one wants.
+        error: t('pos.duplicateAtScope', {
+          scope: positionScopeLabel(t, existing.scope as PositionScope), name: next,
+        }),
       }
     }
     return { success: false, error: error.message }

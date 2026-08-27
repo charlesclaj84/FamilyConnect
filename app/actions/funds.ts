@@ -11,6 +11,7 @@ import { effectiveAllocations } from '@/lib/fund-routing'
 import { embedMany } from '@/lib/supabase/embed'
 import { formatCurrency } from '@/lib/currency-utils'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 export interface Fund {
   id: string
@@ -1052,6 +1053,7 @@ export async function transferBetweenFunds(input: {
   const admin = createAdminClient()
   const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
+  const { intl } = await callerI18n(user.id)
 
   const familyCode = await getMyFamilyCode(user.id)
   if (!(await canAny(user.id, 'accounting/transactions/fund-transfers', 'create'))) {
@@ -1098,7 +1100,7 @@ export async function transferBetweenFunds(input: {
   if (amount > available) {
     return {
       success: false,
-      message: `${from.name} holds ${formatCurrency(available)}. Transfer that or less.`,
+      message: `${from.name} holds ${formatCurrency(available, intl)}. Transfer that or less.`,
     }
   }
 

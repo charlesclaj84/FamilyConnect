@@ -57,7 +57,9 @@ import type { T } from '@/lib/i18n/t'
  * is a beneficiary of never reaches this component at all — the restrictive policies from
  * 20260811000000 refuse the schedule row, so there is no filtering to forget here.
  */
-export function DonationDrivesCard({ donations, t }: {
+export function DonationDrivesCard({ donations, t, intl }: {
+  /** The reader's `Intl` tag. A prop — this is a Server Component. */
+  intl: string
   donations: DonationSummary[]
   /**
    * The reader's language, bound. Threaded from the page rather than resolved here: a
@@ -90,7 +92,9 @@ export function DonationDrivesCard({ donations, t }: {
       </h2>
 
       <ul className="space-y-4">
-        {shown.map(d => <DriveRow key={d.schedule.id} donation={d} t={t} />)}
+        {shown.map(d => <DriveRow key={d.schedule.id} donation={d} t={t} intl={intl} />)}
+          intl={intl}
+          intl={intl}
       </ul>
 
       {hidden > 0 && (
@@ -120,7 +124,9 @@ export function DonationDrivesCard({ donations, t }: {
  * called "Martha's Medical Fund" plus two currency amounts does not fit on one. The name gets
  * the line it needs; the figures share the next.
  */
-function DriveRow({ donation: d, t }: {
+function DriveRow({ donation: d, t, intl }: {
+  /** The reader's `Intl` tag. A prop — this is a Server Component. */
+  intl: string
   donation: DonationSummary
   /** Threaded one more hop, for the same reason the card takes it. */
   t: T
@@ -147,17 +153,17 @@ function DriveRow({ donation: d, t }: {
       )}
 
       <p className="text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">{formatCurrency(raisedCents)}</span>
+        <span className="font-medium text-foreground">{formatCurrency(raisedCents, intl)}</span>
         {goalCents != null && goalCents > 0
-          ? ` of ${formatCurrency(goalCents)} · ${progressPercent}%`
+          ? ` of ${formatCurrency(goalCents, intl)} · ${progressPercent}%`
           : ' raised'}
-        {myGivenCents > 0 && ` · ${formatCurrency(myGivenCents)} from you`}
+        {myGivenCents > 0 && ` · ${formatCurrency(myGivenCents, intl)} from you`}
       </p>
 
       {/* THE DEADLINE, and only when there is one. It is the fact that makes this urgent
           rather than informational, and it is the reason the list is sorted by it. */}
       {schedule.end_date && (
-        <p className="text-xs text-muted-foreground">closes {formatDate(schedule.end_date)}</p>
+        <p className="text-xs text-muted-foreground">closes {formatDate(schedule.end_date, intl)}</p>
       )}
     </li>
   )

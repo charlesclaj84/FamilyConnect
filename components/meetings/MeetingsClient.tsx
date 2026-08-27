@@ -19,7 +19,7 @@ import { resolveMeetingRoom } from '@/lib/meeting-boards'
 import {
   scheduleMeeting, type MeetingAttendeeOptions, type MeetingSession,
 } from '@/app/actions/meetings'
-import { useT } from '@/components/layout/LocaleProvider'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 import type { T } from '@/lib/i18n/t'
 
 /**
@@ -132,6 +132,7 @@ export function MeetingsClient({ initialMeetings, attendeeOptions, maySchedule, 
 }
 
 function MeetingGroup({ heading, meetings }: { heading: string; meetings: MeetingSession[] }) {
+  const intl = useIntlTag()
   const t = useT()
   return (
     <section className="space-y-2">
@@ -147,7 +148,7 @@ function MeetingGroup({ heading, meetings }: { heading: string; meetings: Meetin
                 <span className="block truncate font-medium">{m.title}</span>
                 <span className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                   <span className="inline-flex items-center gap-1">
-                    <CalendarCheck className="h-3 w-3" /> {formatDate(m.meetsOn)}
+                    <CalendarCheck className="h-3 w-3" /> {formatDate(m.meetsOn, intl)}
                   </span>
                   <span className="inline-flex items-center gap-1">
                     <Users className="h-3 w-3" /> {m.attendees.length} attending

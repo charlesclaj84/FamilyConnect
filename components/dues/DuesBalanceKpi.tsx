@@ -8,6 +8,11 @@ import { type DuesSummary } from '@/app/actions/dues'
 import { useT } from '@/components/layout/LocaleProvider'
 
 interface Props {
+  /**
+   * The reader's `Intl` tag, for the dates and figures below. A PROP rather than
+   * `useIntlTag()`, because this is a Server Component. See lib/i18n/server.ts.
+   */
+  intl: string
   summary: DuesSummary[]
   /**
    * The dashboard's way through to [Dues](/dues). Off by default, because the other two
@@ -71,19 +76,19 @@ interface Props {
  * `next` is used and never recomputed: it arrives clamped to the balance from
  * `duesPlanMath` on the server, and a second clamp here would be a second answer.
  */
-function PlanLine({ summary: s }: { summary: DuesSummary }) {
+function PlanLine({ summary: s, intl }: { summary: DuesSummary; intl: string }) {
   if (s.onSchedule) {
-    return <>{s.schedule.label} — {formatCurrency(s.installmentCents)}/{s.cadence}</>
+    return <>{s.schedule.label} — {formatCurrency(s.installmentCents, intl)}/{s.cadence}</>
   }
   return (
     <>
-      {s.schedule.label} — {formatCurrency(s.nextInstallmentCents)} next
-      {s.followingInstallmentDate && <>, then {formatCurrency(s.followingInstallmentCents)}/{s.cadence}</>}
+      {s.schedule.label} — {formatCurrency(s.nextInstallmentCents, intl)} next
+      {s.followingInstallmentDate && <>, then {formatCurrency(s.followingInstallmentCents, intl)}/{s.cadence}</>}
     </>
   )
 }
 
-export function DuesBalanceKpi({ summary, showViewLink = false, className }: Props) {
+export function DuesBalanceKpi({ summary, showViewLink = false, className, intl }: Props) {
   const t = useT()
   const outstanding = summary.filter(isOutstanding)
   const requiredDue = outstanding.filter(s => s.required)
@@ -106,7 +111,7 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className }: Pro
       ) : (
         <>
           <div className="flex items-end gap-2">
-            <p className="text-3xl font-bold">{formatCurrency(requiredCents)}</p>
+            <p className="text-3xl font-bold">{formatCurrency(requiredCents, intl)}</p>
             <span className="mb-1 text-sm text-muted-foreground">required</span>
           </div>
 
@@ -122,7 +127,7 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className }: Pro
               {requiredDue.map(s => (
                 <li key={s.schedule.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <AlertCircle className="h-3 w-3 shrink-0 text-brand-accent" />
-                  <PlanLine summary={s} />
+                  <PlanLine summary={s} intl={intl} />
                 </li>
               ))}
             </ul>
@@ -137,14 +142,14 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className }: Pro
           {optionalCents > 0 && (
             <div className="space-y-1 rounded-lg bg-muted/50 px-2.5 py-2">
               <p className="text-xs">
-                <span className="font-medium">{formatCurrency(optionalCents)}</span>
+                <span className="font-medium">{formatCurrency(optionalCents, intl)}</span>
                 <span className="text-muted-foreground"> optional</span>
               </p>
               <ul className="space-y-0.5">
                 {optionalDue.map(s => (
                   <li key={s.schedule.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <HeartHandshake className="h-3 w-3 shrink-0" />
-                    <PlanLine summary={s} />
+                    <PlanLine summary={s} intl={intl} />
                   </li>
                 ))}
               </ul>

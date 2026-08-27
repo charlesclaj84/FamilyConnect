@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { PowerOff } from 'lucide-react'
 import { PageShell } from '@/components/layout/PageShell'
 import { isActiveFamily, isApproved, type FamilyMembership } from '@/lib/auth/family'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * What a member sees when the family they are viewing has been removed.
@@ -40,6 +41,7 @@ export function FamilyRemoved({ membership, families }: {
   membership: FamilyMembership
   families: FamilyMembership[]
 }) {
+  const t = useT()
   // APPROVED and ACTIVE, both tested positively. A pending membership in another family is
   // not somewhere to send them, and a second removed one is this screen again.
   const elsewhere = families.filter(
@@ -72,7 +74,7 @@ export function FamilyRemoved({ membership, families }: {
           important thing on this screen and the thing somebody in this position least
           expects to be true. */}
       <section className="rounded-xl border bg-card p-5 sm:p-6">
-        <h2 className="text-lg font-semibold">Nothing has been deleted</h2>
+        <h2 className="text-lg font-semibold">{t('rem.nothingDeleted')}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Every payment, fund, photograph, event, message, document and person is exactly
           where it was. Removing a family closes its doors; it destroys no records at all,
@@ -88,11 +90,11 @@ export function FamilyRemoved({ membership, families }: {
       {elsewhere.length > 0 && (
         <section className="rounded-xl border bg-card p-5 sm:p-6">
           <h2 className="text-lg font-semibold">
-            {elsewhere.length === 1 ? 'Your other family' : 'Your other families'}
+            {elsewhere.length === 1 ? t('rem.otherFamily') : t('rem.otherFamilies')}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Switch with the family menu at the top of the page, or from{' '}
-            <Link href="/my-families">My Families</Link>.
+            <Link href="/my-families">{t('fam.heading')}</Link>.
           </p>
           <ul className="mt-3 space-y-1 text-sm">
             {elsewhere.map(f => (
@@ -108,7 +110,7 @@ export function FamilyRemoved({ membership, families }: {
       )}
 
       <p className="text-sm text-muted-foreground">
-        <Link href="/my-families">My Families</Link> is still open to you, and so is the{' '}
+        <Link href="/my-families">{t('fam.heading')}</Link> is still open to you, and so is the{' '}
         <Link href="/help">manual</Link>.
       </p>
     </PageShell>

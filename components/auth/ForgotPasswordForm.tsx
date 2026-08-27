@@ -11,19 +11,25 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { FieldError, FormError } from '@/components/ui/form-message'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
-const schema = z.object({
-  email: z.string().email('Enter a valid email address'),
+// A FACTORY, not a constant: the messages are copy and a schema built at module load
+// cannot reach the reader's catalogue. `FormData` is inferred from the RETURN type, so
+// the shape is still checked exactly as before.
+const schema = (t: T) => z.object({
+  email: z.string().email(t('auth.badEmail')),
 })
 
-type FormData = z.infer<typeof schema>
+type FormData = z.infer<ReturnType<typeof schema>>
 
 export function ForgotPasswordForm() {
+  const t = useT()
   const [serverError, setServerError] = useState('')
   const [success, setSuccess] = useState(false)
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema(t)),
   })
 
   async function onSubmit(data: FormData) {
@@ -43,9 +49,9 @@ export function ForgotPasswordForm() {
     return (
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle as="h1" className="text-2xl text-primary">Email sent</CardTitle>
+          <CardTitle as="h1" className="text-2xl text-primary">{t('auth.emailSent')}</CardTitle>
           <CardDescription>
-            If that address is in our system, you&apos;ll receive a password reset link shortly.
+            {t('auth.resetSent')}
           </CardDescription>
         </CardHeader>
         {/* ── "If" is doing real work in that sentence, so it gets explained ──────
@@ -67,7 +73,7 @@ export function ForgotPasswordForm() {
             which of your relatives has registered.
           </p>
           <p>
-            <span className="font-medium text-foreground">Nothing arrived?</span> Check the
+            <span className="font-medium text-foreground">{t('auth.nothingArrived')}</span> Check the
             spam folder first, then try the address you registered with rather than the one
             your family usually reaches you on. The link works once and expires, so ask for
             a fresh one rather than reusing an old email.
@@ -75,7 +81,7 @@ export function ForgotPasswordForm() {
         </CardContent>
         <CardFooter className="justify-center">
           <Link href="/login" className="text-primary font-medium hover:underline text-sm">
-            Back to sign in
+            {t('auth.backToSignIn')}
           </Link>
         </CardFooter>
       </Card>
@@ -85,19 +91,19 @@ export function ForgotPasswordForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle as="h1" className="text-2xl">Forgot your password?</CardTitle>
+        <CardTitle as="h1" className="text-2xl">{t('auth.forgotTitle')}</CardTitle>
         <CardDescription>
-          Enter your email and we&apos;ll send you a reset link.
+          {t('auth.forgotLede')}
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('field.email')}</Label>
             <Input
               id="email"
               type="email"
-              placeholder="you@example.com"
+              placeholder={t('field.ph.email')}
               autoComplete="email"
               {...register('email')}
             />
@@ -107,7 +113,7 @@ export function ForgotPasswordForm() {
           <FormError message={serverError} />
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? 'Sending…' : 'Send Reset Link'}
+            {isSubmitting ? t('security.sending') : t('auth.sendReset')}
           </Button>
         </form>
       </CardContent>
@@ -126,7 +132,7 @@ export function ForgotPasswordForm() {
           instead, and ask your family for their code if you are joining an existing family.
         </p>
         <Link href="/login" className="text-primary font-medium hover:underline">
-          Back to sign in
+          {t('auth.backToSignIn')}
         </Link>
       </CardFooter>
     </Card>

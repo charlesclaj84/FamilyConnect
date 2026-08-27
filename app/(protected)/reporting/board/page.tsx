@@ -3,7 +3,7 @@ import { ShieldCheck } from 'lucide-react'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import { getBoardReport } from '@/app/actions/activity-reports'
 import { cn } from '@/lib/utils'
-import { POSITION_CATEGORY_LABELS } from '@/lib/board-positions'
+import { positionCategoryLabel } from '@/lib/board-positions'
 import { PageShell } from '@/components/layout/PageShell'
 import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
@@ -111,12 +111,12 @@ export default async function BoardReportPage() {
                         <RowMeta>
                           <span>{row.scopeLabel}</span>
                           <MetaDot />
-                          <span>{POSITION_CATEGORY_LABELS[row.category]}</span>
+                          <span>{positionCategoryLabel(t, row.category)}</span>
                         </RowMeta>
                       </td>
                       <td className={cn('px-3 py-2', COLLAPSING_CELL)}>{row.scopeLabel}</td>
                       <td className={cn('px-3 py-2', COLLAPSING_CELL)}>
-                        {POSITION_CATEGORY_LABELS[row.category]}
+                        {positionCategoryLabel(t, row.category)}
                       </td>
                       <td className="px-3 py-2">
                         {row.holders.length === 0 ? (

@@ -112,8 +112,17 @@ export function formatMoney(
  * alias, not a deprecated path: a caller with no reader-locale in hand is the ordinary case
  * on a server component today, and `formatMoney` is what a caller WITH one uses.
  */
-export function formatCurrency(cents: number | null | undefined): string {
-  return formatMoney(cents)
+export function formatCurrency(
+  cents: number | null | undefined,
+  /**
+   * The reader's `Intl` tag. A SECOND POSITIONAL ARGUMENT rather than `formatMoney`'s
+   * options object, so this alias reads exactly like `formatDate(value, intl)` and the
+   * whole family of formatters is threaded the same way — which is what `i18n:check`'s
+   * PINNED-FORMATTER count is counting.
+   */
+  locale?: string,
+): string {
+  return formatMoney(cents, locale ? { locale } : undefined)
 }
 
 /**

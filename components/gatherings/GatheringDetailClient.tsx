@@ -13,7 +13,7 @@ import { formatDate } from '@/lib/date-utils'
 import { normalizePersonSearch } from '@/lib/person-search'
 import { cn } from '@/lib/utils'
 import type { GatheringTaskRow } from '@/app/actions/gatherings'
-import { useT } from '@/components/layout/LocaleProvider'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 import type { T } from '@/lib/i18n/t'
 
 /**
@@ -273,6 +273,7 @@ function TaskGroup({ heading, occursOn, location, tasks, showTaskBudgets }: {
   tasks: GatheringTaskRow[]
   showTaskBudgets: boolean
 }) {
+  const intl = useIntlTag()
   const t = useT()
   /*
    * WHEN AND WHERE, as one line, assembled as a list so the interpunct lands between whatever is
@@ -284,7 +285,7 @@ function TaskGroup({ heading, occursOn, location, tasks, showTaskBudgets }: {
    * above: at `text-xs` a pair of 14px glyphs is noise, and this line sits directly under the
    * name it belongs to rather than in a row of unrelated facts.
    */
-  const when = formatDate(occursOn)
+  const when = formatDate(occursOn, intl)
   const meta = [when, location].filter(Boolean).join(' · ')
 
   return (
@@ -324,13 +325,14 @@ function TaskGroup({ heading, occursOn, location, tasks, showTaskBudgets }: {
 }
 
 function TaskRow({ task, showTaskBudgets }: { task: GatheringTaskRow; showTaskBudgets: boolean }) {
+  const intl = useIntlTag()
   const t = useT()
   // `isCompleteAnswer` is `parseAnswer(...) !== null` — it answers "is this an answer", NOT "was
   // the step required", and a blank is not an answer. Asking it here rather than testing
   // `task.answer != null` is what stops a `{}` written by some future path rendering as an
   // answered task with nothing in it.
   const answered = task.answer != null && isCompleteAnswer(task.kind, task.answer)
-  const due = formatDate(task.dueOn)
+  const due = formatDate(task.dueOn, intl)
   const answerNode = answered ? <AnswerText kind={task.kind} answer={task.answer} /> : null
 
   // The meta line, built as a list so the interpuncts land between whatever is actually there
@@ -340,7 +342,7 @@ function TaskRow({ task, showTaskBudgets }: { task: GatheringTaskRow; showTaskBu
   else meta.push(<span key="who">{t('gath.nobodyYet')}</span>)
   if (due) meta.push(<span key="due">Due {due}</span>)
   if (showTaskBudgets && task.budgetCents != null) {
-    meta.push(<span key="budget" className="tabular-nums">{formatCurrency(task.budgetCents)}</span>)
+    meta.push(<span key="budget" className="tabular-nums">{formatCurrency(task.budgetCents, intl)}</span>)
   }
   // LABELLED, because the heading that named it has folded away. A bare sentence under a task
   // label reads as part of the label.
@@ -386,7 +388,7 @@ function TaskRow({ task, showTaskBudgets }: { task: GatheringTaskRow; showTaskBu
 
       {showTaskBudgets && (
         <td className={cn('px-3 py-2.5 text-right tabular-nums text-muted-foreground', COLLAPSING_CELL)}>
-          {task.budgetCents != null ? formatCurrency(task.budgetCents) : '—'}
+          {task.budgetCents != null ? formatCurrency(task.budgetCents, intl) : '—'}
         </td>
       )}
 

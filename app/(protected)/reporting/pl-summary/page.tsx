@@ -42,7 +42,7 @@ export default async function FamilyFinancesPage() {
 
   await requireView(user.id, 'reporting/pl-summary')
 
-  const { t } = await callerI18n(user.id)
+  const { t, intl } = await callerI18n(user.id)
   if (!(await canAny(user.id, 'reporting/pl-summary', 'view'))) notFound()
 
   const [pnlData, funds] = await Promise.all([
@@ -62,7 +62,7 @@ export default async function FamilyFinancesPage() {
       </div>
 
       <section className="space-y-3">
-        <AccountPnLCard data={pnlData} />
+        <AccountPnLCard data={pnlData} intl={intl} />
       </section>
 
       <section>

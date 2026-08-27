@@ -12,7 +12,7 @@ import {
   DISCREET_AGE_EMOJI, DISCREET_AGE_LABEL, DISCREET_AGE_MIN, DISCREET_AGE_MAX,
   type UpcomingBirthday,
 } from '@/lib/birthdays'
-import { useT } from '@/components/layout/LocaleProvider'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * THE BIRTHDAYS PANE — the second half of `/community/announcements`.
@@ -91,6 +91,7 @@ import { useT } from '@/components/layout/LocaleProvider'
  * kind that section explicitly exempts — the same standing as which nav section is expanded.
  */
 export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) {
+  const intl = useIntlTag()
   const t = useT()
   const [query, setQuery] = useState('')
 
@@ -200,7 +201,7 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
                         one or the next — four characters that add nothing and invite the one
                         misreading a birthday list is most prone to: the year printed is the
                         year of the next occurrence, not the year of birth. */}
-                    <td className="px-3 py-2.5 text-muted-foreground">{formatMonthDay(b.onDate)}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground">{formatMonthDay(b.onDate, intl)}</td>
                     <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
                       {weekday}
                     </td>

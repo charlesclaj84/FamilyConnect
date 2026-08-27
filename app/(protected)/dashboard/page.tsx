@@ -124,7 +124,7 @@ export default async function DashboardPage() {
   // `LocaleProvider`, and a `T` crossing a server-to-server boundary is passed by reference
   // rather than serialized. The client ones (RecentUpdates, QuickActions, the three
   // banners) take nothing and call `useT()`. See lib/i18n/server.ts.
-  const { t } = await callerI18n(user.id)
+  const { t, intl } = await callerI18n(user.id)
 
   // requireViewOrPending, not requireView: a pending member must be able to LAND
   // somewhere that tells them what is happening. The early return is above every fetch
@@ -673,8 +673,8 @@ export default async function DashboardPage() {
               order here is the order they appear in: what you owe, then what you are being
               asked to give. */}
           <AtAGlance tiles={tiles} t={t}>
-            <DuesBalanceKpi summary={duesSummary} showViewLink />
-            <DonationDrivesCard donations={donations} t={t} />
+            <DuesBalanceKpi summary={duesSummary} showViewLink intl={intl} />
+            <DonationDrivesCard donations={donations} t={t} intl={intl} />
           </AtAGlance>
           {/* Merged and ordered on the server: pinned announcements first, then
               notifications and dismissed announcements interleaved by date. The rule is
@@ -694,7 +694,7 @@ export default async function DashboardPage() {
               and it was the one tile whose figure grew without bound and set the width of
               every tile beside it. It renders nothing at all when the caller holds neither
               ledger grant — `null` is "not entitled" and `0` is a real zero. */}
-          <FamilyDuesCollectedCard collectedCents={duesCollectedCents} t={t} />
+          <FamilyDuesCollectedCard collectedCents={duesCollectedCents} t={t} intl={intl} />
           {/* THE KIT'S "Family Tree Highlights", finally answerable — see the header of
               this file, which listed it among four omitted panels because the tree was a
               scaffold and nothing computed a generation depth. Both are now false.

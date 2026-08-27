@@ -12,6 +12,7 @@ import { PersonMultiSelect } from '@/components/ui/person-multi-select'
 import { raiseCheckIn } from '@/app/actions/safety-check-ins'
 import type { CheckInAudienceOption, CheckInPickerPerson } from '@/app/actions/safety-check-ins'
 import type { CheckInScope } from '@/lib/safety-check-in'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Raising a check-in.
@@ -62,6 +63,7 @@ export function RaiseCheckInDialog({
   /** Called with the new id, so the parent can start driving the ask queue. */
   onRaised: (checkInId: string) => void
 }) {
+  const t = useT()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState('')
   const [titleError, setTitleError] = useState('')
@@ -98,11 +100,11 @@ export function RaiseCheckInDialog({
     // §2) — `raiseCheckIn` refuses a blank title and an empty named list on its own, because it
     // is a public HTTP endpoint. These checks exist so the message lands next to the field.
     if (!title.trim()) {
-      setTitleError('Say what is happening, so relatives know what they are being asked about')
+      setTitleError(t('safety.sayWhat'))
       return
     }
     if (isNamed && personIds.length === 0) {
-      setAudienceError('Choose at least one relative to ask')
+      setAudienceError(t('safety.chooseOne'))
       return
     }
 
@@ -117,7 +119,7 @@ export function RaiseCheckInDialog({
         personIds: isNamed ? personIds : undefined,
       })
       if (!result.success || !result.checkInId) {
-        setError(result.message ?? 'Could not raise the check-in')
+        setError(result.message ?? t('safety.raiseFailed'))
         return
       }
       onRaised(result.checkInId)
@@ -136,43 +138,43 @@ export function RaiseCheckInDialog({
     <Dialog
       open={open}
       onClose={() => { reset(); onClose() }}
-      title="Ask if they are safe"
-      description="Everybody you choose is asked one question, and answers with one tap."
+      title={t('safety.askIfSafe')}
+      description={t('safety.oneQuestion')}
       className="max-w-lg"
     >
       <div className="space-y-4">
         <div className="space-y-1.5">
           <Label htmlFor="check-in-title">
-            What is happening<RequiredMark />
+            {t('safety.whatHappening')}<RequiredMark />
           </Label>
           <Input
             id="check-in-title"
             value={title}
             maxLength={120}
-            placeholder="Hurricane Delia"
+            placeholder={t('safety.titlePh')}
             onChange={e => { setTitle(e.target.value); setTitleError('') }}
           />
           <p className="text-xs text-muted-foreground">
-            This is the subject of the email your relatives get. Keep it recognisable.
+            {t('safety.subjectHint')}
           </p>
           <FieldError message={titleError} />
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="check-in-detail">Anything else to tell them (optional)</Label>
+          <Label htmlFor="check-in-detail">{t('safety.anythingElse')}</Label>
           <Textarea
             id="check-in-detail"
             rows={3}
             value={detail}
             maxLength={2000}
-            placeholder="Where to go, who to call, what you know."
+            placeholder={t('safety.detailPh')}
             onChange={e => setDetail(e.target.value)}
           />
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="check-in-audience">
-            Who to ask<RequiredMark />
+            {t('safety.whoToAsk')}<RequiredMark />
           </Label>
           <Select
             id="check-in-audience"
@@ -190,7 +192,7 @@ export function RaiseCheckInDialog({
               right answer most of the time; naming people is what you reach for when the family's
               own geography does not match the disaster's.
             */}
-            <option value="named:">Just the relatives I name</option>
+            <option value="named:">{t('safety.justNamed')}</option>
           </Select>
           {!isNamed && selected?.scope === 'region' && (
             // THE ONE THING ABOUT AREA AUDIENCES THAT READS AS A BUG UNLESS IT IS SAID. A member
@@ -199,7 +201,7 @@ export function RaiseCheckInDialog({
             // sentence that stops it being a surprise.
             <p className="text-xs text-muted-foreground">
               A relative who has not told the family which chapter they are in is not in any
-              region, so they are not asked. Use <strong>Just the relatives I name</strong> to
+              region, so they are not asked. Use <strong>{t('safety.justNamed')}</strong> to
               include them.
             </p>
           )}
@@ -208,8 +210,8 @@ export function RaiseCheckInDialog({
 
         {isNamed && (
           <PersonMultiSelect
-            label="Relatives to ask"
-            hint="Everybody you pick is emailed one question and can answer with one tap."
+            label={t('safety.relativesToAsk')}
+            hint={t('safety.emailedOne')}
             people={people.map(p => ({
               id: p.personId,
               first_name: p.firstName,
@@ -217,7 +219,7 @@ export function RaiseCheckInDialog({
             }))}
             selected={personIds}
             onChange={setPersonIds}
-            emptyMessage="No relatives to choose from yet."
+            emptyMessage={t('safety.noRelatives')}
           />
         )}
 
@@ -229,7 +231,7 @@ export function RaiseCheckInDialog({
         <div className="rounded-lg border border-brand-urgent bg-brand-urgent/10 px-3 py-2.5 text-sm">
           {addressed === 0 ? (
             <p className="text-muted-foreground">
-              Nobody is selected yet, so nothing will be sent.
+              {t('safety.nobodySelected')}
             </p>
           ) : (
             <>
@@ -253,14 +255,14 @@ export function RaiseCheckInDialog({
 
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={() => { reset(); onClose() }} disabled={pending}>
-            Cancel
+            {t('action.cancel')}
           </Button>
           <Button
             onClick={submit}
             disabled={pending || addressed === 0}
             className="bg-brand-urgent text-brand-on-urgent hover:opacity-90"
           >
-            {pending ? 'Asking…' : 'Ask them'}
+            {pending ? t('safety.asking') : t('safety.askThem')}
           </Button>
         </div>
       </div>

@@ -238,6 +238,38 @@ export function formatDate(
  * the NEXT occurrence, not the year the person was born, and those are the two numbers a reader
  * is most likely to confuse on a birthday list.
  */
+/**
+ * The seven weekday names, Sunday first, short and long, in one locale.
+ *
+ * ── WHY NOT A CATALOGUE ────────────────────────────────────────────────────────────
+ * A weekday is not copy. `Intl` has the canonical short and long form for every locale, and a
+ * hand-written table would be three translations of something the platform already knows — and
+ * would be wrong in a way nobody notices: Spanish and French both lower-case weekday names, so
+ * the first edit that "tidied" the capitals would silently be right in one language and wrong in
+ * two.
+ *
+ * ── SUNDAY FIRST, BY CONSTRUCTION ──────────────────────────────────────────────────
+ * `buildCalendarMonth` builds Sunday-first weeks, so index 0 must be Sunday. 2026-01-04 is a
+ * Sunday, so the seven days from it are the seven weekdays in that order — which is why an
+ * arbitrary anchor date is the right way to get them and `Intl` has no "list me the weekdays"
+ * call. UTC throughout, like every other formatter here.
+ *
+ * SHORT AND LONG BOTH, because the column heading prints the short form and a screen reader
+ * announces the long one: "Sun" read aloud is a word, not a day.
+ */
+export function weekdayNames(locale: string = DEFAULT_MONEY_LOCALE): {
+  short: string
+  long: string
+}[] {
+  const shortFmt = dateFormatter(locale, { weekday: 'short' }, 'wd-short')
+  const longFmt = dateFormatter(locale, { weekday: 'long' }, 'wd-long')
+  return Array.from({ length: 7 }, (_, i) => {
+    // 2026-01-04 is a Sunday. Any Sunday would do; a constant keeps it out of the clock.
+    const day = new Date(Date.UTC(2026, 0, 4 + i))
+    return { short: shortFmt.format(day), long: longFmt.format(day) }
+  })
+}
+
 export function formatMonthDay(
   date: string | null | undefined,
   locale: string = DEFAULT_MONEY_LOCALE,

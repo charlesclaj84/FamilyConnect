@@ -6,6 +6,7 @@ import { APP_NAME } from '@/lib/brand'
 import {
   hasChosen, readBrowserConsent, subscribeToConsent, writeBrowserConsent,
 } from '@/lib/consent'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The one place a visitor decides whether GENORRA may measure them for advertising.
@@ -46,6 +47,7 @@ import {
  * seizing focus from whatever the visitor is reading.
  */
 export function ConsentBanner() {
+  const t = useT()
   // The cookie lives outside React — same instrument and same reasoning as `ThemeToggle`
   // and `MetaPixel`.
   //
@@ -66,7 +68,7 @@ export function ConsentBanner() {
   return (
     <div
       role="region"
-      aria-label="Advertising measurement choice"
+      aria-label={t('consent.label')}
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-card/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-card/80"
     >
       <div className="mx-auto flex max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -84,10 +86,10 @@ export function ConsentBanner() {
           {/* Declining is listed first on a narrow screen for the same reason it is an
               equal-weight button: the easier choice must not be the one that suits us. */}
           <Button variant="outline" size="lg" onClick={() => writeBrowserConsent('denied')}>
-            Decline
+            {t('consent.decline')}
           </Button>
           <Button size="lg" onClick={() => writeBrowserConsent('granted')}>
-            Allow
+            {t('consent.allow')}
           </Button>
         </div>
       </div>

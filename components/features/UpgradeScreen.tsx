@@ -6,6 +6,7 @@ import {
   PLAN_ADDS, TIER_IS_SOLD, TIER_PRICE, formatPlanPrice,
 } from '@/lib/plans'
 import { TIER_LABEL, TIER_TAGLINE, tierMeets, type FamilyTier } from '@/lib/tiers'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Served in place of a page the family's PLAN does not include.
@@ -54,8 +55,10 @@ import { TIER_LABEL, TIER_TAGLINE, tierMeets, type FamilyTier } from '@/lib/tier
  * gain today, the other is what the plan is sold as.
  */
 export function UpgradeScreen({
-  label, blurb, currentTier, requiredTier: required, settingsHref,
+  label, blurb, currentTier, requiredTier: required, settingsHref, t,
 }: {
+  /** The reader's language, bound. A prop — this is a Server Component. */
+  t: T
   label: string
   blurb: string
   currentTier: FamilyTier
@@ -99,7 +102,7 @@ export function UpgradeScreen({
       <h1 className="mb-2 text-xl font-semibold sm:text-2xl">{label}</h1>
       <p className="mb-2 text-sm text-muted-foreground">{blurb}</p>
       <p className="mb-8 text-sm text-muted-foreground">
-        Your family is on <span className="font-medium text-foreground">{TIER_LABEL[currentTier]}</span>.
+        {t('upg.familyIsOn')} <span className="font-medium text-foreground">{TIER_LABEL[currentTier]}</span>.
         {' '}{TIER_LABEL[required]} is for families who need more: {TIER_TAGLINE[required].toLowerCase()}
       </p>
 
@@ -172,20 +175,20 @@ export function UpgradeScreen({
       <div className="flex flex-wrap justify-center gap-2">
         {settingsHref && (
           <Link href={settingsHref} className={buttonVariants() + ' justify-center'}>
-            Change your plan
+            {t('upg.changePlan')}
           </Link>
         )}
         <Link
           href="/dashboard"
           className={buttonVariants({ variant: settingsHref ? 'outline' : 'default' }) + ' justify-center'}
         >
-          Back to dashboard
+          {t('soon.back')}
         </Link>
       </div>
 
       {!settingsHref && (
         <p className="mt-4 text-sm text-muted-foreground">
-          Ask one of your family&rsquo;s administrators to change the plan.
+          {t('upg.askAdmin')}
         </p>
       )}
     </div>

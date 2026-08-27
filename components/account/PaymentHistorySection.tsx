@@ -19,7 +19,9 @@ import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 type HistCol = 'schedule' | 'date' | 'amount'
 
-const fmtDate = (s: string) => formatDate(s) ?? ''
+// TAKES `intl` — a module-scope helper cannot read a hook. Threading it is what puts this
+// date in the reader's language rather than in English.
+const fmtDate = (s: string, intl: string) => formatDate(s, intl) ?? ''
 
 /**
  * One of the member's own payments, as the detail dialog shows it.
@@ -122,7 +124,7 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
       {/* `sm:max-w-sm` rather than a half-width grid cell: it is the only card on this
           screen, and a single stat card stretched across a 6xl measure reads as a banner
           rather than as a figure. */}
-      <PaidThisYearCard history={history} className="sm:max-w-sm" />
+      <PaidThisYearCard history={history} className="sm:max-w-sm" intl={intl} />
 
       <div>
         <div className="mb-3 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
@@ -207,13 +209,13 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
                           its own colour, so it needs no separator in front of it —
                           a dot before a coloured chip reads as a bullet. */}
                       <RowMeta className="gap-x-2">
-                        <span>{fmtDate(p.payment_date)}</span>
+                        <span>{fmtDate(p.payment_date, intl)}</span>
                         {p.payment_method && <MetaDot />}
                         <MetaIf value={p.payment_method} />
                         {statusPill}
                       </RowMeta>
                     </td>
-                    <td className={cn('py-2.5 pr-3 whitespace-nowrap text-muted-foreground text-xs', COLLAPSING_CELL)}>{fmtDate(p.payment_date)}</td>
+                    <td className={cn('py-2.5 pr-3 whitespace-nowrap text-muted-foreground text-xs', COLLAPSING_CELL)}>{fmtDate(p.payment_date, intl)}</td>
                     {/* TWO ARMS, NOT THREE. Waived used to be blue here and pending
                         muted; both are now muted, because neither is money that moved
                         and the figure's colour should say only that. The third arm
@@ -233,7 +235,7 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
                           number the member cannot check. The status is not lost:
                           the pill says it, in this row's own Status column and on
                           the meta line below `sm`. */}
-                      {formatCurrency(p.amount_cents)}
+                      {formatCurrency(p.amount_cents, intl)}
                     </td>
                     <td className={cn('py-2.5 pr-3 text-muted-foreground text-xs', COLLAPSING_CELL)}>{p.payment_method ?? '—'}</td>
                     <td className={cn('py-2.5', COLLAPSING_CELL)}>

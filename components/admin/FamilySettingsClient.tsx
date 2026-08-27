@@ -15,7 +15,7 @@ import {
   renameFamily, removeFamily, requestFamilyRemovalCode, setFamilyZone, type FamilySettings,
 } from '@/app/actions/admin/family'
 import {
-  MAX_FAMILY_NAME, SETTINGS_PANES, SETTINGS_PANE_LABEL,
+  MAX_FAMILY_NAME, SETTINGS_PANES, settingsPaneLabel,
   DEFAULT_SETTINGS_PANE, type SettingsPane,
 } from '@/components/admin/family-settings'
 import { PlanPanel } from '@/components/admin/PlanPanel'
@@ -23,6 +23,7 @@ import { BillingPanel } from '@/components/admin/BillingPanel'
 import type { PlatformBilling } from '@/app/actions/billing'
 import { HelpLink } from '@/components/help/HelpLink'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Settings: three panes on a `MainRail` — what the family has paid, the plan it is on, and
@@ -87,6 +88,8 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
    */
   billing: PlatformBilling | null
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   // WHICH PANE IS SHOWING. Genuinely UI-local — it is not a family-scoped value and needs no
   // keying (AGENTS.md, "Switching family remounts the page"): `<main key={familyCode}>`
   // remounts this component on a switch anyway, and the pane somebody was looking at is not a
@@ -180,7 +183,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
     }
   }
 
-  const created = formatDate(settings.createdAt)
+  const created = formatDate(settings.createdAt, intl)
 
   // Every item carries an `href`, because every pane has a real address this page resolves —
   // so cmd-click, middle-click and copy-link-address all work. `MainRail` still intercepts
@@ -190,7 +193,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
   // inbox. Neither may be thrown away by looking at the plan.
   const items: MainRailItem<SettingsPane>[] = SETTINGS_PANES.map(id => ({
     id,
-    label: SETTINGS_PANE_LABEL[id],
+    label: settingsPaneLabel(t, id),
     // `Crown` is the product's plan glyph already — the tier badge inside `PlanPanel`, the
     // upgrade screen, the marketing ladder — and `Home` is what `FamilySwitcher` and
     // `/my-families` use for a family. `CreditCard` is what every payment control in the
@@ -235,7 +238,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
     //
     // THE PANE IS NAMED BY THE RAIL ITEM, so there is no panel header and no pane-level
     // heading — the convention every pane on Members & Access already follows. That moved the
-    // sections inside each pane up a rank: `Family name`, `Family code`, `Remove this family`
+    // sections inside each pane up a rank: t('set.familyName'), t('set.familyCode'), t('set.remove')
     // and `PlanPanel`'s `What each plan includes` are `h2`s now, directly under the page's
     // `h1`, so the outline a screen reader reads is the one a sighted reader sees.
     //
@@ -252,7 +255,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
     // thing somebody does mid-purchase.
     <div className="space-y-6">
       <MainRail
-        label="Settings sections"
+        label={t('set.rail')}
         items={items}
         active={pane}
         onSelect={selectPane}
@@ -272,7 +275,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
             variant="inline"
             slug="family-settings"
             section="billing"
-            label="How paying for a plan works"
+            label={t('set.howPayingWorks')}
           />
         </div>
       </div>
@@ -304,7 +307,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
             variant="inline"
             slug="family-settings"
             section="plan"
-            label="What changing the plan does"
+            label={t('set.howPlanWorks')}
           />
         </div>
       </div>
@@ -317,7 +320,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
         className="divide-y overflow-hidden rounded-xl border bg-card"
       >
         <div className="p-5 sm:p-6">
-          <h2 className="text-lg font-semibold">Family name</h2>
+          <h2 className="text-lg font-semibold">{t('set.familyName')}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             What this family is called everywhere in the app — the switcher, the dashboard,
             and the emails inviting people to join. Changing it moves nothing else: the
@@ -334,12 +337,12 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
                 belonging to one input. A family name is a few words; `max-w-md` is the size
                 of the thing being typed. */}
             <div className="max-w-md space-y-1.5">
-              <Label htmlFor="family-name">Name</Label>
+              <Label htmlFor="family-name">{t('field.name')}</Label>
               <Input
                 id="family-name"
                 value={name}
                 onChange={e => { setName(e.target.value); setSaved(false) }}
-                placeholder="The Okonkwo Family"
+                placeholder={t('fam.namePh')}
                 autoComplete="off"
                 maxLength={MAX_FAMILY_NAME}
                 disabled={!settings.canEdit || isPending}
@@ -357,7 +360,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
                 on" are read in the READER's zone from My Profile. This one decides the
                 questions every member has to get the same answer to. */}
             <div className="max-w-md space-y-1.5">
-              <Label htmlFor="family-zone" required>Timezone</Label>
+              <Label htmlFor="family-zone" required>{t('set.timezone')}</Label>
               <Select
                 id="family-zone"
                 value={zone}
@@ -385,11 +388,11 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
                   disabled={!dirty || isPending}
                   className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
                 >
-                  {isPending ? 'Saving…' : 'Save name'}
+                  {isPending ? t('action.saving') : t('set.saveName')}
                 </button>
                 {saved && !dirty && (
                   <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground">
-                    <Check className="h-3.5 w-3.5" /> Saved
+                    <Check className="h-3.5 w-3.5" /> {t('rec.savedShort')}
                   </span>
                 )}
               </div>
@@ -403,7 +406,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
         </div>
 
         <div className="p-5 sm:p-6">
-          <h2 className="text-lg font-semibold">Family code</h2>
+          <h2 className="text-lg font-semibold">{t('set.familyCode')}</h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Share this with relatives so they can join. Everyone who joins waits in Pending
             Approval until somebody admits them.
@@ -411,7 +414,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
 
           <div className="mt-4 rounded-xl border-2 border-brand-primary/30 bg-brand-soft/40 px-6 py-4 text-center">
             <p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">
-              Family Code
+              {t('fam.codeHeading')}
             </p>
             <p className="font-mono text-3xl font-bold tracking-widest text-brand-ink">
               {settings.familyCode}
@@ -431,7 +434,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
               className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
             >
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              {copied ? 'Copied' : 'Copy code'}
+              {copied ? t('action.copied') : t('fam.copyCode')}
             </button>
           </div>
 
@@ -504,6 +507,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
  * here would take one keystroke and then sit frozen.
  */
 function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const codeRef = useRef('')
@@ -521,11 +525,11 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
       <section className="bg-brand-withheld/5 p-5 sm:p-6">
         <h2 className="flex items-center gap-2 text-lg font-semibold">
           <PowerOff className="h-4 w-4 text-brand-withheld" aria-hidden="true" />
-          This family has been removed
+          {t('set.removed')}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Nobody can open it, join it or accept an invitation to it.{' '}
-          <strong className="font-semibold">Nothing has been deleted</strong> — every
+          <strong className="font-semibold">{t('rem.nothingDeleted')}</strong> — every
           payment, photograph, event and person is exactly where it was. Only GENORRA
           support can bring it back; write to them and ask.
         </p>
@@ -564,11 +568,9 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
     const ok = await confirm({
       title: `Remove ${settings.familyName}?`,
       description:
-        'Nobody will be able to open this family, join it or accept an invitation to it. '
-        + 'Nothing is deleted: every record stays exactly where it is, and only GENORRA '
-        + 'support can bring the family back.',
+        t('set.removeBody'),
       body: <RemovalCodeField valueRef={codeRef} sentTo={challenge.sentTo} />,
-      confirmLabel: 'Remove this family',
+      confirmLabel: t('set.remove'),
       // ── THE BROWSER-SIDE CHECK IS A SHAPE CHECK, AND NOTHING MORE ────────────────
       // `verify` runs here, in the browser, so it cannot possibly know whether the code is
       // right — only the database can, and `consume_family_removal_challenge` is what
@@ -578,7 +580,7 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
       verify: async () =>
         /^\d{6}$/.test(codeRef.current.trim())
           ? null
-          : 'Enter the six digits from the email.',
+          : t('set.enterCode'),
     })
     if (!ok) return
 
@@ -606,14 +608,14 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
     <section className="bg-brand-withheld/5 p-5 sm:p-6">
       <h2 className="flex items-center gap-2 text-lg font-semibold">
         <PowerOff className="h-4 w-4 text-brand-withheld" aria-hidden="true" />
-        Remove this family
+        {t('set.remove')}
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Switches the family off for everybody in it. Nobody can open it, the family code
         stops working, and outstanding invitations stop being accepted.
       </p>
       <p className="mt-2 text-sm text-muted-foreground">
-        <strong className="font-semibold">Nothing is deleted.</strong> Every payment,
+        <strong className="font-semibold">{t('set.nothingDeleted')}</strong> Every payment,
         fund, photograph, event, message and person stays exactly where it is. Removing is
         not a way to erase anything — and it is not something you can undo from here:{' '}
         <strong className="font-semibold">only GENORRA support can bring a family back.</strong>
@@ -637,7 +639,7 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
               // to avoid. The code itself is deliberately NOT handed back here: the
               // recipient is the caller, so that would hand them both factors at once.
               <>
-                {challenge.note ?? 'We could not send the email just now.'} No code has
+                {challenge.note ?? t('set.codeFailed')} No code has
                 reached <span className="font-medium">{challenge.sentTo}</span>, so there
                 is nothing to type yet. Try again in a moment.
               </>
@@ -651,7 +653,7 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
                 onClick={() => { void confirmRemoval() }}
                 className="rounded-lg border border-brand-withheld px-3 py-1.5 text-sm font-medium text-brand-withheld transition-colors hover:bg-brand-withheld/10 disabled:opacity-60"
               >
-                {isPending ? 'Working…' : 'Enter the code and remove'}
+                {isPending ? t('action.working') : t('set.enterAndRemove')}
               </button>
             )}
             <button
@@ -660,7 +662,7 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
               onClick={sendCode}
               className="text-sm font-medium text-brand-accent underline-offset-4 hover:underline disabled:opacity-60"
             >
-              Send another code
+              {t('set.sendAnotherCode')}
             </button>
           </div>
         </div>
@@ -672,7 +674,7 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
             onClick={sendCode}
             className="rounded-lg border border-brand-withheld px-3 py-1.5 text-sm font-medium text-brand-withheld transition-colors hover:bg-brand-withheld/10 disabled:opacity-60"
           >
-            {isPending ? 'Sending…' : 'Email me a removal code'}
+            {isPending ? t('security.sending') : t('set.emailMeCode')}
           </button>
         </div>
       )}
@@ -682,7 +684,7 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
           variant="inline"
           slug="family-settings"
           section="removal"
-          label="What removing a family does"
+          label={t('set.howRemovalWorks')}
         />
       </div>
     </section>

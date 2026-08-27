@@ -27,6 +27,7 @@ import {
 // open-relay rule, applied to the analytics transport).
 import { trackCheckoutStarted } from '@/lib/meta/billing'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * A family paying GENORRA for its plan — the hosted-checkout half.
@@ -277,6 +278,7 @@ export async function startPlanCheckout(input: {
 }): Promise<CheckoutResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
+  const { intl } = await callerI18n(g.userId)
   if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
 
   // NARROWED, NEVER CAST. This is a `'use server'` export, so every argument arrives from an
@@ -564,9 +566,9 @@ export async function startPlanCheckout(input: {
       ? {
           custom_text: {
             submit: {
-              message: `${formatCurrency(dueNowCents)} today covers you to the end of `
+              message: `${formatCurrency(dueNowCents, intl)} today covers you to the end of `
                 + `${monthLabel(addDays(billingStartsOn, -1).slice(0, 7))}. ${TIER_LABEL[tier]} then `
-                + `renews at ${formatCurrency(TIER_PRICE[tier]?.monthlyCents ?? 0)} a month, on the 1st.`,
+                + `renews at ${formatCurrency(TIER_PRICE[tier]?.monthlyCents ?? 0, intl)} a month, on the 1st.`,
             },
           },
         }
@@ -663,6 +665,7 @@ export async function changePlanTier(
 ): Promise<PlanChangeResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
+  const { intl } = await callerI18n(g.userId)
   if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
   if (!isFamilyTier(nextTier)) return { success: false, message: 'That is not a plan.' }
 
@@ -697,7 +700,7 @@ export async function changePlanTier(
     // spend it on the new tier, carry the remainder as a credit. `lib/platform-billing.ts`
     // holds the arithmetic and the worked example.
     return upgradeFromPrepaid({
-      admin, stripe, familyCode: g.familyCode, userId: g.userId,
+      intl, admin, stripe, familyCode: g.familyCode, userId: g.userId,
       record, nextTier, includeNextMonth,
     })
   }
@@ -1038,6 +1041,8 @@ async function scheduleDowngradeOnly(input: {
  * a tier DOWN, so the worst a bug here can do is fail to open a page.
  */
 async function upgradeFromPrepaid(input: {
+  /** The reader's `Intl` tag, for the figures in the message below. */
+  intl: string
   admin: AdminClient
   stripe: NonNullable<ReturnType<typeof stripeClient>>
   familyCode: string
@@ -1046,7 +1051,7 @@ async function upgradeFromPrepaid(input: {
   nextTier: FamilyTier
   includeNextMonth: boolean
 }): Promise<PlanChangeResult> {
-  const { admin, stripe, familyCode, userId, record, nextTier, includeNextMonth } = input
+  const { intl, admin, stripe, familyCode, userId, record, nextTier, includeNextMonth } = input
   const today = todayISO()
   const from = toRecord(record)
 
@@ -1090,7 +1095,7 @@ async function upgradeFromPrepaid(input: {
     return {
       success: true,
       message: quote.creditLeftCents > 0
-        ? `${TIER_LABEL[nextTier]} is active now, paid through ${quote.paidThrough}. What was left of the old term — ${formatCurrency(quote.creditLeftCents)} — is held as credit against your next invoice.`
+        ? `${TIER_LABEL[nextTier]} is active now, paid through ${quote.paidThrough}. What was left of the old term — ${formatCurrency(quote.creditLeftCents, intl)} — is held as credit against your next invoice.`
         : `${TIER_LABEL[nextTier]} is active now, paid through ${quote.paidThrough}. The term you had already paid for covered it exactly.`,
     }
   }
@@ -1152,7 +1157,7 @@ async function upgradeFromPrepaid(input: {
     return {
       success: true,
       url: session.url,
-      message: `Opening Stripe to collect ${formatCurrency(quote.dueNowCents)}.`,
+      message: `Opening Stripe to collect ${formatCurrency(quote.dueNowCents, intl)}.`,
     }
   } catch (e) {
     console.error(`[billing] upgrade checkout failed for ${familyCode} -> ${nextTier}: ${describe(e)}`)

@@ -41,7 +41,7 @@ export default async function GatheringsReportPage() {
 
   await requireView(user.id, 'reporting/gatherings')
 
-  const { t } = await callerI18n(user.id)
+  const { t, intl } = await callerI18n(user.id)
   if (!(await canAny(user.id, 'reporting/gatherings', 'view'))) notFound()
 
   const report = await getGatheringsReport()
@@ -127,7 +127,7 @@ export default async function GatheringsReportPage() {
                       {row.title}
                     </Link>
                     <RowMeta>
-                      <span>{formatDate(row.startsOn)}</span>
+                      <span>{formatDate(row.startsOn, intl)}</span>
                       <MetaDot />
                       <span>{GATHERING_STATUS_LABEL[row.status]}</span>
                       {row.overdue > 0 && (
@@ -139,13 +139,13 @@ export default async function GatheringsReportPage() {
                       {row.allocatedCents !== null && (
                         <>
                           <MetaDot />
-                          <span>{formatCurrency(row.allocatedCents)} allocated</span>
+                          <span>{formatCurrency(row.allocatedCents, intl)} allocated</span>
                         </>
                       )}
                     </RowMeta>
                   </td>
                   <td className={cn('px-3 py-2 tabular-nums', COLLAPSING_CELL)}>
-                    {formatDate(row.startsOn)}
+                    {formatDate(row.startsOn, intl)}
                   </td>
                   <td className={cn('px-3 py-2', COLLAPSING_CELL)}>
                     {GATHERING_STATUS_LABEL[row.status]}
@@ -172,13 +172,13 @@ export default async function GatheringsReportPage() {
                           over-FUND, which this report does not compute. */}
                       {row.allocatedCents === null ? '—' : (
                         <>
-                          {formatCurrency(row.allocatedCents)}
+                          {formatCurrency(row.allocatedCents, intl)}
                           {row.budgetCents !== null && (
                             <span className={cn('block text-xs',
                               row.allocatedCents > row.budgetCents
                                 ? 'text-brand-withheld'
                                 : 'text-muted-foreground')}>
-                              of {formatCurrency(row.budgetCents)}
+                              of {formatCurrency(row.budgetCents, intl)}
                             </span>
                           )}
                         </>

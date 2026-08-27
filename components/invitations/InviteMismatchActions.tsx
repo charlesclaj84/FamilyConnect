@@ -6,6 +6,7 @@ import { Copy, Check, LogOut } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { clearIdleActivity } from '@/lib/idle-timeout'
 import { FormError } from '@/components/ui/form-message'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The two exits from the "this invitation is for a different address" screen.
@@ -27,6 +28,7 @@ import { FormError } from '@/components/ui/form-message'
  * of their laptop.
  */
 export function InviteMismatchActions({ token }: { token: string }) {
+  const t = useT()
   const router = useRouter()
   const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
@@ -43,7 +45,7 @@ export function InviteMismatchActions({ token }: { token: string }) {
     const { error: signOutError } = await supabase.auth.signOut({ scope: 'local' })
 
     if (signOutError) {
-      setError('We could not sign you out just now. Your invitation link is still in the address bar — try again, or open it in a private window.')
+      setError(t('inv.signOutFailed'))
       return
     }
 
@@ -62,7 +64,7 @@ export function InviteMismatchActions({ token }: { token: string }) {
     } catch {
       // Clipboard can be refused (permissions, insecure origin). The link is in the
       // address bar either way, so this is a nicety failing rather than the feature.
-      setError('We could not copy it. The link is in your address bar.')
+      setError(t('inv.copyFailed'))
     }
   }
 
@@ -76,7 +78,7 @@ export function InviteMismatchActions({ token }: { token: string }) {
           className="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
         >
           <LogOut className="h-4 w-4" />
-          {isPending ? 'Signing out…' : 'Sign out and continue'}
+          {isPending ? t('inv.signingOut') : t('inv.signOutContinue')}
         </button>
 
         {/* For the inviter, who is the likeliest visitor to this screen: the dialog that
@@ -88,7 +90,7 @@ export function InviteMismatchActions({ token }: { token: string }) {
           className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
         >
           {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-          {copied ? 'Link copied' : 'Copy invitation link'}
+          {copied ? t('inv.linkCopied') : t('inv.copyLink')}
         </button>
       </div>
 

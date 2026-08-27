@@ -26,7 +26,7 @@ import { formatInstantDate } from '@/lib/tz'
 import { PAYMENT_METHODS } from '@/lib/payment-methods'
 import { paymentStatusLabel, type ScheduleKind } from '@/lib/dues-utils'
 import type { T } from '@/lib/i18n/t'
-import { useT } from '@/components/layout/LocaleProvider'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 import { useServerState } from '@/lib/use-server-state'
 import { recordPayment, reversePayment, type DuesSchedule, type DuesPayment } from '@/app/actions/dues'
 import {
@@ -181,7 +181,7 @@ const recorderField = (name: string | null) => ({
   value: name ?? 'No longer in the family',
 })
 
-function viewOfPayment(p: DuesPayment | undefined, zone: string, t: T): TransactionView | null {
+function viewOfPayment(p: DuesPayment | undefined, zone: string, t: T, intl: string): TransactionView | null {
   if (!p) return null
   const isReversal = Boolean(p.reverses_id)
   const kindWord = p.schedule_kind === 'donation' ? 'Donation payment' : 'Dues payment'
@@ -192,7 +192,7 @@ function viewOfPayment(p: DuesPayment | undefined, zone: string, t: T): Transact
       { label: 'Amount', value: fmt(p.amount_cents) },
       { label: 'Status', value: paymentStatusLabel(t, p.status) },
       { label: p.schedule_kind === 'donation' ? 'Donation' : 'Schedule', value: p.schedule_label ?? 'No schedule' },
-      { label: 'Date', value: formatDate(p.payment_date) },
+      { label: 'Date', value: formatDate(p.payment_date, intl) },
       // Absent on a waived row by design — no money moved, so there was no method and
       // no cheque to number.
       { label: 'Payment method', value: p.payment_method },
@@ -206,7 +206,7 @@ function viewOfPayment(p: DuesPayment | undefined, zone: string, t: T): Transact
   }
 }
 
-function viewOfContribution(c: FundContribution | undefined, zone: string): TransactionView | null {
+function viewOfContribution(c: FundContribution | undefined, zone: string, intl: string): TransactionView | null {
   if (!c) return null
   return {
     title: c.contributor_name ?? 'Routed from a payment',
@@ -214,7 +214,7 @@ function viewOfContribution(c: FundContribution | undefined, zone: string): Tran
     fields: [
       { label: 'Amount', value: fmt(c.amount_cents) },
       { label: 'Fund', value: c.fund_name ?? 'Unknown fund' },
-      { label: 'Date', value: formatDate(c.contributed_date) },
+      { label: 'Date', value: formatDate(c.contributed_date, intl) },
       { label: 'Payment method', value: c.payment_method },
       { label: 'Check # / Reference', value: c.payment_reference },
       { label: 'Notes', value: c.notes },
@@ -224,7 +224,7 @@ function viewOfContribution(c: FundContribution | undefined, zone: string): Tran
   }
 }
 
-function viewOfDisbursement(d: FundDisbursement | undefined, zone: string): TransactionView | null {
+function viewOfDisbursement(d: FundDisbursement | undefined, zone: string, intl: string): TransactionView | null {
   if (!d) return null
   return {
     title: d.person_name ?? 'Unknown member',
@@ -233,7 +233,7 @@ function viewOfDisbursement(d: FundDisbursement | undefined, zone: string): Tran
       { label: 'Amount', value: fmt(d.amount_cents) },
       { label: 'Fund', value: d.fund_name ?? 'Unknown fund' },
       { label: 'Milestone', value: d.milestone_name },
-      { label: 'Date', value: formatDate(d.disbursed_date) },
+      { label: 'Date', value: formatDate(d.disbursed_date, intl) },
       { label: 'Check # / Reference', value: d.payment_reference },
       { label: 'Notes', value: d.notes },
       recorderField(d.recorded_by_name),
@@ -246,7 +246,7 @@ function viewOfDisbursement(d: FundDisbursement | undefined, zone: string): Tran
  * A transfer has no counterparty to head the row with, so the two funds do the job:
  * the title is the movement itself and the subtitle says it changed no total.
  */
-function viewOfTransfer(t: FundTransfer | undefined, zone: string): TransactionView | null {
+function viewOfTransfer(t: FundTransfer | undefined, zone: string, intl: string): TransactionView | null {
   if (!t) return null
   return {
     title: `${t.from_fund_name ?? 'Unknown fund'} → ${t.to_fund_name ?? 'Unknown fund'}`,
@@ -255,7 +255,7 @@ function viewOfTransfer(t: FundTransfer | undefined, zone: string): TransactionV
       { label: 'Amount', value: fmt(t.amount_cents) },
       { label: 'From', value: t.from_fund_name ?? 'Unknown fund' },
       { label: 'To', value: t.to_fund_name ?? 'Unknown fund' },
-      { label: 'Date', value: formatDate(t.transferred_date) },
+      { label: 'Date', value: formatDate(t.transferred_date, intl) },
       { label: 'Reason', value: t.reason },
       recorderField(t.recorded_by_name),
       { label: 'Entered', value: formatInstantDate(t.created_at, zone) },
@@ -404,6 +404,7 @@ export function TransactionsClient({
   myName,
   zone,
 }: Props) {
+  const intl = useIntlTag()
   const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
@@ -764,12 +765,12 @@ export function TransactionsClient({
   const viewed: TransactionView | null = !viewing
     ? null
     : viewing.ledger === 'contributions'
-      ? viewOfContribution(contributions.find(c => c.id === viewing.id), zone)
+      ? viewOfContribution(contributions.find(c => c.id === viewing.id), zone, intl)
       : viewing.ledger === 'disbursements'
-        ? viewOfDisbursement(disbursements.find(d => d.id === viewing.id), zone)
+        ? viewOfDisbursement(disbursements.find(d => d.id === viewing.id), zone, intl)
         : viewing.ledger === 'transfers'
-          ? viewOfTransfer(transfers.find(t => t.id === viewing.id), zone)
-          : viewOfPayment(payments.find(p => p.id === viewing.id), zone, t)
+          ? viewOfTransfer(transfers.find(t => t.id === viewing.id), zone, intl)
+          : viewOfPayment(payments.find(p => p.id === viewing.id), zone, t, intl)
 
   // Reachable: `transactions:view` opens the page, but each ledger is its own grant
   // since 20260808000000, so a caller can hold the page and none of its contents.
@@ -854,11 +855,11 @@ export function TransactionsClient({
                       <RowMeta>
                         <span>{c.fund_name ?? 'Unknown fund'}</span>
                         <MetaDot />
-                        <span>{formatDate(c.contributed_date)}</span>
+                        <span>{formatDate(c.contributed_date, intl)}</span>
                       </RowMeta>
                     </td>
                     <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{c.fund_name ?? 'Unknown fund'}</td>
-                    <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(c.contributed_date)}</td>
+                    <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(c.contributed_date, intl)}</td>
                     <td className="px-3 py-2.5 text-right align-top font-medium text-brand-affirm whitespace-nowrap sm:align-middle">{fmt(c.amount_cents)}</td>
                   </LedgerRow>
                 ))}
@@ -894,7 +895,7 @@ export function TransactionsClient({
                         <span>{d.fund_name ?? '—'}</span>
                         {d.milestone_name && <><MetaDot /><span>{d.milestone_name}</span></>}
                         <MetaDot />
-                        <span>{formatDate(d.disbursed_date)}</span>
+                        <span>{formatDate(d.disbursed_date, intl)}</span>
                       </RowMeta>
                     </td>
                     <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
@@ -904,7 +905,7 @@ export function TransactionsClient({
                           something with a missing half. */}
                       {d.milestone_name && <span className="text-muted-foreground/60"> · {d.milestone_name}</span>}
                     </td>
-                    <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(d.disbursed_date)}</td>
+                    <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(d.disbursed_date, intl)}</td>
                     {/* Plain foreground, deliberately, and the one place this column
                         changed meaning: --brand-affirm is the "money in" role, and
                         a disbursement is money OUT. Both ledgers painted the same
@@ -948,10 +949,10 @@ export function TransactionsClient({
                       </LedgerRowTrigger>
                       <p className="text-xs text-muted-foreground">{t.reason}</p>
                       <RowMeta>
-                        <span>{formatDate(t.transferred_date)}</span>
+                        <span>{formatDate(t.transferred_date, intl)}</span>
                       </RowMeta>
                     </td>
-                    <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(t.transferred_date)}</td>
+                    <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(t.transferred_date, intl)}</td>
                     {/* Plain foreground, like Disbursements and for a related reason:
                         --brand-affirm is the "money in" role, and no money came in.
                         Nothing came out either — the family holds exactly what it held
@@ -1366,6 +1367,7 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
   onOpen: (id: string) => void
   pending: boolean
 }) {
+  const intl = useIntlTag()
   if (rows.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -1409,7 +1411,7 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
               <RowMeta>
                 <span>{p.schedule_label ?? 'No schedule'}</span>
                 <MetaDot />
-                <span>{formatDate(p.payment_date)}</span>
+                <span>{formatDate(p.payment_date, intl)}</span>
                 {/* On Donations the pill is already conditional in the wide layout — an
                     ordinary donation has nothing to say — and it stays conditional here. */}
                 {(!isDonations || isReversed || isReversal) && <PaymentStatusPill payment={p} />}
@@ -1424,7 +1426,7 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
                 {isDonations && (isReversed || isReversal) && <PaymentStatusPill payment={p} />}
               </span>
             </td>
-            <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(p.payment_date)}</td>
+            <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(p.payment_date, intl)}</td>
             {!isDonations && (
               <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>
                 {/* Reversed and Correcting entry live in this column rather than under the

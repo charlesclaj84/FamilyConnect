@@ -9,6 +9,8 @@ import { ConfirmProvider } from '@/components/ui/confirm'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { StaffNav } from '@/components/staff/StaffNav'
 import { cn } from '@/lib/utils'
+import { callerI18n } from '@/lib/i18n/server'
+import { LocaleProvider } from '@/components/layout/LocaleProvider'
 
 /**
  * The GENORRA staff console — a separate application that happens to share a codebase.
@@ -97,6 +99,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   // position, so no unused-import lint fired on it. A mutation left in place looks like
   // ordinary code; the only defence is putting it back in the same session it was made.
   const staff = await requireStaff()
+  const { locale } = await callerI18n(null)
 
   return (
     // `ConfirmProvider` is mounted HERE because this group inherits none of the member
@@ -104,6 +107,11 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     // — which the browser can suppress with "prevent this page from creating additional
     // dialogs". Restoring a family is the one action in this console and it must not be
     // one stray checkbox away from happening without a prompt.
+    // THE LANGUAGE. The console is GENORRA's own screen, and its readers are employees —
+    // but they read what they read, so it is translated like everything else. There is a
+    // caller here (`requireStaff` above), so this is the stored choice rather than the
+    // header.
+    <LocaleProvider locale={locale}>
     <ConfirmProvider>
       <div className="flex min-h-screen flex-col bg-background">
         {/* THE BAND IS THE POINT. The member product deliberately has no header band at
@@ -188,5 +196,6 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         <main className="flex-1">{children}</main>
       </div>
     </ConfirmProvider>
+    </LocaleProvider>
   )
 }

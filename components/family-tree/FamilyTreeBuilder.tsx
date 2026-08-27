@@ -23,6 +23,7 @@ import {
   removeRelationship, setBloodlineAnchor,
   type FamilyTree, type TreeEdge, type TreePerson,
 } from '@/app/actions/family-tree'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The family-wide tree — the only tree in the product, since the per-member lineage view
@@ -103,6 +104,7 @@ export function FamilyTreeBuilder({
    */
   canViewDirectory?: boolean
 }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [error, setError] = useState('')
@@ -271,7 +273,7 @@ export function FamilyTreeBuilder({
       <div className="rounded-xl border border-dashed bg-card px-6 py-16 text-center">
         <Users className="mx-auto mb-3 h-8 w-8 text-muted-foreground/40" aria-hidden="true" />
         <p className="text-sm text-muted-foreground">
-          There is nobody in this family to build a tree from yet.
+          {t('tree.nobodyToBuild')}
         </p>
       </div>
     )
@@ -388,19 +390,19 @@ export function FamilyTreeBuilder({
 
   async function detach(edge: TreeEdge, personName: string) {
     const ok = await confirm({
-      title: 'Remove this connection',
+      title: t('tree.removeConnection'),
       description:
         `Remove the link between ${nameOf.get(focus!.id) ?? 'this person'} and ${personName}? `
         + 'This only removes the connection — nobody is removed from the family, and '
         + 'nothing they have recorded is deleted.',
-      confirmLabel: 'Remove connection',
+      confirmLabel: t('tree.removeConnectionAction'),
       destructive: true,
     })
     if (!ok) return
     setError('')
     startTransition(async () => {
       const r = await removeRelationship(edge.id)
-      if (!r.success) { setError(r.message ?? 'Could not remove that connection.'); return }
+      if (!r.success) { setError(r.message ?? t('tree.removeConnectionFailed')); return }
       router.refresh()
     })
   }
@@ -504,7 +506,7 @@ export function FamilyTreeBuilder({
           LETS YOU DO, the other changes who is on it. */}
       {canEdit && (
         <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex rounded-xl border p-0.5" role="group" aria-label="Tree mode">
+          <div className="inline-flex rounded-xl border p-0.5" role="group" aria-label={t('tree.mode')}>
             {([
               { id: false, label: 'View' },
               { id: true, label: 'Edit' },
@@ -531,8 +533,8 @@ export function FamilyTreeBuilder({
               person in the middle — is not guessable from the result. */}
           <p className="text-xs text-muted-foreground">
             {editing
-              ? 'Add relatives, correct records and remove connections. Editing shows the generations either side of this person, so the gaps you can fill are the ones next to them. Nothing here removes anybody from the family.'
-              : 'Reading the tree — three generations up and five down. Switch to Edit to add relatives or change a connection.'}
+              ? t('tree.editHint')
+              : t('tree.readHint')}
           </p>
         </div>
       )}
@@ -542,10 +544,10 @@ export function FamilyTreeBuilder({
           it the toggle is a control that does nothing. */}
       {canFilterBlood && (
         <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex rounded-xl border p-0.5" role="group" aria-label="Which relatives to show">
+          <div className="inline-flex rounded-xl border p-0.5" role="group" aria-label={t('tree.whichRelatives')}>
             {([
-              { id: false, label: 'Full family' },
-              { id: true, label: 'Bloodline' },
+              { id: false, label: t('tree.fullFamily') },
+              { id: true, label: t('tree.bloodline') },
             ] as const).map(o => (
               <button
                 key={String(o.id)}
@@ -580,7 +582,7 @@ export function FamilyTreeBuilder({
           <HelpLink
             slug="family-tree"
             section="bloodline"
-            label="Help: the Bloodline toggle"
+            label={t('tree.bloodlineHelp')}
             className="size-6"
           />
         </div>
@@ -602,7 +604,7 @@ export function FamilyTreeBuilder({
         <div className="space-y-2">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <label htmlFor="bloodline-anchor" className="font-medium">
-            Bloodline descends from
+            {t('tree.bloodlineFrom')}
           </label>
           <select
             id="bloodline-anchor"
@@ -613,7 +615,7 @@ export function FamilyTreeBuilder({
               setError('')
               startTransition(async () => {
                 const r = await setBloodlineAnchor(next)
-                if (!r.success) { setError(r.message ?? 'Could not change that.'); return }
+                if (!r.success) { setError(r.message ?? t('tree.changeFailed')); return }
                 router.refresh()
               })
             }}
@@ -621,7 +623,7 @@ export function FamilyTreeBuilder({
           >
             {/* An explicit "clear" rather than a blank first row, so the fallback is a
                 choice somebody can make on purpose and read back afterwards. */}
-            <option value="">Whoever created the family</option>
+            <option value="">{t('tree.whoeverCreated')}</option>
             {tree.people.map(p => (
               <option key={p.id} value={p.id}>
                 {nameOf.get(p.id) ?? `${p.firstName} ${p.lastName}`.trim()}
@@ -679,7 +681,7 @@ export function FamilyTreeBuilder({
                   the fact only the family knows, so nothing here picks. */}
               {anchorAudit.rootIds.filter(id => id !== tree.bloodlineAnchorId).length > 0 && (
                 <p className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                  <span>Oldest recorded on each line:</span>
+                  <span>{t('tree.oldestOnLine')}</span>
                   {anchorAudit.rootIds
                     .filter(id => id !== tree.bloodlineAnchorId)
                     .map(id => (
@@ -691,7 +693,7 @@ export function FamilyTreeBuilder({
                           setError('')
                           startTransition(async () => {
                             const r = await setBloodlineAnchor(id)
-                            if (!r.success) { setError(r.message ?? 'Could not change that.'); return }
+                            if (!r.success) { setError(r.message ?? t('tree.changeFailed')); return }
                             router.refresh()
                           })
                         }}
@@ -721,7 +723,7 @@ export function FamilyTreeBuilder({
             onClick={() => setFocusId(tree.myPersonId!)}
             className="font-medium text-brand-accent underline underline-offset-2"
           >
-            Centre on me
+            {t('tree.centreOnMe')}
           </button>
         </p>
       )}
@@ -754,8 +756,8 @@ export function FamilyTreeBuilder({
 
                 {canAct && row.distance === 1 && (
                   <>
-                    {!hasFather && addButton(focus, 'Father')}
-                    {!hasMother && addButton(focus, 'Mother')}
+                    {!hasFather && addButton(focus, t('tree.father'))}
+                    {!hasMother && addButton(focus, t('tree.mother'))}
                   </>
                 )}
 
@@ -780,8 +782,8 @@ export function FamilyTreeBuilder({
                   const who = parent.firstName || displayName(parent)
                   return (
                     <Fragment key={parent.id}>
-                      {!hasDad && addButton(parent, 'Father', `Add ${who}'s father`)}
-                      {!hasMum && addButton(parent, 'Mother', `Add ${who}'s mother`)}
+                      {!hasDad && addButton(parent, t('tree.father'), `Add ${who}'s father`)}
+                      {!hasMum && addButton(parent, t('tree.mother'), `Add ${who}'s mother`)}
                     </Fragment>
                   )
                 })}
@@ -807,8 +809,8 @@ export function FamilyTreeBuilder({
           ))}
 
           <Generation label={spouses.length > 1
-            ? 'This person, and their marriages'
-            : spouses.length > 0 ? 'This person, and their spouse' : 'This person'}>
+            ? t('tree.thisAndMarriages')
+            : spouses.length > 0 ? t('tree.thisAndSpouse') : t('tree.thisPerson')}>
             {card(focus, { highlight: true })}
             {/* THE WORD ON THE CARD — "Wife", "Ex-wife", "Partner". With one spouse it is
                 a small courtesy; with two it is the row's whole meaning, because three
@@ -851,9 +853,9 @@ export function FamilyTreeBuilder({
               marriage. Adding from the wrong row was previously impossible to notice: the
               dialog offered every spouse with all of them ticked. */}
           {groupChildren ? (
-            <section aria-label="Children" className="w-full">
+            <section aria-label={t('tree.children')} className="w-full">
               <p className="mb-2 text-center text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                Children
+                {t('tree.children')}
               </p>
               <div className="flex flex-wrap items-start justify-center gap-4">
                 {marriages.map(({ spouse, children: theirs }) => (
@@ -894,7 +896,7 @@ export function FamilyTreeBuilder({
               </div>
             </section>
           ) : (
-            <Generation label="Children">
+            <Generation label={t('tree.children')}>
               <GenerationCards
                 people={children}
                 render={p => card(p, { edge: related(focus.id, 'child').find(e => e.to === p.id) })}
@@ -939,7 +941,7 @@ export function FamilyTreeBuilder({
       {(siblings.length > 0 || canAct) && (
         <section className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
           <h2 className="mb-1 text-lg">
-            {focus.firstName ? `${focus.firstName}'s brothers and sisters` : 'Brothers and sisters'}
+            {focus.firstName ? `${focus.firstName}'s brothers and sisters` : t('tree.siblings')}
           </h2>
           <p className="mb-4 text-sm text-muted-foreground">
             Siblings share this person&apos;s generation, so they are listed here rather than
@@ -974,13 +976,13 @@ export function FamilyTreeBuilder({
         <section className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
           <h2 className="mb-1 flex flex-wrap items-center gap-2 text-lg">
             <Sprout className="h-4 w-4 text-brand-affirm" aria-hidden="true" />
-            Not on the tree yet
+            {t('tree.notOnTree')}
             <span className="rounded-full bg-brand-soft px-2 py-0.5 text-xs font-semibold text-brand-on-soft">
               {leaves.length}
             </span>
           </h2>
           <p className="mb-4 text-sm text-muted-foreground">
-            {leaves.length === 1 ? 'This person is' : 'These people are'} in the family but
+            {leaves.length === 1 ? t('tree.thisPersonIs') : t('tree.thesePeopleAre')} in the family but
             not connected to anybody, so they do not appear anywhere above. Click a name to
             centre the tree on them, then fill in the relatives around them.
           </p>
@@ -1008,7 +1010,7 @@ export function FamilyTreeBuilder({
       <section className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
         <h2 className="mb-1 flex flex-wrap items-center gap-2 text-lg">
           <Users className="h-4 w-4 text-brand-accent" aria-hidden="true" />
-          Everyone in this family
+          {t('tree.everyone')}
           <span className="rounded-full bg-brand-soft px-2 py-0.5 text-xs font-semibold text-brand-on-soft">
             {roster.length}
           </span>
@@ -1206,6 +1208,7 @@ function GenerationCards({ people, render }: {
   people: TreePerson[]
   render: (person: TreePerson) => React.ReactNode
 }) {
+  const t = useT()
   const shown = people.slice(0, BAND_LIMIT)
   const hidden = people.length - shown.length
   return (
@@ -1214,7 +1217,7 @@ function GenerationCards({ people, render }: {
       {hidden > 0 && (
         <p className="max-w-[10rem] self-center text-center text-xs text-muted-foreground">
           + {hidden} more in this generation. Find them under{' '}
-          <span className="font-medium">Everyone in this family</span> below.
+          <span className="font-medium">{t('tree.everyone')}</span> below.
         </p>
       )}
     </>
@@ -1295,6 +1298,7 @@ function PersonCard({ person, name, caption, highlight, inBloodline, onFocus, on
   onManage?: () => void
   busy: boolean
 }) {
+  const t = useT()
   const initials = [person.firstName[0], person.lastName[0]].filter(Boolean).join('').toUpperCase()
 
   return (
@@ -1327,10 +1331,10 @@ function PersonCard({ person, name, caption, highlight, inBloodline, onFocus, on
           </span>
         )}
         <span className="flex flex-wrap justify-center gap-1">
-          {!person.hasAccount && <Pill>Record only</Pill>}
-          {person.hasAccount && person.membershipStatus === 'pending' && <Pill>Invited</Pill>}
+          {!person.hasAccount && <Pill>{t('tree.recordOnly')}</Pill>}
+          {person.hasAccount && person.membershipStatus === 'pending' && <Pill>{t('tree.invited')}</Pill>}
           {person.emailIsPlaceholder && (
-            <Pill title={person.noEmailReason ?? undefined}>No email</Pill>
+            <Pill title={person.noEmailReason ?? undefined}>{t('tree.noEmail')}</Pill>
           )}
         </span>
       </button>
@@ -1344,7 +1348,7 @@ function PersonCard({ person, name, caption, highlight, inBloodline, onFocus, on
           type="button"
           onClick={onManage}
           disabled={busy}
-          title="Edit this record, or invite them"
+          title={t('tree.editOrInvite')}
           aria-label={`Edit ${name}'s record, or invite them`}
           className="absolute -left-1.5 -top-1.5 rounded-full border bg-card p-1 text-muted-foreground shadow-sm transition-colors hover:text-brand-accent disabled:opacity-50"
         >
@@ -1357,7 +1361,7 @@ function PersonCard({ person, name, caption, highlight, inBloodline, onFocus, on
           type="button"
           onClick={onDetach}
           disabled={busy}
-          title="Remove this connection"
+          title={t('tree.removeConnection')}
           aria-label={`Remove the connection to ${name}`}
           className="absolute -right-1.5 -top-1.5 rounded-full border bg-card p-1 text-muted-foreground shadow-sm transition-colors hover:text-destructive disabled:opacity-50"
         >
@@ -1397,13 +1401,14 @@ function PersonCard({ person, name, caption, highlight, inBloodline, onFocus, on
  * been asked the question should not answer it.
  */
 function BloodDroplet({ show }: { show?: boolean }) {
+  const t = useT()
   if (!show) return null
   return (
-    <span className="shrink-0 leading-none" title="In the bloodline">
+    <span className="shrink-0 leading-none" title={t('tree.inBloodline')}>
       <Droplet className="h-3 w-3 fill-brand-primary text-brand-primary" aria-hidden="true" />
       {/* The icon is the whole signal, so it owes a screen reader the words. `title`
           alone is not read reliably and is not reachable by keyboard. */}
-      <span className="sr-only">In the bloodline</span>
+      <span className="sr-only">{t('tree.inBloodline')}</span>
     </span>
   )
 }
@@ -1427,17 +1432,18 @@ function Pill({ children, title }: { children: React.ReactNode; title?: string }
  * one thing.
  */
 export function TreeLegend() {
+  const t = useT()
   return (
     <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
       <span className="flex items-center gap-1.5">
         <Crown className="h-3 w-3 text-brand-legacy" aria-hidden="true" />
-        Click anybody to centre the tree on them
+        {t('tree.clickToCentre')}
       </span>
       {/* The droplet is the one mark on a card that is not self-evident, so it is the one
           the legend spends a line on. A colour with no key is decoration. */}
       <span className="flex items-center gap-1.5">
         <Droplet className="h-3 w-3 fill-brand-primary text-brand-primary" aria-hidden="true" />
-        Marks a blood relative
+        {t('tree.marksBlood')}
       </span>
       <span>· Dashed cards are gaps you can fill</span>
       <span>· Removing a connection never removes anyone from the family</span>

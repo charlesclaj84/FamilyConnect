@@ -4,8 +4,10 @@ import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { clearIdleActivity } from '@/lib/idle-timeout'
 import { Button } from '@/components/ui/button'
+import { useT } from '@/components/layout/LocaleProvider'
 
 export function SignOutButton() {
+  const t = useT()
   const router = useRouter()
 
   async function handleSignOut() {
@@ -43,7 +45,7 @@ export function SignOutButton() {
       onClick={handleSignOut}
       className="border-brand-on-hero/35 bg-transparent text-brand-on-hero hover:bg-brand-primary hover:text-brand-on-hero"
     >
-      Sign Out
+      {t('auth.signOut')}
     </Button>
   )
 }

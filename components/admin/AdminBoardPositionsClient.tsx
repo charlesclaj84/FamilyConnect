@@ -20,10 +20,10 @@ import {
 } from '@/app/actions/admin/chapters'
 import {
   POSITION_CATEGORIES, POSITION_SCOPES, POSITION_NAME_MAX,
-  POSITION_CATEGORY_LABELS as CATEGORY_LABELS,
-  POSITION_SCOPE_LABELS as SCOPE_LABELS,
+  positionCategoryLabel, positionScopeLabel,
   type PositionCategory, type PositionScope,
 } from '@/lib/board-positions'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Board Positions — the family's list of offices. WHO HOLDS THEM IS NOT DECIDED HERE.
@@ -103,6 +103,7 @@ export function AdminBoardPositionsClient({
   mayEdit: boolean
   mayDelete: boolean
 }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
 
@@ -162,7 +163,7 @@ export function AdminBoardPositionsClient({
     setCreateError('')
     const result = await createBoardPosition({ ...form, name })
     setSaving(false)
-    if (!result.success) { setCreateError(result.error ?? 'Could not add that position'); return }
+    if (!result.success) { setCreateError(result.error ?? t('pos.addFailed')); return }
     setForm({ name: '', category: 'executive_officer', scope: 'national' })
     closeAdd()
     router.refresh()
@@ -195,7 +196,7 @@ export function AdminBoardPositionsClient({
     // about the NAME — blank, too long, or already used by another of the family's positions —
     // and the input is the whole form, so the quiet treatment is the right one. A tinted alert
     // box inside a table cell would also push every row below it down.
-    if (!result.success) { setRenameError(result.error ?? 'Could not rename that position'); return }
+    if (!result.success) { setRenameError(result.error ?? t('pos.renameFailed')); return }
     cancelRename()
     router.refresh()
   }
@@ -215,10 +216,10 @@ export function AdminBoardPositionsClient({
       return
     }
     const ok = await confirm({
-      title: 'Remove position',
+      title: t('pos.remove'),
       description: `Remove "${position.name}" from the positions your family keeps? `
-        + 'Nothing else about the family changes.',
-      confirmLabel: 'Remove position',
+        + t('pos.removeBody'),
+      confirmLabel: t('pos.remove'),
       destructive: true,
     })
     if (!ok) return
@@ -228,7 +229,7 @@ export function AdminBoardPositionsClient({
     // The action REFUSES while anybody holds the position, and says how many — so this
     // message is information rather than a failure, and it belongs beside the table it is
     // about rather than in a dialog that has already closed.
-    if (!result.success) { setListError(result.error ?? 'Could not remove that position'); return }
+    if (!result.success) { setListError(result.error ?? t('pos.removeFailed')); return }
     router.refresh()
   }
 
@@ -252,7 +253,7 @@ export function AdminBoardPositionsClient({
               // behind an open dialog would close it — a control doing the opposite of what
               // it says while covered by the thing it opened.
               <Button size="sm" onClick={() => { setShowAdd(true); setCreateError(''); setNameError('') }}>
-                <Plus className="h-3.5 w-3.5" /> Add Position
+                <Plus className="h-3.5 w-3.5" /> {t('pos.add')}
               </Button>
             )}
           </div>
@@ -263,19 +264,19 @@ export function AdminBoardPositionsClient({
           {positions.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               {mayCreate
-                ? 'No positions yet. Add the offices your family keeps — President, Treasurer, a Reunion Chair, whatever you actually have.'
-                : 'Your family has not set up any board positions yet.'}
+                ? t('pos.none')
+                : t('pos.noneShort')}
             </p>
           ) : (
             <div className="overflow-hidden rounded-lg border">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th scope="col" className="px-3 py-2">Position</th>
-                    <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Category</th>
-                    <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Scope</th>
+                    <th scope="col" className="px-3 py-2">{t('pos.position')}</th>
+                    <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>{t('common.category')}</th>
+                    <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>{t('common.scope')}</th>
                     {(mayEdit || mayDelete) && (
-                      <th scope="col" className="px-3 py-2 text-right"><span className="sr-only">Actions</span></th>
+                      <th scope="col" className="px-3 py-2 text-right"><span className="sr-only">{t('money.actions')}</span></th>
                     )}
                   </tr>
                 </thead>
@@ -298,7 +299,7 @@ export function AdminBoardPositionsClient({
                                 // path at all — Enter here would submit nothing.
                                 onKeyDown={e => {
                                   if (e.key === 'Enter') { e.preventDefault(); void handleRename(p) }
-                                  if (e.key === 'Escape') { e.preventDefault(); cancelRename() }
+                                  if (e.key === t('pos.escape')) { e.preventDefault(); cancelRename() }
                                 }}
                               />
                               <FieldError message={renameError} />
@@ -307,18 +308,18 @@ export function AdminBoardPositionsClient({
                             <>
                               {p.name}
                               <RowMeta>
-                                <span>{CATEGORY_LABELS[p.category]}</span>
+                                <span>{positionCategoryLabel(t, p.category)}</span>
                                 <MetaDot />
-                                <span>{SCOPE_LABELS[p.scope]}</span>
+                                <span>{positionScopeLabel(t, p.scope)}</span>
                               </RowMeta>
                             </>
                           )}
                         </td>
                         <td className={cn('px-3 py-2 text-muted-foreground', COLLAPSING_CELL)}>
-                          {CATEGORY_LABELS[p.category]}
+                          {positionCategoryLabel(t, p.category)}
                         </td>
                         <td className={cn('px-3 py-2 text-muted-foreground', COLLAPSING_CELL)}>
-                          {SCOPE_LABELS[p.scope]}
+                          {positionScopeLabel(t, p.scope)}
                         </td>
                         {(mayEdit || mayDelete) && (
                           <td className="px-3 py-2">
@@ -330,10 +331,10 @@ export function AdminBoardPositionsClient({
                               {editing ? (
                                 <>
                                   <Button size="sm" disabled={renaming} onClick={() => handleRename(p)}>
-                                    {renaming ? 'Saving…' : 'Save'}
+                                    {renaming ? t('action.saving') : 'Save'}
                                   </Button>
                                   <Button size="sm" variant="outline" onClick={cancelRename}>
-                                    Cancel
+                                    {t('action.cancel')}
                                   </Button>
                                 </>
                               ) : (
@@ -406,16 +407,16 @@ export function AdminBoardPositionsClient({
       <Dialog
         open={showAdd && mayCreate}
         onClose={closeAdd}
-        title="Add a board position"
-        description="An office your family keeps. You choose who holds it afterwards."
+        title={t('pos.addTitle')}
+        description={t('pos.addHint')}
         className="max-w-lg"
       >
         <form onSubmit={e => { e.preventDefault(); void handleCreate() }} className="mt-2 space-y-3">
           <div className="space-y-1.5">
-            <Label required htmlFor="position-name">Position</Label>
+            <Label required htmlFor="position-name">{t('pos.position')}</Label>
             <Input
               id="position-name"
-              placeholder="e.g. Reunion Treasurer"
+              placeholder={t('pos.namePh')}
               value={form.name}
               maxLength={POSITION_NAME_MAX}
               onChange={e => { setForm(f => ({ ...f, name: e.target.value })); setNameError(''); setCreateError('') }}
@@ -428,26 +429,26 @@ export function AdminBoardPositionsClient({
               room because it spanned the page. */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="position-category">Category</Label>
+              <Label htmlFor="position-category">{t('common.category')}</Label>
               <Select
                 id="position-category"
                 value={form.category}
                 onChange={e => setForm(f => ({ ...f, category: e.target.value as PositionCategory }))}
               >
                 {POSITION_CATEGORIES.map(c => (
-                  <option key={c} value={c}>{CATEGORY_LABELS[c]}</option>
+                  <option key={c} value={c}>{positionCategoryLabel(t, c)}</option>
                 ))}
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="position-scope">Scope</Label>
+              <Label htmlFor="position-scope">{t('common.scope')}</Label>
               <Select
                 id="position-scope"
                 value={form.scope}
                 onChange={e => setForm(f => ({ ...f, scope: e.target.value as PositionScope }))}
               >
                 {POSITION_SCOPES.map(s => (
-                  <option key={s} value={s}>{SCOPE_LABELS[s]}</option>
+                  <option key={s} value={s}>{positionScopeLabel(t, s)}</option>
                 ))}
               </Select>
             </div>
@@ -461,10 +462,10 @@ export function AdminBoardPositionsClient({
               already has a position called President" — was the product forcing a workaround
               and then printing it on the screen. */}
           <p className="text-xs text-muted-foreground">
-            A <strong>Regional</strong> or <strong>Chapter</strong> position is held for one
+            A <strong>{t('pos.regional')}</strong> or <strong>{t('field.chapter')}</strong> position is held for one
             region or one chapter, and you choose which when you give it to somebody. The same
-            title can exist once at each scope — a national <strong>President</strong> and a
-            regional <strong>President</strong> are two positions.
+            title can exist once at each scope — a national <strong>{t('pos.president')}</strong> and a
+            regional <strong>{t('pos.president')}</strong> are two positions.
           </p>
 
           <FormError message={createError} />
@@ -473,9 +474,9 @@ export function AdminBoardPositionsClient({
               order. `justify-end` rather than the inline form's `flex gap-2`, which is the
               convention every other dialog in the tree follows. */}
           <div className="flex flex-wrap justify-end gap-2 pt-1">
-            <Button type="button" variant="outline" onClick={closeAdd}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={closeAdd}>{t('action.cancel')}</Button>
             <Button type="submit" disabled={saving}>
-              {saving ? 'Adding…' : 'Add Position'}
+              {saving ? t('action.adding') : t('pos.add')}
             </Button>
           </div>
         </form>

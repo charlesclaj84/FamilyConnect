@@ -1,3 +1,5 @@
+import type { T } from '@/lib/i18n/t'
+
 /**
  * The vocabulary of Family Settings, in a plain module because a `'use server'` file
  * may only export async functions — so the resource key the action gates on and the
@@ -122,10 +124,15 @@ export function resolveSettingsPane(raw: string | string[] | undefined | null): 
   return isSettingsPane(value) ? value : DEFAULT_SETTINGS_PANE
 }
 
-export const SETTINGS_PANE_LABEL: Record<SettingsPane, string> = {
-  billing: 'Billing',
-  plan: 'Plan',
-  family: 'Family',
+/**
+ * One pane's caption, in the reader's language — `set.pane.<id>`.
+ *
+ * A FUNCTION TAKING `t`, so this module stays plain: the `T` import is type-only and
+ * erased, and the `'use server'` file that reads the vocabulary still imports it without
+ * dragging a client boundary in. The IDS are `?pane=` and are the contract.
+ */
+export function settingsPaneLabel(t: T, pane: SettingsPane): string {
+  return t(`set.pane.${pane}`)
 }
 
 /*

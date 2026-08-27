@@ -5,6 +5,8 @@ import { usePathname } from 'next/navigation'
 import { Building2, KeyRound, LayoutGrid, UserSearch } from 'lucide-react'
 import type { StaffRole } from '@/lib/auth/staff'
 import { cn } from '@/lib/utils'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * The staff console's own navigation — real links, in its header band.
@@ -65,17 +67,19 @@ import { cn } from '@/lib/utils'
  * these classes recolours the nav rather than leaving it alone.
  */
 
-const ITEMS = [
-  { href: '/staff', label: 'Overview', icon: LayoutGrid, ownerOnly: false },
-  { href: '/staff/families', label: 'Families', icon: Building2, ownerOnly: false },
-  { href: '/staff/accounts', label: 'Accounts', icon: UserSearch, ownerOnly: false },
-  // LAST, and not because it is least important. It is the only destination here that
-  // changes who can open the console at all, and the three above it are the ones somebody
-  // opens the console to do. A key rather than a shield: `ShieldCheck` is already the
-  // band's glyph for "whose session this is", and two shields in one header band would be
-  // two different things wearing the same mark.
-  { href: '/staff/access', label: 'Access', icon: KeyRound, ownerOnly: true },
-] as const
+function items(t: T) {
+  return [
+    { href: '/staff', label: t('staff.overview'), icon: LayoutGrid, ownerOnly: false },
+    { href: '/staff/families', label: t('staff.families'), icon: Building2, ownerOnly: false },
+    { href: '/staff/accounts', label: t('staff.accounts'), icon: UserSearch, ownerOnly: false },
+    // LAST, and not because it is least important. It is the only destination here that
+    // changes who can open the console at all, and the three above it are the ones somebody
+    // opens the console to do. A key rather than a shield: `ShieldCheck` is already the
+    // band's glyph for "whose session this is", and two shields in one header band would be
+    // two different things wearing the same mark.
+    { href: '/staff/access', label: t('staff.access'), icon: KeyRound, ownerOnly: true },
+  ] as const
+}
 
 export function StaffNav({ role }: {
   /**
@@ -84,11 +88,12 @@ export function StaffNav({ role }: {
    */
   role?: StaffRole
 }) {
+  const t = useT()
   const pathname = usePathname()
 
   return (
-    <nav aria-label="Staff console" className="flex flex-wrap items-center gap-1">
-      {ITEMS.filter(item => !item.ownerOnly || role === 'owner').map(item => {
+    <nav aria-label={t('staff.nav')} className="flex flex-wrap items-center gap-1">
+      {items(t).filter(item => !item.ownerOnly || role === 'owner').map(item => {
         // Exact match, not a prefix: '/staff' is the parent of every other route in the
         // console, so a `startsWith` test would light Overview up on every screen in it.
         const isActive = pathname === item.href

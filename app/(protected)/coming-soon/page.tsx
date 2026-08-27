@@ -5,6 +5,7 @@ import { viewableResources } from '@/lib/auth/permissions'
 import { getViewingMembership, isActiveFamily, REMOVED_FAMILY_RESOURCES } from '@/lib/auth/family'
 import { ComingSoonScreen } from '@/components/features/ComingSoon'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Destination for the roadmap gate in `proxy.ts`. The gate rewrites (rather than
@@ -47,6 +48,8 @@ export default async function ComingSoonPage({ searchParams }: Props) {
   // empty list: the gate that sent them here sits inside the protected shell.
   if (!user) redirect('/login')
 
+  const { t } = await callerI18n(user?.id)
+
   const [viewable, membership] = await Promise.all([
     viewableResources(user.id),
     // Free: `cache()`d and already resolved for this request by the layout.
@@ -70,5 +73,5 @@ export default async function ComingSoonPage({ searchParams }: Props) {
     .filter(f => !familyRemoved || REMOVED_FAMILY_RESOURCES.includes(f.href.replace(/^\//, '')))
     .map(f => ({ href: f.href, label: f.label }))
 
-  return <ComingSoonScreen label={label} blurb={blurb} available={available} />
+  return <ComingSoonScreen label={label} blurb={blurb} available={available} t={t} />
 }

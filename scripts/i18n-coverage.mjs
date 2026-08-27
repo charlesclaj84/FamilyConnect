@@ -237,6 +237,14 @@ const KNOWN_DYNAMIC = [
   ['notify.type.', 'notificationLabel()/notificationDescription() map a notification key.'],
   ['payStatus.', 'paymentStatusLabel() maps a dues_payments.status: t(`payStatus.${status}`). '
     + 'An unknown status falls back to the raw column value.'],
+  ['cal.kind.', 'entryKindWord() maps a calendar entry tone: t(`cal.kind.${tone}`).'],
+  ['org.attached.', 'attachedCaption() builds one/many per countable: '
+    + 't(`org.attached.${stem}One`) and `…Many`.'],
+  ['acct.section.', 'sectionLabel() maps an AccountSection id.'],
+  ['rg.', 'categoryLabel() maps a permission_resources.category value.'],
+  ['pos.cat.', 'positionCategoryLabel() maps a family_roles.category.'],
+  ['pos.scope.', 'positionScopeLabel() maps a user_roles.scope.'],
+  ['set.pane.', 'settingsPaneLabel() maps a SettingsPane id.'],
 ]
 
 const isDynamic = key => KNOWN_DYNAMIC.some(([prefix]) => key.startsWith(prefix))
@@ -270,10 +278,17 @@ const OPTIONAL_LOCALE = ['formatDate', 'formatDateRange', 'formatMonthDay', 'for
  * surfaces are threaded in Phase 4; raising it is a deliberate act that owes a reason on this
  * line.
  */
-// RATCHETED DOWN AS PHASE 5 THREADS EACH SURFACE. 211 was the figure the day the formatters
-// moved to `Intl`; every reduction below is a surface whose dates now render in the reader's
-// language. Lower it freely; raising it is a deliberate act that owes a reason on this line.
-const PINNED_CEILING = 206
+// ZERO, AND IT IS A FLOOR NOW RATHER THAN A BACKLOG. 211 was the figure the day the
+// formatters moved to `Intl`, and Phase 5 threaded every one of them: a date or a figure
+// anywhere in `app/` or `components/` renders in the reader's language.
+//
+// SO A NEW ONE-ARGUMENT CALL FAILS THE BUILD, which is the point of the ratchet reaching
+// bottom. The sweep cannot tell `formatDate(d, intl)` from `formatDate(d, 'en-US')` and
+// does not try — pinning a literal is a thing somebody does on purpose. What it catches is
+// the call nobody thought about, which is how all 211 of these got here.
+//
+// Raising it is a deliberate act that owes a reason on this line.
+const PINNED_CEILING = 0
 
 // ── SCANNING ────────────────────────────────────────────────────────────────────────
 

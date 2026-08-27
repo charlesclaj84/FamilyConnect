@@ -9,6 +9,7 @@ import { CreateGroupDialog } from './CreateGroupDialog'
 import { useConfirm } from '@/components/ui/confirm'
 import { deleteDm, markRoomRead, type RoomWithMeta, type ChatParticipant } from '@/app/actions/chat'
 import { createClient } from '@/lib/supabase/client'
+import { useT } from '@/components/layout/LocaleProvider'
 
 interface Props {
   initialRooms: RoomWithMeta[]
@@ -20,6 +21,7 @@ interface Props {
 }
 
 export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMembers, zone }: Props) {
+  const t = useT()
   const confirm = useConfirm()
   const [rooms, setRooms]               = useState<RoomWithMeta[]>(initialRooms)
   const [activeRoomId, setActiveRoomId] = useState(familyRoomId)
@@ -73,9 +75,9 @@ export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMem
       ? ([other.first_name, other.last_name].filter(Boolean).join(' ') || 'this family member')
       : 'this family member'
     const ok = await confirm({
-      title: 'Delete conversation',
+      title: t('chat.deleteConversation'),
       description: `Delete your conversation with ${withWhom}? The messages are removed and cannot be recovered.`,
-      confirmLabel: 'Delete conversation',
+      confirmLabel: t('chat.deleteConversation'),
       destructive: true,
     })
     if (!ok) return
@@ -130,7 +132,7 @@ export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMem
             />
           ) : (
             <div className="flex-1 flex items-center justify-center text-sm text-muted-foreground">
-              Select a conversation to start chatting.
+              {t('chat.selectConversation')}
             </div>
           )}
         </main>

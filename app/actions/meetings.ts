@@ -18,6 +18,7 @@ import {
   buildBoards, buildChapters, buildPositions, resolveMeetingRoom,
   type BoardAssignment, type BoardOption, type ChapterOption, type PositionOption,
 } from '@/lib/meeting-boards'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Meeting Minutes — `/library/meeting-minutes`.
@@ -437,6 +438,7 @@ export async function getMeetingAttendeeOptions(): Promise<MeetingAttendeeOption
   const g = await requireMember()
   if (!g.ok) return NO_OPTIONS
   if (!(await canAny(g.userId, 'library/meeting-minutes', 'create'))) return NO_OPTIONS
+  const { t } = await callerI18n(g.userId)
 
   const admin = createAdminClient()
   const [assignmentsRes, positionsRes, peopleRes, chaptersRes, regionsRes] = await Promise.all([
@@ -512,7 +514,7 @@ export async function getMeetingAttendeeOptions(): Promise<MeetingAttendeeOption
   const adultRows = people.filter(r => !isMinorOn(r.date_of_birth as string | null, today))
   return {
     boards:    buildBoards(assignments, { regionNames, chapterNames }),
-    positions: buildPositions(assignments),
+    positions: buildPositions(assignments, t),
     chapters:  buildChapters(
       adultRows.map(r => ({
         personId:   r.id as string,

@@ -1,5 +1,6 @@
 import type { ResourceSummary } from '@/app/actions/admin/permissions'
 import { PERMISSION_ACTIONS, type PermissionAction, type PermissionScope } from '@/lib/auth/permissions'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * The vocabulary of the permission grid: how the resource catalog is ordered,
@@ -86,10 +87,20 @@ export const CATEGORY_ORDER = ['general', 'personal', 'community', 'journal', 'e
 // worse, `auth_permission()` reads that column to decide whether an unregistered-visibility key
 // fails closed (`category = 'admin'`), so it is load-bearing in SQL and not merely a grouping.
 // A caption is one line here; a category is a column three resolvers agree about.
-export const CATEGORY_LABEL: Record<string, string> = {
-  general: 'General', personal: 'Personal', community: 'Community', journal: 'Library',
-  events: 'Gatherings',
-  accounting: 'Accounting', resources: 'Resources', admin: 'Administration',
+/**
+ * One category's heading, in the reader's language — `rg.<category>`.
+ *
+ * The paragraph above still holds and is the reason this is keyed on the CATEGORY VALUE:
+ * `journal` prints "Library" and `events` prints "Gatherings", because those columns are
+ * load-bearing in SQL and a caption is not. Translating them changes the heading and
+ * touches neither column.
+ *
+ * An unknown category falls back to the raw value, as the map's absent key did.
+ */
+export function categoryLabel(t: T, category: string): string {
+  const key = `rg.${category}`
+  const label = t(key)
+  return label === key ? category : label
 }
 
 /**
@@ -295,7 +306,7 @@ export interface ResourceBlock {
  * Accounting > Transactions and Administration > Accounting). The heading above them
  * is what tells those apart, so the heading has to stay attached to its own block.
  */
-export function groupResources(resources: ResourceSummary[]): ResourceBlock[] {
+export function groupResources(resources: ResourceSummary[], t: T): ResourceBlock[] {
   const byCategory = new Map<string, ResourceSummary[]>()
   for (const r of resources) {
     byCategory.set(r.category, [...(byCategory.get(r.category) ?? []), r])
@@ -316,6 +327,6 @@ export function groupResources(resources: ResourceSummary[]): ResourceBlock[] {
         previous = sub
         return { resource, header, nested: Boolean(sub) }
       })
-      return { category, label: CATEGORY_LABEL[category] ?? category, rows }
+      return { category, label: categoryLabel(t, category), rows }
     })
 }

@@ -4,6 +4,8 @@ import { cn } from '@/lib/utils'
 import { formatInstant } from '@/lib/tz'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
 import type { CheckInReach, CheckInResponse, RosterRow } from '@/lib/safety-check-in'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Who was asked, and what came back.
@@ -49,11 +51,13 @@ function bucketOf(row: RosterRow): Bucket {
   return 'waiting'
 }
 
-const ANSWER_LABEL: Record<Bucket, string> = {
-  needs_help: 'Needs help',
-  unreached: 'Not reached',
-  waiting: 'Waiting',
-  safe: 'Safe',
+function answerLabel(t: T, bucket: Bucket): string {
+  switch (bucket) {
+    case 'needs_help': return t('safety.needsHelp')
+    case 'unreached': return t('safety.notReached')
+    case 'waiting': return t('safety.waiting')
+    case 'safe': return t('safety.safe')
+  }
 }
 
 const ANSWER_CLASS: Record<Bucket, string> = {
@@ -71,12 +75,12 @@ const ANSWER_CLASS: Record<Bucket, string> = {
  * somebody to "try again" on a relative who has no mailbox is how a list stops being worked
  * through.
  */
-function reachText(reach: CheckInReach, state: CheckInResponse): string | null {
+function reachText(reach: CheckInReach, state: CheckInResponse, t: T): string | null {
   switch (reach) {
-    case 'skipped':  return 'No email on file — needs a phone call'
-    case 'failed':   return 'The email did not go through'
-    case 'pending':  return 'Not asked yet'
-    case 'sent':     return state === 'awaiting' ? 'Asked by email' : null
+    case 'skipped':  return t('safety.noEmailPhone')
+    case 'failed':   return t('safety.emailFailed')
+    case 'pending':  return t('safety.notAsked')
+    case 'sent':     return state === 'awaiting' ? t('safety.askedByEmail') : null
     // `sending` IS A REAL COLUMN VALUE THAT `CheckInReach` DELIBERATELY DOES NOT NAME. The
     // migration explains why: it is the claim held by `claim_safety_check_in_asks()` for a few
     // seconds, and nothing outside that transaction should be reasoning about it. So it arrives
@@ -85,7 +89,7 @@ function reachText(reach: CheckInReach, state: CheckInResponse): string | null {
     //
     // "Sending" IS THE HONEST WORD FOR IT, and this is the one branch a reader might delete as
     // unreachable — the type says it cannot happen and the database says it can.
-    default:         return 'Sending'
+    default:         return t('safety.sending')
   }
 }
 
@@ -94,10 +98,11 @@ export function CheckInRoster({ rows, zone }: {
   /** The reader's timezone. `responded_at` is an instant, not a wall-clock label. */
   zone: string
 }) {
+  const t = useT()
   if (rows.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        Nobody is on this check-in.
+        {t('safety.nobodyOn')}
       </p>
     )
   }
@@ -107,20 +112,20 @@ export function CheckInRoster({ rows, zone }: {
       <table className="w-full text-sm">
         <thead className="bg-muted/50 text-left">
           <tr>
-            <th scope="col" className="px-3 py-2 font-medium">Relative</th>
-            <th scope="col" className="px-3 py-2 font-medium">Answer</th>
+            <th scope="col" className="px-3 py-2 font-medium">{t('safety.relative')}</th>
+            <th scope="col" className="px-3 py-2 font-medium">{t('safety.answer')}</th>
             <th scope="col" className={cn('px-3 py-2 font-medium', COLLAPSING_CELL)}>
-              How they were asked
+              {t('safety.howAsked')}
             </th>
             <th scope="col" className={cn('px-3 py-2 font-medium', COLLAPSING_CELL)}>
-              Answered
+              {t('safety.answered')}
             </th>
           </tr>
         </thead>
         <tbody>
           {rows.map(row => {
             const bucket = bucketOf(row)
-            const reach = reachText(row.reach, row.state)
+            const reach = reachText(row.reach, row.state, t)
             const when = row.respondedAt
               // A TIME, NOT JUST A DATE, and the one place in this product where that is
               // right: everything else here is a DATE column with no time of day (AGENTS.md,
@@ -157,7 +162,7 @@ export function CheckInRoster({ rows, zone }: {
                   )}
                 </td>
                 <td className={cn('px-3 py-2', ANSWER_CLASS[bucket])}>
-                  {ANSWER_LABEL[bucket]}
+                  {answerLabel(t, bucket)}
                 </td>
                 <td className={cn('px-3 py-2 text-muted-foreground', COLLAPSING_CELL)}>
                   {reach ?? '—'}

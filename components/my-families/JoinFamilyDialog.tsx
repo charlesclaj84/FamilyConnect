@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FormError } from '@/components/ui/form-message'
 import { validateFamilyCode, joinFamilyByCode } from '@/app/actions/my-families'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Join another family by its code.
@@ -28,6 +29,7 @@ type Step =
   | { kind: 'done'; familyName: string }
 
 export function JoinFamilyDialog() {
+  const t = useT()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>({ kind: 'code' })
@@ -78,20 +80,20 @@ export function JoinFamilyDialog() {
         onClick={() => { reset(); setOpen(true) }}
         className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
       >
-        <UserPlus className="h-4 w-4" /> Join another family
+        <UserPlus className="h-4 w-4" /> {t('fam.join')}
       </button>
 
       <Dialog
         open={open}
         onClose={close}
         title={
-          step.kind === 'done' ? 'Request sent'
-            : step.kind === 'confirm' ? 'Is this the right family?'
-            : 'Join another family'
+          step.kind === 'done' ? t('fam.requestSent')
+            : step.kind === 'confirm' ? t('fam.isThisRight')
+            : t('fam.join')
         }
         description={
           step.kind === 'code'
-            ? 'Ask someone in the family for their family code.'
+            ? t('fam.askSomeone')
             : undefined
         }
       >
@@ -101,12 +103,12 @@ export function JoinFamilyDialog() {
             onSubmit={e => { e.preventDefault(); lookUp() }}
           >
             <div className="space-y-1.5">
-              <Label htmlFor="join-family-code">Family code</Label>
+              <Label htmlFor="join-family-code">{t('fam.codeLabel')}</Label>
               <Input
                 id="join-family-code"
                 value={code}
                 onChange={e => setCode(e.target.value.toUpperCase())}
-                placeholder="ABC234"
+                placeholder={t('fam.codePh')}
                 autoComplete="off"
                 autoCapitalize="characters"
                 spellCheck={false}
@@ -123,14 +125,14 @@ export function JoinFamilyDialog() {
                 onClick={close}
                 className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
               >
-                Cancel
+                {t('action.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={isPending || !code.trim()}
                 className="inline-flex items-center gap-1 rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
               >
-                {isPending ? 'Checking…' : <>Continue <ArrowRight className="h-3.5 w-3.5" /></>}
+                {isPending ? t('fam.checking') : <>{t('action.continue')} <ArrowRight className="h-3.5 w-3.5" /></>}
               </button>
             </div>
           </form>
@@ -141,7 +143,7 @@ export function JoinFamilyDialog() {
             <div className="rounded-xl border bg-muted/40 px-4 py-3">
               <p className="text-sm font-medium">{step.familyName}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Family Code: <span className="font-mono">{step.familyCode}</span>
+                {t('fam.familyCode')} <span className="font-mono">{step.familyCode}</span>
               </p>
             </div>
 
@@ -160,7 +162,7 @@ export function JoinFamilyDialog() {
                 onClick={() => { setError(''); setStep({ kind: 'code' }) }}
                 className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-60"
               >
-                Back
+                {t('action.back')}
               </button>
               <button
                 type="button"
@@ -168,7 +170,7 @@ export function JoinFamilyDialog() {
                 onClick={commit}
                 className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
               >
-                {isPending ? 'Joining…' : `Yes, join ${step.familyName}`}
+                {isPending ? t('fam.joining') : `Yes, join ${step.familyName}`}
               </button>
             </div>
           </div>
@@ -179,7 +181,7 @@ export function JoinFamilyDialog() {
             <div className="flex items-start gap-3 rounded-xl border bg-muted/40 px-4 py-3">
               <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
               <p className="text-sm">
-                Your request to join <span className="font-medium">{step.familyName}</span> is
+                {t('fam.yourRequestTo')} <span className="font-medium">{step.familyName}</span> is
                 waiting for an administrator to approve it. We have let them know.
               </p>
             </div>
@@ -189,7 +191,7 @@ export function JoinFamilyDialog() {
                 onClick={close}
                 className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
               >
-                Done
+                {t('action.done')}
               </button>
             </div>
           </div>

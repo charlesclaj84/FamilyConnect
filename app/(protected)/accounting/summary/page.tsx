@@ -60,7 +60,7 @@ export default async function AccountSummaryPage() {
 
   await requireView(user.id, 'accounting/summary')
 
-  const { t } = await callerI18n(user.id)
+  const { t, intl } = await callerI18n(user.id)
 
   const [canDues, canHistory, canDonations, canFunds] = await Promise.all([
     can(user.id, 'accounting/dues-and-donations', 'view'),
@@ -134,9 +134,9 @@ export default async function AccountSummaryPage() {
               until the next edit to one of them. No `showViewLink`: the section heading
               below carries the way through to /dues, so a button here would be a second
               one saying the same thing. */}
-          {canDues && <DuesBalanceKpi summary={duesSummary} />}
-          {canDues && <NextInstallmentsCard summary={duesSummary} />}
-          {canHistory && <PaidThisYearCard history={paymentHistory} />}
+          {canDues && <DuesBalanceKpi summary={duesSummary} intl={intl} />}
+          {canDues && <NextInstallmentsCard summary={duesSummary} intl={intl} />}
+          {canHistory && <PaidThisYearCard history={paymentHistory} intl={intl} />}
         </div>
       )}
 
@@ -169,7 +169,7 @@ export default async function AccountSummaryPage() {
               [Dues & Donations](/accounting/dues-and-donations?pane=donations). A digest that
               shows the ask and cannot take the gift sends somebody to another screen to press
               the same button. */}
-          <DonationsSection donations={openDrives} chargesReady={online.chargesReady} />
+          <DonationsSection donations={openDrives} chargesReady={online.chargesReady} intl={intl} />
           {closedCount > 0 && (
             <p className="text-xs text-muted-foreground">
               {closedCount} closed drive{closedCount === 1 ? ' is' : 's are'} not shown here —

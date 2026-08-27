@@ -28,11 +28,13 @@ import { HelpLink } from '@/components/help/HelpLink'
 import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
 import { NextInstallmentsCard } from '@/components/account/NextInstallmentsCard'
 import { SortTh, type SortDir } from '@/components/ui/sortable-header'
-import { useT } from '@/components/layout/LocaleProvider'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 type DuesCol = 'schedule' | 'amount' | 'due_date'
 
-const fmtDate = (s: string) => formatDate(s) ?? ''
+// TAKES `intl` — a module-scope helper cannot read a hook. Threading it is what puts this
+// date in the reader's language rather than in English.
+const fmtDate = (s: string, intl: string) => formatDate(s, intl) ?? ''
 
 /**
  * The member's own dues: what they are on, what the next payment has to be, and everything
@@ -108,6 +110,7 @@ export function DuesPlanSection({ summary, online }: {
    */
   online: DuesOnlineStatus
 }) {
+  const intl = useIntlTag()
   const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
@@ -204,7 +207,7 @@ export function DuesPlanSection({ summary, online }: {
       title: optOut ? `Opt out of ${row.schedule.label}?` : `Opt back in to ${row.schedule.label}?`,
       description: optOut
         ? t('plan.optionalHint')
-        : `${row.schedule.label} will count toward what you owe again, at ${formatCurrency(row.installmentCents)} per ${row.cadence} installment.`,
+        : `${row.schedule.label} will count toward what you owe again, at ${formatCurrency(row.installmentCents, intl)} per ${row.cadence} installment.`,
       confirmLabel: optOut ? t('plan.optOut') : t('plan.optBackIn'),
     })
     if (!ok) return
@@ -287,8 +290,8 @@ export function DuesPlanSection({ summary, online }: {
           DuesBalanceKpi is the dashboard's Account card, unchanged — see its header for
           why there is exactly one of it. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <DuesBalanceKpi summary={rows} />
-        <NextInstallmentsCard summary={rows} />
+        <DuesBalanceKpi summary={rows} intl={intl} />
+        <NextInstallmentsCard summary={rows} intl={intl} />
       </div>
 
       {/* THE ONE QUESTION THIS SCREEN RELIABLY RAISES, answered where it is raised.
@@ -485,6 +488,7 @@ function DuesTable({ title, rows, ...handlers }: {
 function DuesRow({
   row, isPending, online, onPay, onCadence, onOptOut, onStartAutopay, onStopAutopay, autopayFor,
 }: { row: DuesSummary } & RowHandlers) {
+  const intl = useIntlTag()
   const t = useT()
   const declined = row.optedOut
   /**
@@ -540,7 +544,7 @@ function DuesRow({
     <span
       className="inline-block whitespace-nowrap rounded-full bg-brand-withheld/15 px-2 py-0.5 text-[11px] font-medium text-brand-withheld"
       title={row.overdueSinceDate
-        ? `Includes ${row.periodsElapsed} installment${row.periodsElapsed === 1 ? '' : 's'} due since ${fmtDate(row.overdueSinceDate)}`
+        ? `Includes ${row.periodsElapsed} installment${row.periodsElapsed === 1 ? '' : 's'} due since ${fmtDate(row.overdueSinceDate, intl)}`
         : undefined}
     >
       {t('money.pastDue')}
@@ -571,10 +575,10 @@ function DuesRow({
    * stated in the one place they will read it.
    */
   const termsLine = notYetOwed && row.ageProration
-    ? `Starts ${fmtDate(row.ageProration.responsibleFrom)}, when you turn ${row.ageProration.startAge}`
+    ? `Starts ${fmtDate(row.ageProration.responsibleFrom, intl)}, when you turn ${row.ageProration.startAge}`
     : row.ageProration
-      ? `${formatCurrency(row.annualTotalCents)} this year · ${formatCurrency(row.ageProration.fullAnnualCents)}/yr after · ${row.schedule.frequency}`
-      : `${formatCurrency(row.annualTotalCents)}/yr · ${row.schedule.frequency}`
+      ? `${formatCurrency(row.annualTotalCents, intl)} this year · ${formatCurrency(row.ageProration.fullAnnualCents, intl)}/yr after · ${row.schedule.frequency}`
+      : `${formatCurrency(row.annualTotalCents, intl)}/yr · ${row.schedule.frequency}`
 
   return (
     <tr className={cn(
@@ -609,7 +613,7 @@ function DuesRow({
         {autopay && (
           <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft">
             <Repeat className="h-3 w-3" aria-hidden="true" />
-            Automatic · {formatCurrency(autopay.amountCents)} {autopay.cadence}
+            Automatic · {formatCurrency(autopay.amountCents, intl)} {autopay.cadence}
           </span>
         )}
 
@@ -617,14 +621,14 @@ function DuesRow({
             Labelled, unlike most folded values: a bare date and a bare amount next to
             the payment figure are three numbers with no captions. */}
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground sm:hidden">
-          <MetaIf value={row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate) : null} prefix="Next due" />
+          <MetaIf value={row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate, intl) : null} prefix="Next due" />
           {!quiet && (
             <>
               {row.nextInstallmentDate && <MetaDot />}
               {/* A SETTLED ROW STILL SHOWS ITS BALANCE, and it is zero. That is the whole
                   point of keeping it listed — "you are on this and you owe nothing on it"
                   is a different sentence from the row not being there. */}
-              <MetaIf value={formatCurrency(row.remainingBalanceCents)} prefix={t('money.remaining')} />
+              <MetaIf value={formatCurrency(row.remainingBalanceCents, intl)} prefix={t('money.remaining')} />
             </>
           )}
         </div>
@@ -649,7 +653,7 @@ function DuesRow({
             the honest answer to "what is your next installment" when there is not going to
             be one. The BALANCE column is where the zero belongs, and it says it there. */}
         <span className={cn((quiet || settled) && 'text-muted-foreground', declined && 'line-through')}>
-          {notYetOwed || settled ? '—' : formatCurrency(declined ? row.installmentCents : row.nextInstallmentCents)}
+          {notYetOwed || settled ? '—' : formatCurrency(declined ? row.installmentCents : row.nextInstallmentCents, intl)}
         </span>
         {!quiet && !settled && (
           <span className="block text-[11px] font-normal capitalize text-muted-foreground">
@@ -658,7 +662,7 @@ function DuesRow({
         )}
         {!quiet && !settled && !row.onSchedule && row.followingInstallmentDate && (
           <span className="block text-[11px] font-normal text-muted-foreground">
-            then {formatCurrency(row.followingInstallmentCents)}
+            then {formatCurrency(row.followingInstallmentCents, intl)}
           </span>
         )}
       </td>
@@ -667,8 +671,8 @@ function DuesRow({
         {/* The date the due STARTS, for a row nobody owes yet. It is the only date this
             row has, and it is the one thing the member wants from it. */}
         {notYetOwed && row.ageProration
-          ? fmtDate(row.ageProration.responsibleFrom)
-          : row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate) : '—'}
+          ? fmtDate(row.ageProration.responsibleFrom, intl)
+          : row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate, intl) : '—'}
       </td>
 
       {/* A dash for a due with no balance to speak of — declined, or not started — and the
@@ -677,7 +681,7 @@ function DuesRow({
           line on the screen that needs nothing. */}
       <td className={cn('py-2.5 pr-3 text-right font-semibold whitespace-nowrap',
         quiet || settled ? 'text-muted-foreground' : 'text-brand-accent', COLLAPSING_CELL)}>
-        {quiet ? '—' : formatCurrency(row.remainingBalanceCents)}
+        {quiet ? '—' : formatCurrency(row.remainingBalanceCents, intl)}
       </td>
 
       <td className="py-2.5 align-top sm:align-middle">
@@ -702,7 +706,7 @@ function DuesRow({
                 {notYetOwed ? (
                   <RowMenuNote>
                     Nothing to set up yet — this due starts
-                    {row.ageProration ? ` ${fmtDate(row.ageProration.responsibleFrom)}` : ' later'}.
+                    {row.ageProration ? ` ${fmtDate(row.ageProration.responsibleFrom, intl)}` : ' later'}.
                   </RowMenuNote>
                 ) : declined ? (
                   <RowMenuItem icon={RotateCcw} onClick={() => { close(); onOptOut(row, false) }}>
@@ -796,6 +800,7 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
   isPending: boolean
   onPayAll: () => void
 }) {
+  const intl = useIntlTag()
   const t = useT()
   // REQUIRED FIRST, then optional, then by name — the reading order of the two tables above,
   // so a member checking the receipt against the list they just read finds the rows in the
@@ -833,7 +838,7 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
                 )}
               </dt>
               <dd className="font-semibold whitespace-nowrap">
-                {formatCurrency(r.nextInstallmentCents)}
+                {formatCurrency(r.nextInstallmentCents, intl)}
               </dd>
             </div>
           ))}
@@ -844,7 +849,7 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
         <div className="flex items-baseline justify-between gap-4">
           <dt className="font-medium">{t('money.total')}</dt>
           <dd className="text-lg font-bold text-brand-accent whitespace-nowrap">
-            {formatCurrency(totalCents)}
+            {formatCurrency(totalCents, intl)}
           </dd>
         </div>
       </dl>
@@ -861,7 +866,7 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
             </p>
             <Button variant="affirm" disabled={isPending} onClick={onPayAll} className="ml-auto">
               <CreditCard className="h-4 w-4" />
-              Pay {formatCurrency(totalCents)} by card
+              Pay {formatCurrency(totalCents, intl)} by card
             </Button>
           </div>
         ) : (
@@ -904,6 +909,7 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
   onClose: () => void
   onChoose: (cadence: PayCadence) => void
 }) {
+  const intl = useIntlTag()
   const t = useT()
   const [choice, setChoice] = useState<PayCadence>(row.cadence)
   const preview = planFor(row, choice)
@@ -940,7 +946,7 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
                   <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                     <span className="font-medium capitalize">{c}</span>
                     <span className="text-sm font-semibold whitespace-nowrap">
-                      {formatCurrency(p.installmentCents)}
+                      {formatCurrency(p.installmentCents, intl)}
                       <span className="font-normal text-muted-foreground"> per installment</span>
                     </span>
                   </span>
@@ -950,9 +956,9 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
                       figure would be pricing a plan the member cannot actually be on. */}
                   {!p.onSchedule && (
                     <span className="mt-0.5 block text-xs text-brand-withheld">
-                      Next payment {formatCurrency(p.nextInstallmentCents)}, covering what has come due so far
+                      Next payment {formatCurrency(p.nextInstallmentCents, intl)}, covering what has come due so far
                       {p.followingInstallmentDate
-                        ? `, then ${formatCurrency(p.followingInstallmentCents)} each time`
+                        ? `, then ${formatCurrency(p.followingInstallmentCents, intl)} each time`
                         : ''}
                     </span>
                   )}
@@ -976,7 +982,7 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
           >
             {/* Names the consequence rather than saying "Save", because the figure it
                 commits to is the one thing that changed. */}
-            Pay {formatCurrency(preview.nextInstallmentCents)} next
+            Pay {formatCurrency(preview.nextInstallmentCents, intl)} next
           </Button>
         </div>
       </div>
@@ -1004,6 +1010,7 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
  * with a redirect.
  */
 function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void }) {
+  const intl = useIntlTag()
   const t = useT()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState('')
@@ -1030,7 +1037,7 @@ function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void
         return
       }
       if (p.cents > p.row.remainingBalanceCents) {
-        setFieldError(`The most that can be paid on ${p.row.schedule.label} is ${formatCurrency(p.row.remainingBalanceCents)}.`)
+        setFieldError(`The most that can be paid on ${p.row.schedule.label} is ${formatCurrency(p.row.remainingBalanceCents, intl)}.`)
         return
       }
     }
@@ -1068,7 +1075,7 @@ function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void
               <div className="min-w-0 flex-1">
                 <Label htmlFor={`pay-${r.schedule.id}`}>{r.schedule.label}</Label>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(r.remainingBalanceCents)} outstanding
+                  {formatCurrency(r.remainingBalanceCents, intl)} outstanding
                 </p>
               </div>
               <div className="w-28 shrink-0">
@@ -1091,7 +1098,7 @@ function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void
           <div className="flex items-baseline justify-between gap-4 border-t pt-3">
             <span className="font-medium">{t('money.total')}</span>
             <span className="text-lg font-bold text-brand-accent whitespace-nowrap">
-              {formatCurrency(totalCents)}
+              {formatCurrency(totalCents, intl)}
             </span>
           </div>
         )}
@@ -1113,7 +1120,7 @@ function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void
               rather than being greyed out. */}
           <Button variant="affirm" onClick={pay} disabled={pending}>
             <CreditCard className="h-4 w-4" />
-            {pending ? t('money.opening') : `Pay ${formatCurrency(totalCents)}`}
+            {pending ? t('money.opening') : `Pay ${formatCurrency(totalCents, intl)}`}
           </Button>
         </div>
       </div>

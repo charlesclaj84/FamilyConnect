@@ -23,6 +23,8 @@ import {
   TIER_LABEL, TIER_RANK, TIER_TAGLINE, tierMeets, tiersIncludedIn, type FamilyTier,
 } from '@/lib/tiers'
 import { cn } from '@/lib/utils'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * The family's plan, and what each one includes — the whole of Settings' **Plan** pane.
@@ -92,10 +94,10 @@ import { cn } from '@/lib/utils'
  * affirmative button and the row all take their wording from here, so the three cannot
  * describe the same move differently.
  */
-function moveLabel(current: FamilyTier, to: FamilyTier): string {
+function moveLabel(current: FamilyTier, to: FamilyTier, t: T): string {
   return tierMeets(to, current)
-    ? `Upgrade to ${TIER_LABEL[to]}`
-    : `Downgrade to ${TIER_LABEL[to]}`
+    ? t('plan.upgradeTo', { plan: TIER_LABEL[to] })
+    : t('plan.downgradeTo', { plan: TIER_LABEL[to] })
 }
 
 export function PlanPanel({ tier, canEdit, billing }: {
@@ -119,6 +121,8 @@ export function PlanPanel({ tier, canEdit, billing }: {
    */
   billing: PlatformBilling | null
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [current, setCurrent] = useServerState(tier)
@@ -167,7 +171,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
    * between a checkout and its webhook.
    */
   const downgradeEffective = billing?.paidThrough
-    ? formatDate(addDays(billing.paidThrough, 1))
+    ? formatDate(addDays(billing.paidThrough, 1), intl)
     : null
 
   // A REF, NOT STATE, and that is forced rather than chosen: the field lives inside the
@@ -192,7 +196,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
     setError('')
     const result = await action()
     if (!result.success) {
-      setError(result.message ?? 'Something went wrong.')
+      setError(result.message ?? t('meet.wentWrong'))
       return
     }
     if (result.url) {
@@ -263,14 +267,15 @@ export function PlanPanel({ tier, canEdit, billing }: {
       // was removed, on the ground that ending a subscription and moving to Free are one
       // decision and were two controls — so the copy has to carry what that button's own
       // confirmation used to say.
+      // TWO KEYS FOR THE BILLED CASE, not one with an optional clause spliced in: the date
+      // sentence sits mid-paragraph, and where it goes is a decision each language makes.
       description: billed
-        ? `Nothing changes today. ${TIER_LABEL[current]} stays open until the end of the `
-          + `period you have already paid for${downgradeEffective ? `, and ${TIER_LABEL[next]} starts on ${downgradeEffective}` : ''}. `
-          + 'There is no refund for the rest of this period — that is what keeps the pages '
-          + 'open until it ends. Nothing is deleted, whichever plan you finish on.'
-        : `Pages that are part of ${TIER_LABEL[current]} stop opening. Nothing is `
-          + 'deleted: every record stays exactly where it is, and moving back up brings '
-          + 'the pages back with their data intact.',
+        ? downgradeEffective
+          ? t('plan.downgradeBilledWithDate', {
+            current: TIER_LABEL[current], next: TIER_LABEL[next], date: downgradeEffective,
+          })
+          : t('plan.downgradeBilled', { current: TIER_LABEL[current] })
+        : t('plan.downgradeUnbilled', { current: TIER_LABEL[current] }),
       body: (
         <>
           <PlanChangeColumns from={current} to={next} change={change} />
@@ -278,7 +283,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
         </>
       ),
       wide: true,
-      confirmLabel: moveLabel(current, next),
+      confirmLabel: moveLabel(current, next, t),
       destructive: true,
       // ── THE PASSWORD STEP, ON THE WAY DOWN ONLY ────────────────────────────────────
       // An upgrade that was not meant costs nothing and is undone by pressing the row
@@ -358,7 +363,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
               with a Current badge on one of them already looks like, and each row's Features
               dialog states the inheritance for that plan in full. Part of the app-wide sweep
               of captions that describe the thing under them. */}
-          <h2 className="text-lg font-semibold">What each plan includes</h2>
+          <h2 className="text-lg font-semibold">{t('plan.whatIncludes')}</h2>
         </div>
         <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-brand-legacy px-3 py-1 text-sm font-semibold text-brand-on-legacy">
           <Crown className="h-3.5 w-3.5" aria-hidden="true" /> {TIER_LABEL[current]}
@@ -407,7 +412,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
                 <h3 className="text-base font-semibold">{TIER_LABEL[plan]}</h3>
                 {isCurrent && (
                   <span className="rounded-full bg-brand-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-on-primary">
-                    Current
+                    {t('plan.current')}
                   </span>
                 )}
                 {/* COMING SOON is a fact about the OFFER, not about this family, and it is
@@ -422,7 +427,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
                     also the word the marketing site uses for a feature that is on its way. */}
                 {!TIER_IS_SOLD[plan] && (
                   <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    <Lock className="h-2.5 w-2.5" aria-hidden="true" /> Coming Soon
+                    <Lock className="h-2.5 w-2.5" aria-hidden="true" /> {t('plan.comingSoon')}
                   </span>
                 )}
               </div>
@@ -471,7 +476,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
                   onClick={() => setDetail(plan)}
                   className="text-sm font-medium text-brand-accent underline-offset-4 hover:underline"
                 >
-                  Features
+                  {t('plan.features')}
                   <span className="sr-only"> in {TIER_LABEL[plan]}</span>
                 </button>
 
@@ -509,7 +514,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
                         : 'bg-brand-primary text-brand-on-primary hover:opacity-90',
                     )}
                   >
-                    {isCurrent ? 'Current plan' : moveLabel(current, plan)}
+                    {isCurrent ? t('plan.currentPlan') : moveLabel(current, plan, t)}
                   </button>
                 )}
 
@@ -528,7 +533,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
                     className="inline-flex items-center gap-1.5 rounded-lg bg-brand-affirm px-3 py-1.5 text-sm font-medium text-brand-on-affirm transition-opacity hover:opacity-90 disabled:opacity-60"
                   >
                     <CreditCard className="h-3.5 w-3.5" aria-hidden="true" />
-                    {moveLabel(current, plan)}
+                    {moveLabel(current, plan, t)}
                   </button>
                 )}
 
@@ -538,7 +543,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
                     above has already said everything true about that one. */}
                 {canEdit && isUpgrade && TIER_IS_SOLD[plan] && !canBuy && (
                   <span className="text-sm text-muted-foreground">
-                    {billing ? 'Not available on this deployment' : 'Billing could not be loaded'}
+                    {billing ? t('plan.notOnDeployment') : t('plan.billingFailed')}
                   </span>
                 )}
               </div>
@@ -653,10 +658,11 @@ function PlanChangeColumns({ from, to, change }: {
   to: FamilyTier
   change: PlanChange
 }) {
+  const t = useT()
   return (
     <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
       <PlanColumn
-        heading={change.up ? `What you gain on ${TIER_LABEL[to]}` : 'What you lose'}
+        heading={change.up ? `What you gain on ${TIER_LABEL[to]}` : t('plan.whatYouLose')}
         tone={change.up ? 'gain' : 'lose'}
         items={change.changing}
         detailed
@@ -695,11 +701,12 @@ function PlanChangeColumns({ from, to, change }: {
  * so each act can say what is true of ITS act rather than a sentence that covers both badly.
  */
 function DowngradeReauth({ valueRef }: { valueRef: { current: string } }) {
+  const t = useT()
   return (
     <PasswordReauthField
       valueRef={valueRef}
       id="plan-downgrade-password"
-      hint="Your sign-in password, so a plan cannot be downgraded by accident."
+      hint={t('plan.passwordHint')}
     />
   )
 }
@@ -832,6 +839,7 @@ function PlanDetailDialog({ plan, current, onClose }: {
   current: FamilyTier
   onClose: () => void
 }) {
+  const t = useT()
   const included = tierMeets(current, plan)
 
   // WHERE THE TWO COLUMNS MEET — see the note above, this line is the whole of it. A plan
@@ -867,7 +875,7 @@ function PlanDetailDialog({ plan, current, onClose }: {
     >
       <p className="text-sm text-muted-foreground">
         {plan === current
-          ? 'This is your family’s plan today. Everything here is switched on.'
+          ? t('plan.yoursToday')
           : included
             ? `Included in ${TIER_LABEL[current]}, which your family is on. Everything here is switched on.`
             // NOT "everything here would open up" — most of the right-hand column is

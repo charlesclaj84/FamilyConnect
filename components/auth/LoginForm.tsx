@@ -17,13 +17,18 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { FieldError, FormError } from '@/components/ui/form-message'
 import { APP_NAME } from '@/lib/brand'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
-const schema = z.object({
-  email: z.string().email('Enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
+// A FACTORY, not a constant: the messages are copy and a schema built at module load
+// cannot reach the reader's catalogue. `FormData` is inferred from the RETURN type, so
+// the shape is still checked exactly as before.
+const schema = (t: T) => z.object({
+  email: z.string().email(t('auth.badEmail')),
+  password: z.string().min(1, t('auth.needPassword')),
 })
 
-type FormData = z.infer<typeof schema>
+type FormData = z.infer<ReturnType<typeof schema>>
 
 /**
  * THE QUERY STRING ARRIVES AS PROPS, read on the server by the page.
@@ -63,6 +68,7 @@ export function LoginForm({
   linkError?: string
   nextParam?: string
 }) {
+  const t = useT()
   const router = useRouter()
   // Where to go after signing in. /invite/<token> sends people here with one, so an
   // invitee who already has an account lands back on the invitation and has it redeemed,
@@ -107,7 +113,7 @@ export function LoginForm({
   const [resending, setResending] = useState(false)
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema(t)),
   })
 
   async function onSubmit(data: FormData) {
@@ -208,17 +214,17 @@ export function LoginForm({
         {/* THE PAGE'S h1. This card is the whole page, so its title is the only thing
             that could be — and until 2026-08-12 there was no h1 here at all, which
             leaves a screen-reader user nothing to jump to. See CardTitle's `as`. */}
-        <CardTitle as="h1" className="text-2xl">Welcome back</CardTitle>
+        <CardTitle as="h1" className="text-2xl">{t('auth.welcomeBack')}</CardTitle>
         <CardDescription>Sign in to your {APP_NAME} account</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('field.email')}</Label>
             <Input
               id="email"
               type="email"
-              placeholder="you@example.com"
+              placeholder={t('field.ph.email')}
               autoComplete="email"
               {...register('email')}
             />
@@ -226,7 +232,7 @@ export function LoginForm({
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">{t('auth.password')}</Label>
             <Input
               id="password"
               type="password"
@@ -236,7 +242,7 @@ export function LoginForm({
             />
             <FieldError message={errors.password?.message} />
             <Link href="/forgot-password" className="text-sm text-primary hover:underline block text-right">
-              Forgot password?
+              {t('auth.forgot')}
             </Link>
           </div>
 
@@ -251,7 +257,7 @@ export function LoginForm({
           <FormError message={serverError} />
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? 'Signing in…' : 'Sign In'}
+            {isSubmitting ? t('auth.signingIn') : t('auth.signIn')}
           </Button>
         </form>
 
@@ -277,7 +283,7 @@ export function LoginForm({
         {unconfirmedEmail && (
           <div className="mt-4 rounded-xl border bg-muted/40 px-4 py-3">
             <p className="flex items-center gap-2 text-sm font-medium">
-              <Mail className="h-4 w-4" /> Confirm your email address
+              <Mail className="h-4 w-4" /> {t('auth.confirmEmail')}
             </p>
             {resendAskedFor && !resending ? (
               /* The settled sentence, which replaces the button for the life of the page.
@@ -304,7 +310,7 @@ export function LoginForm({
                   disabled={resending}
                   className="mt-3 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted disabled:opacity-60"
                 >
-                  {resending ? 'Sending…' : 'Send the link again'}
+                  {resending ? t('security.sending') : t('auth.sendLinkAgain')}
                 </button>
               </>
             )}
@@ -317,7 +323,7 @@ export function LoginForm({
             <p className="mt-2 text-sm text-muted-foreground">
               Still nothing?{' '}
               <Link href={registerHref} className="font-medium text-primary hover:underline">
-                Create an account
+                {t('auth.createAccount')}
               </Link>{' '}
               if you never finished registering, or ask whoever invited you to send a fresh
               invitation.
@@ -339,9 +345,9 @@ export function LoginForm({
           across, which the page-level copy knows nothing about. */}
       <CardFooter className="text-sm">
         <p>
-          <span className="text-muted-foreground">Don&apos;t have an account?&nbsp;</span>
+          <span className="text-muted-foreground">{t('auth.noAccount')}</span>
           <Link href={registerHref} className="text-primary font-medium hover:underline">
-            Create one
+            {t('auth.createOne')}
           </Link>
         </p>
       </CardFooter>

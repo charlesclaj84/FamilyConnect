@@ -10,6 +10,7 @@ import { INTEGRATION_IDS, checkoutReturnUrls } from '@/lib/stripe/config'
 import { formatCurrency } from '@/lib/currency-utils'
 import type { PayCadence } from '@/lib/dues-utils'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * A member paying their own dues with a card — the family's money, on the family's account.
@@ -194,6 +195,7 @@ export async function startDuesCheckout(input: {
 }): Promise<PayDuesResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { intl } = await callerI18n(g.userId)
   if (!g.familyCode || !g.personId) return { success: false, message: 'Profile not found.' }
 
   // `input?.items`, not `input.items`. A server action is a public HTTP endpoint and its
@@ -255,7 +257,7 @@ export async function startDuesCheckout(input: {
       // without saying which line was wrong is a refusal nobody can act on.
       return {
         success: false,
-        message: `That is more than is owed. The most that can be paid on ${row.schedule.label} is ${formatCurrency(owed)}.`,
+        message: `That is more than is owed. The most that can be paid on ${row.schedule.label} is ${formatCurrency(owed, intl)}.`,
       }
     }
 
@@ -557,6 +559,7 @@ export async function startDonationCheckout(input: {
 }): Promise<PayDuesResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { intl } = await callerI18n(g.userId)
   if (!g.familyCode || !g.personId) return { success: false, message: 'Profile not found.' }
 
   const unavailable = stripeUnavailableReason()
@@ -585,7 +588,7 @@ export async function startDonationCheckout(input: {
   if (amount > MAX_CHARGE_CENTS) {
     return {
       success: false,
-      message: `A single card payment cannot be more than ${formatCurrency(MAX_CHARGE_CENTS)}. Give it in two.`,
+      message: `A single card payment cannot be more than ${formatCurrency(MAX_CHARGE_CENTS, intl)}. Give it in two.`,
     }
   }
 

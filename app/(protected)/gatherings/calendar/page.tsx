@@ -64,7 +64,7 @@ export default async function CalendarPage({
 
   await requireView(user.id, 'gatherings/calendar')
 
-  const { t } = await callerI18n(user.id)
+  const { t, intl } = await callerI18n(user.id)
 
   const requested = (await searchParams).month
   // `?month=a&month=b` arrives as an array. Taking the first is the same recovery every other
@@ -113,7 +113,7 @@ export default async function CalendarPage({
         </div>
       )}
 
-      <MonthCalendar month={grid} />
+      <MonthCalendar month={grid} t={t} intl={intl} />
     </PageShell>
   )
 }

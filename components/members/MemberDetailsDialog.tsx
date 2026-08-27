@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
 import { formatPhone } from '@/lib/phone-format'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * One member, in full — the dialog behind the name on both member tables.
@@ -74,17 +76,20 @@ export interface MemberDetailField {
  *
  * The WORD is exported from here because three call sites now print it — this dialog and
  * the two member tables — and `AdminRegionsChaptersClient` prints a fourth
- * (`chapter.region_name ?? 'National'`). Two spellings of one idea is how two screens come
+ * (`chapter.region_name ?? t('common.national')`). Two spellings of one idea is how two screens come
  * to disagree, which is the same argument `lib/brand.ts` makes about the product name. It
  * lives in this module rather than in `lib/` because this module is the one thing both
  * tables already import; if a fifth caller appears outside `components/members/`, move it
  * to a plain module beside the dues scope vocabulary rather than copying it.
  */
-export const NATIONAL = 'National'
+// THE WORD ITSELF IS `common.national` IN THE CATALOGUE, and this is the one function that
+// resolves it — which is what the paragraph above is about: one answer, not four. It was a
+// `const` until Phase 5 and cannot be one now, because a catalogue lookup needs the
+// reader's language and a module-level constant has none.
 
 /** `regions.name`, or National. Never an em-dash — every member is under something. */
-export function regionLabel(regionName: string | null | undefined): string {
-  return regionName || NATIONAL
+export function regionLabel(regionName: string | null | undefined, t: T): string {
+  return regionName || t('common.national')
 }
 
 export interface MemberDetails {
@@ -131,6 +136,7 @@ export function MemberDetailsDialog({ member, onClose, onEdit }: {
    */
   onEdit?: () => void
 }) {
+  const t = useT()
   // Region and Chapter are IN the table as columns and repeated here on purpose. Below
   // `sm` both fold away (COLLAPSING_CELL), so on a phone the dialog is the only place
   // either one is stated in full; and a dialog that showed every fact about a person
@@ -139,9 +145,9 @@ export function MemberDetailsDialog({ member, onClose, onEdit }: {
     ? [
       { label: 'Phone', value: formatPhone(member.phone) || null },
       { label: 'Email', value: member.email },
-      { label: 'City, State', value: member.location },
-      { label: 'Chapter', value: member.chapterName },
-      { label: 'Region', value: regionLabel(member.regionName) },
+      { label: t('dir.cityState'), value: member.location },
+      { label: t('field.chapter'), value: member.chapterName },
+      { label: t('dir.region'), value: regionLabel(member.regionName, t) },
       ...(member.extra ?? []),
     ]
     : []
@@ -180,7 +186,7 @@ export function MemberDetailsDialog({ member, onClose, onEdit }: {
                 primary action is the one a thumb reaches first while Close keeps its
                 place at the bottom of the panel. `sm:flex-row` puts them back in
                 reading order. */}
-            <Button variant="outline" className="sm:w-auto" onClick={onClose}>Close</Button>
+            <Button variant="outline" className="sm:w-auto" onClick={onClose}>{t('action.close')}</Button>
             {onEdit && (
               /* CLOSES THIS DIALOG AND OPENS THE OTHER, rather than growing this one into
                  a form. Two reasons, and the second is why it is not a toggle inside the
@@ -195,7 +201,7 @@ export function MemberDetailsDialog({ member, onClose, onEdit }: {
                  which would unmount the trigger mid-transition. */
               <Button className="sm:w-auto" onClick={onEdit}>
                 <Pencil className="mr-1.5 h-4 w-4" aria-hidden="true" />
-                Edit profile
+                {t('dir.editProfile')}
               </Button>
             )}
           </div>

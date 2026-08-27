@@ -20,7 +20,7 @@ import {
   deleteMeetingTopic, setMeetingClosed, setTopicVoting, updateMeetingNote, updateMeetingTopic,
   type MeetingDetail, type MeetingTopic,
 } from '@/app/actions/meetings'
-import { useT } from '@/components/layout/LocaleProvider'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 import type { T } from '@/lib/i18n/t'
 
 // A FUNCTION of `t`: the labels come from the reader's catalogue and cannot be resolved at
@@ -63,6 +63,7 @@ export function MeetingDetailClient({ meeting: initialMeeting, zone }: {
   /** The READER's timezone, for the secondary "your time" line beside the stated one. */
   zone: string
 }) {
+  const intl = useIntlTag()
   const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
@@ -121,7 +122,7 @@ export function MeetingDetailClient({ meeting: initialMeeting, zone }: {
             <h1 className="text-2xl font-bold">{meeting.title}</h1>
             <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
-                <CalendarCheck className="h-3.5 w-3.5" /> {formatDate(meeting.meetsOn)}
+                <CalendarCheck className="h-3.5 w-3.5" /> {formatDate(meeting.meetsOn, intl)}
               </span>
               {/* THE STATED TIME LEADS, the reader's own follows underneath and only when the
                   two differ. `StatedTime` owns that relationship so the gathering page and this
@@ -130,6 +131,7 @@ export function MeetingDetailClient({ meeting: initialMeeting, zone }: {
                 <span className="inline-flex items-center gap-1.5">
                   <Clock className="h-3.5 w-3.5 shrink-0" />
                   <StatedTime
+                    intl={intl}
                     day={meeting.meetsOn}
                     time={meeting.startTime}
                     endTime={meeting.endTime}
@@ -272,6 +274,7 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
   onRun: (fn: () => Promise<{ success: boolean; message?: string }>) => void
   onError: (message: string) => void
 }) {
+  const intl = useIntlTag()
   const t = useT()
   const confirm = useConfirm()
   const [expanded, setExpanded] = useState(meeting.closedAt === null)
@@ -403,7 +406,7 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
                       <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                         <span>{note.authorName ?? t('meet.noLongerInFamily')}</span>
                         <span>·</span>
-                        <span>{formatDate(note.createdAt)}</span>
+                        <span>{formatDate(note.createdAt, intl)}</span>
                         {note.updatedAt !== note.createdAt && <span>· edited</span>}
                         {mayWrite && (
                           <>

@@ -19,6 +19,7 @@ import {
   type ElectionScope,
 } from '@/lib/election-area'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * ── WHAT AN ELECTION IS, AFTER 20260821000000 AND 20260821000001 ───────────────────
@@ -1281,6 +1282,7 @@ export async function publishElection(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireScope('admin/elections', 'edit')
   if (!g.ok) return { success: false, message: g.message }
+  const { intl } = await callerI18n(g.userId)
 
   const admin = createAdminClient()
   const { data: row } = await admin.from('elections')
@@ -1312,7 +1314,7 @@ export async function publishElection(
     .eq('id', id).eq('family_code', g.familyCode).select('id'))
   if (!outcome.ok) return { success: false, message: outcome.message }
 
-  if (opts?.announce) await announceElection(g, existing)
+  if (opts?.announce) await announceElection(g, existing, intl)
 
   revalidatePath('/admin/elections')
   revalidatePath('/community/elections')
@@ -1345,9 +1347,9 @@ export async function publishElection(
  * rule `lib/notifications.ts` and every `sendEmail` call site follow — so the error is read
  * (§8) and logged, and publishing has already succeeded by the time this runs.
  */
-async function announceElection(g: GuardOk, election: RawElection) {
+async function announceElection(g: GuardOk, election: RawElection, intl: string) {
   const scope = electionScope(election)
-  const opensOn = formatDate(election.nominations_open_on)
+  const opensOn = formatDate(election.nominations_open_on, intl)
   const places = await familyPlaces(g.familyCode)
   const where = electionScopeLabel(election, {
     region: election.region_id ? places.regionNames.get(election.region_id) : null,
@@ -1476,6 +1478,7 @@ export async function submitNomination(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { intl } = await callerI18n(g.userId)
 
   if (!(await belongsToFamily('elections', electionId, g.familyCode))) {
     return { success: false, message: 'Election not found' }
@@ -1498,7 +1501,7 @@ export async function submitNomination(
     todayIn(election.time_zone ?? DEFAULT_ZONE),
   )
   if (phase !== 'nominations') {
-    return { success: false, message: nominationsClosedMessage(election, phase) }
+    return { success: false, message: nominationsClosedMessage(election, phase, intl) }
   }
 
   // The position has to be ON this election. `positionId` is a client parameter and
@@ -1710,13 +1713,17 @@ export async function retractNomination(
 }
 
 /** Why a nomination was refused, in terms of the calendar rather than of a state machine. */
-function nominationsClosedMessage(election: RawElection, phase: ElectionPhase): string {
+function nominationsClosedMessage(
+  election: RawElection,
+  phase: ElectionPhase,
+  intl: string,
+): string {
   if (phase === 'scheduled') {
-    const opens = formatDate(election.nominations_open_on)
+    const opens = formatDate(election.nominations_open_on, intl)
     return opens ? `Nominations open ${opens}.` : 'Nominations have not opened yet.'
   }
   if (phase === 'draft') return 'This election has not been published yet.'
-  const closed = formatDate(election.nominations_close_on)
+  const closed = formatDate(election.nominations_close_on, intl)
   return closed ? `Nominations closed on ${closed}.` : 'Nominations are closed.'
 }
 
@@ -1766,6 +1773,7 @@ export async function castVote(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { intl } = await callerI18n(g.userId)
   // `election_votes.voter_id` is NOT NULL, and `requireMember()` types `personId` as nullable
   // because a caller can in principle hold a membership with no person row. Checked rather
   // than asserted: the alternative is a 23502 for a message.
@@ -1789,8 +1797,8 @@ export async function castVote(
     todayIn(election.time_zone ?? DEFAULT_ZONE),
   )
   if (phase !== 'voting') {
-    const opens = formatDate(election.voting_open_on)
-    const closed = formatDate(election.voting_close_on)
+    const opens = formatDate(election.voting_open_on, intl)
+    const closed = formatDate(election.voting_close_on, intl)
     return {
       success: false,
       message: phase === 'closed' && closed ? `Voting closed on ${closed}.`

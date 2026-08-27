@@ -15,6 +15,7 @@ import {
   type BoardReport, type ElectionReportInput, type ElectionsReport, type GatheringsReport,
   type MeetingReportInput, type MeetingsReport,
 } from '@/lib/activity-reports'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * The four ACTIVITY reports: Gatherings, Elections, Meetings, and Board & Offices.
@@ -416,7 +417,10 @@ export async function getBoardReport(): Promise<BoardReport | null> {
   const regionNames = new Map(rows(regionsRes.data).map(r => [r.id as string, r.name as string]))
   const byUserId = new Map(rows(peopleRes.data).map(p => [p.user_id as string, p]))
 
+  const { t } = await callerI18n(g.userId)
+
   return buildBoardReport({
+    t,
     positions: rows(positionsRes.data).map(p => ({
       id: p.id as string,
       name: p.name as string,

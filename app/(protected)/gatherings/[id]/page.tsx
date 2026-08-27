@@ -14,6 +14,7 @@ import { GATHERING_PREMIER_PILL } from '@/components/gatherings/status'
 import { GatheringDetailClient } from '@/components/gatherings/GatheringDetailClient'
 import { PlanningUpsell } from '@/components/gatherings/PlanningUpsell'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 export const metadata = { title: 'Gathering' }
 
@@ -58,6 +59,7 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
 
   const { user } = await currentUser()
   if (!user) redirect('/login')
+  const { intl } = await callerI18n(user.id)
 
   await requireView(user.id, 'gatherings')
 
@@ -142,6 +144,7 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
             <span className="flex items-center gap-1.5">
               <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <StatedTime
+                intl={intl}
                 day={gathering.startsOn}
                 time={gathering.startTime}
                 endTime={gathering.endTime}
@@ -185,7 +188,7 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
           `gatherings/budget:view` must not learn that money is attached), one honest line for
           `'unavailable'` (the caller holds the key and the read failed). Neither is the same
           thing as a gathering with no budget set, which is a `'shown'` band with a dash in it. */}
-      <BudgetBand budget={gathering.budget} state={gathering.budgetState} />
+      <BudgetBand budget={gathering.budget} state={gathering.budgetState} intl={intl} />
 
       {/* ── THE TASK TABLE, OR WHAT WOULD BE IN IT ───────────────────────────────
           A Free family has no tasks and never will while they are on Free, so the table would

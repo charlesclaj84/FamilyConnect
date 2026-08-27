@@ -18,6 +18,7 @@ import {
 } from '@/app/actions/safety-check-ins'
 import { openedAgo } from '@/lib/safety-check-in'
 import { cn } from '@/lib/utils'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * A clock that ticks once a minute, for `openedAgo`.
@@ -94,6 +95,7 @@ export function SafetyCheckInsClient({
   /** The reader's timezone. `responded_at` on a roster row is an instant. */
   zone: string
 }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [pending, startTransition] = useTransition()
@@ -125,7 +127,7 @@ export function SafetyCheckInsClient({
       for (let batch = 0; batch < 40; batch += 1) {
         const result = await sendCheckInAsks(checkInId)
         if (!result.success) {
-          setError(result.message ?? 'Could not ask everybody')
+          setError(result.message ?? t('safety.askFailed'))
           break
         }
         router.refresh()
@@ -135,7 +137,7 @@ export function SafetyCheckInsClient({
       setSendingFor(null)
       router.refresh()
     }
-  }, [router])
+  }, [router, t])
 
   // AUTO-DRIVE ONCE, WHEN A NEWLY RAISED CHECK-IN STILL HAS A QUEUE. Somebody who has just
   // pressed "Ask them" should not then have to find and press a second button — that is exactly
@@ -165,7 +167,7 @@ export function SafetyCheckInsClient({
     setError(''); setNotice('')
     startTransition(async () => {
       const result = await fn()
-      if (!result.success) setError(result.message ?? 'That did not work')
+      if (!result.success) setError(result.message ?? t('safety.didNotWork'))
       else if (result.message) setNotice(result.message)
       router.refresh()
     })
@@ -183,16 +185,16 @@ export function SafetyCheckInsClient({
   const remove = (row: CheckInSummary) => {
     startTransition(async () => {
       const ok = await confirm({
-        title: 'Delete this check-in?',
+        title: t('safety.deleteConfirm'),
         description: `“${row.title}” and the record of who answered will be removed. Nobody will `
           + 'be able to see who was asked, who said they were safe, or who was never reached.',
-        confirmLabel: 'Delete',
+        confirmLabel: t('action.delete'),
         destructive: true,
       })
       if (!ok) return
       const result = await deleteCheckIn(row.id)
-      if (!result.success) setError(result.message ?? 'Could not delete the check-in')
-      else setNotice(result.message ?? 'Check-in deleted')
+      if (!result.success) setError(result.message ?? t('safety.deleteFailed'))
+      else setNotice(result.message ?? t('safety.deleted'))
       router.refresh()
     })
   }
@@ -201,9 +203,9 @@ export function SafetyCheckInsClient({
     <div className="space-y-8">
       <header className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold text-brand-ink">Safety Check-Ins</h1>
+          <h1 className="text-2xl font-semibold text-brand-ink">{t('safety.heading')}</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Ask the relatives in one area whether they are safe, and watch the answers come in.
+            {t('safety.lede')}
           </p>
         </div>
         {rights.raise && (
@@ -212,7 +214,7 @@ export function SafetyCheckInsClient({
             className="bg-brand-urgent text-brand-on-urgent hover:opacity-90"
           >
             <ShieldAlert aria-hidden="true" />
-            Raise a check-in
+            {t('safety.raise')}
           </Button>
         )}
       </header>
@@ -221,7 +223,7 @@ export function SafetyCheckInsClient({
       {myCheckIns.length > 0 && (
         <section className="space-y-3" aria-labelledby="asking-me">
           <h2 id="asking-me" className="text-sm font-semibold tracking-wide text-brand-ink uppercase">
-            Your family is asking about you
+            {t('safety.askingAboutYou')}
           </h2>
           {myCheckIns.map(mine => (
             <div
@@ -251,7 +253,7 @@ export function SafetyCheckInsClient({
       {/* §8: a refused read is not an empty family, and the two are different sentences. */}
       {initialCheckIns === null && (
         <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-          The list of check-ins could not be loaded just now. Reload the page to try again.
+          {t('safety.listFailed')}
         </p>
       )}
 
@@ -262,11 +264,11 @@ export function SafetyCheckInsClient({
       {initialCheckIns !== null && (
         <section className="space-y-3" aria-labelledby="open-check-ins">
           <h2 id="open-check-ins" className="text-sm font-semibold tracking-wide text-brand-ink uppercase">
-            Open
+            {t('safety.open')}
           </h2>
           {open.length === 0 ? (
             <p className="rounded-lg border border-dashed px-4 py-6 text-center text-sm text-muted-foreground">
-              Nothing open. When somebody raises a check-in, it appears here.
+              {t('safety.nothingOpen')}
             </p>
           ) : (
             open.map(row => (
@@ -295,7 +297,7 @@ export function SafetyCheckInsClient({
       {past.length > 0 && (
         <section className="space-y-3" aria-labelledby="past-check-ins">
           <h2 id="past-check-ins" className="text-sm font-semibold tracking-wide text-brand-ink uppercase">
-            Closed
+            {t('safety.closed')}
           </h2>
           {past.map(row => (
             <CheckInCard
@@ -349,7 +351,10 @@ function CheckInCard({
   onClose?: () => void
   onDelete: () => void
 }) {
-  const t = row.tally
+  const t = useT()
+  // RENAMED FROM `t` in Phase 5: that name now belongs to the translator in every
+  // component in the product, and a local shadowing it here made `t('…')` unreachable.
+  const tally = row.tally
   // THE TONE COMES FROM `checkInProgress`, which is the pure module's decision and not this
   // component's. `urgent` outranks everything including a queue still running — somebody needing
   // help is the thing this screen leads with.
@@ -366,9 +371,9 @@ function CheckInCard({
         <div className="min-w-0">
           <p className="font-semibold">{row.title}</p>
           <p className="mt-0.5 text-sm text-muted-foreground">
-            {row.scope === 'family' ? 'Everyone in the family'
-              : row.scope === 'named' ? 'Hand-picked relatives'
-                : row.areaName ?? 'One area'}
+            {row.scope === 'family' ? t('safety.everyone')
+              : row.scope === 'named' ? t('safety.handPicked')
+                : row.areaName ?? t('safety.oneArea')}
             {row.raisedByName ? ` · raised by ${row.raisedByName}` : ''}
             {now ? ` · ${openedAgo(row.createdAt, now)}` : ''}
           </p>
@@ -383,7 +388,7 @@ function CheckInCard({
                   : 'text-muted-foreground',
           )}
         >
-          {sending ? 'Asking…' : row.progress.label}
+          {sending ? t('safety.asking') : row.progress.label}
         </p>
       </div>
 
@@ -395,15 +400,15 @@ function CheckInCard({
       */}
       {row.rosterVisible ? (
         <dl className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
-          <Figure label="Safe" value={t.safe} className="text-brand-affirm" />
-          <Figure label="Need help" value={t.needsHelp} className="text-brand-urgent" />
-          <Figure label="Waiting" value={t.awaiting} className="text-muted-foreground" />
-          {t.undelivered > 0 && (
-            <Figure label="Not reached" value={t.undelivered} className="text-brand-withheld" />
+          <Figure label={t('safety.safe')} value={tally.safe} className="text-brand-affirm" />
+          <Figure label={t('safety.needHelp')} value={tally.needsHelp} className="text-brand-urgent" />
+          <Figure label={t('safety.waiting')} value={tally.awaiting} className="text-muted-foreground" />
+          {tally.undelivered > 0 && (
+            <Figure label={t('safety.notReached')} value={tally.undelivered} className="text-brand-withheld" />
           )}
           {row.notAddressed > 0 && (
             <Figure
-              label="Not addressed"
+              label={t('safety.notAddressed')}
               value={row.notAddressed}
               className="text-muted-foreground"
             />
@@ -411,19 +416,19 @@ function CheckInCard({
         </dl>
       ) : (
         <p className="mt-3 text-sm text-muted-foreground">
-          You can see that this check-in was raised. Who answered is not shown to you.
+          {t('safety.notShownToYou')}
         </p>
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {row.rosterVisible && (
           <Button variant="outline" size="sm" onClick={onToggle} disabled={busy}>
-            {expanded ? 'Hide who was asked' : 'See who was asked'}
+            {expanded ? t('safety.hideRoster') : t('safety.seeRoster')}
           </Button>
         )}
-        {row.status === 'open' && rights.raise && t.queued > 0 && onAskRest && (
+        {row.status === 'open' && rights.raise && tally.queued > 0 && onAskRest && (
           <Button variant="outline" size="sm" onClick={onAskRest} disabled={busy}>
-            {sending ? 'Asking…' : `Ask the remaining ${t.queued}`}
+            {sending ? t('safety.asking') : `Ask the remaining ${tally.queued}`}
           </Button>
         )}
         {/*
@@ -432,32 +437,32 @@ function CheckInCard({
           machine was going to handle it. `retryCheckInAsks` refuses to touch those rows for the
           same reason; this is the UI half of the same rule.
         */}
-        {row.status === 'open' && rights.raise && t.undelivered > t.unreachable && onRetry && (
+        {row.status === 'open' && rights.raise && tally.undelivered > tally.unreachable && onRetry && (
           <Button variant="outline" size="sm" onClick={onRetry} disabled={busy}>
-            Try the failed ones again
+            {t('safety.retryFailed')}
           </Button>
         )}
         {row.status === 'open' && rights.raise && onClose && (
           <Button variant="outline" size="sm" onClick={onClose} disabled={busy}>
-            Close check-in
+            {t('safety.close')}
           </Button>
         )}
         {rights.remove && (
           <Button variant="ghost" size="sm" onClick={onDelete} disabled={busy}
             className="text-destructive">
-            Delete
+            {t('action.delete')}
           </Button>
         )}
       </div>
 
-      {t.unreachable > 0 && row.rosterVisible && (
+      {tally.unreachable > 0 && row.rosterVisible && (
         // THE SENTENCE THIS WHOLE FEATURE IS BUILT AROUND. Somebody has to be told, in words,
         // that a machine cannot reach these relatives — otherwise they sit in a column nobody
         // works through and "everybody is safe" gets read over them.
         <p className="mt-3 text-sm text-brand-withheld">
-          {t.unreachable === 1
+          {tally.unreachable === 1
             ? '1 relative has no email address on file. Somebody will need to telephone them.'
-            : `${t.unreachable} relatives have no email address on file. Somebody will need to telephone them.`}
+            : `${tally.unreachable} relatives have no email address on file. Somebody will need to telephone them.`}
         </p>
       )}
 
@@ -465,7 +470,7 @@ function CheckInCard({
         <div className="mt-4">
           {detail
             ? <CheckInRoster zone={zone} rows={detail.roster} />
-            : <p className="text-sm text-muted-foreground">Loading who was asked…</p>}
+            : <p className="text-sm text-muted-foreground">{t('safety.loadingRoster')}</p>}
         </div>
       )}
     </div>

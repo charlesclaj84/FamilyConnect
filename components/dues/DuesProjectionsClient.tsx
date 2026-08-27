@@ -12,6 +12,7 @@ import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table
 import { HelpLink } from '@/components/help/HelpLink'
 import { collectedPercent, type DuesStanding, type MemberStatus } from '@/lib/dues-projection'
 import type { DuesProjectionResult, ProjectionPerson } from '@/app/actions/dues'
+import { useIntlTag } from '@/components/layout/LocaleProvider'
 
 /**
  * Dues Projections — what the family should collect this year, what it has, and from whom.
@@ -160,6 +161,7 @@ function scopeCaption(
 }
 
 export function DuesProjectionsClient({ result }: { result: DuesProjectionResult }) {
+  const intl = useIntlTag()
   const { projection, people, placeNames } = result
   const [query, setQuery] = useState('')
   const [onlyOwing, setOnlyOwing] = useState(false)
@@ -213,23 +215,23 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Figure
           label="Expected this year"
-          value={formatCurrency(projection.expectedCents)}
+          value={formatCurrency(projection.expectedCents, intl)}
           caption={`${projection.payingMembers} of ${projection.membersCounted} members owe something`}
         />
         <Figure
           label="Collected"
-          value={formatCurrency(projection.collectedCents)}
+          value={formatCurrency(projection.collectedCents, intl)}
           caption={projection.expectedCents > 0 ? `${percent}% of what was billed, waivers included` : 'Nothing billed yet'}
           tone="affirm"
         />
         <Figure
           label="Waived"
-          value={formatCurrency(projection.waivedCents)}
+          value={formatCurrency(projection.waivedCents, intl)}
           caption="Forgiven — settles the due, and is not income"
         />
         <Figure
           label="Still to collect"
-          value={formatCurrency(projection.outstandingCents)}
+          value={formatCurrency(projection.outstandingCents, intl)}
           caption={owing === 0 ? 'Everybody is up to date' : `${owing} ${owing === 1 ? 'member has' : 'members have'} something outstanding`}
           tone="withheld"
         />
@@ -239,7 +241,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
           standing $0.00 would be a figure nobody can account for. */}
       {projection.pendingCents > 0 && (
         <p className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">{formatCurrency(projection.pendingCents)}</span>
+          <span className="font-medium text-foreground">{formatCurrency(projection.pendingCents, intl)}</span>
           {' '}is awaiting settlement — started and not yet confirmed. It is not counted as
           collected, and it has not been taken off what is still owed.
         </p>
@@ -256,7 +258,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
           `--destructive`: nothing has failed, and nothing was deleted. */}
       {projection.unregisteredOutstandingCents > 0 && (
         <p className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          <span className="font-medium text-brand-withheld">{formatCurrency(projection.unregisteredOutstandingCents)}</span>
+          <span className="font-medium text-brand-withheld">{formatCurrency(projection.unregisteredOutstandingCents, intl)}</span>
           {' '}of what is still to collect is owed
           by {unreachable === 1 ? 'one member' : `${unreachable} members`} with no
           account — {projection.statusCounts.invited} invited
@@ -364,15 +366,15 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                           different years, and a table that did not say so would be adding
                           up figures a reader assumes share a window. */}
                       <RowMeta className="gap-x-2">
-                        <MetaIf value={formatCurrency(s.annualCents)} prefix="Full year" />
+                        <MetaIf value={formatCurrency(s.annualCents, intl)} prefix="Full year" />
                         <MetaDot />
-                        <MetaIf value={formatDate(s.periodStart) ?? undefined} prefix="Year from" />
+                        <MetaIf value={formatDate(s.periodStart, intl) ?? undefined} prefix="Year from" />
                         <MetaDot />
                         <MetaIf value={`${s.payingMembers} paying`} />
                         <MetaDot />
-                        <MetaIf value={formatCurrency(s.expectedCents)} prefix="Expected" />
+                        <MetaIf value={formatCurrency(s.expectedCents, intl)} prefix="Expected" />
                         <MetaDot />
-                        <MetaIf value={formatCurrency(s.collectedCents)} prefix="Collected" />
+                        <MetaIf value={formatCurrency(s.collectedCents, intl)} prefix="Collected" />
                       </RowMeta>
                       {/* The standings that are worth a word, and only when non-zero: a row
                           of five zeroes on a schedule nobody has declined is noise. */}
@@ -386,12 +388,12 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                       </p>
                     </td>
                     <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground tabular-nums', COLLAPSING_CELL)}>{s.payingMembers}</td>
-                    <td className={cn('px-3 py-2.5 text-right whitespace-nowrap tabular-nums', COLLAPSING_CELL)}>{formatCurrency(s.expectedCents)}</td>
-                    <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-brand-affirm tabular-nums', COLLAPSING_CELL)}>{formatCurrency(s.collectedCents)}</td>
-                    <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground tabular-nums', COLLAPSING_CELL)}>{formatCurrency(s.waivedCents)}</td>
+                    <td className={cn('px-3 py-2.5 text-right whitespace-nowrap tabular-nums', COLLAPSING_CELL)}>{formatCurrency(s.expectedCents, intl)}</td>
+                    <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-brand-affirm tabular-nums', COLLAPSING_CELL)}>{formatCurrency(s.collectedCents, intl)}</td>
+                    <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground tabular-nums', COLLAPSING_CELL)}>{formatCurrency(s.waivedCents, intl)}</td>
                     <td className={cn('px-3 py-2.5 text-right font-semibold whitespace-nowrap tabular-nums',
                       s.outstandingCents > 0 ? 'text-brand-withheld' : 'text-muted-foreground')}>
-                      {formatCurrency(s.outstandingCents)}
+                      {formatCurrency(s.outstandingCents, intl)}
                     </td>
                   </tr>
                 ))}
@@ -509,13 +511,13 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                           {statusPill}
                           <MetaIf value={`${r.liableSchedules} ${r.liableSchedules === 1 ? 'due' : 'dues'}`} />
                           <MetaDot />
-                          <MetaIf value={formatCurrency(r.expectedCents)} prefix="Expected" />
+                          <MetaIf value={formatCurrency(r.expectedCents, intl)} prefix="Expected" />
                           <MetaDot />
-                          <MetaIf value={formatCurrency(r.collectedCents)} prefix="Paid" />
+                          <MetaIf value={formatCurrency(r.collectedCents, intl)} prefix="Paid" />
                           {r.waivedCents > 0 && (
                             <>
                               <MetaDot />
-                              <MetaIf value={formatCurrency(r.waivedCents)} prefix="Waived" />
+                              <MetaIf value={formatCurrency(r.waivedCents, intl)} prefix="Waived" />
                             </>
                           )}
                         </RowMeta>
@@ -523,11 +525,11 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>{pill}</td>
                       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>{statusPill}</td>
                       <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground tabular-nums', COLLAPSING_CELL)}>{r.liableSchedules}</td>
-                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap tabular-nums', COLLAPSING_CELL)}>{formatCurrency(r.expectedCents)}</td>
-                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-brand-affirm tabular-nums', COLLAPSING_CELL)}>{formatCurrency(r.collectedCents)}</td>
+                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap tabular-nums', COLLAPSING_CELL)}>{formatCurrency(r.expectedCents, intl)}</td>
+                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-brand-affirm tabular-nums', COLLAPSING_CELL)}>{formatCurrency(r.collectedCents, intl)}</td>
                       <td className={cn('px-3 py-2.5 text-right font-semibold whitespace-nowrap tabular-nums',
                         r.outstandingCents > 0 ? 'text-brand-withheld' : 'text-muted-foreground')}>
-                        {formatCurrency(r.outstandingCents)}
+                        {formatCurrency(r.outstandingCents, intl)}
                       </td>
                     </tr>
                   )

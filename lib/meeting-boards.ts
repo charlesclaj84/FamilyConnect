@@ -1,4 +1,5 @@
-import { POSITION_SCOPE_LABELS, type PositionScope } from '@/lib/board-positions'
+import { positionScopeLabel, type PositionScope } from '@/lib/board-positions'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Turning the family's own shape into the bodies a meeting's attendee list can be built from:
@@ -233,7 +234,10 @@ function boardLabel(
  * one option per scope and the captions say which. Sorted by scope then caption, matching
  * `buildBoards`.
  */
-export function buildPositions(assignments: readonly BoardAssignment[]): PositionOption[] {
+export function buildPositions(
+  assignments: readonly BoardAssignment[],
+  t: T,
+): PositionOption[] {
   const byRole = new Map<string, { scope: PositionScope; name: string; people: Map<string, string> }>()
 
   for (const a of assignments) {
@@ -251,7 +255,10 @@ export function buildPositions(assignments: readonly BoardAssignment[]): Positio
       id,
       // "National President", "Chapter Treasurer". The scope word is not decoration: without
       // it a family holding President at two scopes gets two options captioned identically.
-      label: `${POSITION_SCOPE_LABELS[scope]} ${name}`,
+      // THE SCOPE WORD IS NOT DECORATION: without it a family holding President at two
+      // scopes gets two options captioned identically. Its POSITION in the phrase is a
+      // key, because Spanish and French both put it after the name.
+      label: t('pos.scopedName', { scope: positionScopeLabel(t, scope), name }),
       scope,
       personIds: [...people.entries()]
         .sort((x, y) => x[1].localeCompare(y[1]) || x[0].localeCompare(y[0]))

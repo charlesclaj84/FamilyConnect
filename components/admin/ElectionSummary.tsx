@@ -4,6 +4,7 @@ import { ELECTION_PHASE_PILL } from '@/components/elections/status'
 import { ELECTION_PHASE_LABEL } from '@/lib/election-phase'
 import { formatDateRange } from '@/lib/date-utils'
 import type { ElectionSummary as Summary } from '@/app/actions/elections'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * What a published election looks like while it is running.
@@ -29,7 +30,11 @@ import type { ElectionSummary as Summary } from '@/app/actions/elections'
  * which is the same shape the member's own results block uses, and the caption changes with
  * the phase so an organizer reading it mid-poll is not reading it as final.
  */
-export function ElectionSummary({ summary }: { summary: Summary }) {
+export function ElectionSummary({ summary, t }: {
+  summary: Summary
+  /** The reader's language, bound. A prop — this is a Server Component. */
+  t: T
+}) {
   const { election, nominations, electorate, positions } = summary
   const closed = election.phase === 'closed'
   const turnout = electorate.eligible > 0
@@ -42,34 +47,34 @@ export function ElectionSummary({ summary }: { summary: Summary }) {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Figure
           icon={<Users className="h-4 w-4" />}
-          label="Can vote"
+          label={t('esum.canVote')}
           value={String(electorate.eligible)}
-          hint="Approved members of this election’s part of the family, with an account"
+          hint={t('esum.canVoteHint')}
         />
         <Figure
           icon={<Vote className="h-4 w-4" />}
-          label="Have voted"
+          label={t('esum.haveVoted')}
           value={String(electorate.voted)}
           hint={`${turnout}% turnout`}
         />
         <Figure
           icon={<Clock className="h-4 w-4" />}
-          label="Have not"
+          label={t('esum.haveNot')}
           value={String(electorate.notVoted)}
-          hint="Nobody is named — chase from the Directory"
+          hint={t('esum.chaseFromDirectory')}
         />
         <Figure
           icon={<CheckCircle className="h-4 w-4" />}
-          label="On the ballot"
+          label={t('esum.onBallot')}
           value={`${nominations.accepted} of ${nominations.total}`}
-          hint="Nominations that have been accepted"
+          hint={t('esum.onBallotHint')}
         />
       </div>
 
       {/* ── The nomination breakdown, which the figure above compresses ───── */}
       <div className="rounded-xl border bg-card px-4 py-3">
         <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Nominations
+          {t('elec.nominations')}
         </p>
         <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
           <span className="flex items-center gap-1.5">
@@ -101,7 +106,7 @@ export function ElectionSummary({ summary }: { summary: Summary }) {
       <div className="space-y-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-semibold">
-            {closed ? 'Results' : 'Where the voting stands'}
+            {closed ? t('esum.results') : t('esum.whereVotingStands')}
           </h2>
           <p className="text-xs text-muted-foreground">
             {closed
@@ -111,7 +116,7 @@ export function ElectionSummary({ summary }: { summary: Summary }) {
         </div>
 
         {positions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">This election has no offices on it.</p>
+          <p className="text-sm text-muted-foreground">{t('esum.noOffices')}</p>
         ) : positions.map(pos => (
           <Card key={pos.position_id}>
             <CardHeader className="pb-2">
@@ -125,7 +130,7 @@ export function ElectionSummary({ summary }: { summary: Summary }) {
             </CardHeader>
             <CardContent>
               {pos.candidates.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nobody is standing for this office.</p>
+                <p className="text-sm text-muted-foreground">{t('esum.nobodyStanding')}</p>
               ) : (
                 <ul className="space-y-2">
                   {pos.candidates.map((c, i) => {
@@ -177,7 +182,7 @@ export function ElectionSummary({ summary }: { summary: Summary }) {
       </div>
 
       <p className="text-xs text-muted-foreground">
-        This election is <span className={`rounded-full px-2 py-0.5 ${ELECTION_PHASE_PILL[election.phase]}`}>
+        {t('esum.electionIs')} <span className={`rounded-full px-2 py-0.5 ${ELECTION_PHASE_PILL[election.phase]}`}>
           {ELECTION_PHASE_LABEL[election.phase]}
         </span>. Nothing on this screen changes it — the windows do.
       </p>

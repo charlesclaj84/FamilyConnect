@@ -23,6 +23,7 @@ import {
   deletePhoto, tagPersonInPhoto, untagPersonFromPhoto, updatePhotoCaption, uploadPhotos,
   type GalleryRights, type Photo,
 } from '@/app/actions/gallery'
+import { useT } from '@/components/layout/LocaleProvider'
 
 interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null }
 
@@ -63,6 +64,7 @@ export function CollectionView({
   rights: GalleryRights
   allMembers: Person[]
 }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [photos, setPhotos] = useServerState(initialPhotos)
@@ -140,18 +142,18 @@ export function CollectionView({
 
   async function handleDelete(photo: Photo) {
     const ok = await confirm({
-      title: 'Delete photograph',
+      title: t('gal.deletePhoto'),
       description: photo.caption
         ? `Delete “${photo.caption}”? It is removed for everyone, along with its tags, and the image file goes too. This cannot be undone.`
-        : 'Delete this photograph? It is removed for everyone, along with its tags, and the image file goes too. This cannot be undone.',
-      confirmLabel: 'Delete photograph',
+        : t('gal.deletePhotoBody'),
+      confirmLabel: t('gal.deletePhoto'),
       destructive: true,
     })
     if (!ok) return
     setError('')
     startTransition(async () => {
       const result = await deletePhoto(photo.id)
-      if (!result.success) { setError(result.message ?? 'Could not delete that.'); return }
+      if (!result.success) { setError(result.message ?? t('gal.deletePhotoFailed')); return }
       setPhotos(prev => prev.filter(p => p.id !== photo.id))
       setLightbox(null)
       router.refresh()
@@ -167,16 +169,16 @@ export function CollectionView({
               promises arrow-key roving focus and `aria-controls` wiring, and claiming it
               without implementing it strands the users it is aimed at. `aria-pressed` is what
               is actually true here — two toggles, one of which is on. */}
-          <div className="flex rounded-lg border p-0.5" role="group" aria-label="How to show the photographs">
+          <div className="flex rounded-lg border p-0.5" role="group" aria-label={t('gal.howToShow')}>
             <button type="button" onClick={() => setView('grid')} aria-pressed={view === 'grid'}
               className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                 view === 'grid' ? 'bg-brand-soft text-brand-on-soft' : 'text-muted-foreground hover:text-foreground'}`}>
-              <LayoutGrid className="h-3.5 w-3.5" /> Grid
+              <LayoutGrid className="h-3.5 w-3.5" /> {t('gal.grid')}
             </button>
             <button type="button" onClick={() => setView('list')} aria-pressed={view === 'list'}
               className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                 view === 'list' ? 'bg-brand-soft text-brand-on-soft' : 'text-muted-foreground hover:text-foreground'}`}>
-              <List className="h-3.5 w-3.5" /> List
+              <List className="h-3.5 w-3.5" /> {t('gal.list')}
             </button>
           </div>
 
@@ -189,7 +191,7 @@ export function CollectionView({
               copying it, and copying it is how the Directory came to search accents while
               the tagger did not. */}
           <div className="space-y-1">
-            <Label htmlFor="caption-search" className="text-xs">Search captions</Label>
+            <Label htmlFor="caption-search" className="text-xs">{t('gal.searchCaptions')}</Label>
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
               <Input
@@ -197,7 +199,7 @@ export function CollectionView({
                 type="search"
                 value={captionQuery}
                 onChange={e => { setCaptionQuery(e.target.value); setLightbox(null) }}
-                placeholder="lake, reunion, 90th…"
+                placeholder={t('gal.searchCaptionsPh')}
                 className="w-56 pl-8"
               />
             </div>
@@ -247,7 +249,7 @@ export function CollectionView({
 
         {rights.upload && (
           <Button onClick={() => { setUploadOpen(true); setError(''); setNotice('') }}>
-            <Upload /> Add photographs
+            <Upload /> {t('gal.addPhotos')}
           </Button>
         )}
       </div>
@@ -267,9 +269,9 @@ export function CollectionView({
             people={taggablePeople}
             selected={tagFilter}
             onChange={next => { setTagFilter(next); setLightbox(null) }}
-            label="Who is in it"
-            hint="Pick anybody tagged in this album. A photograph shows when it has ANY of them in it — choosing three widens the result rather than narrowing it."
-            emptyMessage="Nobody is tagged in a photograph here yet."
+            label={t('gal.whoIsInIt')}
+            hint={t('gal.whoHint')}
+            emptyMessage={t('gal.nobodyTagged')}
           />
         </div>
       )}
@@ -290,14 +292,14 @@ export function CollectionView({
               .join(', ')} in {tagFilter.length === 1 ? 'it' : 'one of them'}</>
           )}.{' '}
           <button type="button" className="underline underline-offset-4" onClick={clearFilters}>
-            Clear filters
+            {t('gal.clearFilters')}
           </button>
         </p>
       )}
 
       {photos.length === 0 ? (
         <p className="py-8 text-center text-sm text-muted-foreground">
-          No photographs in this album yet.
+          {t('gal.noneInAlbum')}
         </p>
       ) : shown.length === 0 ? (
         // TWO FILTERS NOW, SO THE EMPTY STATE HAS TO SAY WHICH ONE EMPTIED IT. It read
@@ -306,11 +308,11 @@ export function CollectionView({
         // photographs, and the reader has hidden them.
         <div className="py-8 text-center">
           <p className="text-sm text-muted-foreground">
-            No photograph here matches what you are filtering on.
+            {t('gal.noneMatch')}
           </p>
           <button type="button" onClick={clearFilters}
             className="mt-2 text-xs text-muted-foreground underline underline-offset-4">
-            Clear filters
+            {t('gal.clearFilters')}
           </button>
         </div>
       ) : view === 'grid' ? (
@@ -320,7 +322,7 @@ export function CollectionView({
               key={photo.id}
               type="button"
               onClick={() => setLightbox(idx)}
-              aria-label={photo.caption ? `Open “${photo.caption}”` : 'Open this photograph'}
+              aria-label={photo.caption ? `Open “${photo.caption}”` : t('gal.openPhoto')}
               className="group relative aspect-square overflow-hidden rounded-lg bg-muted"
             >
               {/* Plain <img> — see CollectionCard for the whole argument. This is the grid
@@ -405,6 +407,7 @@ function UploadDialog({ collectionId, onClose, onDone }: {
   onClose: () => void
   onDone: (uploaded: number, failed: string[]) => void
 }) {
+  const t = useT()
   const [files, setFiles] = useState<File[]>([])
   const [caption, setCaption] = useState('')
   const [error, setError] = useState('')
@@ -415,7 +418,7 @@ function UploadDialog({ collectionId, onClose, onDone }: {
   const accepted = files.filter(f => isAllowedUpload(f.name, f.type, IMAGE_FORMATS))
 
   async function submit() {
-    if (accepted.length === 0) { setError('Choose at least one image.'); return }
+    if (accepted.length === 0) { setError(t('gal.chooseImage')); return }
     setError(''); setBusy(true)
     const fd = new FormData()
     for (const f of accepted) fd.append('files', f)
@@ -423,14 +426,14 @@ function UploadDialog({ collectionId, onClose, onDone }: {
     const result = await uploadPhotos(collectionId, fd)
     setBusy(false)
     if (!result.success && result.uploaded === 0) {
-      setError(result.failed.join(' ') || result.message || 'Nothing was uploaded.')
+      setError(result.failed.join(' ') || result.message || t('gal.nothingUploaded'))
       return
     }
     onDone(result.uploaded, result.failed)
   }
 
   return (
-    <Dialog open onClose={busy ? () => {} : onClose} title="Add photographs"
+    <Dialog open onClose={busy ? () => {} : onClose} title={t('gal.addPhotos')}
       description={`${formatList(IMAGE_FORMATS)}, up to 10 MB each.`}>
       <div className="space-y-3">
         <input
@@ -442,7 +445,7 @@ function UploadDialog({ collectionId, onClose, onDone }: {
           onChange={e => { setFiles(Array.from(e.target.files ?? [])); setError('') }}
         />
         <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={busy}>
-          <Upload /> Choose files
+          <Upload /> {t('gal.chooseFiles')}
         </Button>
 
         {files.length > 0 && (
@@ -463,11 +466,11 @@ function UploadDialog({ collectionId, onClose, onDone }: {
         )}
 
         <div className="space-y-1.5">
-          <Label htmlFor="batch-caption">Caption for all of them (optional)</Label>
+          <Label htmlFor="batch-caption">{t('gal.batchCaption')}</Label>
           <Input id="batch-caption" value={caption} onChange={e => setCaption(e.target.value)}
-            placeholder="Saturday, at the lake" />
+            placeholder={t('gal.captionPh')} />
           <p className="text-xs text-muted-foreground">
-            One caption for the batch. Change an individual one afterwards in the list view.
+            {t('gal.batchCaptionHint')}
           </p>
         </div>
 
@@ -480,7 +483,7 @@ function UploadDialog({ collectionId, onClose, onDone }: {
               ? `Uploading ${accepted.length}…`
               : `Upload ${accepted.length || ''} photograph${accepted.length === 1 ? '' : 's'}`}
           </Button>
-          <Button size="sm" variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button size="sm" variant="ghost" onClick={onClose} disabled={busy}>{t('action.cancel')}</Button>
         </div>
       </div>
     </Dialog>
@@ -503,6 +506,7 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
   onError: (message: string) => void
   onDelete: () => void
 }) {
+  const t = useT()
   const confirm = useConfirm()
   const [caption, setCaption] = useState(photo.caption ?? '')
   const [editing, setEditing] = useState(false)
@@ -517,7 +521,7 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
   function saveCaption() {
     startTransition(async () => {
       const result = await updatePhotoCaption(photo.id, caption)
-      if (!result.success) { onError(result.message ?? 'Could not save that caption.'); return }
+      if (!result.success) { onError(result.message ?? t('gal.captionFailed')); return }
       setEditing(false)
       onChanged()
     })
@@ -526,7 +530,7 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
   function addTag(personId: string) {
     startTransition(async () => {
       const result = await tagPersonInPhoto(photo.id, personId)
-      if (!result.success) { onError(result.message ?? 'Could not add that tag.'); return }
+      if (!result.success) { onError(result.message ?? t('gal.tagFailed')); return }
       setTagging(false); setQuery('')
       onChanged()
     })
@@ -534,15 +538,15 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
 
   async function removeTag(personId: string, name: string) {
     const ok = await confirm({
-      title: 'Remove tag',
+      title: t('gal.removeTag'),
       description: `Remove the tag for ${name} from this photograph?`,
-      confirmLabel: 'Remove tag',
+      confirmLabel: t('gal.removeTag'),
       destructive: true,
     })
     if (!ok) return
     startTransition(async () => {
       const result = await untagPersonFromPhoto(photo.id, personId)
-      if (!result.success) { onError(result.message ?? 'Could not remove that tag.'); return }
+      if (!result.success) { onError(result.message ?? t('gal.removeTagFailed')); return }
       onChanged()
     })
   }
@@ -559,24 +563,24 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
         {editing ? (
           <div className="flex flex-wrap items-center gap-2">
             <Input value={caption} onChange={e => setCaption(e.target.value)}
-              placeholder="No caption" className="max-w-sm" autoFocus
-              aria-label="Caption" />
+              placeholder={t('gal.noCaption')} className="max-w-sm" autoFocus
+              aria-label={t('gal.caption')} />
             <Button size="sm" variant="affirm" onClick={saveCaption} disabled={isPending || busy}>
-              <Check /> Save
+              <Check /> {t('action.save')}
             </Button>
             <Button size="sm" variant="ghost" disabled={isPending || busy}
               onClick={() => { setCaption(photo.caption ?? ''); setEditing(false) }}>
-              Cancel
+              {t('action.cancel')}
             </Button>
           </div>
         ) : (
           <div className="flex flex-wrap items-center gap-2">
             <p className={`text-sm ${photo.caption ? '' : 'italic text-muted-foreground'}`}>
-              {photo.caption || 'No caption'}
+              {photo.caption || t('gal.noCaption')}
             </p>
             {mayEdit && (
               <button type="button" onClick={() => setEditing(true)}
-                aria-label="Change this caption"
+                aria-label={t('gal.changeCaption')}
                 className="text-muted-foreground hover:text-foreground">
                 <Pencil className="h-3.5 w-3.5" />
               </button>
@@ -585,7 +589,7 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
         )}
 
         <p className="text-xs text-muted-foreground">
-          {photo.uploader_name ? `Added by ${photo.uploader_name}` : 'Added by somebody no longer in this family'}
+          {photo.uploader_name ? `Added by ${photo.uploader_name}` : t('gal.addedByGone')}
         </p>
 
         <div className="flex flex-wrap items-center gap-1.5">
@@ -606,7 +610,7 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
           {mayEdit && !tagging && (
             <button type="button" onClick={() => { setTagging(true); setQuery('') }}
               className="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground">
-              <Tag className="h-3 w-3" /> Tag somebody
+              <Tag className="h-3 w-3" /> {t('gal.tagSomebody')}
             </button>
           )}
         </div>
@@ -618,11 +622,11 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
                 AGENTS.md's "Known gaps" as the third hand-rolled `.includes()` copy; it is
                 the shared one now. */}
             <Input value={query} onChange={e => setQuery(e.target.value)}
-              placeholder="Search the family…" className="h-7 text-sm" autoFocus
-              aria-label="Search for somebody to tag" />
+              placeholder={t('gal.searchFamily')} className="h-7 text-sm" autoFocus
+              aria-label={t('gal.searchToTag')} />
             <ul className="max-h-40 space-y-0.5 overflow-y-auto">
               {untagged.length === 0 ? (
-                <li className="px-2 py-1 text-xs text-muted-foreground">Nobody matches.</li>
+                <li className="px-2 py-1 text-xs text-muted-foreground">{t('gal.nobodyMatches')}</li>
               ) : untagged.slice(0, 40).map(m => (
                 <li key={m.id}>
                   <button type="button" onClick={() => addTag(m.id)} disabled={isPending}
@@ -638,7 +642,7 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
               </p>
             )}
             <button type="button" onClick={() => setTagging(false)}
-              className="px-2 text-xs text-muted-foreground">Cancel</button>
+              className="px-2 text-xs text-muted-foreground">{t('action.cancel')}</button>
           </div>
         )}
       </div>
@@ -646,7 +650,7 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
       {mayDelete && (
         <Button size="sm" variant="ghost" onClick={onDelete} disabled={isPending || busy}
           className="self-start text-destructive hover:text-destructive">
-          <Trash2 /> Delete
+          <Trash2 /> {t('action.delete')}
         </Button>
       )}
     </li>
@@ -665,10 +669,11 @@ function Lightbox({ photo, index, total, onClose, onPrev, onNext, mayDelete, onD
   onDelete: () => void
   busy: boolean
 }) {
+  const t = useT()
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90" onClick={onClose}>
       <div className="relative max-h-full w-full max-w-4xl p-4" onClick={e => e.stopPropagation()}>
-        <button onClick={onClose} aria-label="Close photograph"
+        <button onClick={onClose} aria-label={t('gal.closePhoto')}
           className="absolute right-2 top-2 z-10 text-white hover:text-white/70">
           <X className="h-6 w-6" />
         </button>
@@ -699,20 +704,20 @@ function Lightbox({ photo, index, total, onClose, onPrev, onNext, mayDelete, onD
         <div className="mt-3 flex justify-center gap-2">
           {mayDelete && (
             <Button size="sm" variant="destructive" onClick={onDelete} disabled={busy}>
-              <Trash2 /> Delete
+              <Trash2 /> {t('action.delete')}
             </Button>
           )}
         </div>
         <p className="mt-2 text-center text-xs text-white/50">{index + 1} of {total}</p>
 
         {index > 0 && (
-          <button onClick={onPrev} aria-label="Previous photograph"
+          <button onClick={onPrev} aria-label={t('gal.prevPhoto')}
             className="absolute left-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white">
             <ChevronLeft className="h-8 w-8" />
           </button>
         )}
         {index < total - 1 && (
-          <button onClick={onNext} aria-label="Next photograph"
+          <button onClick={onNext} aria-label={t('gal.nextPhoto')}
             className="absolute right-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white">
             <ChevronRight className="h-8 w-8" />
           </button>

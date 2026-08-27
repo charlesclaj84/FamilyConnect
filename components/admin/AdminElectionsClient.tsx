@@ -22,6 +22,8 @@ import {
   ELECTION_PHASE_LABEL, electionWindowBounds, windowProblem,
 } from '@/lib/election-phase'
 import { rolesForScope, type ElectionScope } from '@/lib/election-area'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Running an election, after 20260821000001.
@@ -70,11 +72,13 @@ import { rolesForScope, type ElectionScope } from '@/lib/election-area'
  * somebody filled in reads as a bug.
  */
 
-const SCOPES: { value: ElectionScope; label: string }[] = [
-  { value: 'national', label: 'The whole family (National)' },
-  { value: 'regional', label: 'One region' },
-  { value: 'chapter', label: 'One chapter' },
-]
+function scopes(t: T): { value: ElectionScope; label: string }[] {
+  return [
+    { value: 'national', label: t('ael.wholeFamily') },
+    { value: 'regional', label: t('ael.oneRegion') },
+    { value: 'chapter', label: t('ael.oneChapter') },
+  ]
+}
 
 interface Props {
   initialElections: OrganizerElection[]
@@ -103,6 +107,8 @@ const BLANK: FormState = {
 }
 
 export function AdminElectionsClient({ initialElections, regions, chapters, roles }: Props) {
+  const intl = useIntlTag()
+  const t = useT()
   const confirm = useConfirm()
   // `useServerState`: a plain initializer reads props once and would then ignore every later
   // server render, including the one carrying a newly created election.
@@ -192,10 +198,10 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
   }
 
   function handleSave() {
-    if (!form.title.trim()) { setFormError('Give the election a title.'); return }
+    if (!form.title.trim()) { setFormError(t('ael.needTitle')); return }
     if (dateProblem) { setFormError(dateProblem); return }
-    if (form.scope === 'regional' && !form.regionId) { setFormError('Choose which region.'); return }
-    if (form.scope === 'chapter' && !form.chapterId) { setFormError('Choose which chapter.'); return }
+    if (form.scope === 'regional' && !form.regionId) { setFormError(t('ael.needRegion')); return }
+    if (form.scope === 'chapter' && !form.chapterId) { setFormError(t('ael.needChapter')); return }
     setFormError('')
 
     const payload = {
@@ -215,7 +221,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
       const result = editing
         ? await updateElection(editing, payload)
         : await createElection(payload)
-      if (!result.success) { setFormError(result.message ?? 'Could not save the election.'); return }
+      if (!result.success) { setFormError(result.message ?? t('ael.saveFailed')); return }
       // No optimistic row. `revalidatePath` in the action re-renders the server component and
       // `useServerState` picks the new list up — which is what keeps the scope LABEL and the
       // derived phase honest, since both are resolved on the server and cannot be guessed here.
@@ -232,55 +238,55 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
     }, { requireAll: true })
     if (problem) { setListError(problem); return }
     if (!e.positions.length) {
-      setListError('Add at least one position before publishing — a ballot with no offices on it has nothing to vote for.')
+      setListError(t('ael.needPosition'))
       return
     }
     const willAnnounce = announce[e.id] ?? true
     const ok = await confirm({
-      title: 'Publish this election',
+      title: t('ael.publishConfirm'),
       description: `"${e.title}" goes on the calendar for ${e.scope_label}. Nominations open `
-        + `${formatDate(e.nominations_open_on)} and voting closes ${formatDate(e.voting_close_on)}; `
+        + `${formatDate(e.nominations_open_on, intl)} and voting closes ${formatDate(e.voting_close_on, intl)}; `
         + 'both windows open and close on their own from then on.'
         + (willAnnounce ? ' An announcement will be posted.' : ''),
-      confirmLabel: 'Publish',
+      confirmLabel: t('ael.publish'),
     })
     if (!ok) return
     setListError('')
     startTransition(async () => {
       const result = await publishElection(e.id, { announce: willAnnounce })
-      if (!result.success) setListError(result.message ?? 'Could not publish.')
+      if (!result.success) setListError(result.message ?? t('ael.publishFailed'))
     })
   }
 
   async function handleUnpublish(e: OrganizerElection) {
     const ok = await confirm({
-      title: 'Return to draft',
+      title: t('ael.returnToDraft'),
       description: `Take "${e.title}" off the family's calendar and back to a draft? Nobody has `
         + 'been nominated and nothing has been voted on, so nothing is lost.',
-      confirmLabel: 'Return to draft',
+      confirmLabel: t('ael.returnToDraft'),
     })
     if (!ok) return
     setListError('')
     startTransition(async () => {
       const result = await unpublishElection(e.id)
-      if (!result.success) setListError(result.message ?? 'Could not return it to draft.')
+      if (!result.success) setListError(result.message ?? t('ael.draftFailed'))
     })
   }
 
   async function handleDelete(e: OrganizerElection) {
     const ok = await confirm({
-      title: 'Delete election',
+      title: t('ael.delete'),
       description: e.nomination_count || e.vote_count
         ? `Delete "${e.title}", its ${e.nomination_count} nomination(s) and its `
           + `${e.vote_count} vote(s)? This cannot be undone.`
         : `Delete "${e.title}" and all of its positions? This cannot be undone.`,
-      confirmLabel: 'Delete election',
+      confirmLabel: t('ael.delete'),
       destructive: true,
     })
     if (!ok) return
     startTransition(async () => {
       const result = await deleteElection(e.id)
-      if (!result.success) { setListError(result.message ?? 'Could not delete.'); return }
+      if (!result.success) { setListError(result.message ?? t('ael.deleteFailed')); return }
       setElections(prev => prev.filter(x => x.id !== e.id))
     })
   }
@@ -290,7 +296,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
       {/* THE TRIGGER IS ALWAYS HERE NOW. It used to be replaced by the form, so opening the
           form removed the only way back to the list. */}
       <Button size="sm" onClick={openCreate}>
-        <Plus className="h-4 w-4 mr-1" /> New Election
+        <Plus className="h-4 w-4 mr-1" /> {t('ael.new')}
       </Button>
 
       <FormError message={listError} />
@@ -303,23 +309,23 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
       <Dialog
         open={editing !== null}
         onClose={closeForm}
-        title={editing ? 'Edit draft' : 'New election'}
+        title={editing ? t('ael.editDraft') : t('ael.newLower')}
         description={editing
-          ? 'Only a draft can be edited. Once it is published, its dates are what the family was told.'
-          : 'Saved as a draft — nobody sees it until you publish it.'}
+          ? t('ael.onlyDraft')
+          : t('ael.savedDraft')}
         className="sm:max-w-xl"
       >
         <div className="space-y-5">
           <div className="space-y-1.5">
-            <Label required>Title</Label>
+            <Label required>{t('field.title')}</Label>
             <Input
               value={form.title}
               onChange={ev => setForm(f => ({ ...f, title: ev.target.value }))}
-              placeholder="2027 Officer Elections"
+              placeholder={t('ael.titlePh')}
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Description</Label>
+            <Label>{t('common.description')}</Label>
             <Textarea
               rows={2}
               value={form.description}
@@ -330,14 +336,14 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
           {/* ── The level ──────────────────────────────────────────────────── */}
           <div className="space-y-2 rounded-lg border p-3">
             <p className="text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5 text-brand-on-soft">
-              <MapPin className="h-3.5 w-3.5" /> Who votes
+              <MapPin className="h-3.5 w-3.5" /> {t('ael.whoVotes')}
             </p>
             <Select
               value={form.scope}
               onChange={ev => changeScope(ev.target.value as ElectionScope)}
-              aria-label="Which part of the family this election is for"
+              aria-label={t('ael.whichPart')}
             >
-              {SCOPES.map(s => (
+              {scopes(t).map(s => (
                 <option
                   key={s.value}
                   value={s.value}
@@ -353,7 +359,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
               <Select
                 value={form.regionId}
                 onChange={ev => setForm(f => ({ ...f, regionId: ev.target.value }))}
-                aria-label="Region"
+                aria-label={t('dir.region')}
               >
                 <option value="">— Select region —</option>
                 {regions.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
@@ -363,7 +369,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
               <Select
                 value={form.chapterId}
                 onChange={ev => setForm(f => ({ ...f, chapterId: ev.target.value }))}
-                aria-label="Chapter"
+                aria-label={t('field.chapter')}
               >
                 <option value="">— Select chapter —</option>
                 {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -375,7 +381,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
             </p>
             {regions.length === 0 && chapters.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                This family has no regions or chapters yet, so every election is National.
+                {t('ael.noAreas')}
               </p>
             )}
           </div>
@@ -383,17 +389,17 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
           {/* ── Nominations window ─────────────────────────────────────────── */}
           <div className={`space-y-2 rounded-lg border p-3 ${ELECTION_WINDOW.nominations.well}`}>
             <p className={`text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5 ${ELECTION_WINDOW.nominations.label}`}>
-              <Calendar className="h-3.5 w-3.5" /> Nominations
+              <Calendar className="h-3.5 w-3.5" /> {t('elec.nominations')}
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label className="text-xs">Opens</Label>
+                <Label className="text-xs">{t('ael.opens')}</Label>
                 <Input type="date" value={form.nomOpen}
                   max={bounds.nominations_open_on.max}
                   onChange={ev => setForm(f => ({ ...f, nomOpen: ev.target.value }))} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Closes after</Label>
+                <Label className="text-xs">{t('ael.closesAfter')}</Label>
                 <Input type="date" value={form.nomClose}
                   min={bounds.nominations_close_on.min}
                   max={bounds.nominations_close_on.max}
@@ -410,18 +416,18 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
           {/* ── Voting window ──────────────────────────────────────────────── */}
           <div className={`space-y-2 rounded-lg border p-3 ${ELECTION_WINDOW.voting.well}`}>
             <p className={`text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5 ${ELECTION_WINDOW.voting.label}`}>
-              <Calendar className="h-3.5 w-3.5" /> Voting
+              <Calendar className="h-3.5 w-3.5" /> {t('ael.voting')}
             </p>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <Label className="text-xs">Opens</Label>
+                <Label className="text-xs">{t('ael.opens')}</Label>
                 <Input type="date" value={form.voteOpen}
                   min={bounds.voting_open_on.min}
                   max={bounds.voting_open_on.max}
                   onChange={ev => setForm(f => ({ ...f, voteOpen: ev.target.value }))} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Closes after</Label>
+                <Label className="text-xs">{t('ael.closesAfter')}</Label>
                 <Input type="date" value={form.voteClose}
                   min={bounds.voting_close_on.min}
                   onChange={ev => setForm(f => ({ ...f, voteClose: ev.target.value }))} />
@@ -438,7 +444,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
 
           {/* ── Positions ──────────────────────────────────────────────────── */}
           <div className="space-y-3">
-            <p className="text-sm font-medium">Positions</p>
+            <p className="text-sm font-medium">{t('ael.positions')}</p>
             {form.positions.map((pos, i) => (
               <div key={i} className="flex gap-2 items-end">
                 <div className="flex-1 space-y-1">
@@ -450,7 +456,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
                   </Select>
                 </div>
                 <div className="w-20 space-y-1">
-                  <Label className="text-xs">Winners</Label>
+                  <Label className="text-xs">{t('ael.winners')}</Label>
                   <Input type="number" min="1" value={pos.max_winners}
                     onChange={ev => setPosition(i, 'max_winners', parseInt(ev.target.value) || 1)} />
                 </div>
@@ -484,15 +490,15 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
           <FormError message={formError} />
           <div className="flex gap-2">
             <Button size="sm" onClick={handleSave} disabled={isPending}>
-              {isPending ? 'Saving…' : editing ? 'Save draft' : 'Create draft'}
+              {isPending ? t('action.saving') : editing ? t('ael.saveDraft') : t('ael.createDraft')}
             </Button>
-            <Button size="sm" variant="ghost" onClick={closeForm}>Cancel</Button>
+            <Button size="sm" variant="ghost" onClick={closeForm}>{t('action.cancel')}</Button>
           </div>
         </div>
       </Dialog>
 
       {elections.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No elections yet.</p>
+        <p className="text-sm text-muted-foreground">{t('ael.none')}</p>
       ) : (
         <ul className="divide-y rounded-xl border overflow-hidden">
           {elections.map(e => (
@@ -519,11 +525,11 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
                           onChange={ev => setAnnounce(a => ({ ...a, [e.id]: ev.target.checked }))}
                           className="h-3.5 w-3.5 rounded border-input accent-primary"
                         />
-                        Announce
+                        {t('ael.announce')}
                       </label>
                       <Button size="sm" variant="outline" className="h-7 text-xs"
                         onClick={() => handlePublish(e)} disabled={isPending}>
-                        <Send className="h-3 w-3 mr-1" /> Publish
+                        <Send className="h-3 w-3 mr-1" /> {t('ael.publish')}
                       </Button>
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
                         aria-label={`Edit ${e.title}`} onClick={() => openEdit(e)}>
@@ -535,7 +541,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
                   {e.status === 'published' && e.nomination_count === 0 && e.vote_count === 0 && (
                     <Button size="sm" variant="outline" className="h-7 text-xs"
                       onClick={() => handleUnpublish(e)} disabled={isPending}>
-                      <Undo2 className="h-3 w-3 mr-1" /> Return to draft
+                      <Undo2 className="h-3 w-3 mr-1" /> {t('ael.returnToDraft')}
                     </Button>
                   )}
                   {/* ── THE ORGANIZER'S SCREEN, NOT THE MEMBER'S BALLOT ─────────

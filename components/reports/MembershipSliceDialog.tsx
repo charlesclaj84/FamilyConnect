@@ -21,6 +21,8 @@ import {
   type MembershipBreakdown, type MembershipRepair, type MembershipRepairRights,
 } from '@/lib/membership-drill'
 import type { CountSlice } from '@/lib/membership-report'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Who is in one slice of one of the Membership report's charts, and the one repair that slice
@@ -77,6 +79,7 @@ export function MembershipSliceDialog({
   rights: MembershipRepairRights
   onClose: () => void
 }) {
+  const t = useT()
   const router = useRouter()
   const [data, setData] = useState<MembershipSlice | null>(null)
   const [loading, setLoading] = useState(true)
@@ -167,7 +170,7 @@ export function MembershipSliceDialog({
                 pickers do. */}
             {(data?.members.length ?? 0) > 8 && (
               <MemberSearchBox value={query} onChange={setQuery}
-                placeholder="Filter these members by name…" />
+                placeholder={t('slice.filterPh')} />
             )}
 
             {done && (
@@ -181,8 +184,8 @@ export function MembershipSliceDialog({
             {members.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted-foreground">
                 {query
-                  ? 'Nobody in this group matches that filter.'
-                  : 'Nobody is in this group.'}
+                  ? t('slice.noMatch')
+                  : t('slice.nobodyIn')}
               </p>
             ) : (
               <ul className="divide-y">
@@ -213,7 +216,7 @@ export function MembershipSliceDialog({
                 not hold the grant. Saying neither leaves somebody looking for a button. */}
             {repair && !offered && (
               <p className="text-xs text-muted-foreground">
-                {REPAIR_UNGRANTED[repair]}
+                {repairUngranted(t)[repair]}
               </p>
             )}
           </>
@@ -224,13 +227,12 @@ export function MembershipSliceDialog({
 }
 
 /** What to say when the slice offers a repair and the caller may not make it. */
-const REPAIR_UNGRANTED: Record<MembershipRepair, string> = {
-  'assign-chapter':
-    'Filing somebody in a chapter needs permission to edit members, which you have not been given.',
-  'send-invitation':
-    'Sending an invitation needs permission to edit the family tree, which you have not been given.',
-  'record-birthday':
-    'Recording a birthday needs permission to edit members, which you have not been given.',
+function repairUngranted(t: T): Record<MembershipRepair, string> {
+  return {
+    'assign-chapter': t('slice.needChapterPerm'),
+    'send-invitation': t('slice.needInvitePerm'),
+    'record-birthday': t('slice.needBirthdayPerm'),
+  }
 }
 
 /**
@@ -249,6 +251,7 @@ function MemberRow({ member, repair, chapters, busy, onDone, onError }: {
   onDone: (message: string) => void
   onError: (message: string) => void
 }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [value, setValue] = useState('')
   const [fieldError, setFieldError] = useState('')
@@ -263,11 +266,11 @@ function MemberRow({ member, repair, chapters, busy, onDone, onError }: {
     setFieldError('')
     const trimmed = value.trim()
     if (offered === 'send-invitation' && !trimmed) {
-      setFieldError('Enter an email address to send the invitation to')
+      setFieldError(t('slice.needEmail'))
       return
     }
     if (offered === 'record-birthday' && !trimmed) {
-      setFieldError('Enter a date of birth')
+      setFieldError(t('slice.needDob'))
       return
     }
     startTransition(async () => {
@@ -276,7 +279,7 @@ function MemberRow({ member, repair, chapters, busy, onDone, onError }: {
         // picker offers it, because moving somebody OUT of a chapter is as real an edit as
         // moving them in.
         const r = await setMemberChapter(member.personId, trimmed || null)
-        if (!r.success) { onError(r.error ?? 'Could not save that chapter.'); return }
+        if (!r.success) { onError(r.error ?? t('slice.chapterFailed')); return }
         setOpen(false)
         // The action's own partial-success message is carried through when it sends one: it
         // reports how many children under eighteen moved with them, and swallowing that would
@@ -286,20 +289,20 @@ function MemberRow({ member, repair, chapters, busy, onDone, onError }: {
       }
       if (offered === 'send-invitation') {
         const r = await invitePersonRecord(member.personId, trimmed)
-        if (!r.success) { onError(r.message ?? 'Could not send that invitation.'); return }
+        if (!r.success) { onError(r.message ?? t('slice.inviteFailed')); return }
         setOpen(false)
         // `emailed` FALSE IS NOT A FAILURE and must not be reported as success either: the
         // invitation exists and the mail did not go. `inviteMember` fails soft by design
         // (AGENTS.md, "Sending fails soft, so the UI owes the truth").
         onDone(r.emailed === false
           ? `${member.name} was invited, but the email could not be sent. `
-            + 'Members & Access can resend it.'
+            + t('slice.canResend')
           : `${member.name} has been invited.`)
         return
       }
       if (offered === 'record-birthday') {
         const r = await updateUserProfile(member.personId, { date_of_birth: trimmed })
-        if (!r.success) { onError(r.error ?? 'Could not save that date.'); return }
+        if (!r.success) { onError(r.error ?? t('slice.dateFailed')); return }
         setOpen(false)
         onDone(`${member.name}'s date of birth recorded.`)
       }
@@ -317,17 +320,17 @@ function MemberRow({ member, repair, chapters, busy, onDone, onError }: {
               Texas" could be read either way round once the headings are gone, which is the
               same argument the members table's folded `RowMeta` makes. */}
           <p className="text-xs text-muted-foreground">
-            {member.chapterName ? `Chapter: ${member.chapterName}` : 'No chapter'}
+            {member.chapterName ? `Chapter: ${member.chapterName}` : t('common.noChapter')}
             {member.regionName && ` · Region: ${member.regionName}`}
             {' · '}
-            {member.hasAccount ? 'Can sign in' : INVITATION_WORD[member.invitation] ?? 'No account'}
+            {member.hasAccount ? t('rep.canSignIn') : invitationWord(t)[member.invitation] ?? t('slice.noAccount')}
           </p>
         </div>
 
         {offered && !open && (
           <Button size="sm" variant="outline" disabled={busy || isPending}
             onClick={() => setOpen(true)}>
-            {REPAIR_ICON[offered]} {REPAIR_LABEL[offered]}
+            {REPAIR_ICON[offered]} {repairLabel(t)[offered]}
           </Button>
         )}
       </div>
@@ -336,10 +339,10 @@ function MemberRow({ member, repair, chapters, busy, onDone, onError }: {
         <div className="mt-2 space-y-2 rounded-lg border bg-muted/30 p-2.5">
           {offered === 'assign-chapter' && (
             <div className="space-y-1">
-              <Label className="text-xs" htmlFor={`chapter-${member.personId}`}>Chapter</Label>
+              <Label className="text-xs" htmlFor={`chapter-${member.personId}`}>{t('field.chapter')}</Label>
               <Select id={`chapter-${member.personId}`} value={value}
                 onChange={e => setValue(e.target.value)}>
-                <option value="">No chapter</option>
+                <option value="">{t('common.noChapter')}</option>
                 {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </Select>
               <p className="text-xs text-muted-foreground">
@@ -352,20 +355,20 @@ function MemberRow({ member, repair, chapters, busy, onDone, onError }: {
           {offered === 'send-invitation' && (
             <div className="space-y-1">
               <Label className="text-xs" htmlFor={`email-${member.personId}`}>
-                Email address
+                {t('field.emailAddress')}
               </Label>
               <Input id={`email-${member.personId}`} type="email" value={value}
-                placeholder="them@example.com"
+                placeholder={t('field.ph.theirEmail')}
                 onChange={e => setValue(e.target.value)} />
               <p className="text-xs text-muted-foreground">
-                Their record holds a placeholder address, so the invitation needs a real one.
+                {t('slice.placeholderAddress')}
               </p>
             </div>
           )}
 
           {offered === 'record-birthday' && (
             <div className="space-y-1">
-              <Label className="text-xs" htmlFor={`dob-${member.personId}`}>Date of birth</Label>
+              <Label className="text-xs" htmlFor={`dob-${member.personId}`}>{t('field.dobLower')}</Label>
               <Input id={`dob-${member.personId}`} type="date" value={value}
                 onChange={e => setValue(e.target.value)} />
               <p className="text-xs text-muted-foreground">
@@ -379,11 +382,11 @@ function MemberRow({ member, repair, chapters, busy, onDone, onError }: {
 
           <div className="flex gap-2">
             <Button size="sm" variant="affirm" disabled={isPending} onClick={submit}>
-              {REPAIR_CONFIRM[offered]}
+              {repairConfirm(t)[offered]}
             </Button>
             <Button size="sm" variant="ghost" disabled={isPending}
               onClick={() => { setOpen(false); setFieldError('') }}>
-              Cancel
+              {t('action.cancel')}
             </Button>
           </div>
         </div>
@@ -393,22 +396,31 @@ function MemberRow({ member, repair, chapters, busy, onDone, onError }: {
 }
 
 /** The three words Dues Projections prints, so the two screens cannot come to disagree. */
-const INVITATION_WORD: Record<string, string> = {
-  'active': 'Can sign in',
-  'invited': 'Invitation open',
-  'pending-invite': 'Never invited',
+function invitationWord(t: T): Record<string, string> {
+  return {
+    'active': t('rep.canSignIn'),
+    'invited': t('slice.inviteOpen'),
+    'pending-invite': t('rep.neverInvited'),
+  }
 }
 
-const REPAIR_LABEL: Record<MembershipRepair, string> = {
-  'assign-chapter': 'Set chapter',
-  'send-invitation': 'Invite',
-  'record-birthday': 'Add birthday',
+// FUNCTIONS OF `t`, like the two above. `REPAIR_ICON` below stays a const: an icon is not
+// copy, and keeping it separate means the only thing that needs the reader's language is
+// the thing that is words.
+function repairLabel(t: T): Record<MembershipRepair, string> {
+  return {
+    'assign-chapter': t('slice.setChapter'),
+    'send-invitation': t('slice.invite'),
+    'record-birthday': t('slice.addBirthday'),
+  }
 }
 
-const REPAIR_CONFIRM: Record<MembershipRepair, string> = {
-  'assign-chapter': 'Save chapter',
-  'send-invitation': 'Send invitation',
-  'record-birthday': 'Save date',
+function repairConfirm(t: T): Record<MembershipRepair, string> {
+  return {
+    'assign-chapter': t('slice.saveChapter'),
+    'send-invitation': t('slice.sendInvitation'),
+    'record-birthday': t('slice.saveDate'),
+  }
 }
 
 const REPAIR_ICON: Record<MembershipRepair, React.ReactNode> = {

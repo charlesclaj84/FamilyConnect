@@ -23,7 +23,9 @@ import { useT } from '@/components/layout/LocaleProvider'
  * them on its own — a schedule is one kind or the other — so the lines need no
  * Dues/Donation tag to be readable.
  */
-export function PaidThisYearCard({ history, className }: {
+export function PaidThisYearCard({ history, className, intl }: {
+  /** The reader's `Intl` tag. A prop — this is a Server Component. */
+  intl: string
   history: DuesPayment[]
   className?: string
 }) {
@@ -48,7 +50,7 @@ export function PaidThisYearCard({ history, className }: {
         <div className="p-1.5 rounded-full bg-brand-affirm"><CheckCircle2 className="h-4 w-4 text-brand-on-affirm" /></div>
         <span className="text-sm text-muted-foreground font-medium">{t('cards.paidThisYear')}</span>
       </div>
-      <p className="text-3xl font-bold">{formatCurrency(totalPaidCents)}</p>
+      <p className="text-3xl font-bold">{formatCurrency(totalPaidCents, intl)}</p>
       <p className="text-xs text-muted-foreground">
         {paidPayments.length === 0 ? t('cards.noPayments') : `${paidPayments.length} payment${paidPayments.length !== 1 ? 's' : ''} recorded`}
       </p>
@@ -61,7 +63,7 @@ export function PaidThisYearCard({ history, className }: {
           {paidBySchedule.map(g => (
             <li key={g.name} className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
               <span className="min-w-0 truncate" title={g.name}>{g.name}</span>
-              <span className="shrink-0 font-medium text-foreground">{formatCurrency(g.cents)}</span>
+              <span className="shrink-0 font-medium text-foreground">{formatCurrency(g.cents, intl)}</span>
             </li>
           ))}
         </ul>

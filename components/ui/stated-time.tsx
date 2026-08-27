@@ -34,7 +34,9 @@ import { instantAt, sameClock, timeIn, zoneAbbrev } from '@/lib/tz'
  * instant is `<day>T<time>` interpreted IN THE STATED ZONE, which is what makes "1:00 PM your
  * time" the right answer rather than an offset applied to a naive date.
  */
-export function StatedTime({ day, time, endTime, zone, readerZone }: {
+export function StatedTime({ day, time, endTime, zone, readerZone, intl }: {
+  /** The reader's `Intl` tag. A prop — this is a Server Component. */
+  intl: string
   /** `YYYY-MM-DD` — the day the time falls on, which decides the DST answer. */
   day: string
   /** `HH:MM`, or null. Null renders nothing at all. */
@@ -49,8 +51,8 @@ export function StatedTime({ day, time, endTime, zone, readerZone }: {
   if (!time) return null
 
   const stated = endTime
-    ? `${formatTime(time)} – ${formatTime(endTime)}`
-    : formatTime(time)
+    ? `${formatTime(time, intl)} – ${formatTime(endTime, intl)}`
+    : formatTime(time, intl)
 
   if (!zone) return <span>{stated}</span>
 
@@ -67,7 +69,7 @@ export function StatedTime({ day, time, endTime, zone, readerZone }: {
       <span>{abbrev ? `${stated} ${abbrev}` : stated}</span>
       {differs && (
         <span className="text-xs text-muted-foreground">
-          {formatTime(timeIn(at, readerZone))} your time
+          {formatTime(timeIn(at, readerZone), intl)} your time
         </span>
       )}
     </span>

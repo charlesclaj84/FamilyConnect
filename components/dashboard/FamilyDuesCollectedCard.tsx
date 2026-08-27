@@ -37,7 +37,9 @@ import type { T } from '@/lib/i18n/t'
  * is what keeps it reading as a card rather than a link, and the button at the foot takes its
  * own colour from `buttonVariants` — the same trap answered the same way as in `AtAGlance`.
  */
-export function FamilyDuesCollectedCard({ collectedCents, t }: {
+export function FamilyDuesCollectedCard({ collectedCents, t, intl }: {
+  /** The reader's `Intl` tag. A prop — this is a Server Component. */
+  intl: string
   collectedCents: number | null
   /**
    * The reader's language, bound. Threaded from the page rather than resolved here: a
@@ -60,7 +62,7 @@ export function FamilyDuesCollectedCard({ collectedCents, t }: {
           `<span>` rather than a heading: this is a number, and the card's own caption names
           it. */}
       <span className="text-2xl font-semibold leading-none tabular-nums">
-        {formatCurrency(collectedCents)}
+        {formatCurrency(collectedCents, intl)}
       </span>
       <span className="text-sm text-muted-foreground">{t('dash.collected.title')}</span>
       {/* A button-SHAPED span, not a nested <Link>: the whole card is already an anchor and an

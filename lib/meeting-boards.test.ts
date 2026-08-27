@@ -3,6 +3,14 @@ import {
   boardKey, buildBoards, buildChapters, buildPositions, resolveMeetingRoom,
   type BoardAssignment, type MeetingBodies,
 } from './meeting-boards'
+import { tFor } from '@/lib/i18n/catalogues'
+
+// AN ENGLISH `t` FOR THE FIXTURE. These modules build captions now, so their tests need
+// one — and English is the right choice: what is asserted below is the SHAPE of the
+// report, not a translation. `lib/i18n/t.test.ts` is where the words themselves are
+// pinned, and pinning them twice would make this file fail on a wording change it has
+// no opinion about.
+const t = tFor('en')
 
 /**
  * Per AGENTS.md §7b. A GREEN RUN IS NOT EVIDENCE UNTIL YOU HAVE SEEN IT FAIL; each of these
@@ -136,7 +144,7 @@ describe('buildPositions', () => {
     const positions = buildPositions([
       assignment({ personId: 'p1', roleId: 'role-pres-ch', scope: 'chapter', chapterId: 'c-atx' }),
       assignment({ personId: 'p2', roleId: 'role-pres-ch', scope: 'chapter', chapterId: 'c-hou' }),
-    ])
+    ], t)
     expect(positions).toHaveLength(1)
     expect(positions[0].personIds).toEqual(['p1', 'p2'])
   })
@@ -151,12 +159,12 @@ describe('buildPositions', () => {
         personId: 'p2', roleId: 'role-pres-ch', roleName: 'President',
         scope: 'chapter', chapterId: 'c-atx',
       }),
-    ])
+    ], t)
     expect(positions.map(p => p.label)).toEqual(['National President', 'Chapter President'])
   })
 
   it('lists only offices somebody holds', () => {
-    expect(buildPositions([])).toEqual([])
+    expect(buildPositions([], t)).toEqual([])
   })
 })
 
@@ -236,7 +244,7 @@ describe('resolveMeetingRoom', () => {
       personId: 'p3', personName: 'Cara', roleId: 'role-pres-ch', roleName: 'President',
       scope: 'chapter', chapterId: 'c-hou',
     }),
-  ])
+  ], t)
 
   const chapters = buildChapters([
     { personId: 'p2', personName: 'Ben', chapterId: 'c-atx' },

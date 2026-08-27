@@ -15,6 +15,7 @@ import {
 } from '@/lib/platform-billing'
 import { TIER_LABEL, type FamilyTier } from '@/lib/tiers'
 import { cn } from '@/lib/utils'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The two dialogs that start a payment: buying a plan, and upgrading one already paid for.
@@ -50,8 +51,8 @@ import { cn } from '@/lib/utils'
  * Null in, null out: a family with no term has no next payment date to name, and inventing
  * one would be worse than the em-dash.
  */
-function nextPaymentDate(paidThrough: string | null | undefined): string | null {
-  return paidThrough ? formatDate(addDays(paidThrough, 1)) : null
+function nextPaymentDate(paidThrough: string | null | undefined, intl: string): string | null {
+  return paidThrough ? formatDate(addDays(paidThrough, 1), intl) : null
 }
 
 /**
@@ -84,6 +85,8 @@ export function BuyDialog({
     firstPayment: 'remainder' | 'remainder-plus-next',
   ) => void
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   const [months, setMonths] = useState(6)
   const monthly = prepayQuoteCents(tier, 1)
   const options = initialChargeOptions(tier, today)
@@ -95,18 +98,18 @@ export function BuyDialog({
   // calendar without doing arithmetic — which is the whole complaint this screen collected.
   // `nextBillingDate` is computed by the same function that quotes the part month, so the day
   // named here is the day the proration was measured to.
-  const firstRenewal = formatDate(options.nextBillingDate)
-  const combinedThrough = formatDate(options.remainderPlusNextThrough)
-  const afterCombined = nextPaymentDate(options.remainderPlusNextThrough)
+  const firstRenewal = formatDate(options.nextBillingDate, intl)
+  const combinedThrough = formatDate(options.remainderPlusNextThrough, intl)
+  const afterCombined = nextPaymentDate(options.remainderPlusNextThrough, intl)
 
   return (
     <Dialog open onClose={onClose} title={`Pay for ${TIER_LABEL[tier]}`}>
       <div className="space-y-5">
         {purchasable.recurring && (
           <section className="space-y-3">
-            <h4 className="text-sm font-semibold">Monthly</h4>
+            <h4 className="text-sm font-semibold">{t('chk.monthly')}</h4>
             <p className="text-sm text-muted-foreground">
-              {monthly != null ? formatCurrency(monthly) : '—'} a month, taken on the 1st, until
+              {monthly != null ? formatCurrency(monthly, intl) : '—'} a month, taken on the 1st, until
               you stop it. Change or stop it whenever — what you have already paid for stays
               open.
             </p>
@@ -132,7 +135,7 @@ export function BuyDialog({
                       onClick={() => onBuy('recurring', 1, 'remainder')}
                     >
                       <CreditCard className="h-4 w-4" />
-                      Pay {formatCurrency(options.remainderOnly)} for the{' '}
+                      Pay {formatCurrency(options.remainderOnly, intl)} for the{' '}
                       {options.daysLeft} day{options.daysLeft === 1 ? '' : 's'} left this month
                     </Button>
                   )}
@@ -144,7 +147,7 @@ export function BuyDialog({
                     <CreditCard className="h-4 w-4" />
                     Pay{' '}
                     {options.remainderPlusNext != null
-                      ? formatCurrency(options.remainderPlusNext)
+                      ? formatCurrency(options.remainderPlusNext, intl)
                       : ''}{' '}
                     for the rest of this month and next
                   </Button>
@@ -163,7 +166,7 @@ export function BuyDialog({
 
         {purchasable.prepaid && (
           <section className={cn('space-y-2', purchasable.recurring && 'border-t pt-5')}>
-            <h4 className="text-sm font-semibold">In advance</h4>
+            <h4 className="text-sm font-semibold">{t('chk.inAdvance')}</h4>
             <p className="text-sm text-muted-foreground">
               One payment covering the rest of this month plus whole months after it, up to{' '}
               {MAX_PREPAY_MONTHS}. Nothing renews it, so nothing is charged again until you
@@ -183,7 +186,7 @@ export function BuyDialog({
             </div>
             <div className="flex flex-wrap items-end gap-2">
               <div className="w-28">
-                <Label htmlFor="prepay-months">Months</Label>
+                <Label htmlFor="prepay-months">{t('chk.months')}</Label>
                 <Input
                   id="prepay-months"
                   type="number"
@@ -199,16 +202,16 @@ export function BuyDialog({
                 onClick={() => onBuy('prepaid', months, 'remainder')}
               >
                 <CreditCard className="h-4 w-4" />
-                Pay {prepaid ? formatCurrency(prepaid.totalCents) : ''} now
+                Pay {prepaid ? formatCurrency(prepaid.totalCents, intl) : ''} now
               </Button>
             </div>
             {/* BOTH HALVES OF THE FIGURE. "Why is it not six times five?" has one answer and
                 it is a part month nobody mentioned — so it is mentioned. */}
             {prepaid && prepaid.prorationCents > 0 && (
               <p className="text-xs text-muted-foreground">
-                {formatCurrency(prepaid.prorationCents)} for the {options.daysLeft} day
+                {formatCurrency(prepaid.prorationCents, intl)} for the {options.daysLeft} day
                 {options.daysLeft === 1 ? '' : 's'} left this month, plus{' '}
-                {formatCurrency(prepaid.monthsCents)} for {prepaid.months} whole month
+                {formatCurrency(prepaid.monthsCents, intl)} for {prepaid.months} whole month
                 {prepaid.months === 1 ? '' : 's'}.
               </p>
             )}
@@ -276,6 +279,8 @@ export function UpgradeDialog({
   onClose: () => void
   onUpgrade: (includeNextMonth: boolean) => void
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   // `upgradeQuote` is called twice — once per shape — and it is the SAME pure function the
   // action and the webhook use. That is what makes the figure on the button the figure Stripe
   // asks for.
@@ -315,12 +320,12 @@ export function UpgradeDialog({
             numbers it is subtracted from, which is where somebody checking the arithmetic
             wants it. Nothing was lost; a summary of a table sitting above the table went. */}
         <fieldset className="space-y-2">
-          <legend className="sr-only">How far ahead to pay</legend>
+          <legend className="sr-only">{t('chk.howFar')}</legend>
           <UpgradeOption
             id="upgrade-leave"
             selected={!includeNext}
             onSelect={() => setIncludeNext(false)}
-            title={leave.dueNowCents === 0 ? 'Pay nothing now' : `Pay ${formatCurrency(leave.dueNowCents)} now`}
+            title={leave.dueNowCents === 0 ? t('chk.payNothing') : `Pay ${formatCurrency(leave.dueNowCents, intl)} now`}
             summary={`${TIER_LABEL[toTier]} through the end of this month.`}
             quote={leave}
           />
@@ -329,8 +334,8 @@ export function UpgradeDialog({
             selected={includeNext}
             onSelect={() => setIncludeNext(true)}
             title={take.dueNowCents === 0
-              ? 'Cover next month too — nothing to pay'
-              : `Cover next month too — ${formatCurrency(take.dueNowCents)}`}
+              ? t('chk.coverNext')
+              : `Cover next month too — ${formatCurrency(take.dueNowCents, intl)}`}
             summary={`${TIER_LABEL[toTier]} through the end of next month.`}
             quote={take}
           />
@@ -343,22 +348,22 @@ export function UpgradeDialog({
         <dl className="space-y-1 rounded-lg border bg-muted/30 p-3 text-sm">
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">
-              {includeNext ? 'This month and next' : 'Rest of this month'} at {TIER_LABEL[toTier]}
+              {includeNext ? t('chk.thisAndNext') : t('chk.restOfMonth')} at {TIER_LABEL[toTier]}
             </dt>
-            <dd>{formatCurrency(chosen.neededCents)}</dd>
+            <dd>{formatCurrency(chosen.neededCents, intl)}</dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">Your {fromLabel} term, unused</dt>
-            <dd>&minus;{formatCurrency(chosen.creditCents)}</dd>
+            <dd>&minus;{formatCurrency(chosen.creditCents, intl)}</dd>
           </div>
           <div className="flex justify-between gap-4 border-t pt-1 font-medium">
-            <dt>Due now</dt>
-            <dd>{formatCurrency(chosen.dueNowCents)}</dd>
+            <dt>{t('chk.dueNow')}</dt>
+            <dd>{formatCurrency(chosen.dueNowCents, intl)}</dd>
           </div>
           {chosen.creditLeftCents > 0 && (
             <div className="flex justify-between gap-4 text-muted-foreground">
-              <dt>Left over, held as credit at Stripe</dt>
-              <dd>{formatCurrency(chosen.creditLeftCents)}</dd>
+              <dt>{t('chk.leftOver')}</dt>
+              <dd>{formatCurrency(chosen.creditLeftCents, intl)}</dd>
             </div>
           )}
         </dl>
@@ -371,7 +376,7 @@ export function UpgradeDialog({
           <CreditCard className="h-4 w-4" />
           {chosen.dueNowCents === 0
             ? `Upgrade to ${TIER_LABEL[toTier]} — nothing to pay`
-            : `Upgrade to ${TIER_LABEL[toTier]} — pay ${formatCurrency(chosen.dueNowCents)}`}
+            : `Upgrade to ${TIER_LABEL[toTier]} — pay ${formatCurrency(chosen.dueNowCents, intl)}`}
         </Button>
 
         {/* THE SAME MONEY, SAID OUT LOUD — and one sentence, since 2026-08-25. It carried two
@@ -380,7 +385,7 @@ export function UpgradeDialog({
             is already on the Billing pane and in `family-settings#billing`. The one thing a
             reader needs at the moment of choosing is that neither option is cheaper. */}
         <p className="text-xs text-muted-foreground">
-          Both options cost the same overall; the second just settles next month today.
+          {t('chk.sameOverall')}
         </p>
       </div>
     </Dialog>
@@ -403,8 +408,9 @@ function UpgradeOption({ id, selected, onSelect, title, summary, quote }: {
   summary: string
   quote: UpgradeQuote
 }) {
-  const through = formatDate(quote.paidThrough)
-  const next = nextPaymentDate(quote.paidThrough)
+  const intl = useIntlTag()
+  const through = formatDate(quote.paidThrough, intl)
+  const next = nextPaymentDate(quote.paidThrough, intl)
 
   return (
     <label

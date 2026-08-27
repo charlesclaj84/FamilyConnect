@@ -96,6 +96,11 @@ import { useT } from '@/components/layout/LocaleProvider'
  * number and so is not the math module's business.
  */
 export interface BudgetBandProps {
+  /**
+   * The reader's `Intl` tag, for the dates and figures below. A PROP rather than
+   * `useIntlTag()`, because this is a Server Component. See lib/i18n/server.ts.
+   */
+  intl: string
   /** From `getGatheringDetail` / `getAdminGatheringDetail`. Null for both null states below. */
   budget: GatheringBudgetView | null
   /**
@@ -108,7 +113,7 @@ export interface BudgetBandProps {
   className?: string
 }
 
-export function BudgetBand({ budget, state, className }: BudgetBandProps) {
+export function BudgetBand({ budget, state, className, intl }: BudgetBandProps) {
   const t = useT()
   // The caller is entitled and the figures did not come back. Say it, once, in the space the
   // band would have occupied — see the header on why this is neither nothing nor a FormError.
@@ -187,12 +192,12 @@ export function BudgetBand({ budget, state, className }: BudgetBandProps) {
       <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Figure
           label={t('budget.budgeted')}
-          value={hasBudget ? formatCurrency(math.budgetCents) : '—'}
+          value={hasBudget ? formatCurrency(math.budgetCents, intl) : '—'}
           caption={hasBudget ? t('budget.plansToSpend') : t('budget.notSet')}
         />
         <Figure
           label={t('budget.claimed')}
-          value={formatCurrency(math.linesTotalCents)}
+          value={formatCurrency(math.linesTotalCents, intl)}
           caption={lines === 0
             ? t('budget.noLines')
             : `${lines} ${lines === 1 ? 'task line' : 'task lines'}`}
@@ -203,7 +208,7 @@ export function BudgetBand({ budget, state, className }: BudgetBandProps) {
              its meaning. The magnitude comes from `overAllocatedByCents`, which floors at zero,
              so this never prints "over -$450". */
           value={hasBudget
-            ? formatCurrency(math.overAllocated ? math.overAllocatedByCents : math.unallocatedCents)
+            ? formatCurrency(math.overAllocated ? math.overAllocatedByCents : math.unallocatedCents, intl)
             : '—'}
           caption={!hasBudget
             ? t('budget.setToSee')
@@ -214,10 +219,10 @@ export function BudgetBand({ budget, state, className }: BudgetBandProps) {
         />
         <Figure
           label={t('budget.inTheFund')}
-          value={knowBalance ? formatCurrency(math.fundBalanceCents) : '—'}
+          value={knowBalance ? formatCurrency(math.fundBalanceCents, intl) : '—'}
           caption={knowBalance
             ? (budget.otherCommittedCents > 0
-                ? `${formatCurrency(budget.otherCommittedCents)} of it is claimed by other gatherings`
+                ? `${formatCurrency(budget.otherCommittedCents, intl)} of it is claimed by other gatherings`
                 : t('budget.nothingElse'))
             : budget.fundName
               ? t('budget.balanceUnavailable')
@@ -233,8 +238,8 @@ export function BudgetBand({ budget, state, className }: BudgetBandProps) {
       {math.overFund && (
         <p className="mt-4 rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           This gathering&rsquo;s budget of{' '}
-          <span className="font-semibold tabular-nums">{formatCurrency(math.budgetCents)}</span>{' '}
-          is <span className="font-semibold tabular-nums">{formatCurrency(math.overFundByCents)}</span>{' '}
+          <span className="font-semibold tabular-nums">{formatCurrency(math.budgetCents, intl)}</span>{' '}
+          is <span className="font-semibold tabular-nums">{formatCurrency(math.overFundByCents, intl)}</span>{' '}
           more than {budget.fundName ?? 'the fund'} holds.
         </p>
       )}
@@ -252,10 +257,10 @@ export function BudgetBand({ budget, state, className }: BudgetBandProps) {
           math.overFund ? 'mt-2' : 'mt-4',
         )}>
           Other live gatherings already claim{' '}
-          <span className="font-semibold tabular-nums">{formatCurrency(budget.otherCommittedCents)}</span>{' '}
-          of the same fund, so {formatCurrency(math.totalCommittedCents)} is committed against{' '}
+          <span className="font-semibold tabular-nums">{formatCurrency(budget.otherCommittedCents, intl)}</span>{' '}
+          of the same fund, so {formatCurrency(math.totalCommittedCents, intl)} is committed against{' '}
           {budget.fundName ?? 'the fund'} —{' '}
-          <span className="font-semibold tabular-nums">{formatCurrency(math.overFundWithOthersByCents)}</span>{' '}
+          <span className="font-semibold tabular-nums">{formatCurrency(math.overFundWithOthersByCents, intl)}</span>{' '}
           more than it holds.
         </p>
       )}
@@ -266,8 +271,8 @@ export function BudgetBand({ budget, state, className }: BudgetBandProps) {
       {math.overAllocated && (
         <p className="mt-2 rounded-xl border border-brand-withheld/40 bg-brand-withheld/5 px-4 py-3 text-sm text-brand-withheld">
           The task budgets add up to{' '}
-          <span className="font-semibold tabular-nums">{formatCurrency(math.linesTotalCents)}</span>,{' '}
-          which is <span className="font-semibold tabular-nums">{formatCurrency(math.overAllocatedByCents)}</span>{' '}
+          <span className="font-semibold tabular-nums">{formatCurrency(math.linesTotalCents, intl)}</span>,{' '}
+          which is <span className="font-semibold tabular-nums">{formatCurrency(math.overAllocatedByCents, intl)}</span>{' '}
           more than this gathering budgeted. Nothing has been spent — raise the budget or trim a
           task line.
         </p>
