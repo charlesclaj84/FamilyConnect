@@ -19,6 +19,8 @@ import { resolveMeetingRoom } from '@/lib/meeting-boards'
 import {
   scheduleMeeting, type MeetingAttendeeOptions, type MeetingSession,
 } from '@/app/actions/meetings'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Meeting Minutes: every meeting the family has held or scheduled.
@@ -39,7 +41,7 @@ import {
  *
  * ── UPCOMING AND PAST ARE SPLIT ────────────────────────────────────────────────────
  * Against the family's today, which is a `YYYY-MM-DD` string compared as a string — never a
- * `Date`. `new Date('2026-08-01')` is UTC midnight and reads as 31 July in any negative
+ * t('money.date'). `new Date('2026-08-01')` is UTC midnight and reads as 31 July in any negative
  * offset, which is how a meeting comes to move a day for half the family
  * (`lib/calendar.ts`'s rule).
  */
@@ -71,6 +73,7 @@ export function MeetingsClient({ initialMeetings, attendeeOptions, maySchedule, 
    */
   today: string
 }) {
+  const t = useT()
   const router = useRouter()
   const [meetings] = useServerState(initialMeetings)
   const [scheduling, setScheduling] = useState(false)
@@ -83,21 +86,21 @@ export function MeetingsClient({ initialMeetings, attendeeOptions, maySchedule, 
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="mb-1 text-3xl font-bold">Meeting Minutes</h1>
+          <h1 className="mb-1 text-3xl font-bold">{t('meet.heading')}</h1>
           <p className="text-muted-foreground">
             What the family met about, who was there, and what was decided. The secretary writes
             it down; the room votes.
           </p>
         </div>
         {maySchedule && (
-          <Button onClick={() => setScheduling(true)}><Plus /> Schedule a meeting</Button>
+          <Button onClick={() => setScheduling(true)}><Plus /> {t('meet.schedule')}</Button>
         )}
       </div>
 
       {meetings.length === 0 ? (
         <div className="rounded-xl border bg-card px-4 py-14 text-center">
           <Gavel className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
-          <p className="text-sm text-muted-foreground">No meetings yet.</p>
+          <p className="text-sm text-muted-foreground">{t('meet.none')}</p>
           <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">
             Schedule one by saying what kind of meeting it is — the whole family, a chapter, a
             board, one office across every area, or just the people you name — and everybody in
@@ -129,6 +132,7 @@ export function MeetingsClient({ initialMeetings, attendeeOptions, maySchedule, 
 }
 
 function MeetingGroup({ heading, meetings }: { heading: string; meetings: MeetingSession[] }) {
+  const t = useT()
   return (
     <section className="space-y-2">
       <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
@@ -156,7 +160,7 @@ function MeetingGroup({ heading, meetings }: { heading: string; meetings: Meetin
                   closed yet is the ordinary case, and a pill on every row says nothing. */}
               {m.closedAt && (
                 <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft">
-                  <CheckCircle className="h-3 w-3" /> Minuted
+                  <CheckCircle className="h-3 w-3" /> {t('meet.minuted')}
                 </span>
               )}
             </Link>
@@ -180,38 +184,28 @@ function MeetingGroup({ heading, meetings }: { heading: string; meetings: Meetin
  * `hint` is what the choice actually resolves to, in people rather than in vocabulary, because
  * "a positions meeting" means nothing to somebody who has not read the Organization screen.
  */
-const AUDIENCES = [
-  {
-    id: 'general',
-    label: 'A general family meeting',
-    hint: 'Every adult in the family.',
-  },
-  {
-    id: 'chapter',
-    label: 'A chapter meeting',
-    hint: 'Everybody in a chapter, officer or not.',
-  },
-  {
-    id: 'board',
-    label: 'A board meeting',
-    hint: 'Everybody holding an office on one board — national, a region, or a chapter.',
-  },
-  {
-    id: 'positions',
-    label: 'A positions meeting',
-    hint: 'One office across every area that fills it — every chapter president, say.',
-  },
-  {
-    id: 'named',
-    label: 'Just the people I name',
-    hint: 'Nobody to start with. You add them on the next step.',
-  },
-] as const
+// A FUNCTION of `t` since Phase 5. The IDS are the contract — `AUDIENCE_IDS` below and the
+// wizard's narrowing both key on them, and nothing crosses the wire — so only the two
+// captions moved into the catalogue.
+function audiences(t: T) {
+  return [
+    { id: 'general', label: t('meet.kind.familyLabel'), hint: t('meet.kind.family') },
+    { id: 'chapter', label: t('meet.kind.chapterLabel'), hint: t('meet.kind.chapter') },
+    { id: 'board', label: t('meet.kind.boardLabel'), hint: t('meet.kind.board') },
+    { id: 'positions', label: t('meet.kind.positionLabel'), hint: t('meet.kind.position') },
+    { id: 'named', label: t('meet.kind.named'), hint: t('meet.kind.namedHint') },
+  ] as const
+}
 
-type Audience = (typeof AUDIENCES)[number]['id']
+// THE IDS AS A TYPE, not as a value. Nothing enumerates them at runtime — `audiences(t)`
+// above is what the wizard maps over — so a `const` array would be a second list to keep
+// in step for no reader's benefit. The union is what the narrowing actually needs.
+type Audience = 'general' | 'chapter' | 'board' | 'positions' | 'named'
 
-/** Which of the three steps the dialog is on, and what each is called. */
-const STEPS = ['The basics', 'Who is coming', 'Anybody else'] as const
+/** What each of the three steps is called. A function of `t` for the reason `audiences` is. */
+function steps(t: T) {
+  return [t('meet.step.basics'), t('meet.step.whoIsComing'), t('meet.step.anybodyElse')] as const
+}
 
 /**
  * Scheduling a meeting: three steps, with Next and Back.
@@ -273,6 +267,7 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
   onClose: () => void
   onScheduled: (id: string) => void
 }) {
+  const t = useT()
   const [step, setStep] = useState(0)
   const [title, setTitle] = useState('')
   const [meetsOn, setMeetsOn] = useState('')
@@ -332,24 +327,24 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
    */
   function stepError(which: number): string {
     if (which === 0) {
-      if (!title.trim()) return 'Give the meeting a title'
-      if (!meetsOn) return 'Choose a date'
+      if (!title.trim()) return t('meet.needTitle')
+      if (!meetsOn) return t('meet.needDate')
       // The same three rules the action and the database each state. Checked here so the
       // message lands beside the box, not three steps away — `submit` re-checks every earlier
       // step for exactly that reason.
-      if (endTime && !startTime) return 'Give a start time as well, or leave the end time empty'
+      if (endTime && !startTime) return t('meet.needStart')
       if (startTime && endTime && endTime <= startTime) {
-        return 'The end time has to be after the start time'
+        return t('meet.endAfterStart')
       }
-      if (startTime && !timeZone) return 'Choose the timezone the time is in'
-      if (!secretaryId) return 'Choose who is taking the minutes'
+      if (startTime && !timeZone) return t('meet.needZone')
+      if (!secretaryId) return t('meet.needSecretary')
       return ''
     }
     if (which === 1) {
-      if (!audience) return 'Choose what kind of meeting this is'
-      if (audience === 'board' && boardIds.length === 0) return 'Choose at least one board'
-      if (audience === 'positions' && positionIds.length === 0) return 'Choose at least one position'
-      if (audience === 'chapter' && chapterIds.length === 0) return 'Choose at least one chapter'
+      if (!audience) return t('meet.needKind')
+      if (audience === 'board' && boardIds.length === 0) return t('meet.needBoard')
+      if (audience === 'positions' && positionIds.length === 0) return t('meet.needPosition')
+      if (audience === 'chapter' && chapterIds.length === 0) return t('meet.needChapter')
       return ''
     }
     return ''
@@ -390,7 +385,7 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
         additionalIds,
       })
       if (!result.success || !result.id) {
-        setError(result.message ?? 'Could not schedule that meeting.')
+        setError(result.message ?? t('meet.scheduleFailed'))
         return
       }
       onScheduled(result.id)
@@ -407,23 +402,23 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
    */
   function unavailable(id: Audience): string | null {
     if (id === 'board' && options.boards.length === 0) {
-      return 'Nobody holds a board position yet — set the offices up on Members → Organization.'
+      return t('meet.noBoards')
     }
     if (id === 'positions' && options.positions.length === 0) {
-      return 'No office is filled yet — set them up on Members → Organization.'
+      return t('meet.noPositions')
     }
     if (id === 'chapter' && options.chapters.length === 0) {
-      return 'No chapter has anybody recorded in it yet.'
+      return t('meet.noChapters')
     }
     if ((id === 'general' || id === 'named') && options.adults.length === 0) {
-      return 'This family has no adult members recorded yet.'
+      return t('meet.noAdults')
     }
     return null
   }
 
   return (
-    <Dialog open onClose={isPending ? () => {} : onClose} title="Schedule a meeting"
-      description="Everybody in the room is told and gets it on their calendar."
+    <Dialog open onClose={isPending ? () => {} : onClose} title={t('meet.schedule')}
+      description={t('meet.everybodyTold')}
       className="max-w-lg">
       <div className="space-y-5">
         {/* ── WHERE YOU ARE ────────────────────────────────────────────────────────
@@ -433,10 +428,10 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
             duplicating them into the accessibility tree would only be noise. */}
         <div className="space-y-1.5">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Step {step + 1} of {STEPS.length} · {STEPS[step]}
+            Step {step + 1} of {steps(t).length} · {steps(t)[step]}
           </p>
           <div aria-hidden="true" className="flex gap-1">
-            {STEPS.map((name, i) => (
+            {steps(t).map((name, i) => (
               <span
                 key={name}
                 className={cn(
@@ -451,14 +446,14 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
         {step === 0 && (
           <div className="space-y-5">
             <div className="space-y-1.5">
-              <Label htmlFor="meeting-title">Title</Label>
+              <Label htmlFor="meeting-title">{t('field.title')}</Label>
               <Input id="meeting-title" value={title} onChange={e => setTitle(e.target.value)}
-                placeholder="Quarterly officers&rsquo; meeting" autoFocus />
+                placeholder={t('meet.titlePh')} autoFocus />
             </div>
 
             <div className="flex flex-wrap gap-3">
               <div className="space-y-1.5">
-                <Label htmlFor="meeting-date" required>Date</Label>
+                <Label htmlFor="meeting-date" required>{t('money.date')}</Label>
                 {/* A BARE DATE, and the TIME beside it is a bare time. Both are wall-clock
                     labels: `meets_on`, `start_time` and `end_time` are DATE and TIME columns
                     exactly as a gathering's are, and nothing converts them for anybody — the
@@ -468,18 +463,18 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
                   onChange={e => setMeetsOn(e.target.value)} className="max-w-[12rem]" />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="meeting-start">Start time</Label>
+                <Label htmlFor="meeting-start">{t('meet.startTime')}</Label>
                 <Input id="meeting-start" type="time" value={startTime}
                   onChange={e => setStartTime(e.target.value)} className="max-w-[9rem]" />
-                <p className="text-xs text-muted-foreground">Optional.</p>
+                <p className="text-xs text-muted-foreground">{t('meet.optional')}</p>
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="meeting-end">End time</Label>
+                <Label htmlFor="meeting-end">{t('meet.endTime')}</Label>
                 <Input id="meeting-end" type="time" value={endTime}
                   disabled={!startTime}
                   onChange={e => setEndTime(e.target.value)} className="max-w-[9rem]" />
                 <p className="text-xs text-muted-foreground">
-                  {startTime ? 'Optional.' : 'Give a start time first.'}
+                  {startTime ? t('meet.optional') : t('meet.startFirst')}
                 </p>
               </div>
             </div>
@@ -488,10 +483,10 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
                 box beside two empty time boxes reads as something being wrong. */}
             {startTime && (
               <div className="space-y-1.5">
-                <Label htmlFor="meeting-zone" required>Timezone</Label>
+                <Label htmlFor="meeting-zone" required>{t('meet.timezone')}</Label>
                 <Select id="meeting-zone" value={timeZone}
                   onChange={e => setTimeZone(e.target.value)} className="max-w-[20rem]">
-                  <option value="">Choose a timezone…</option>
+                  <option value="">{t('meet.chooseTimezone')}</option>
                   {TIMEZONES.map(tz => (
                     <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>
                   ))}
@@ -512,9 +507,9 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
               people={options.adults}
               value={secretaryId}
               onChange={setSecretaryId}
-              label="Who is taking the minutes?"
-              hint="An adult, and you by default. Only they can write in this meeting, and only until it is closed."
-              emptyMessage="This family has no adult members recorded yet."
+              label={t('meet.secretaryLabel')}
+              hint={t('meet.secretaryHint')}
+              emptyMessage={t('meet.noAdults')}
             />
           </div>
         )}
@@ -522,14 +517,14 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
         {step === 1 && (
           <div className="space-y-4">
             <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">What kind of meeting is this?</legend>
+              <legend className="text-sm font-medium">{t('meet.kindQuestion')}</legend>
               {/* REAL RADIOS IN A FIELDSET. One choice out of five that submits with the
                   rest of the form, which is what a radio group is — and arrow-key movement
                   between the options comes free. Buttons with `aria-checked` would owe that
                   behaviour and not have it, the trap `MainRail` avoids by refusing
                   `role="tablist"`. */}
               <ul className="space-y-1.5">
-                {AUDIENCES.map(choice => {
+                {audiences(t).map(choice => {
                   const why = unavailable(choice.id)
                   return (
                     <li key={choice.id}>
@@ -568,7 +563,7 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
             {audience === 'board' && (
               <CheckGroup
                 legend="Which board?"
-                hint="Everybody holding an office there, as it stands today."
+                hint={t('meet.boardHint')}
                 items={options.boards}
                 selected={boardIds}
                 onToggle={id => toggle(boardIds, setBoardIds, id)}
@@ -578,7 +573,7 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
             {audience === 'positions' && (
               <CheckGroup
                 legend="Which office?"
-                hint="Taken across every region or chapter that fills it."
+                hint={t('meet.positionHint')}
                 items={options.positions}
                 selected={positionIds}
                 onToggle={id => toggle(positionIds, setPositionIds, id)}
@@ -588,7 +583,7 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
             {audience === 'chapter' && (
               <CheckGroup
                 legend="Which chapter?"
-                hint="Every adult recorded in it. This is the whole chapter, not its board."
+                hint={t('meet.chapterHint')}
                 items={options.chapters}
                 selected={chapterIds}
                 onToggle={id => toggle(chapterIds, setChapterIds, id)}
@@ -600,14 +595,14 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
               // is a promise somebody should see the size of before they make it.
               <p className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                 {options.everyoneIds.length === 1
-                  ? 'That is 1 adult.'
+                  ? t('meet.oneAdult')
                   : `That is all ${options.everyoneIds.length} adults in the family.`}{' '}
                 Nobody under eighteen is invited to a meeting.
               </p>
             )}
             {audience === 'named' && (
               <p className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                Nobody is in the room yet. Add them by name on the next step.
+                {t('meet.nobodyYetNextStep')}
               </p>
             )}
           </div>
@@ -619,9 +614,9 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
               people={options.adults}
               selected={additionalIds}
               onChange={setAdditionalIds}
-              label="Anybody else (optional)"
-              hint="Adults only. Everybody in the room is told, gets it on their calendar, and may vote on its topics."
-              emptyMessage="This family has no adult members recorded yet."
+              label={t('meet.anybodyElse')}
+              hint={t('meet.anybodyElseHint')}
+              emptyMessage={t('meet.noAdults')}
               disabled={isPending}
             />
 
@@ -633,7 +628,7 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
                 individually appears once. */}
             <div className="rounded-lg border bg-muted/30 px-3 py-2">
               {room.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Nobody in the room yet.</p>
+                <p className="text-xs text-muted-foreground">{t('meet.nobodyYet')}</p>
               ) : (
                 <details>
                   <summary className="cursor-pointer text-xs text-muted-foreground">
@@ -662,18 +657,18 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             {step > 0 && (
-              <Button size="sm" variant="ghost" onClick={back} disabled={isPending}>Back</Button>
+              <Button size="sm" variant="ghost" onClick={back} disabled={isPending}>{t('meet.back')}</Button>
             )}
           </div>
           <div className="flex gap-2">
-            {step < STEPS.length - 1 ? (
-              <Button size="sm" onClick={next} disabled={isPending}>Next</Button>
+            {step < steps(t).length - 1 ? (
+              <Button size="sm" onClick={next} disabled={isPending}>{t('meet.next')}</Button>
             ) : (
               <Button size="sm" variant="affirm" onClick={submit} disabled={isPending}>
-                {isPending ? 'Scheduling…' : 'Schedule meeting'}
+                {isPending ? t('meet.scheduling') : t('meet.scheduleAction')}
               </Button>
             )}
-            <Button size="sm" variant="ghost" onClick={onClose} disabled={isPending}>Cancel</Button>
+            <Button size="sm" variant="ghost" onClick={onClose} disabled={isPending}>{t('action.cancel')}</Button>
           </div>
         </div>
       </div>

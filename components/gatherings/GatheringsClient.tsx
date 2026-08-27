@@ -19,6 +19,7 @@ import {
 } from '@/lib/gathering-when'
 import { cn } from '@/lib/utils'
 import { scheduleGathering, type GatheringSummary } from '@/app/actions/gatherings'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The Gatherings list, and the one dialog that starts a new one.
@@ -136,6 +137,7 @@ function todayWhen(zone: string): GatheringWhen {
 }
 
 export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuthorTemplates, zone }: Props) {
+  const t = useT()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [chosen, setChosen] = useState<string[]>([])
@@ -199,7 +201,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
 
   function handleSchedule() {
     const name = title.trim()
-    if (!name) { setError('Give the gathering a title'); return }
+    if (!name) { setError(t('gath.needTitle')); return }
     // ── THE DATE RULES ARE `whenProblems`, NOT THREE LINES HERE ──────────────────
     // They were: a start is required, and an end cannot precede it. `whenProblems` is the same
     // function the ACTION runs, so the form and the endpoint cannot come to disagree — and it
@@ -226,7 +228,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
         templateIds: chosen,
       })
       if (!result.success) {
-        setError(result.message ?? 'Could not schedule the gathering')
+        setError(result.message ?? t('gath.scheduleFailed'))
         return
       }
       // `success: true` WITH a message means the gathering exists and one of its templates did
@@ -262,7 +264,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
           {/* Affirm, never the default burgundy — that is what an active rail item looks
               like, and this is a create trigger. */}
           <Button variant="affirm" onClick={() => setOpen(true)}>
-            <CirclePlus className="h-4 w-4 mr-1" /> Schedule a gathering
+            <CirclePlus className="h-4 w-4 mr-1" /> {t('gath.schedule')}
           </Button>
         </div>
       )}
@@ -286,7 +288,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
       <Dialog
         open={open}
         onClose={closeDialog}
-        title="Schedule a gathering"
+        title={t('gath.schedule')}
         // ── THE DESCRIPTION STOPPED MENTIONING TEMPLATES CONDITIONALLY (2026-08-23) ─────
         // It read "Say when and where. If there are templates, choose what it is built from."
         // — one sentence covering both plans, and on Free the second clause is a hint about a
@@ -298,8 +300,8 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
         // there — including for the three non-tier reasons that list is empty (nobody has
         // authored one, all of them are `who_may_schedule = 'admin'`, or all are archived).
         description={templates.length > 0
-          ? 'Say when and where, and choose what it is built from.'
-          : 'Say when and where.'}
+          ? t('gath.sayWhenWhereAndTemplate')
+          : t('gath.sayWhenWhere')}
         className="max-w-lg"
       >
         <div className="mt-2 space-y-3">
@@ -328,7 +330,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
             <p className="rounded-xl border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               This will be a date on the family calendar with no tasks.{' '}
               <Link href="/admin/gatherings/templates" className="font-medium underline">
-                Author a template
+                {t('gath.authorTemplate')}
               </Link>
               {' '}and a gathering can be built from it, with every step handed to a relative.
             </p>
@@ -341,7 +343,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
                 `RequiredMark` on it any more — a template is optional since 2026-08-19 — but
                 the reason for the `<fieldset>` is about NAMING the group and is unchanged: a
                 bare `<Label>` with no `htmlFor` and no nested input labels nothing at all. */}
-            <legend className="text-sm font-medium">Built from</legend>
+            <legend className="text-sm font-medium">{t('gath.builtFrom')}</legend>
             <div className="space-y-2 rounded-xl border p-3">
               {templates.map(template => (
                 <label key={template.id} className="flex cursor-pointer items-start gap-2 select-none">
@@ -369,11 +371,11 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="gathering-title" required>Title</Label>
+            <Label htmlFor="gathering-title" required>{t('field.title')}</Label>
             <Input
               id="gathering-title"
               value={title}
-              placeholder="e.g. Allen Family Reunion 2027"
+              placeholder={t('gath.titlePh')}
               onChange={e => { setTitle(e.target.value); setError('') }}
             />
           </div>
@@ -389,23 +391,23 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
           />
 
           <div className="space-y-1.5">
-            <Label htmlFor="gathering-location">Where</Label>
+            <Label htmlFor="gathering-location">{t('gath.where')}</Label>
             <Input
               id="gathering-location"
               value={location}
-              placeholder="e.g. Memorial Park, Houston"
+              placeholder={t('gath.wherePh')}
               onChange={e => setLocation(e.target.value)}
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="gathering-summary">What it is</Label>
+            <Label htmlFor="gathering-summary">{t('gath.whatItIs')}</Label>
             <Textarea
               id="gathering-summary"
               autoGrow
               rows={1}
               value={summary}
-              placeholder="Optional — a sentence for the family"
+              placeholder={t('gath.descPh')}
               onChange={e => setSummary(e.target.value)}
             />
           </div>
@@ -421,15 +423,15 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
                 `affirm`: nothing is being created any more. */}
             {createdId ? (
               <Button className="flex-1" onClick={() => { setOpen(false); router.push(`/gatherings/${createdId}`) }}>
-                Open the gathering
+                {t('gath.open')}
               </Button>
             ) : (
               <Button className="flex-1" variant="affirm" onClick={handleSchedule} disabled={isPending}>
-                {isPending ? 'Scheduling…' : 'Schedule gathering'}
+                {isPending ? t('gath.scheduling') : t('gath.scheduleAction')}
               </Button>
             )}
             <Button variant="outline" onClick={closeDialog} disabled={isPending}>
-              Cancel
+              {t('action.cancel')}
             </Button>
           </div>
         </div>
@@ -475,6 +477,7 @@ function Section({ heading, rows, empty }: {
  * out terracotta (gold, in dark mode).
  */
 function GatheringCard({ row }: { row: GatheringRow }) {
+  const t = useT()
   // ── THE WHOLE ANSWER, NOT A RANGE OVER THE ENVELOPE ─────────────────────────────
   // A series of three Saturdays has an envelope of a fortnight, and `formatDateRange` over it
   // claims a fortnight the family is not gathering for — which is the misreading the When
@@ -505,12 +508,12 @@ function GatheringCard({ row }: { row: GatheringRow }) {
               because gold is already what a `scheduled` pill fills with. */}
           {row.isPremier && (
             <span className={GATHERING_PREMIER_PILL}>
-              <Star className="h-3 w-3" aria-hidden="true" /> Premier
+              <Star className="h-3 w-3" aria-hidden="true" /> {t('gath.premier')}
             </span>
           )}
           {row.happeningNow && (
             <span className="whitespace-nowrap rounded-full bg-brand-warm px-2 py-0.5 text-xs font-medium text-brand-on-warm">
-              Happening now
+              {t('gath.happeningNow')}
             </span>
           )}
           <GatheringStatusPill status={row.status} />
@@ -537,7 +540,7 @@ function GatheringCard({ row }: { row: GatheringRow }) {
           row.taskCounts.complete && 'text-brand-affirm',
         )}>
           {total === 0
-            ? 'No tasks yet'
+            ? t('gath.noTasks')
             : row.taskCounts.complete
               ? `All ${total} ${total === 1 ? 'task' : 'tasks'} approved`
               : `${approved} of ${total} tasks approved`}

@@ -3,6 +3,7 @@ import { formatCurrency } from '@/lib/currency-utils'
 import { HelpLink } from '@/components/help/HelpLink'
 import { gatheringBudgetMath } from '@/lib/gathering-budget'
 import type { GatheringBudgetView, GatheringBudgetState } from '@/app/actions/gatherings'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * A gathering's money, and the red line.
@@ -108,6 +109,7 @@ export interface BudgetBandProps {
 }
 
 export function BudgetBand({ budget, state, className }: BudgetBandProps) {
+  const t = useT()
   // The caller is entitled and the figures did not come back. Say it, once, in the space the
   // band would have occupied — see the header on why this is neither nothing nor a FormError.
   if (state === 'unavailable') {
@@ -172,31 +174,31 @@ export function BudgetBand({ budget, state, className }: BudgetBandProps) {
             It is inside the `<h2>`'s own flex row rather than after the fund sentence, so the
             question mark reads as being about the band and not about the fund. */}
         <div className="flex items-center gap-1">
-          <h2 id="gathering-budget-heading" className="text-lg">Budget</h2>
-          <HelpLink slug="gatherings" section="budget" label="How a gathering's budget works" />
+          <h2 id="gathering-budget-heading" className="text-lg">{t('budget.heading')}</h2>
+          <HelpLink slug="gatherings" section="budget" label={t('budget.help')} />
         </div>
         <p className="text-xs text-muted-foreground">
           {budget.fundName
-            ? <>Drawn on <span className="font-medium text-foreground">{budget.fundName}</span></>
-            : 'No fund attached yet'}
+            ? <>{t('budget.drawnOn')} <span className="font-medium text-foreground">{budget.fundName}</span></>
+            : t('budget.noFund')}
         </p>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Figure
-          label="Budgeted"
+          label={t('budget.budgeted')}
           value={hasBudget ? formatCurrency(math.budgetCents) : '—'}
-          caption={hasBudget ? 'What this gathering plans to spend' : 'Nobody has set a budget'}
+          caption={hasBudget ? t('budget.plansToSpend') : t('budget.notSet')}
         />
         <Figure
-          label="Claimed by tasks"
+          label={t('budget.claimed')}
           value={formatCurrency(math.linesTotalCents)}
           caption={lines === 0
-            ? 'No task carries a budget line'
+            ? t('budget.noLines')
             : `${lines} ${lines === 1 ? 'task line' : 'task lines'}`}
         />
         <Figure
-          label={math.overAllocated ? 'Over the budget' : 'Unallocated'}
+          label={math.overAllocated ? t('budget.over') : t('budget.unallocated')}
           /* `unallocatedCents` is the one signed field the math module returns, and its sign IS
              its meaning. The magnitude comes from `overAllocatedByCents`, which floors at zero,
              so this never prints "over -$450". */
@@ -204,21 +206,21 @@ export function BudgetBand({ budget, state, className }: BudgetBandProps) {
             ? formatCurrency(math.overAllocated ? math.overAllocatedByCents : math.unallocatedCents)
             : '—'}
           caption={!hasBudget
-            ? 'Set a budget to see what is left'
+            ? t('budget.setToSee')
             : math.overAllocated
-              ? 'The task lines claim more than the budget'
-              : 'Still to hand out to a task'}
+              ? t('budget.linesExceed')
+              : t('budget.stillToHandOut')}
           tone={unallocatedTone}
         />
         <Figure
-          label="In the fund"
+          label={t('budget.inTheFund')}
           value={knowBalance ? formatCurrency(math.fundBalanceCents) : '—'}
           caption={knowBalance
             ? (budget.otherCommittedCents > 0
                 ? `${formatCurrency(budget.otherCommittedCents)} of it is claimed by other gatherings`
-                : 'Nothing else is claiming it')
+                : t('budget.nothingElse'))
             : budget.fundName
-              ? 'The balance was not available'
+              ? t('budget.balanceUnavailable')
               : 'A budget needs a fund to draw on'}
           tone={balanceTone}
         />

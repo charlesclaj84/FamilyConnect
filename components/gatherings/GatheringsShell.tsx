@@ -7,6 +7,7 @@ import { GatheringsClient, type GatheringRow } from '@/components/gatherings/Gat
 import { MyTasksClient } from '@/components/gatherings/MyTasksClient'
 import { type GatheringPane } from '@/lib/gathering-panes'
 import type { MyTaskRow } from '@/app/actions/gatherings'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * THE `/gatherings` RAIL — the family's gatherings, and the caller's own share of them.
@@ -81,6 +82,7 @@ export function GatheringsShell({
   upcoming, past, mayCreate, templates, mayAuthorTemplates, zone,
   tasks, today,
 }: Props) {
+  const t = useT()
   const [pane, setPane] = useState<GatheringPane>(initialPane)
 
   function selectPane(next: GatheringPane) {
@@ -101,13 +103,13 @@ export function GatheringsShell({
   const items: MainRailItem<GatheringPane>[] = [
     ...(mayViewGatherings ? [{
       id: 'gatherings' as const,
-      label: 'Gatherings',
+      label: t('gath.pane.gatherings'),
       icon: PartyPopper,
       href: '/gatherings',
     }] : []),
     ...(mayViewMyTasks ? [{
       id: 'my-tasks' as const,
-      label: waiting > 0 ? `My Tasks (${waiting})` : 'My Tasks',
+      label: waiting > 0 ? `My Tasks (${waiting})` : t('gath.pane.myTasks'),
       icon: ClipboardCheck,
       href: '/gatherings?pane=my-tasks',
     }] : []),
@@ -116,7 +118,7 @@ export function GatheringsShell({
   return (
     <div className="space-y-5">
       <MainRail
-        label="Gathering areas"
+        label={t('gath.rail')}
         items={items}
         active={pane}
         onSelect={selectPane}

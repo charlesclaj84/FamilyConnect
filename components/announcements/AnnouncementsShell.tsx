@@ -11,6 +11,7 @@ import { paneLede, type AnnouncementPane } from '@/lib/announcement-panes'
 import type { Announcement, Chapter } from '@/app/actions/announcements'
 import type { UpdatesArchive } from '@/app/actions/updates'
 import type { PermissionScope } from '@/lib/auth/permissions'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * THE `/community/announcements` RAIL — the notice board, the archive of everything sent, and whose
@@ -107,6 +108,7 @@ export function AnnouncementsShell({
   initialAnnouncements, chapters, canPost, canPin, deleteScope, myPersonId,
   archive, birthdays, locale,
 }: Props) {
+  const t = useT()
   const [pane, setPane] = useState<AnnouncementPane>(initialPane)
 
   function selectPane(next: AnnouncementPane) {
@@ -121,25 +123,25 @@ export function AnnouncementsShell({
   const items: MainRailItem<AnnouncementPane>[] = [
     ...(mayViewBoard ? [{
       id: 'general' as const,
-      label: 'General',
+      label: t('ann.pane.general'),
       icon: Megaphone,
       href: '/community/announcements?pane=general',
     }] : []),
     ...(mayViewUpdates ? [{
       id: 'updates' as const,
-      label: 'Updates',
+      label: t('ann.pane.updates'),
       icon: Inbox,
       href: '/community/announcements?pane=updates',
     }] : []),
     ...(mayViewBirthdays ? [{
       id: 'birthdays' as const,
-      label: 'Birthdays',
+      label: t('ann.pane.birthdays'),
       icon: Cake,
       href: '/community/announcements?pane=birthdays',
     }] : []),
   ]
 
-  const lede = paneLede(pane, BIRTHDAY_HORIZON_DAYS)
+  const lede = paneLede(t, pane, BIRTHDAY_HORIZON_DAYS)
 
   return (
     <div className="space-y-5">
@@ -147,7 +149,7 @@ export function AnnouncementsShell({
           belongs inside the pane it posts to, and lifting it onto the rail would put it above
           the other two panes where it means nothing. */}
       <MainRail
-        label="Announcement areas"
+        label={t('ann.rail')}
         items={items}
         active={pane}
         onSelect={selectPane}

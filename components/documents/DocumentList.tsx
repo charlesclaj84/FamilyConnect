@@ -19,6 +19,7 @@ import {
 } from '@/app/actions/documents'
 import { DOCUMENT_CATEGORIES, documentCategoryLabel } from '@/lib/document-categories'
 import { formatInstantDate } from '@/lib/tz'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The family's filed documents.
@@ -51,6 +52,7 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
   /** The reader's timezone, resolved by the page. `created_at` is an instant. */
   zone: string
 }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   // `useServerState`: an uploaded file used to stay invisible until the page was left and
@@ -76,16 +78,16 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
 
   async function handleDelete(doc: DocumentRecord) {
     const ok = await confirm({
-      title: 'Delete document',
+      title: t('docs.deleteTitle'),
       description: `Delete “${doc.name}”? The file is removed for everyone. This cannot be undone.`,
-      confirmLabel: 'Delete document',
+      confirmLabel: t('docs.deleteTitle'),
       destructive: true,
     })
     if (!ok) return
     setError('')
     startTransition(async () => {
       const result = await deleteDocument(doc.id)
-      if (!result.success) { setError(result.message ?? 'Could not delete that.'); return }
+      if (!result.success) { setError(result.message ?? t('docs.deleteFailed')); return }
       setDocuments(prev => prev.filter(d => d.id !== doc.id))
       router.refresh()
     })
@@ -109,7 +111,7 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
     setError('')
     const result = await getDocumentDownloadUrl(doc.id)
     if (!result.success || !result.url) {
-      setError(result.message ?? 'Could not open that file.')
+      setError(result.message ?? t('docs.openFailed'))
       return
     }
     window.location.assign(result.url)
@@ -120,18 +122,18 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-wrap items-end gap-3">
           <div className="space-y-1">
-            <Label htmlFor="doc-search" className="text-xs">Search</Label>
+            <Label htmlFor="doc-search" className="text-xs">{t('action.search')}</Label>
             <div className="relative">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input id="doc-search" value={query} onChange={e => setQuery(e.target.value)}
-                placeholder="Name or description…" className="w-56 pl-8" />
+                placeholder={t('docs.searchPh')} className="w-56 pl-8" />
             </div>
           </div>
           <div className="space-y-1">
-            <Label htmlFor="doc-category" className="text-xs">Category</Label>
+            <Label htmlFor="doc-category" className="text-xs">{t('common.category')}</Label>
             <Select id="doc-category" value={categoryFilter}
               onChange={e => setCategoryFilter(e.target.value)} className="w-40">
-              <option value="">All</option>
+              <option value="">{t('common.all')}</option>
               {DOCUMENT_CATEGORIES.map(c => (
                 <option key={c.value} value={c.value}>{c.label}</option>
               ))}
@@ -141,7 +143,7 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
 
         {canUpload && (
           <Button onClick={() => { setUploadOpen(true); setError('') }}>
-            <Upload /> Upload a document
+            <Upload /> {t('docs.upload')}
           </Button>
         )}
       </div>
@@ -153,8 +155,8 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
           <FileText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">
             {documents.length === 0
-              ? 'No documents filed yet.'
-              : 'No documents match that.'}
+              ? t('docs.none')
+              : t('docs.noMatches')}
           </p>
           {documents.length === 0 && (
             <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">
@@ -168,11 +170,11 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
           <table className="w-full text-sm">
             <thead className="bg-muted/40 text-left">
               <tr className="border-b">
-                <th scope="col" className="px-3 py-2 font-semibold">Document</th>
-                <th scope="col" className={`px-3 py-2 font-semibold ${COLLAPSING_CELL}`}>Category</th>
-                <th scope="col" className={`px-3 py-2 font-semibold ${COLLAPSING_CELL}`}>Size</th>
-                <th scope="col" className={`px-3 py-2 font-semibold ${COLLAPSING_CELL}`}>Filed</th>
-                <th scope="col" className="w-10 px-3 py-2"><span className="sr-only">Actions</span></th>
+                <th scope="col" className="px-3 py-2 font-semibold">{t('docs.document')}</th>
+                <th scope="col" className={`px-3 py-2 font-semibold ${COLLAPSING_CELL}`}>{t('common.category')}</th>
+                <th scope="col" className={`px-3 py-2 font-semibold ${COLLAPSING_CELL}`}>{t('common.size')}</th>
+                <th scope="col" className={`px-3 py-2 font-semibold ${COLLAPSING_CELL}`}>{t('docs.filed')}</th>
+                <th scope="col" className="w-10 px-3 py-2"><span className="sr-only">{t('money.actions')}</span></th>
               </tr>
             </thead>
             <tbody>
@@ -214,13 +216,13 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
                   <td className="px-3 py-2.5 text-right">
                     <span className="flex justify-end gap-1">
                       <button type="button" onClick={() => handleDownload(doc)}
-                        aria-label={`Download ${doc.name}`} title="Download"
+                        aria-label={`Download ${doc.name}`} title={t('action.download')}
                         className="rounded-md p-1.5 text-muted-foreground hover:text-foreground">
                         <Download className="h-3.5 w-3.5" />
                       </button>
                       {mayDelete(doc) && (
                         <button type="button" onClick={() => handleDelete(doc)} disabled={isPending}
-                          aria-label={`Delete ${doc.name}`} title="Delete"
+                          aria-label={`Delete ${doc.name}`} title={t('action.delete')}
                           className="rounded-md p-1.5 text-destructive hover:bg-muted disabled:opacity-50">
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -253,6 +255,7 @@ function formatSize(bytes: number | null): string {
 }
 
 function UploadDialog({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+  const t = useT()
   const [file, setFile] = useState<File | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -276,8 +279,8 @@ function UploadDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
   }
 
   async function submit() {
-    if (!file) { setError('Choose a file'); return }
-    if (!name.trim()) { setError('Give the document a name'); return }
+    if (!file) { setError(t('action.chooseFile')); return }
+    if (!name.trim()) { setError(t('docs.needName')); return }
     setError(''); setBusy(true)
     const fd = new FormData()
     fd.append('file', file)
@@ -286,19 +289,19 @@ function UploadDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
     fd.append('category', category)
     const result = await uploadDocument(fd)
     setBusy(false)
-    if (!result.success) { setError(result.message ?? 'Upload failed'); return }
+    if (!result.success) { setError(result.message ?? t('docs.uploadFailed')); return }
     onDone()
   }
 
   return (
-    <Dialog open onClose={busy ? () => {} : onClose} title="Upload a document"
+    <Dialog open onClose={busy ? () => {} : onClose} title={t('docs.upload')}
       description={`${formatList(DOCUMENT_FORMATS)}, up to 25 MB.`}>
       <div className="space-y-3">
         <input ref={inputRef} type="file" className="hidden"
           accept={acceptAttribute(DOCUMENT_FORMATS)} onChange={choose} />
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={busy}>
-            <Upload /> Choose a file
+            <Upload /> {t('action.chooseFile')}
           </Button>
           {file && (
             <span className={`text-xs ${rejected ? 'text-brand-withheld' : 'text-muted-foreground'}`}>
@@ -313,18 +316,18 @@ function UploadDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
         )}
 
         <div className="space-y-1.5">
-          <Label htmlFor="doc-name">Name</Label>
+          <Label htmlFor="doc-name">{t('field.name')}</Label>
           <Input id="doc-name" value={name} onChange={e => setName(e.target.value)}
-            placeholder="2026 Membership Form" />
+            placeholder={t('docs.namePh')} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="doc-desc">Description (optional)</Label>
+          <Label htmlFor="doc-desc">{t('field.descriptionOptional')}</Label>
           <Textarea id="doc-desc" value={description} rows={2}
             onChange={e => setDescription(e.target.value)}
-            placeholder="What it is, and who needs it" />
+            placeholder={t('docs.descriptionPh')} />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="doc-cat">Category</Label>
+          <Label htmlFor="doc-cat">{t('common.category')}</Label>
           <Select id="doc-cat" value={category} onChange={e => setCategory(e.target.value)}>
             {DOCUMENT_CATEGORIES.map(c => (
               <option key={c.value} value={c.value}>{c.label}</option>
@@ -336,9 +339,9 @@ function UploadDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
 
         <div className="flex gap-2">
           <Button size="sm" variant="affirm" onClick={submit} disabled={busy || rejected || !file}>
-            {busy ? 'Uploading…' : 'Upload'}
+            {busy ? t('action.uploading') : t('action.upload')}
           </Button>
-          <Button size="sm" variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button size="sm" variant="ghost" onClick={onClose} disabled={busy}>{t('action.cancel')}</Button>
         </div>
       </div>
     </Dialog>

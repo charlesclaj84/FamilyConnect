@@ -10,13 +10,20 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select } from '@/components/ui/select'
 import { FormError } from '@/components/ui/form-message'
 import { createAnnouncement, type Chapter } from '@/app/actions/announcements'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 type Scope = 'national' | 'regional' | 'chapter'
 
-const SCOPE_META: Record<Scope, { label: string; icon: typeof Globe; hint: string }> = {
-  national: { label: 'Entire Family', icon: Globe, hint: 'Everyone in the family will see this' },
-  regional: { label: 'Region', icon: Map, hint: 'Shown to your region' },
-  chapter:  { label: 'Chapter', icon: Building2, hint: 'Shown to a specific chapter' },
+// A FUNCTION of `t` since Phase 5: the captions come from the reader's catalogue and cannot
+// be resolved at module load. The ICONS and the scope ids stay here, which is what this map
+// is actually for — and the ids are what `createAnnouncement` is sent.
+function scopeMeta(t: T): Record<Scope, { label: string; icon: typeof Globe; hint: string }> {
+  return {
+    national: { label: t('ann.new.wholeFamily'), icon: Globe, hint: t('ann.new.wholeFamilyHint') },
+    regional: { label: t('ann.new.region'), icon: Map, hint: t('ann.new.regionHint') },
+    chapter:  { label: t('field.chapter'), icon: Building2, hint: t('ann.new.chapterHint') },
+  }
 }
 
 /**
@@ -33,6 +40,7 @@ const SCOPE_META: Record<Scope, { label: string; icon: typeof Globe; hint: strin
  * longer.
  */
 export function NewAnnouncementForm({ canPin, chapters }: { canPin: boolean; chapters: Chapter[] }) {
+  const t = useT()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [title, setTitle] = useState('')
@@ -50,8 +58,8 @@ export function NewAnnouncementForm({ canPin, chapters }: { canPin: boolean; cha
   }
 
   function submit() {
-    if (!title.trim() || !body.trim()) { setError('Add a title and a message.'); return }
-    if (scope === 'chapter' && !chapterId) { setError('Choose which chapter to notify.'); return }
+    if (!title.trim() || !body.trim()) { setError(t('ann.new.needBoth')); return }
+    if (scope === 'chapter' && !chapterId) { setError(t('ann.new.needChapter')); return }
     setError('')
     const willPin = canPin && pinned
     startTransition(async () => {
@@ -63,7 +71,7 @@ export function NewAnnouncementForm({ canPin, chapters }: { canPin: boolean; cha
         pinned_until: willPin && pinnedUntil ? new Date(pinnedUntil).toISOString() : null,
         chapter_id: scope === 'chapter' ? chapterId : null,
       })
-      if (!res.success) { setError(res.message ?? 'Could not post'); return }
+      if (!res.success) { setError(res.message ?? t('ann.new.failed')); return }
       reset()
       router.refresh()
     })
@@ -79,9 +87,9 @@ export function NewAnnouncementForm({ canPin, chapters }: { canPin: boolean; cha
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary transition-transform group-hover:scale-105">
           <Megaphone className="h-5 w-5" />
         </span>
-        <span className="text-muted-foreground">Share an announcement with your family…</span>
+        <span className="text-muted-foreground">{t('ann.new.prompt')}</span>
         <span className="ml-auto hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
-          <Send className="h-3.5 w-3.5" /> Post
+          <Send className="h-3.5 w-3.5" /> {t('action.post')}
         </span>
       </button>
     )
@@ -96,28 +104,28 @@ export function NewAnnouncementForm({ canPin, chapters }: { canPin: boolean; cha
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
           <Megaphone className="h-5 w-5" />
         </span>
-        <h2 className="text-base font-semibold">New Announcement</h2>
-        <button onClick={reset} className="ml-auto rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" aria-label="Close">
+        <h2 className="text-base font-semibold">{t('ann.new.heading')}</h2>
+        <button onClick={reset} className="ml-auto rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" aria-label={t('action.close')}>
           <X className="h-4 w-4" />
         </button>
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="ann-title">Title</Label>
-        <Input id="ann-title" value={title} onChange={e => setTitle(e.target.value)} placeholder="Reunion update" autoFocus />
+        <Label htmlFor="ann-title">{t('field.title')}</Label>
+        <Input id="ann-title" value={title} onChange={e => setTitle(e.target.value)} placeholder={t('ann.new.titlePh')} autoFocus />
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="ann-body">Message</Label>
-        <Textarea id="ann-body" rows={4} value={body} onChange={e => setBody(e.target.value)} placeholder="What would you like to share?" />
+        <Label htmlFor="ann-body">{t('field.message')}</Label>
+        <Textarea id="ann-body" rows={4} value={body} onChange={e => setBody(e.target.value)} placeholder={t('ann.new.bodyPh')} />
       </div>
 
       {/* Audience targeting — segmented control */}
       <div className="space-y-2">
-        <Label>Audience</Label>
+        <Label>{t('field.audience')}</Label>
         <div className="grid grid-cols-3 gap-2">
           {scopeKeys.map(key => {
-            const { label, icon: Icon } = SCOPE_META[key]
+            const { label, icon: Icon } = scopeMeta(t)[key]
             const active = scope === key
             return (
               <button
@@ -134,12 +142,12 @@ export function NewAnnouncementForm({ canPin, chapters }: { canPin: boolean; cha
             )
           })}
         </div>
-        <p className="text-xs text-muted-foreground">{SCOPE_META[scope].hint}</p>
+        <p className="text-xs text-muted-foreground">{scopeMeta(t)[scope].hint}</p>
       </div>
 
       {scope === 'chapter' && (
         <div className="space-y-1.5">
-          <Label htmlFor="ann-chapter">Chapter</Label>
+          <Label htmlFor="ann-chapter">{t('field.chapter')}</Label>
           <Select id="ann-chapter" value={chapterId} onChange={e => setChapterId(e.target.value)}>
             <option value="">— Select chapter —</option>
             {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -157,13 +165,13 @@ export function NewAnnouncementForm({ canPin, chapters }: { canPin: boolean; cha
               className="h-4 w-4 rounded border-input accent-primary"
             />
             <Pin className="h-3.5 w-3.5 text-muted-foreground" />
-            Pin to the top of everyone’s Recent Updates
+            {t('ann.new.pin')}
           </label>
           {pinned && (
             <div className="ml-6 space-y-1.5">
               <div className="flex items-center gap-2">
                 <Label htmlFor="ann-pinned-until" className="whitespace-nowrap text-xs text-muted-foreground">
-                  Stop pinning on
+                  {t('ann.new.unpinOn')}
                 </Label>
                 <input
                   type="date"
@@ -195,9 +203,9 @@ export function NewAnnouncementForm({ canPin, chapters }: { canPin: boolean; cha
 
       <div className="flex gap-2 pt-1">
         <Button size="sm" onClick={submit} disabled={isPending}>
-          <Send className="h-3.5 w-3.5" /> {isPending ? 'Posting…' : 'Post Announcement'}
+          <Send className="h-3.5 w-3.5" /> {isPending ? t('action.posting') : t('ann.new.submit')}
         </Button>
-        <Button size="sm" variant="ghost" onClick={reset}>Cancel</Button>
+        <Button size="sm" variant="ghost" onClick={reset}>{t('action.cancel')}</Button>
       </div>
     </div>
   )

@@ -14,6 +14,7 @@ import { DOCUMENT_FORMATS, acceptAttribute, formatList, isAllowedUpload } from '
 import {
   addBylaw, deleteBylaw, getBylawDownloadUrl, getBylaws, type Bylaw,
 } from '@/app/actions/bylaws'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The family's bylaws, and a search across them. SCAFFOLDING — see `app/actions/bylaws.ts`.
@@ -38,6 +39,7 @@ export function BylawsClient({ initialBylaws, rights }: {
   initialBylaws: Bylaw[]
   rights: { create: boolean; remove: boolean }
 }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [bylaws, setBylaws] = useState(initialBylaws)
@@ -59,16 +61,16 @@ export function BylawsClient({ initialBylaws, rights }: {
     const ok = await confirm({
       title: `Delete “${b.title}”?`,
       description: b.filePath
-        ? 'The article and its file are removed for everyone. This cannot be undone.'
-        : 'The article is removed for everyone. This cannot be undone.',
-      confirmLabel: 'Delete',
+        ? t('bylaws.deleteWithFile')
+        : t('bylaws.deleteNoFile'),
+      confirmLabel: t('action.delete'),
       destructive: true,
     })
     if (!ok) return
     setError('')
     startTransition(async () => {
       const result = await deleteBylaw(b.id)
-      if (!result.success) { setError(result.message ?? 'Could not delete that.'); return }
+      if (!result.success) { setError(result.message ?? t('bylaws.deleteFailed')); return }
       setBylaws(await getBylaws(searched))
       router.refresh()
     })
@@ -89,7 +91,7 @@ export function BylawsClient({ initialBylaws, rights }: {
     setError('')
     const result = await getBylawDownloadUrl(b.id)
     if (!result.success || !result.url) {
-      setError(result.message ?? 'Could not open that file.')
+      setError(result.message ?? t('bylaws.openFailed'))
       return
     }
     window.location.assign(result.url)
@@ -101,13 +103,13 @@ export function BylawsClient({ initialBylaws, rights }: {
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="mb-1 text-3xl font-bold">Bylaws</h1>
+          <h1 className="mb-1 text-3xl font-bold">{t('bylaws.heading')}</h1>
           <p className="text-muted-foreground">
-            The rules the family agreed to live by. Search them, or read them in order.
+            {t('bylaws.lede')}
           </p>
         </div>
         {rights.create && (
-          <Button onClick={() => { setAdding(true); setError('') }}><Plus /> Add an article</Button>
+          <Button onClick={() => { setAdding(true); setError('') }}><Plus /> {t('bylaws.addArticle')}</Button>
         )}
       </div>
 
@@ -115,18 +117,18 @@ export function BylawsClient({ initialBylaws, rights }: {
       <form className="flex flex-wrap items-end gap-2"
         onSubmit={e => { e.preventDefault(); search(query) }}>
         <div className="min-w-0 flex-1 space-y-1">
-          <Label htmlFor="bylaw-search" className="text-xs">Search the bylaws</Label>
+          <Label htmlFor="bylaw-search" className="text-xs">{t('bylaws.searchLabel')}</Label>
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input id="bylaw-search" value={query} onChange={e => setQuery(e.target.value)}
-              placeholder="quorum, &ldquo;annual meeting&rdquo;, dues -proxy" className="pl-8" />
+              placeholder={t('bylaws.searchPh')} className="pl-8" />
           </div>
         </div>
-        <Button type="submit" variant="secondary" disabled={isPending}>Search</Button>
+        <Button type="submit" variant="secondary" disabled={isPending}>{t('action.search')}</Button>
         {searched && (
           <Button type="button" variant="ghost" disabled={isPending}
             onClick={() => { setQuery(''); search('') }}>
-            Clear
+            {t('action.clear')}
           </Button>
         )}
       </form>
@@ -152,12 +154,12 @@ export function BylawsClient({ initialBylaws, rights }: {
         <div className="rounded-xl border bg-card px-4 py-14 text-center">
           <Scale className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">
-            {searched ? 'Nothing matches that.' : 'No bylaws recorded yet.'}
+            {searched ? t('bylaws.noMatches') : t('bylaws.none')}
           </p>
           <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">
             {searched
-              ? 'Try a different word. A PDF that has not been read is only matched on its title and summary.'
-              : 'Add each article with its text, or upload the document. Pasting the text in is what makes it searchable today.'}
+              ? t('bylaws.tryAnother')
+              : t('bylaws.addEachHint')}
           </p>
         </div>
       ) : (
@@ -185,14 +187,14 @@ export function BylawsClient({ initialBylaws, rights }: {
                 <div className="flex shrink-0 gap-1">
                   {b.hasFile && (
                     <button type="button" onClick={() => download(b)}
-                      aria-label={`Download ${b.title}`} title="Download"
+                      aria-label={`Download ${b.title}`} title={t('action.download')}
                       className="rounded-md p-1.5 text-muted-foreground hover:text-foreground">
                       <Download className="h-3.5 w-3.5" />
                     </button>
                   )}
                   {rights.remove && (
                     <button type="button" onClick={() => remove(b)} disabled={isPending}
-                      aria-label={`Delete ${b.title}`} title="Delete"
+                      aria-label={`Delete ${b.title}`} title={t('action.delete')}
                       className="rounded-md p-1.5 text-destructive hover:bg-muted disabled:opacity-50">
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -214,20 +216,22 @@ export function BylawsClient({ initialBylaws, rights }: {
 
 /** Which half of the scaffolding a row is in. See `app/actions/bylaws.ts`. */
 function IndexBadge({ state }: { state: Bylaw['indexedState'] }) {
+  const t = useT()
   if (state === 'full') {
-    return <span className="text-brand-on-soft">Searchable in full</span>
+    return <span className="text-brand-on-soft">{t('bylaws.indexedFull')}</span>
   }
   if (state === 'text') {
-    return <span className="text-brand-on-soft">Typed in — searchable in full</span>
+    return <span className="text-brand-on-soft">{t('bylaws.typedIn')}</span>
   }
   return (
     <span className="inline-flex items-center gap-1 text-brand-withheld">
-      <FileWarning className="h-3 w-3" /> Title and summary only — the file&rsquo;s text has not been read
+      <FileWarning className="h-3 w-3" /> {t('bylaws.titleOnly')}
     </span>
   )
 }
 
 function AddDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
+  const t = useT()
   const [title, setTitle] = useState('')
   const [article, setArticle] = useState('')
   const [summary, setSummary] = useState('')
@@ -240,7 +244,7 @@ function AddDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => v
   const rejected = file !== null && !isAllowedUpload(file.name, file.type, DOCUMENT_FORMATS)
 
   async function submit() {
-    if (!title.trim()) { setError('Give the article a title'); return }
+    if (!title.trim()) { setError(t('bylaws.needTitle')); return }
     setError(''); setBusy(true)
     const fd = new FormData()
     fd.append('title', title.trim())
@@ -250,39 +254,39 @@ function AddDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => v
     if (file) fd.append('file', file)
     const result = await addBylaw(fd)
     setBusy(false)
-    if (!result.success) { setError(result.message ?? 'Could not add that.'); return }
+    if (!result.success) { setError(result.message ?? t('bylaws.addFailed')); return }
     onAdded()
   }
 
   return (
-    <Dialog open onClose={busy ? () => {} : onClose} title="Add an article"
-      description="Type the text in to make it searchable, upload the document, or both."
+    <Dialog open onClose={busy ? () => {} : onClose} title={t('bylaws.addArticle')}
+      description={t('bylaws.eitherHint')}
       className="max-w-lg">
       <div className="space-y-3">
         <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
           <div className="space-y-1.5">
-            <Label htmlFor="bylaw-article">Article (optional)</Label>
+            <Label htmlFor="bylaw-article">{t('bylaws.articleOptional')}</Label>
             <Input id="bylaw-article" value={article} onChange={e => setArticle(e.target.value)}
-              placeholder="Article IV" />
+              placeholder={t('bylaws.articlePh')} />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="bylaw-title">Title</Label>
+            <Label htmlFor="bylaw-title">{t('field.title')}</Label>
             <Input id="bylaw-title" value={title} onChange={e => setTitle(e.target.value)}
-              placeholder="Meetings and quorum" autoFocus />
+              placeholder={t('bylaws.titlePh')} autoFocus />
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="bylaw-summary">Summary (optional)</Label>
+          <Label htmlFor="bylaw-summary">{t('bylaws.summaryOptional')}</Label>
           <Input id="bylaw-summary" value={summary} onChange={e => setSummary(e.target.value)}
-            placeholder="What this article covers" />
+            placeholder={t('bylaws.summaryPh')} />
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="bylaw-text">The text (optional)</Label>
+          <Label htmlFor="bylaw-text">{t('bylaws.textOptional')}</Label>
           <Textarea id="bylaw-text" value={text} rows={6}
             onChange={e => setText(e.target.value)}
-            placeholder="Paste the article here and every word of it becomes searchable." />
+            placeholder={t('bylaws.textPh')} />
           {/* THE HONEST INSTRUCTION. Extraction from PDF and Word is not built, so pasting the
               text is not a nicety — it is the only way the search reaches inside an article
               today, and a form that did not say so would look broken later. */}
@@ -293,13 +297,13 @@ function AddDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => v
         </div>
 
         <div className="space-y-1.5">
-          <Label>Document (optional)</Label>
+          <Label>{t('bylaws.documentOptional')}</Label>
           <input ref={inputRef} type="file" className="hidden"
             accept={acceptAttribute(DOCUMENT_FORMATS)}
             onChange={e => { setFile(e.target.files?.[0] ?? null); setError('') }} />
           <div className="flex flex-wrap items-center gap-2">
             <Button size="sm" variant="outline" onClick={() => inputRef.current?.click()} disabled={busy}>
-              Choose a file
+              {t('action.chooseFile')}
             </Button>
             {file && (
               <span className={`text-xs ${rejected ? 'text-brand-withheld' : 'text-muted-foreground'}`}>
@@ -318,9 +322,9 @@ function AddDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => v
 
         <div className="flex gap-2">
           <Button size="sm" variant="affirm" onClick={submit} disabled={busy || rejected}>
-            {busy ? 'Saving…' : 'Add article'}
+            {busy ? t('action.saving') : t('bylaws.addArticleAction')}
           </Button>
-          <Button size="sm" variant="ghost" onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button size="sm" variant="ghost" onClick={onClose} disabled={busy}>{t('action.cancel')}</Button>
         </div>
       </div>
     </Dialog>

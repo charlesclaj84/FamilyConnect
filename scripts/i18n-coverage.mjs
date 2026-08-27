@@ -273,7 +273,7 @@ const OPTIONAL_LOCALE = ['formatDate', 'formatDateRange', 'formatMonthDay', 'for
 // RATCHETED DOWN AS PHASE 5 THREADS EACH SURFACE. 211 was the figure the day the formatters
 // moved to `Intl`; every reduction below is a surface whose dates now render in the reader's
 // language. Lower it freely; raising it is a deliberate act that owes a reason on this line.
-const PINNED_CEILING = 207
+const PINNED_CEILING = 206
 
 // ── SCANNING ────────────────────────────────────────────────────────────────────────
 

@@ -1,3 +1,5 @@
+import type { T } from '@/lib/i18n/t'
+
 /**
  * The `/community/announcements` rail's vocabulary — the pane ids, their order, and the sentence under
  * each one.
@@ -68,15 +70,22 @@ export function isAnnouncementPane(value: unknown): value is AnnouncementPane {
  * NULL RATHER THAN AN EMPTY STRING, so the shell renders no element at all. An empty `<p>`
  * still occupies its margin, which is the gap the sweep was removing.
  */
-export function paneLede(pane: AnnouncementPane, birthdayHorizonDays: number): string | null {
+export function paneLede(
+  t: T,
+  pane: AnnouncementPane,
+  birthdayHorizonDays: number,
+): string | null {
   switch (pane) {
     case 'general':
-      return 'News from across your family. Pinned posts ride at the top of everyone’s Recent '
-        + 'Updates until each person dismisses them.'
+      return t('ann.lede.general')
     case 'updates':
       return null
     case 'birthdays':
-      return `Only the next ${birthdayHorizonDays} days are shown, soonest first — a birthday `
-        + `further out than that appears here once it is within ${birthdayHorizonDays} days.`
+      // THE HORIZON IS STILL INTERPOLATED, and it is now interpolated by `t` rather than by a
+      // template literal — for the reason the paragraph above gives: the number is stated in
+      // the arithmetic, in the empty state and in the manual, and a hand-typed "60" in any of
+      // them eventually disagrees with the list underneath it. A translation carries `{days}`
+      // twice and `i18n:check` reports it if either goes missing.
+      return t('ann.lede.birthdays', { days: birthdayHorizonDays })
   }
 }
