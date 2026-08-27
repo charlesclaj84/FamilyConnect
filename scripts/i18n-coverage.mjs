@@ -174,6 +174,8 @@ const { placeholdersIn } = await load('t.ts')
 const { BASE_LOCALE } = await load('locales.ts')
 const { EMAIL_BUNDLE } = await import(
   pathToFileURL(join(ROOT, 'lib', 'email', 'strings', 'index.ts')).href)
+const { HELP_BUNDLE } = await import(
+  pathToFileURL(join(ROOT, 'lib', 'help', 'strings', 'index.ts')).href)
 
 /**
  * Every translation bundle in the product, and where its call sites live.
@@ -194,6 +196,11 @@ const BUNDLES = [
     id: 'email',
     catalogues: EMAIL_BUNDLE,
     where: 'lib/email/templates.ts — server-only, never in a browser bundle',
+  },
+  {
+    id: 'help',
+    catalogues: HELP_BUNDLE,
+    where: 'lib/help/content.ts — the English is DERIVED from it; see lib/help/keys.ts',
   },
 ]
 
@@ -245,6 +252,9 @@ const KNOWN_DYNAMIC = [
   ['pos.cat.', 'positionCategoryLabel() maps a family_roles.category.'],
   ['pos.scope.', 'positionScopeLabel() maps a user_roles.scope.'],
   ['set.pane.', 'settingsPaneLabel() maps a SettingsPane id.'],
+  ['help.', 'EVERY manual key is built from the content tree by lib/help/keys.ts — '
+    + 'help.<slug>.<sectionId>.b<n>. No call site names one, and none can: the '
+    + 'manual is data, and `localizeChapter` walks it.'],
 ]
 
 const isDynamic = key => KNOWN_DYNAMIC.some(([prefix]) => key.startsWith(prefix))

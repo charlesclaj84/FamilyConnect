@@ -4,6 +4,8 @@ import { ChevronRight } from 'lucide-react'
 import { requireViewOrPending } from '@/lib/auth/permissions'
 import { resolveHelpAvailability } from '@/lib/help/availability'
 import { HELP_PARTS } from '@/lib/help/content'
+import { localizePart } from '@/lib/help/keys'
+import { helpT } from '@/lib/help/strings'
 import { HelpAvailabilityBadge } from '@/components/help/HelpAvailabilityBadge'
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
@@ -48,6 +50,10 @@ export default async function HelpIndexPage() {
 
   const gate = await requireViewOrPending(user.id, 'help')
 
+  const { locale } = await callerI18n(user.id)
+
+  const help = helpT(locale)
+
   const availability = gate.pending ? null : await resolveHelpAvailability(user.id)
 
   return (
@@ -73,7 +79,11 @@ export default async function HelpIndexPage() {
         </div>
       )}
 
-      {HELP_PARTS.map(part => (
+      {/* LOCALIZED ONCE, HERE. `localizePart` returns the same shape, so everything below
+          renders unchanged and a key with no translation falls back to the English —
+          which is what lets a partly translated manual read as prose rather than as key
+          names. See lib/help/keys.ts. */}
+      {HELP_PARTS.map(part => localizePart(part, help)).map(part => (
         <section key={part.id} aria-labelledby={`part-${part.id}`} className="space-y-4">
           <div>
             <h2 id={`part-${part.id}`} className="text-2xl">{part.title}</h2>

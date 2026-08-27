@@ -5,11 +5,14 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { requireViewOrPending } from '@/lib/auth/permissions'
 import { resolveHelpAvailability } from '@/lib/help/availability'
 import { getHelpChapter, getHelpPart, helpNeighbours } from '@/lib/help/content'
+import { localizeChapter } from '@/lib/help/keys'
+import { helpT } from '@/lib/help/strings'
 import { stripInline } from '@/lib/help/inline'
 import { HelpBlocks } from '@/components/help/HelpProse'
 import { HelpAvailabilityNote } from '@/components/help/HelpAvailabilityBadge'
 import { PageShell } from '@/components/layout/PageShell'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -34,8 +37,14 @@ interface Props {
  * next door is `wide` for exactly the same reason it is a grid of cards.
  */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const chapter = getHelpChapter((await params).slug)
-  if (!chapter) return { title: 'Help' }
+  const raw = getHelpChapter((await params).slug)
+  if (!raw) return { title: 'Help' }
+  // THE TAB TITLE AND THE DESCRIPTION ARE THE READER'S. This is the one `generateMetadata` in
+  // the product that translates, and it costs nothing extra: `callerI18n(null)` falls through to
+  // `Accept-Language` and needs no session, which is right here because the manual is the same
+  // document for everybody — there is no per-caller data in it to get wrong.
+  const { locale } = await callerI18n(null)
+  const chapter = localizeChapter(raw, helpT(locale))
   // No product-name suffix by hand — `app/layout.tsx` sets a `title.template` and appends
   // it. Writing it here renders it twice.
   return { title: `${chapter.title} — Help`, description: stripInline(chapter.summary) }
@@ -46,13 +55,17 @@ export default async function HelpChapterPage({ params }: Props) {
 
   // BEFORE the session is resolved, deliberately: a slug that names no chapter is a 404
   // whoever asks, and there is nothing to authorize on a document that does not exist.
-  const chapter = getHelpChapter(slug)
-  if (!chapter) notFound()
+  const raw = getHelpChapter(slug)
+  if (!raw) notFound()
 
   const { user } = await currentUser()
   if (!user) redirect('/login')
 
   const gate = await requireViewOrPending(user.id, 'help')
+
+  const { locale } = await callerI18n(user.id)
+  const help = helpT(locale)
+  const chapter = localizeChapter(raw, help)
 
   const part = getHelpPart(slug)
   const { previous, next } = helpNeighbours(slug)

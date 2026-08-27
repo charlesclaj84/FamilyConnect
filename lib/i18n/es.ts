@@ -1617,7 +1617,7 @@ export const es: Catalogue = {
 
   // ── THE ADMIN SCREENS ────────────────────────────────────────────────────────────
   'access.rail': 'Integrantes y accesos',
-  'access.tab.members': 'Integrantes',
+  'access.tab.members': 'Miembros',
   'access.tab.organization': 'Organización',
   'access.tab.approvals': 'Aprobaciones pendientes',
   'access.tab.templates': 'Plantillas de permisos',

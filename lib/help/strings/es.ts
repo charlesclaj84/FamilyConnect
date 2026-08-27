@@ -1,0 +1,1433 @@
+import type { Catalogue } from '@/lib/i18n/t'
+
+/**
+ * The manual, es. Keyed against `lib/help/content.ts` — see `lib/help/keys.ts` for the
+ * key scheme and why the English is derived rather than repeated here.
+ *
+ * TRANSLATED PART BY PART. A key that is not here yet resolves to the English, so a partly
+ * translated manual reads as English chapters beside translated ones rather than as a page of
+ * key names. `npm run i18n:check` reports the backlog as a count on every run.
+ */
+export const helpEs: Catalogue = {
+  // ──── PART 1 — Getting started ────────────────────────────────────────────────
+  'help.part.start.title': 'Primeros pasos',
+  'help.part.start.blurb': 'De qué está hecha la pantalla, y cómo entran usted y sus familiares.',
+  'help.finding-your-way-around.title': 'Orientarse',
+  'help.finding-your-way-around.summary':
+    'El menú lateral, la barra superior y los pocos controles que están en todas las '
+    + 'pantallas.',
+  'help.finding-your-way-around.the-rail.heading': 'El menú lateral de la izquierda',
+  'help.finding-your-way-around.the-rail.b0':
+    'Todo en el producto se alcanza desde el menú lateral color burdeos. Sus encabezados '
+    + 'agrupan las pantallas por su propósito — **Comunidad**, **Reuniones**, **Biblioteca**, '
+    + '**Contabilidad**, **Informes**, **Administración**, **Ayuda** — y un encabezado se '
+    + 'abre al pulsarlo, cerrando el que estaba abierto.',
+  'help.finding-your-way-around.the-rail.b1':
+    'El menú lateral solo muestra las pantallas que usted puede abrir. Si falta un '
+    + 'encabezado que esperaba, es porque todas las pantallas que están debajo o no forman '
+    + 'parte del plan de su familia o no son algo que su familia le haya dado. Eso no es una '
+    + 'falla: vea [Quién puede hacer qué](/help/who-can-do-what).',
+  'help.finding-your-way-around.the-rail.b2':
+    'En un teléfono el menú lateral está detrás del botón **Menú**, arriba a la izquierda. '
+    + 'Se cierra solo en cuanto usted elige algo.',
+  'help.finding-your-way-around.the-top-bar.heading': 'La barra de arriba',
+  'help.finding-your-way-around.the-top-bar.b0':
+    'Hay cinco controles arriba a la derecha en todas las páginas.',
+  'help.finding-your-way-around.the-top-bar.b1.i0.term': 'Cambio de familia',
+  'help.finding-your-way-around.the-top-bar.b1.i0.text':
+    'Aparece cuando su cuenta pertenece a más de una familia. Elegir otra familia recarga '
+    + 'la página en la que está, como esa familia.',
+  'help.finding-your-way-around.the-top-bar.b1.i1.term': 'Ayuda',
+  'help.finding-your-way-around.the-top-bar.b1.i1.text':
+    'Un signo de interrogación que lleva al capítulo de este manual que describe la '
+    + 'pantalla en la que está. No aparece en las pocas pantallas que ningún capítulo cubre '
+    + 'todavía, ni en estas páginas de ayuda.',
+  'help.finding-your-way-around.the-top-bar.b1.i2.term': 'Campana',
+  'help.finding-your-way-around.the-top-bar.b1.i2.text':
+    'Sus notificaciones, más una fila fija por cada familia con personas esperando '
+    + 'aprobación, incluidas las familias que no está viendo en este momento.',
+  'help.finding-your-way-around.the-top-bar.b1.i3.term': 'Apariencia',
+  'help.finding-your-way-around.the-top-bar.b1.i3.text':
+    'Claro, Oscuro o Sistema. Se recuerda en este navegador.',
+  'help.finding-your-way-around.the-top-bar.b1.i4.term': 'Su nombre',
+  'help.finding-your-way-around.the-top-bar.b1.i4.text':
+    'Abre el menú de la cuenta: [Mi perfil](/personal-info), [Mis familias](/my-families), '
+    + 'apariencia y cerrar sesión.',
+  'help.finding-your-way-around.the-top-bar.b2':
+    'Cada uno de estos se cierra solo unos segundos después de que usted se aleja, así que '
+    + 'un panel nunca queda encima de la página que se puso a leer. Se mantiene abierto '
+    + 'mientras el puntero esté sobre él, y mientras usted lo recorra con el teclado.',
+  'help.finding-your-way-around.notifications.heading': 'La campana',
+  'help.finding-your-way-around.notifications.b0':
+    'Las notificaciones llegan en tiempo real: no hace falta recargar. Cubren cosas que le '
+    + 'pasaron a usted: una decisión sobre su membresía, alguien pidiendo unirse a una '
+    + 'familia que usted administra, y cosas así.',
+  'help.finding-your-way-around.notifications.b1':
+    'Las notificaciones le pertenecen *en una familia*, porque eso es lo que una '
+    + 'notificación es. Lo único que cruza de una familia a otra es la cola de aprobaciones: '
+    + 'si administra dos familias y alguien está esperando en la segunda, la campana se lo '
+    + 'dice mientras usted sigue viendo la primera.',
+  'help.finding-your-way-around.signed-out.heading': 'La sesión se cierra después de una hora',
+  'help.finding-your-way-around.signed-out.b0':
+    'Si no se escribe ni se pulsa nada durante 60 minutos, se cierra su sesión en este '
+    + 'dispositivo y se le envía a la página de inicio de sesión, con una nota que dice por '
+    + 'qué. Aparece un aviso durante el último minuto para que pueda quedarse.',
+  'help.finding-your-way-around.signed-out.b1':
+    'La actividad en cualquier pestaña cuenta, así que leer un anuncio largo en una pestaña '
+    + 'no le cierra la sesión en otra. Cerrar sesión aquí no cierra la sesión de su teléfono: '
+    + 'para eso, use **Cerrar sesión en otros dispositivos** en [Inicio de sesión y '
+    + 'seguridad](/personal-info?section=security).',
+  'help.finding-your-way-around.signed-out.b2':
+    '**En un teléfono ocurre cuando usted vuelve.** Un teléfono cierra la página mientras '
+    + 'está en segundo plano, así que no hay nada corriendo que cuente la hora y no se puede '
+    + 'mostrar ningún aviso; la comprobación se hace en el momento en que usted la reabre. Si '
+    + 'estuvo fuera más de una hora, aterriza en la página de inicio de sesión en vez de '
+    + 'donde lo dejó, que es la misma regla llegando un poco más tarde.',
+  'help.finding-your-way-around.saving.heading': 'Cómo funciona guardar',
+  'help.finding-your-way-around.saving.b0':
+    'Nada de un formulario se guarda hasta que usted pulsa su botón. Cualquier cosa '
+    + 'destructiva — eliminar un anuncio, quitar una conexión en el árbol, rechazar un '
+    + 'programa de cuotas — le pide confirmación primero y dice qué va a pasar.',
+  'help.finding-your-way-around.saving.b1':
+    'Cuando algo se rechaza, el motivo aparece junto al botón que usted pulsó. Si una '
+    + 'página entera dice que no se pudo cargar, casi siempre vale la pena intentarlo una vez '
+    + 'más antes de suponer lo peor.',
+  'help.joining-a-family.title': 'Crear una familia o unirse a una',
+  'help.joining-a-family.summary':
+    'Códigos familiares, invitaciones, la cola de aprobaciones y qué hacer mientras espera.',
+  'help.joining-a-family.create.heading': 'Crear una familia',
+  'help.joining-a-family.create.b0.i0':
+    'En la página de registro, elija **Crear familia** y póngale un nombre.',
+  'help.joining-a-family.create.b0.i1':
+    'Termine de registrarse. Usted es el primer integrante y queda aprobado de inmediato.',
+  'help.joining-a-family.create.b0.i2':
+    'Se genera un código familiar de seis caracteres y se le muestra. Ese código es la '
+    + 'forma en que sus familiares se unen.',
+  'help.joining-a-family.create.b1':
+    'El código siempre está disponible después en [Configuración](/admin/settings) y en '
+    + '[Mis familias](/my-families).',
+  'help.joining-a-family.join-by-code.heading': 'Unirse con un código familiar',
+  'help.joining-a-family.join-by-code.b0':
+    'Si alguien le dio un código familiar, elija **Unirse a una familia** cuando se '
+    + 'registre y escríbalo. Si ya tiene cuenta, use **Unirse a otra familia** en [Mis '
+    + 'familias](/my-families) en su lugar: una cuenta puede pertenecer a varias familias.',
+  'help.joining-a-family.join-by-code.b1':
+    'Unirse con un código no lo admite. Lo pone en la cola de aprobaciones de la familia, y '
+    + 'alguien de ahí tiene que dejarlo entrar. Cualquiera que tenga el código puede pedir '
+    + 'unirse, y precisamente por eso la decisión es de una persona y no del código.',
+  'help.joining-a-family.invitations.heading': 'Unirse desde una invitación',
+  'help.joining-a-family.invitations.b0':
+    'Una invitación es un enlace enviado por correo a una sola dirección. Para quien la '
+    + 'envía es mejor que un código, porque puede preaprobarlo: siga el enlace, ponga una '
+    + 'contraseña y queda dentro sin esperar.',
+  'help.joining-a-family.invitations.b1':
+    'Una invitación que no preaprueba lo pone en la cola, igual que un código. En cualquier '
+    + 'caso el enlace es para la dirección a la que se envió: si al abrirlo tiene la sesión '
+    + 'iniciada como otra persona, el producto lo dice en vez de asociar la invitación a la '
+    + 'cuenta equivocada sin avisar.',
+  'help.joining-a-family.confirm-your-email.heading': 'Confirmar su dirección de correo',
+  'help.joining-a-family.confirm-your-email.b0':
+    'Como sea que se registre — una familia nueva, un código familiar o una invitación — se '
+    + 'envía un enlace de confirmación a la dirección con la que se registró, y la cuenta no '
+    + 'puede iniciar sesión hasta que ese enlace se haya abierto. Funciona una vez y vence al '
+    + 'cabo de una hora, así que use el mensaje más nuevo y no uno más antiguo del mismo '
+    + 'hilo.',
+  'help.joining-a-family.confirm-your-email.b1':
+    'Si intenta iniciar sesión antes de abrirlo, la página de inicio de sesión dice que la '
+    + 'dirección no está confirmada y ofrece **Enviar el enlace de nuevo** debajo del '
+    + 'formulario. Mire en la carpeta de correo no deseado antes de pulsarlo: un enlace que '
+    + 'llegó y se pasó por alto es de lejos el motivo más común, y otra copia no ayuda.',
+  'help.joining-a-family.confirm-your-email.b2':
+    'A nadie se le dice si ese correo llegó — ni a usted ni a nosotros — así que la página '
+    + 'dice qué pidió en vez de prometer la entrega. Si nunca llega nada, lo más probable es '
+    + 'que la dirección no sea la que se usó al registrar la cuenta.',
+  'help.joining-a-family.waiting.heading': 'Mientras espera',
+  'help.joining-a-family.waiting.b0':
+    'Hasta que alguien lo admita, tiene tres pantallas abiertas: el panel, que le dice cómo '
+    + 'va la solicitud, [Mi perfil](/personal-info) y [Mis familias](/my-families). El resto '
+    + 'del menú lateral aparece en el momento en que lo aprueban: no tiene que volver a '
+    + 'iniciar sesión, la página se da cuenta sola.',
+  'help.joining-a-family.waiting.b1':
+    'Completar su perfil mientras espera es lo útil que puede hacer. Es lo que le da a '
+    + 'quien revise la cola una persona a la que reconocer en vez de una dirección de correo.',
+  'help.joining-a-family.declined.heading': 'Si una solicitud se rechaza',
+  'help.joining-a-family.declined.b0':
+    'Se le avisa, y puede apelarla: su nota vuelve a la misma cola y la solicitud queda '
+    + 'pendiente otra vez. La nota es lo importante — es lo que le da a quien la revise un '
+    + 'motivo para mirar dos veces — así que escriba la frase en vez de volver a enviarla en '
+    + 'silencio.',
+  'help.joining-a-family.declined.b1':
+    'Su perfil sigue siendo suyo en cualquier caso, y cualquier otra familia a la que '
+    + 'pertenezca no se ve afectada.',
+  // ──── PARTS 2 and 3 — Your own account, and The dashboard ─────────────────────
+  'help.part.you.title': 'Su propia cuenta',
+  'help.part.you.blurb': 'Las cosas que son suyas y no de la familia.',
+  'help.my-profile.title': 'Mi perfil',
+  'help.my-profile.summary':
+    'Su nombre, cómo lo encuentran sus familiares y la configuración de su inicio de '
+    + 'sesión.',
+  'help.my-profile.sections.heading': 'Las cinco secciones',
+  'help.my-profile.sections.b0':
+    'El menú de la parte superior de la página alterna entre ellas. Cada una se guarda por '
+    + 'su cuenta, así que puede completar una y volver más tarde.',
+  'help.my-profile.sections.b1.i0.term': 'General',
+  'help.my-profile.sections.b1.i0.text':
+    'Nombre, nombre preferido, teléfono, correo, cumpleaños y su foto.',
+  'help.my-profile.sections.b1.i1.term': 'Dirección',
+  'help.my-profile.sections.b1.i1.text':
+    'Dónde vive. Lo usan el Directorio y todo lo que la familia le envíe por correo postal.',
+  'help.my-profile.sections.b1.i2.term': 'Información adicional',
+  'help.my-profile.sections.b1.i2.text':
+    'Talla de camiseta, capítulo y los demás datos que piden las reuniones y los informes.',
+  'help.my-profile.sections.b1.i3.term': 'Notificaciones',
+  'help.my-profile.sections.b1.i3.text':
+    'Sobre qué puede contactarlo su familia y por qué medio: un interruptor por '
+    + 'notificación y por canal.',
+  'help.my-profile.sections.b1.i4.term': 'Inicio de sesión y seguridad',
+  'help.my-profile.sections.b1.i4.text': 'La dirección con la que inicia sesión, y su contraseña.',
+  'help.my-profile.notifications.heading': 'Notificaciones',
+  'help.my-profile.notifications.b0':
+    '**Notificaciones** es una cuadrícula: una fila por cada cosa sobre la que su familia '
+    + 'puede contactarlo, y una columna por cada vía por la que podría llegarle — **Correo**, '
+    + '**SMS** y **Notificación push**. Cada celda es una pulsación, **Activado** o '
+    + '**Desactivado**, y se guarda en el momento en que usted la pulsa. No hay nada que '
+    + 'enviar.',
+  'help.my-profile.notifications.b1':
+    'Usa la dirección de correo y el número de móvil que ya están en sus datos de '
+    + '**General**. Los dos se muestran en la parte superior de la pantalla para que vea a '
+    + 'dónde iría una notificación, y cambiar cualquiera de los dos allí lo cambia para todas '
+    + 'las notificaciones a la vez. Esta pantalla nunca le pide un segundo número.',
+  'help.my-profile.notifications.b2.i0.term': 'Aviso de seguridad',
+  'help.my-profile.notifications.b2.i0.text':
+    'Su familia abre un aviso durante una tormenta, una evacuación o una emergencia y '
+    + 'pregunta si usted está a salvo. El correo está activado a menos que lo desactive; el '
+    + 'SMS está desactivado a menos que lo active.',
+  'help.my-profile.notifications.b3':
+    '**El correo está activado por defecto y el SMS no**, y eso es deliberado y no una '
+    + 'incoherencia. Lo que hay que evitar es un aviso que no le llegue a nadie, y su familia '
+    + 'ya tiene su dirección; pero un mensaje de texto tiene que aceptarse antes de que '
+    + 'alguien lo envíe, así que nada relacionado con el SMS queda activado porque usted no '
+    + 'se dio cuenta.',
+  'help.my-profile.notifications.b4':
+    '**Notificación push** dice **Todavía no está disponible** en todas las filas. La '
+    + 'columna está ahí para que vea lo que viene en vez de que le sorprenda más adelante; '
+    + 'hoy nada en el producto envía una.',
+  'help.my-profile.notifications-delivery.heading':
+    'Cuando Activado no significa que vaya a llegar',
+  'help.my-profile.notifications-delivery.b0':
+    'Un interruptor dice lo que usted ha pedido. Si de hecho podemos entregarlo es otra '
+    + 'cuestión, y la pantalla lo dice debajo de la cuadrícula en vez de dejar que '
+    + '**Activado** insinúe más de lo que debería.',
+  'help.my-profile.notifications-delivery.b1.i0':
+    'No hay dirección de correo registrada, o solo una provisional: nada marcado como '
+    + 'activado para Correo puede llegar. Añada una dirección real en **General**.',
+  'help.my-profile.notifications-delivery.b1.i1':
+    'No hay número de móvil registrado: nada marcado como activado para SMS puede llegar.',
+  'help.my-profile.notifications-delivery.b1.i2':
+    'Un número de móvil que todavía no hemos confirmado: le enviamos un código de seis '
+    + 'dígitos antes de mandarle cualquier mensaje.',
+  'help.my-profile.notifications-delivery.b1.i3':
+    'Los mensajes de texto todavía no están activados de nuestro lado. Puede registrar su '
+    + 'elección ahora y empezaremos a usarla en cuanto lo estén.',
+  'help.my-profile.notifications-stopping.heading': 'Detener los mensajes de texto',
+  'help.my-profile.notifications-stopping.b0':
+    'Desactivar la celda de **SMS** los detiene de inmediato, sin nada que confirmar y sin '
+    + 'que se le pregunte por qué. Puede volver a activarla cuando quiera.',
+  'help.my-profile.notifications-stopping.b1':
+    'Responder **STOP** a cualquier mensaje que le enviemos también los detiene, y ese caso '
+    + 'es distinto de una forma que vale la pena conocer. Quien actúa sobre él es su '
+    + 'operadora de móvil y no nosotros, así que no podemos volver a activarlo desde esta '
+    + 'página y tampoco puede nadie de su familia. La celda dice **Detenido** en vez de '
+    + 'ofrecer un interruptor. Si los quiere de vuelta, envíe **START** al número que le '
+    + 'escribió.',
+  'help.my-profile.per-family.heading': 'Un perfil por familia',
+  'help.my-profile.per-family.b0':
+    'Si pertenece a más de una familia, tiene un perfil distinto en cada una. Editar esta '
+    + 'página cambia la familia que está viendo en este momento y nada más, lo cual es '
+    + 'deliberado: la dirección que da a sus suegros no siempre es la que da a sus primos.',
+  'help.my-profile.chapter.heading': 'Su capítulo',
+  'help.my-profile.chapter.b0':
+    'El bloque encabezado con el nombre de su familia tiene un campo que pertenece solo a '
+    + 'esa familia: en qué **Capítulo** está. Aparece solo cuando la familia ha creado '
+    + 'alguno; si no lo ha hecho, el bloque lo dice.',
+  'help.my-profile.chapter.b1':
+    'Decide dos cosas. Los hijos e hijas menores de 18 años que no tienen cuenta propia se '
+    + 'mueven con usted — todos los demás en la familia son personas por su cuenta y '
+    + 'mantienen el capítulo en que están — y puede decidir lo que usted debe, porque una '
+    + 'familia puede vincular las cuotas a una región o a un capítulo. No elegir nada lo deja '
+    + 'bajo **Nacional**: debe las cuotas de toda la familia y ninguna de las locales. Vea '
+    + '[regiones y capítulos](/help/regions-and-chapters#dues).',
+  'help.my-profile.chapter.b2':
+    'Un hijo cuya fecha de nacimiento no se ha registrado no se mueve, porque nada en su '
+    + 'ficha dice que sea menor de 18 años. Añádala en su ficha, o póngale el capítulo desde '
+    + 'Miembros y acceso.',
+  'help.my-profile.password.heading': 'Cambiar su contraseña',
+  'help.my-profile.password.b0.i0': 'Abra **Inicio de sesión y seguridad**.',
+  'help.my-profile.password.b0.i1': 'Escriba su contraseña actual, y después la nueva dos veces.',
+  'help.my-profile.password.b0.i2': 'Si se le envía un código por correo, escríbalo.',
+  'help.my-profile.password.b0.i3':
+    'Guarde. Se cierra la sesión de todos los demás dispositivos conectados como usted.',
+  'help.my-profile.password.b1':
+    'También hay un control **Cerrar sesión en otros dispositivos** por separado, para '
+    + 'cuando simplemente ha dejado la sesión abierta en algún sitio y no quiere cambiar nada '
+    + 'más.',
+  'help.my-profile.photo.heading': 'Su foto',
+  'help.my-profile.photo.b0':
+    'La foto que sube en **General** es la que aparece junto a su nombre en la barra '
+    + 'superior, en el saludo del panel y en cualquier lugar donde la familia lo vea. Sin '
+    + 'ella se muestran sus iniciales.',
+  'help.my-profile.photo.b1.i0': 'Abra **General**.',
+  'help.my-profile.photo.b1.i1': 'Pulse la cámara en el círculo de la parte superior de la página.',
+  'help.my-profile.photo.b1.i2': 'Elija una imagen y confirme.',
+  'help.my-profile.photo.b2':
+    'Un JPEG, PNG o WebP, de hasta 2 MB. Cualquier otra cosa se rechaza con una línea que '
+    + 'dice por qué en vez de fallar en silencio, y una foto nueva reemplaza la anterior.',
+  'help.my-profile.photo.b3':
+    'Su foto es UNA sola foto, compartida por todas las familias a las que pertenece, a '
+    + 'diferencia del resto de esta página, que es por familia. Cualquiera que pueda verlo en '
+    + 'el [Directorio](/community/directory) puede verla, así que es el único campo de aquí '
+    + 'que conviene tratar como público dentro de la familia.',
+  'help.my-profile.photo.b4':
+    'Que se MUESTRE depende del plan de la familia, y eso se decide por familia y no por '
+    + 'cuenta: una familia cuyo plan no incluye fotos de perfil muestra sus iniciales en '
+    + 'todas partes y no ofrece cámara en esta página. Si pertenece a dos familias, es muy '
+    + 'posible que vea su foto en una y sus iniciales en la otra. No se pierde nada en '
+    + 'ninguno de los dos casos: la imagen sigue ahí y aparece en el momento en que el plan '
+    + 'de una familia la incluye.',
+  'help.my-families.title': 'Mis familias',
+  'help.my-families.summary':
+    'Todas las familias a las que pertenece su cuenta, cuál se abre por defecto y cómo '
+    + 'añadir otra.',
+  'help.my-families.reading.heading': 'Leer la lista',
+  'help.my-families.reading.b0':
+    'Cada familia muestra su nombre, su código y su situación en ella. Dos marcas importan:',
+  'help.my-families.reading.b1.i0.term': 'Viendo',
+  'help.my-families.reading.b1.i0.text':
+    'La familia que el resto del producto le está mostrando en este momento.',
+  'help.my-families.reading.b1.i1.term': 'Predeterminada',
+  'help.my-families.reading.b1.i1.text':
+    'La familia que se abre cuando inicia sesión. Pulse **Predeterminada** en cualquier '
+    + 'otra fila para moverla.',
+  'help.my-families.switching.heading': 'Cambiar de familia',
+  'help.my-families.switching.b0':
+    'Use el cambio de familia de la barra superior: hace el mismo trabajo desde todas las '
+    + 'páginas. Cambiar reconstruye la página entera para la familia nueva: lo que estuviera '
+    + 'a medio escribir se descarta en vez de arrastrarse, que es lo que evita que un '
+    + 'formulario rellenado para una familia se guarde en otra.',
+  'help.my-families.adding.heading': 'Añadir otra familia',
+  'help.my-families.adding.b0':
+    '**Unirse a una familia** toma un código familiar y lo pone en la cola de esa familia. '
+    + '**Crear una familia** empieza una nueva con usted como su primer integrante. Ninguna '
+    + 'de las dos altera las familias en las que ya está.',
+  'help.part.dashboard.title': 'El panel',
+  'help.part.dashboard.blurb': 'La pantalla en la que aterriza, y qué le está diciendo cada panel.',
+  'help.the-dashboard.title': 'El panel',
+  'help.the-dashboard.summary':
+    'Su familia de un vistazo: las cifras, lo que hay que hacer y lo que ha pasado '
+    + 'últimamente.',
+  'help.the-dashboard.greeting.heading': 'El saludo',
+  'help.the-dashboard.greeting.b0':
+    'Su nombre, su foto, los cargos que ocupe y su capítulo si su familia los usa.',
+  'help.the-dashboard.reminders.heading': 'Los recordatorios',
+  'help.the-dashboard.reminders.b0':
+    'Debajo del saludo hay hasta dos avisos. Los dos son peticiones y no advertencias, y '
+    + 'ninguno retiene nada.',
+  'help.the-dashboard.reminders.b1.i0.term': 'Complete su perfil',
+  'help.the-dashboard.reminders.b1.i0.text':
+    'Sus familiares lo encuentran en el Directorio, y el suyo está casi vacío. Nombra lo '
+    + 'que falta — un teléfono, dónde vive, su cumpleaños, una foto — y lleva directamente a '
+    + 'Mi perfil. No tiene botón para descartarlo porque desaparece solo: complete la mitad '
+    + 'de lo que pide y deja de aparecer.',
+  'help.the-dashboard.reminders.b1.i1.term': 'Elija su capítulo',
+  'help.the-dashboard.reminders.b1.i1.text':
+    'Solo en una familia que tiene capítulos, y solo mientras usted no esté en ninguno. '
+    + 'Ponerlo aquí es lo mismo que ponerlo en su perfil, y los familiares sin cuenta propia '
+    + 'se mueven con usted.',
+  'help.the-dashboard.reminders.b2':
+    'Ninguno de los dos avisos es visible para nadie más, y nada en ninguna pantalla queda '
+    + 'bloqueado detrás de ellos. Un miembro que no quiera introducir nada tiene derecho a '
+    + 'ello.',
+  'help.the-dashboard.premier-gathering.heading': 'La reunión destacada',
+  'help.the-dashboard.premier-gathering.b0':
+    'Justo debajo del saludo, una banda para la reunión que la familia ha dicho que más '
+    + 'importa: su título, sus fechas, dónde es, cuánto de su trabajo se ha aprobado, y **Ver '
+    + 'detalles** directamente hacia ella. La mayor parte del tiempo no está ahí para nadie: '
+    + 'aparece solo mientras una reunión está destacada y todavía por delante. Vea '
+    + '[Reuniones](/help/gatherings#browsing).',
+  'help.the-dashboard.premier-gathering.b1':
+    'Mientras se muestra, el saludo de encima cambia con ella: su nombre se apoya en la '
+    + 'página en vez de en una banda de color, con la fotografía de la reunión al lado. Quien '
+    + 'organiza la reunión elige esa fotografía, y el árbol de GENORRA hace de sustituto '
+    + 'hasta que lo haga: vea [La banda del panel](/help/gathering-management#premier).',
+  'help.the-dashboard.at-a-glance.heading': 'Un vistazo',
+  'help.the-dashboard.at-a-glance.b0':
+    'El panel es sobre USTED y su situación con la familia. Hasta tres cifras en la parte '
+    + 'superior, y cada una aparece solo si de verdad le corresponde verla:',
+  'help.the-dashboard.at-a-glance.b1.i0.term': 'Integrantes de la familia',
+  'help.the-dashboard.at-a-glance.b1.i0.text':
+    'Cuántas personas aprobadas hay en la familia. Las personas registradas en el árbol sin '
+    + 'cuenta se cuentan: son familia. Las personas que todavía esperan aprobación no.',
+  'help.the-dashboard.at-a-glance.b1.i1.term': 'Pendientes de aprobación',
+  'help.the-dashboard.at-a-glance.b1.i1.text':
+    'Cuántas personas están esperando. Aparece solo cuando alguien lo está de verdad, y '
+    + 'solo para quien puede actuar al respecto.',
+  'help.the-dashboard.at-a-glance.b1.i2.term': 'Próximas reuniones',
+  'help.the-dashboard.at-a-glance.b1.i2.text':
+    'Cuántas reuniones no han terminado todavía. Aparece solo mientras al menos una no lo '
+    + 'ha hecho, y **Ver calendario** debajo lleva al [Calendario](/gatherings/calendar).',
+  'help.the-dashboard.at-a-glance.b2':
+    'Debajo de las cifras, en el mismo panel: **Saldo pendiente** — lo que usted todavía '
+    + 'debe — y **Campañas de donación**, las que la familia tiene abiertas en este momento. '
+    + 'Las dos tienen su propia sección más abajo.',
+  'help.the-dashboard.at-a-glance.b3':
+    '**Recaudado este año** era una cuarta cifra de aquí hasta el 19-08-2026 y ahora es una '
+    + 'tarjeta propia más abajo en la página. Es lo que la FAMILIA ha ingresado y no algo '
+    + 'sobre usted, que es una cifra de tesorería para leer con atención y no para mirar de '
+    + 'paso. Quién puede verla no cambió: sigue siendo quien puede ver los libros.',
+  'help.the-dashboard.quick-actions.heading': 'Acciones rápidas',
+  'help.the-dashboard.quick-actions.b0':
+    'Atajos a las cosas que la gente hace más: añadir un miembro, registrar un pago, enviar '
+    + 'un mensaje. Un botón aparece solo si usted puede hacer lo que nombra, así que un panel '
+    + 'de Acciones rápidas vacío no es una falla.',
+  'help.the-dashboard.quick-actions.b1':
+    '**Dos de los botones no son sobre un permiso en absoluto.** Aparecen cuando hay algo '
+    + 'esperando por usted y se van cuando no: todo lo demás de la fila es un trabajo que '
+    + 'usted PUEDE hacer, y estos son trabajos que se le han pedido.',
+  'help.the-dashboard.quick-actions.b2.i0.term': 'Mis tareas',
+  'help.the-dashboard.quick-actions.b2.i0.text':
+    'Una tarea de una reunión está esperando su respuesta. Lleva directamente a ella. Vea '
+    + 'Mis tareas de la reunión.',
+  'help.the-dashboard.quick-actions.b2.i1.term': 'Nominar / Votar',
+  'help.the-dashboard.quick-actions.b2.i1.text':
+    'Una elección en la que puede participar está abierta en este momento, y el rótulo dice '
+    + 'cuál de las dos cosas quiere. Lleva a esa papeleta y no a la lista, y si hay dos '
+    + 'abiertas a la vez ofrece la que cierra antes.',
+  'help.the-dashboard.quick-actions.b3':
+    'Una elección aparece aquí solo mientras su ventana de nominaciones o de votación está '
+    + 'abierta. Una que todavía no ha abierto, o una que espera entre las dos ventanas, está '
+    + 'en [Elecciones](/community/elections) y no es un trabajo, así que no se ofrece como '
+    + 'tal. Vea [Elecciones](/help/elections#the-dates).',
+  'help.the-dashboard.recent-updates.heading': 'Novedades recientes',
+  'help.the-dashboard.recent-updates.b0':
+    'Sus notificaciones y los anuncios de la familia en una sola lista. Los anuncios '
+    + 'fijados van arriba hasta que usted los oculta; uno oculto vuelve a la lista por orden '
+    + 'de fecha en vez de desaparecer, así que siempre puede encontrarlo de nuevo.',
+  'help.the-dashboard.recent-updates.b1':
+    'Ocultar es por persona y no por navegador: hágalo en su portátil y su teléfono está de '
+    + 'acuerdo.',
+  'help.the-dashboard.recent-updates.b2':
+    '**Ver todas las novedades** al pie de la tarjeta abre [Novedades](/community/updates): '
+    + 'el mismo flujo sin el límite de cinco filas, y con un cuadro de búsqueda. La tarjeta '
+    + 'es el recordatorio; esa página es el registro.',
+  'help.the-dashboard.balance.heading': 'Saldo pendiente',
+  'help.the-dashboard.balance.b0':
+    'Dentro de **Un vistazo**, debajo de las cifras: lo que usted personalmente todavía '
+    + 'debe este año, en todos los programas de cuotas en que está. Es la misma cifra con la '
+    + 'que abre [Resumen](/accounting/summary), y **Ver cuotas** lo lleva al detalle programa '
+    + 'por programa en [Cuotas](/accounting/dues-and-donations).',
+  'help.the-dashboard.donation-drives.heading': 'Campañas de donación',
+  'help.the-dashboard.donation-drives.b0':
+    'También dentro de **Un vistazo**, debajo del saldo: todas las campañas que la familia '
+    + 'tiene abiertas en este momento, con lo que han avanzado hacia su meta y cuánto de eso '
+    + 'vino de usted. Las campañas que han cerrado no están aquí — la barra ya no puede '
+    + 'moverse — pero siguen en [Donaciones](/accounting/dues-and-donations?pane=donations).',
+  'help.the-dashboard.donation-drives.b1':
+    'La que cierra antes va primero, y el panel dice el número si hay más de tres. No '
+    + 'aparece en absoluto cuando no hay ninguna campaña abierta, que es la mayoría de las '
+    + 'familias la mayor parte del tiempo.',
+  'help.the-dashboard.collected.heading': 'Recaudado este año',
+  'help.the-dashboard.collected.b0':
+    'Lo que la familia ha ingresado este año en cuotas y donaciones, con **Ver pagos** '
+    + 'hacia el libro. Era una cifra dentro de **Un vistazo** hasta el 19-08-2026 y ahora es '
+    + 'una tarjeta propia: ese panel es sobre quien lee, y esto es el ingreso de la '
+    + 'organización.',
+  'help.the-dashboard.collected.b1':
+    'Se muestra solo a alguien que puede ver los libros, y para cualquier otra persona está '
+    + 'ausente en vez de vacía: una cifra vacía invita a un miembro a preguntarse qué se le '
+    + 'está ocultando. Una familia que de verdad no ha ingresado nada muestra un cero, que es '
+    + 'otra cosa y es una respuesta real.',
+  'help.the-dashboard.tree-card.heading': 'Árbol familiar',
+  'help.the-dashboard.tree-card.b0':
+    'Cuántas personas hay en el árbol, cuántas generaciones alcanza y cuántas todavía no '
+    + 'están conectadas con nadie. Se muestra incluso cuando el árbol está vacío, porque '
+    + '«nadie lo ha empezado» es lo más útil que puede decir en ese punto.',
+  'help.the-dashboard.banners.heading': 'Bandas',
+  'help.the-dashboard.banners.b0':
+    'Entre el saludo y los paneles, el panel a veces pone algo que usted tiene que hacer, '
+    + 'lo más habitual un aviso para elegir su capítulo. Cada uno desaparece cuando deja de '
+    + 'aplicarse, así que lo normal es que no haya ninguno.',
+  // ──── PARTS 4 and 5 — Reports, and Reference ──────────────────────────────────
+  'help.part.reports.title': 'Informes',
+  'help.part.reports.blurb':
+    'Lo que la familia HACE, leído de vuelta: el trabajo, las elecciones, las juntas y los '
+    + 'cargos.',
+  'help.gatherings-report.title': 'Informe de reuniones',
+  'help.gatherings-report.summary':
+    'Todas las reuniones con cuánto de su trabajo está hecho, qué está atrasado y qué '
+    + 'reclaman sus tareas contra el presupuesto.',
+  'help.gatherings-report.what-it-is.heading': 'Qué responde',
+  'help.gatherings-report.what-it-is.b0':
+    '[Reuniones](/reporting/gatherings) en **Informes** es una fila por reunión: cuántas de '
+    + 'sus tareas están aprobadas, cuántas van tarde, cuántas no tienen a nadie a cargo y — '
+    + 'donde usted puede ver el dinero — cuánto suman sus partidas de tareas frente a lo que '
+    + 'presupuestó.',
+  'help.gatherings-report.what-it-is.b1':
+    'No cambia nada y no crea nada. Cada fila lleva a [Reuniones](/gatherings), donde vive '
+    + 'la cosa en sí.',
+  'help.gatherings-report.what-it-is.b2':
+    '**Las reuniones canceladas se dejan fuera por completo**, tanto de las filas como de '
+    + 'los totales. Sus tareas abiertas no son trabajo que nadie deba, y contarlas dejaría a '
+    + 'una familia que canceló una cosa permanentemente en rojo en todas las cifras de aquí.',
+  'help.gatherings-report.overdue.heading': 'Qué cuenta como atrasado',
+  'help.gatherings-report.overdue.b0':
+    'Una tarea está atrasada cuando **su fecha ha pasado y nadie la ha aprobado**. Eso '
+    + 'incluye una que se ha entregado y sobre la que todavía no se ha decidido: el trabajo '
+    + 'puede muy bien estar hecho, pero sigue pendiente desde el lado de quien organiza, y '
+    + 'este es el informe de quien organiza. Una tarea devuelta también cuenta.',
+  'help.gatherings-report.overdue.b1':
+    '**Una tarea sin fecha límite nunca está atrasada.** No se prometió nada para un día en '
+    + 'concreto, así que no hay ningún día respecto al cual pueda ir tarde.',
+  'help.gatherings-report.money.heading': 'Las columnas de dinero',
+  'help.gatherings-report.money.b0':
+    '**Asignado** es lo que reclaman las partidas de tareas de la reunión, mostrado frente '
+    + 'a lo que la reunión reservó. Se marca cuando las partidas reclaman más que el '
+    + 'presupuesto, que es un plan por corregir y no un error, así que no se muestra en rojo.',
+  'help.gatherings-report.money.b1':
+    'Las dos cifras de dinero aparecen solo si su familia tiene un plan que incluye la '
+    + 'banda de presupuesto de la reunión y a usted se le ha otorgado. Sin una de las dos '
+    + 'cosas, las columnas simplemente no están: una columna de guiones sería afirmar que la '
+    + 'familia no presupuestó nada.',
+  'help.elections-report.title': 'Informe de elecciones',
+  'help.elections-report.summary':
+    'Participación por elección, cuántas personas se presentaron y para qué cargos nadie '
+    + 'propuso un nombre.',
+  'help.elections-report.what-it-is.heading': 'Qué responde',
+  'help.elections-report.what-it-is.b0':
+    '[Elecciones](/reporting/elections) en **Informes** es una fila por elección publicada: '
+    + 'qué ámbito cubre, en qué fase está, cuántas nominaciones atrajo y cuántas se '
+    + 'aceptaron, y cuál fue la participación.',
+  'help.elections-report.what-it-is.b1':
+    '**Los borradores no se cuentan.** Un borrador no tiene fechas, ni papeleta, ni '
+    + 'electorado, así que una fila con 0 % de participación para uno sería un informe sobre '
+    + 'una elección de la que nadie ha sido informado.',
+  'help.elections-report.turnout.heading': 'Cómo se calcula la participación',
+  'help.elections-report.turnout.b0':
+    '**La participación cuenta personas, no papeletas.** Alguien que vota para tres cargos '
+    + 'en una elección es un votante. La mitad de abajo de la cifra es quién podría haber '
+    + 'votado: todos los miembros aprobados en una elección nacional, los miembros de un '
+    + 'capítulo en una elección de capítulo, y los miembros de todos los capítulos de una '
+    + 'región en una regional — la misma regla que decide quién ve la elección en primer '
+    + 'lugar.',
+  'help.elections-report.turnout.b1':
+    'Una elección cuyo ámbito no tiene miembros aprobados dice **n/d** en vez de 0 %. Nadie '
+    + 'podría haber votado en ella, y 0 % se leería como una elección que todos ignoraron.',
+  'help.elections-report.unopposed.heading': 'Cargos para los que nadie se presentó',
+  'help.elections-report.unopposed.b0':
+    'Un cargo sin ninguna nominación **aceptada** no tiene nada en la papeleta. Una '
+    + 'nominación que la persona nominada no ha aceptado no cuenta: no pone ningún nombre '
+    + 'delante de nadie.',
+  'help.elections-report.unopposed.b1':
+    'Esta es la cifra sobre la que vale la pena actuar antes de que cierre la ventana de '
+    + 'nominaciones, y por eso es una de las cuatro de la parte superior de la página.',
+  'help.meetings-report.title': 'Informe de juntas',
+  'help.meetings-report.summary':
+    'Con qué frecuencia se reúne la familia, cuánta gente había en cada sala y quién '
+    + 'responde cuando se convoca una votación.',
+  'help.meetings-report.what-it-is.heading': 'Qué responde',
+  'help.meetings-report.what-it-is.b0':
+    '[Juntas](/reporting/meetings) en **Informes** tiene dos tablas. La primera es una fila '
+    + 'por junta: su fecha, quién tomó el acta, cuántas personas había en la sala, cuántos '
+    + 'temas trató y cuántos votos se emitieron. La segunda es una fila por familiar: a '
+    + 'cuántas juntas se le convocó, en cuántas votó y de cuántas levantó el acta.',
+  'help.meetings-report.what-it-is.b1':
+    'Cada fila de junta lleva a [Actas](/library/meeting-minutes), que es donde vive el '
+    + 'registro en sí.',
+  'help.meetings-report.not-attendance.heading': 'Por qué nada aquí dice «asistencia»',
+  'help.meetings-report.not-attendance.b0':
+    '**Nada en GENORRA registra quién se presentó de hecho.** No hay registro de entrada. '
+    + 'Así que esto informa de las dos cosas que puede contar, y ninguna de las dos es la '
+    + 'asistencia:',
+  'help.meetings-report.not-attendance.b1.i0.term': 'Convocados',
+  'help.meetings-report.not-attendance.b1.i0.text':
+    'La lista de asistentes: a quién se invitó cuando se programó la junta.',
+  'help.meetings-report.not-attendance.b1.i1.term': 'Votaron en',
+  'help.meetings-report.not-attendance.b1.i1.text':
+    'En cuántas de esas juntas la persona respondió a una votación. Es la única prueba '
+    + 'positiva de que alguien estuvo en la sala, y es un mínimo y no un recuento: una junta '
+    + 'tranquila en la que no se convocó ninguna votación no produce nada de esto.',
+  'help.meetings-report.not-attendance.b2':
+    'Promediar las dos para obtener una tasa de asistencia sería una cifra que ninguna fila '
+    + 'de la base de datos respalda, y es exactamente el tipo de número que se cita en una '
+    + 'junta un año después.',
+  'help.meetings-report.minuted.heading': 'Actas levantadas frente a juntas celebradas',
+  'help.meetings-report.minuted.b0':
+    '**Actas** cuenta las juntas que alguien ha cerrado. Cerrar es lo que convierte una '
+    + 'junta en un registro — no más temas, no más notas, no más votos — así que la '
+    + 'diferencia entre las dos cifras es el atraso de la familia en juntas que nadie ha dado '
+    + 'por cerradas.',
+  'help.board-report.title': 'Informe de directiva y cargos',
+  'help.board-report.summary':
+    'Todos los cargos que la familia ha definido, quién los ocupa y cuáles están vacantes.',
+  'help.board-report.what-it-is.heading': 'Qué responde',
+  'help.board-report.what-it-is.b0':
+    '[Directiva y cargos](/reporting/board) en **Informes** enumera todos los cargos de la '
+    + 'directiva que la familia ha definido, en el orden de la propia familia, con quien los '
+    + 'ocupe — y, donde no los ocupa nadie, la palabra **Vacante**.',
+  'help.board-report.what-it-is.b1':
+    'No cambia nada. Definir un cargo y otorgarlo es **Miembros → Organización**, que es '
+    + 'un permiso aparte.',
+  'help.board-report.what-it-is.b2':
+    'Esa separación es el motivo de que esta pantalla exista: se le puede mostrar a un '
+    + 'comité de nominaciones dónde están los huecos sin darle el poder de cambiar la lista.',
+  'help.board-report.vacancies.heading': 'Las vacantes son el hallazgo',
+  'help.board-report.vacancies.b0':
+    '**Todos los cargos son una fila, incluidos los vacíos**, y **Vacante** es una de las '
+    + 'cuatro cifras de la parte superior. Un informe que enumerara solo los cargos ocupados '
+    + 'no podría enunciar su dato más útil.',
+  'help.board-report.vacancies.b1':
+    'Las filas se mantienen en el orden de la propia familia en vez de poner las vacantes '
+    + 'primero, para que esto se pueda leer al lado de la lista de **Integrantes → '
+    + 'Organización**. El color es lo que hace que un hueco se pueda encontrar.',
+  'help.board-report.two-hats.heading': 'Ocupar más de un cargo',
+  'help.board-report.two-hats.b0':
+    'Aparece una sección cuando alguien ocupa dos o más. Eso no es un problema en sí — un '
+    + 'capítulo pequeño a menudo tiene a una persona haciendo dos trabajos — pero suele ser '
+    + 'la señal de un hueco que alguien ha cubierto en silencio, y eso vale la pena saberlo '
+    + 'antes de la próxima elección.',
+  'help.board-report.two-hats.b1':
+    'Un cargo ocupado para una región o un capítulo en concreto dice cuál al lado del '
+    + 'nombre. El mismo título en dos niveles son dos cargos distintos: un presidente '
+    + 'nacional y un presidente de capítulo son filas separadas.',
+  'help.part.reference.title': 'Referencia',
+  'help.part.reference.blurb':
+    'Las dos cosas que explican la mayoría de las preguntas que hace la gente.',
+  'help.who-can-do-what.title': 'Quién puede hacer qué',
+  'help.who-can-do-what.summary':
+    'Cómo se deciden los permisos, y por qué una página de la que ha oído hablar no está en '
+    + 'su menú lateral.',
+  'help.who-can-do-what.one-template.heading': 'Una plantilla por integrante',
+  'help.who-can-do-what.one-template.b0':
+    'Todo lo que usted puede hacer viene de la única plantilla de permisos en la que está. '
+    + 'No hay nada más que comprobar ni nada que sumar: si no está en su plantilla, usted no '
+    + 'lo tiene.',
+  'help.who-can-do-what.one-template.b1':
+    'Los administradores de su familia deciden las plantillas y quién está en cuál, desde '
+    + '[Miembros](/admin/members).',
+  'help.who-can-do-what.actions.heading': 'Cuatro acciones, tres alcances',
+  'help.who-can-do-what.actions.b0':
+    'Todas las funciones se otorgan de cuatro formas — **ver**, **crear**, **editar** y '
+    + '**eliminar** — y cada una se fija en uno de tres alcances.',
+  'help.who-can-do-what.actions.b1.i0.term': 'Ninguno',
+  'help.who-can-do-what.actions.b1.i0.text': 'Nada en absoluto.',
+  'help.who-can-do-what.actions.b1.i1.term': 'Propios',
+  'help.who-can-do-what.actions.b1.i1.text': 'Solo sus propios registros. Sus anuncios, sus pagos.',
+  'help.who-can-do-what.actions.b1.i2.term': 'Cualquiera',
+  'help.who-can-do-what.actions.b1.i2.text': 'Los de cualquier persona, en toda la familia.',
+  'help.who-can-do-what.actions.b2':
+    'La distinción es lo que permite a una familia decir «puede eliminar sus propias '
+    + 'publicaciones pero no las de los demás», que es un arreglo común y sensato.',
+  'help.who-can-do-what.self-service.heading': 'Las cosas que nadie tiene que otorgar',
+  'help.who-can-do-what.self-service.b0':
+    'Algunas cosas son suyas por ser integrante y no necesitan ningún permiso: enviar un '
+    + 'mensaje de chat, confirmar asistencia, editar su propio perfil, elegir su propia '
+    + 'periodicidad de cuotas. Exigir permiso para eso significaría que una familia podría '
+    + 'dejarse fuera de su propio chat sin querer.',
+  'help.who-can-do-what.missing.heading': 'Por qué falta una página',
+  'help.who-can-do-what.missing.b0':
+    'El menú lateral solo enumera lo que usted puede abrir, y hay tres motivos distintos '
+    + 'por los que algo puede no estar ahí:',
+  'help.who-can-do-what.missing.b1.i0':
+    'Su plantilla no le otorga **ver** en ella. Pídalo a un administrador.',
+  'help.who-can-do-what.missing.b1.i1':
+    'No forma parte del plan de su familia: abrirla directamente muestra la pantalla de '
+    + 'mejora en vez de ocultarla. Vea [Planes](/help/plans).',
+  'help.who-can-do-what.missing.b1.i2':
+    'Todavía no está disponible. Abrirla directamente dice Muy pronto.',
+  'help.who-can-do-what.missing.b2':
+    'Los mismos tres motivos deciden una PESTAÑA. Varias pantallas son un menú de paneles — '
+    + 'Integrantes, Contabilidad, Anuncios, Transacciones — y cada panel se otorga por su '
+    + 'cuenta, así que una pestaña que no está en el menú es una que no le han dado y no una '
+    + 'que se haya ido. Una pantalla en la que usted no tiene ninguno de sus paneles no está '
+    + 'en el menú lateral en absoluto.',
+  'help.who-can-do-what.missing.b3':
+    'Escribir la dirección de una página que no le han otorgado da un simple «no '
+    + 'encontrado». Eso es deliberado: una página restringida no debería confirmar que '
+    + 'existe.',
+  'help.plans.title': 'Planes',
+  'help.plans.summary': 'Qué incluye cada plan, y qué pasa en el límite.',
+  'help.plans.plans.heading': 'Los planes',
+  'help.plans.plans.b0':
+    'Gratis, Estándar, Plus y Premium, y son inclusivos: cada uno es todo lo que está por '
+    + 'debajo y más. Lo que incluye cada uno está en la sección **Plan** de '
+    + '[Configuración](/admin/settings), que es el texto que se mantiene al día.',
+  'help.plans.plans.b1':
+    'Cada plan de pago muestra ahí un precio, por mes, mes a mes. Aquí no se escribe '
+    + 'ninguna cifra: el panel lee la real, y un precio copiado en un manual es un precio que '
+    + 'queda desactualizado sin que nadie lo note.',
+  'help.plans.plans.b2':
+    'Gratis es gratis, y no es una prueba. Estándar y Plus se pueden comprar; Premium tiene '
+    + 'un precio y todavía no está a la venta, y su fila está marcada como **Muy pronto**. '
+    + 'Nunca se cobra nada por un plan que una familia no ha pagado.',
+  'help.plans.paying.heading': 'Pagar un plan',
+  'help.plans.paying.b0':
+    'Los planes de pago se configuran en la sección **Facturación** de '
+    + '[Configuración](/admin/settings), debajo de los planes mismos, y solo alguien con el '
+    + 'permiso de Configuración puede abrirla. Hay dos formas de pagar: **mensual**, que se '
+    + 'renueva el día 1, o **por adelantado**, que compra un número fijo de meses de una vez '
+    + 'y no renueva nada.',
+  'help.plans.paying.b1':
+    'El pago lo cobra Stripe en sus propias páginas. Ningún dato de tarjeta se escribe en '
+    + 'GENORRA y ninguno se guarda aquí. La sección **Plan** de arriba no puede subir a una '
+    + 'familia por su cuenta: una mejora es un pago, así que esas filas apuntan a '
+    + 'Facturación.',
+  'help.plans.paying.b2':
+    'Pasar a un plan más barato es gratis y no pasa por Facturación. Un plan mensual '
+    + 'también se puede detener, lo que lo deja correr hasta el final del mes ya pagado en '
+    + 'vez de terminarlo ese mismo día.',
+  'help.plans.paying.b3':
+    'Un plan solo cambia cuando el pago de hecho ha pasado, que es Stripe diciéndonoslo y '
+    + 'no el navegador volviendo. Si cierra la pestaña a mitad del pago, no se pierde nada: '
+    + 'el plan cambia cuando cambia el dinero, y la sección Facturación muestra lo que se ha '
+    + 'pagado.',
+  'help.plans.chosen-at-signup.heading': 'Un plan elegido al crear la familia',
+  'help.plans.chosen-at-signup.b0':
+    'Elegir Estándar o Plus en la página de precios, o en el formulario de registro, no lo '
+    + 'paga: todavía no hay familia a la que facturar ni cuenta a la que cobrar. En su lugar, '
+    + 'la elección queda registrada para la familia.',
+  'help.plans.chosen-at-signup.b1':
+    'Una vez confirmada la dirección de correo y con quien creó la familia dentro, el panel '
+    + 'abre con **Terminar de pagar** ese plan, por encima de todo lo demás que tenga que '
+    + 'decir. Lleva dos botones.',
+  'help.plans.chosen-at-signup.b2.i0.term': 'Pagar ahora',
+  'help.plans.chosen-at-signup.b2.i0.text':
+    'Lo lleva directamente a Stripe para pagar mensualmente, empezando por lo que queda de '
+    + 'este mes. No hay ninguna pantalla aparte que haya que encontrar primero.',
+  'help.plans.chosen-at-signup.b2.i1.term': 'Cancelar',
+  'help.plans.chosen-at-signup.b2.i1.text':
+    'Abandona el plan que la familia pidió y la deja en Gratis. No cancela nada en Stripe y '
+    + 'no compra nada: todos los planes siguen a la venta en Configuración después.',
+  'help.plans.chosen-at-signup.b3':
+    'Un enlace debajo de los botones lleva a la sección Facturación, que es donde se pueden '
+    + 'comprar meses por adelantado. Hasta que un pago pase, la familia está en Gratis y no '
+    + 'se ha cobrado nada.',
+  'help.plans.boundary.heading': 'Dos muros distintos',
+  'help.plans.boundary.b0.i0.term': 'Muy pronto',
+  'help.plans.boundary.b0.i0.text':
+    'La función todavía no se ha construido. Nadie la tiene, en ningún plan.',
+  'help.plans.boundary.b0.i1.term': 'Mejorar el plan',
+  'help.plans.boundary.b0.i1.text':
+    'La función está construida y funcionando, y el plan de su familia no la incluye.',
+  'help.plans.boundary.b1':
+    'Se muestran por separado a propósito. Decirle a una familia que paga que una función '
+    + 'terminada está «muy pronto» sería falso, y decirle a una familia gratuita que espere '
+    + 'algo que podría tener esta tarde sería peor.',
+  'help.plans.data.heading': 'Cambiar de plan nunca elimina datos',
+  'help.plans.data.b0':
+    'Un plan decide qué pantallas puede abrir una familia, y nada más. Una familia que pasa '
+    + 'a un plan más barato conserva todos los registros que haya introducido: las páginas '
+    + 'que los leen simplemente dejan de abrirse. Volver los trae de vuelta de inmediato.',
+  'help.troubleshooting.title': 'Si algo parece estar mal',
+  'help.troubleshooting.summary':
+    'Las pocas cosas que sorprenden a la gente, y qué está pasando de verdad.',
+  'help.troubleshooting.cannot-sign-in.heading': 'No puedo iniciar sesión de ninguna manera',
+  'help.troubleshooting.cannot-sign-in.b0':
+    'Si la página de inicio de sesión responde que su dirección de correo no está '
+    + 'confirmada, la cuenta existe y su contraseña era correcta: está esperando el enlace '
+    + 'que se envió cuando se registró. Pulse **Enviar el enlace de nuevo** en el panel '
+    + 'debajo del formulario, y abra el mensaje más nuevo. Cada enlace funciona una vez y '
+    + 'vence al cabo de una hora, así que un correo más antiguo del mismo hilo no lo dejará '
+    + 'entrar.',
+  'help.troubleshooting.cannot-sign-in.b1':
+    'Nada nos dice si ese correo llegó, así que el panel dice qué pidió en vez de afirmar '
+    + 'que se entregó. Mire la carpeta de correo no deseado, y si no llega nada en absoluto, '
+    + 'puede que la dirección no sea la que se usó al registrar la cuenta: vea [Confirmar su '
+    + 'dirección de correo](/help/joining-a-family#confirm-your-email).',
+  'help.troubleshooting.cannot-sign-in.b2':
+    'Una contraseña equivocada responde de otra forma, y también una dirección sin cuenta: '
+    + 'las dos dicen que las credenciales no son válidas en vez de nombrar la confirmación. '
+    + 'Si eso es lo que ve, pida un enlace de restablecimiento desde la página de inicio de '
+    + 'sesión.',
+  'help.troubleshooting.missing-page.heading':
+    'Una página de la que me hablaron no está en mi menú lateral',
+  'help.troubleshooting.missing-page.b0':
+    'Tres motivos posibles, y [Por qué falta una página](/help/who-can-do-what#missing) los '
+    + 'separa. El más común de lejos es que su plantilla no lo otorga.',
+  'help.troubleshooting.wrong-family.heading': 'Estoy viendo la familia equivocada',
+  'help.troubleshooting.wrong-family.b0':
+    'Compruebe el cambio de familia de la barra superior. Si aterriza habitualmente en la '
+    + 'equivocada, ponga la otra como **Predeterminada** en [Mis familias](/my-families): esa '
+    + 'es la familia que se abre cuando inicia sesión.',
+  'help.troubleshooting.signed-out.heading': 'Me cierra la sesión constantemente',
+  'help.troubleshooting.signed-out.b0':
+    'Sesenta minutos sin escribir ni pulsar nada le cierran la sesión en ese dispositivo. '
+    + 'Es un cierre de sesión real y no una pantalla de bloqueo, así que volver a entrar es '
+    + 'todo el arreglo. Si pasa mientras usted está trabajando de verdad, puede que la '
+    + 'pestaña se haya quedado en una pantalla que no recibe nada escrito: el temporizador '
+    + 'cuenta teclas y clics, no que la página esté abierta.',
+  'help.troubleshooting.signed-out.b1':
+    '**En un teléfono, reabrir la aplicación después de un rato lo deja en la página de '
+    + 'inicio de sesión sin ningún aviso previo.** Es esa misma hora, medida de la única '
+    + 'forma en que se puede: un teléfono cierra la página en segundo plano, así que no había '
+    + 'nada corriendo para avisarle y la comprobación se hace cuando usted vuelve. Volver a '
+    + 'entrar retoma donde estaba.',
+  'help.troubleshooting.empty-list.heading': 'Una lista dice que aquí no hay nada',
+  'help.troubleshooting.empty-list.b0':
+    'Normalmente de verdad no hay nada. Dos cosas que conviene comprobar primero: si está '
+    + 'en la familia correcta, y si el panel en el que está se limita a sus propios registros '
+    + 'en vez de a los de la familia — un permiso de **ver** otorgado con alcance *propios* '
+    + 'le muestra sus filas y las de nadie más, lo cual es correcto y puede parecer vacío.',
+  'help.troubleshooting.tree-empty.heading': 'El árbol se abre en otra persona',
+  'help.troubleshooting.tree-empty.b0':
+    'Eso pasa cuando usted no tiene padres ni hijos registrados: el árbol se abre en el '
+    + 'familiar al que está unido en vez de en una página vacía, y lo dice. **Centrar en mí** '
+    + 'lo devuelve, y añadir un padre o un hijo hace que se abra en usted a partir de '
+    + 'entonces.',
+  'help.troubleshooting.approved-nothing.heading': 'Me aprobaron pero no cambió nada',
+  'help.troubleshooting.approved-nothing.b0':
+    'Debería cambiar por su cuenta en menos de un minuto, o en cuanto usted vuelva a la '
+    + 'pestaña: la página lo comprueba en vez de hacerle iniciar sesión otra vez. Si no lo ha '
+    + 'hecho, recargar la página lo resolverá.',
+  'help.troubleshooting.what-is-this-screen.heading': 'No entiendo para qué sirve una pantalla',
+  'help.troubleshooting.what-is-this-screen.b0':
+    'Todas las pantallas que tienen un capítulo llevan un signo de interrogación arriba a '
+    + 'la derecha, junto a la campana, y va directamente a ese capítulo. Algunas pantallas '
+    + 'llevan además un signo de interrogación al lado de un control en concreto — el '
+    + 'interruptor de Linaje en el [Árbol familiar](/community/family-tree), el plan en '
+    + '[Configuración](/admin/settings) — y ese va al párrafo sobre ese control y no al '
+    + 'comienzo del capítulo.',
+  'help.troubleshooting.what-is-this-screen.b1':
+    'Si el signo de interrogación no está ahí, ningún capítulo documenta esa pantalla '
+    + 'todavía. [La página de contenidos](/help) enumera todo lo que cubre el manual.',
+  // ──── PART 6 — Administration (Members, Organization) ─────────────────────────
+  'help.part.admin.title': 'Administración',
+  'help.part.admin.blurb':
+    'Los ajustes que gobiernan la familia: quién está dentro, qué forma tiene y qué paga.',
+  'help.members-and-access.title': 'Miembros',
+  'help.members-and-access.summary':
+    'La lista de integrantes, la cola de aprobaciones, las invitaciones y las plantillas de '
+    + 'permisos que están detrás.',
+  'help.members-and-access.tabs.heading': 'Cuatro pestañas, cuatro trabajos',
+  'help.members-and-access.tabs.b0.i0.term': 'Miembros',
+  'help.members-and-access.tabs.b0.i0.text':
+    'Todas las personas de la familia, en qué plantilla de permisos está cada una y qué '
+    + 'cargo de la directiva ocupa. Cuatro columnas — Nombre, Cargo, Capítulo y Grupo — con '
+    + 'todo lo demás sobre una persona detrás de su nombre, exactamente como en el '
+    + '[Directorio](/help/directory#columns).',
+  'help.members-and-access.tabs.b0.i1.term': 'Organización',
+  'help.members-and-access.tabs.b0.i1.text':
+    'Qué forma tiene la familia: sus regiones y capítulos, y los cargos de la directiva que '
+    + 'mantiene. Va en segundo lugar porque las regiones y los capítulos son aquello contra '
+    + 'lo que se leen las columnas Región y Capítulo de la tabla de Miembros. La cubren dos '
+    + 'capítulos: [Organización](/help/regions-and-chapters) y [Cargos de la '
+    + 'directiva](/help/board-positions).',
+  'help.members-and-access.tabs.b0.i2.term': 'Aprobaciones pendientes',
+  'help.members-and-access.tabs.b0.i2.text':
+    'Las personas que piden unirse, y las invitaciones que usted ha enviado.',
+  'help.members-and-access.tabs.b0.i3.term': 'Plantillas de permisos',
+  'help.members-and-access.tabs.b0.i3.text': 'Las plantillas en sí, y lo que otorga cada una.',
+  'help.members-and-access.tabs.b1':
+    'Las cuatro se otorgan por separado y la página se abre con cualquiera de ellas: '
+    + 'alguien puede trabajar la cola de aprobaciones sin poder editar plantillas, y alguien '
+    + 'puede mantener en orden los capítulos de la familia sin poder ver la lista de '
+    + 'integrantes en absoluto.',
+  'help.members-and-access.approving.heading': 'Admitir a alguien',
+  'help.members-and-access.approving.b0.i0': 'Abra **Aprobaciones pendientes**.',
+  'help.members-and-access.approving.b0.i1':
+    'Lea la solicitud: el perfil de la persona es aquello por lo que la está reconociendo.',
+  'help.members-and-access.approving.b0.i2': 'Apruebe, o rechace con un motivo.',
+  'help.members-and-access.approving.b1':
+    'Un integrante aprobado obtiene el producto completo de inmediato; su menú lateral se '
+    + 'rellena solo sin que tenga que volver a iniciar sesión. A un solicitante rechazado se '
+    + 'le avisa, y puede apelar una vez.',
+  'help.members-and-access.inviting.heading': 'Invitar a alguien',
+  'help.members-and-access.inviting.b0':
+    '**Invitar** envía un enlace a una sola dirección de correo. Una invitación puede '
+    + 'preaprobar, lo que deja entrar a la persona directamente cuando la acepta: es la '
+    + 'diferencia entre una invitación y repartir el código familiar.',
+  'help.members-and-access.inviting.b1':
+    'Las invitaciones se pueden reenviar y revocar desde la misma pestaña. Si el correo en '
+    + 'sí no se llega a enviar, se le avisa y se le da el enlace para que lo pase usted '
+    + 'mismo, en vez de mostrarle un éxito sobre un mensaje que nunca salió.',
+  'help.members-and-access.templates.heading': 'Plantillas de permisos',
+  'help.members-and-access.templates.b0':
+    'Cada integrante está en exactamente una plantilla, y esa plantilla es todo lo que '
+    + 'puede hacer. No hay una segunda capa: no hay grupos que unir ni excepciones por '
+    + 'persona que conciliar.',
+  'help.members-and-access.templates.b1.i0':
+    'Abra **Plantillas de permisos** y cree una, opcionalmente partiendo de una copia de '
+    + 'una plantilla existente.',
+  'help.members-and-access.templates.b1.i1':
+    'Encuentre la función que quiere cambiar. Cada una es una fila que dice lo que otorga '
+    + 'hoy: «Ver todo», «Editar propios» o **Nada**.',
+  'help.members-and-access.templates.b1.i2':
+    'Pulse la fila para abrirla. Sus permisos de **ver**, **crear**, **editar** y '
+    + '**eliminar** aparecen debajo, y solo los que significan algo para esa función.',
+  'help.members-and-access.templates.b1.i3':
+    'Fije cada uno en **Todos**, **Propios** o **—**. El cambio se confirma y luego se '
+    + 'aplica de inmediato.',
+  'help.members-and-access.templates.b1.i4':
+    'Ponga gente en ella desde el menú de la fila en la pestaña **Miembros**.',
+  'help.members-and-access.templates.b2':
+    'Solo hay una función abierta a la vez, así que abrir otra cierra la anterior. Eso es '
+    + 'deliberado: cuarenta funciones por cuatro ajustes es un muro de interruptores, y un '
+    + 'administrador viene aquí a cambiar uno de ellos.',
+  'help.members-and-access.templates.b3':
+    'Una fila cerrada sigue siendo la respuesta. Dice lo que la plantilla otorga para esa '
+    + 'función, así que leer una plantilla entera es leer la lista hacia abajo y no abrir '
+    + 'todas las filas; y **Nada** se escribe en vez de dejarse en blanco, porque una fila en '
+    + 'blanco se lee como una que no se llegó a cargar.',
+  'help.members-and-access.templates.b4':
+    'Cambiar una plantilla la cambia para todas las personas que están en ella, de '
+    + 'inmediato.',
+  'help.members-and-access.editing-a-profile.heading': 'Corregir el perfil de alguien',
+  'help.members-and-access.editing-a-profile.b0':
+    'Pulse el nombre de un integrante en la pestaña **Miembros** para ver su ficha '
+    + 'completa, y después **Editar perfil** para cambiarla; o vaya directamente allí con '
+    + '**Editar perfil** en **Perfil**, dentro del menú al final de su fila. El formulario '
+    + 'son las mismas tres secciones que un integrante ve en su propio [Mi '
+    + 'perfil](/personal-info) — General, Dirección e Información adicional — así que un '
+    + 'apellido mal escrito o una dirección que ha cambiado se puede arreglar mientras lo '
+    + 'tiene al teléfono.',
+  'help.members-and-access.editing-a-profile.b1':
+    'Dos cosas no se pueden editar aquí a propósito, y las dos son suyas y no de usted:',
+  'help.members-and-access.editing-a-profile.b2.i0.term': 'Su dirección de correo',
+  'help.members-and-access.editing-a-profile.b2.i0.text':
+    'Se muestra, y es de solo lectura. Es con lo que inicia sesión, así que solo esa '
+    + 'persona puede cambiarla, desde Inicio de sesión y seguridad en su propio perfil. Para '
+    + 'un familiar que todavía no se ha registrado es una dirección provisional generada, y '
+    + 'pasa a ser una dirección real cuando acepta una invitación.',
+  'help.members-and-access.editing-a-profile.b2.i1.term': 'Su contraseña',
+  'help.members-and-access.editing-a-profile.b2.i1.text':
+    'Nadie puede verla ni fijarla, usted incluido. **Enviar un restablecimiento de '
+    + 'contraseña** le envía un enlace por correo y esa persona elige la nueva; su contraseña '
+    + 'actual sigue funcionando hasta que lo use.',
+  'help.members-and-access.editing-a-profile.b3':
+    'A un integrante no se le avisa de que usted cambió su perfil, así que dígaselo. El '
+    + '**Capítulo** al que pertenece tampoco está aquí: los integrantes lo fijan ellos '
+    + 'mismos, y la pestaña [Organización](/help/regions-and-chapters) es la que decide qué '
+    + 'capítulos existen.',
+  'help.members-and-access.editing-a-profile.b4':
+    'Esto necesita **editar** en Miembros. Alguien que solo puede ver la lista de '
+    + 'integrantes ve la ficha y ningún botón de Editar.',
+  'help.members-and-access.disabling.heading': 'Desactivar a un integrante',
+  'help.members-and-access.disabling.b0':
+    '**Desactivar integrante**, desde el menú de la fila en la pestaña **Miembros**, es la '
+    + 'alternativa a quitar a alguien. Conserva su ficha y su historial y pierde el acceso: '
+    + 'es la jugada correcta para una persona que ya no debería iniciar sesión pero cuyos '
+    + 'pagos y cuyo lugar en el árbol forman parte del registro de la familia. **Activar '
+    + 'integrante** la devuelve.',
+  'help.regions-and-chapters.title': 'Organización',
+  'help.regions-and-chapters.summary':
+    'Dividir una familia grande en regiones y capítulos, en la pestaña Organización de '
+    + 'Miembros, y qué decide el capítulo de un integrante.',
+  'help.regions-and-chapters.what-it-is.heading': 'Dos niveles, y Nacional',
+  'help.regions-and-chapters.what-it-is.b0':
+    '**Organización** es la cuarta pestaña de [Miembros](/admin/members?tab=organization), '
+    + 'y es cómo se organiza una familia que está repartida. Un **capítulo** es donde un '
+    + 'integrante pertenece de verdad — Houston, Atlanta — y una **región** es un grupo de '
+    + 'capítulos, como Texas o el Este. Una familia puede funcionar solo con capítulos, con '
+    + 'los dos, o con ninguno.',
+  'help.regions-and-chapters.what-it-is.b1':
+    'La pestaña tiene dos mitades. Este capítulo es la de arriba, la geografía; la de abajo '
+    + 'son los cargos de la familia y tiene su propio capítulo, [Cargos de la '
+    + 'directiva](/help/board-positions). Se otorgan por separado, así que a alguien se le '
+    + 'puede dar una mitad y no la otra: una pestaña que muestra solo una de las dos no es '
+    + 'una falla.',
+  'help.regions-and-chapters.what-it-is.b2':
+    'Antes era una pantalla propia en el menú lateral y ahora es una pestaña, porque quién '
+    + 'está en la familia y cómo se divide la familia son un solo trabajo. Un enlace o un '
+    + 'marcador que apunte a la dirección antigua sigue aterrizando aquí.',
+  'help.regions-and-chapters.what-it-is.b3':
+    '**Nacional** es la tercera cosa de la pantalla y no es una región que usted cree. Es '
+    + 'aquello a lo que todo pertenece hasta que lo archiva en otro sitio: un capítulo sin '
+    + 'región está bajo Nacional, y también lo está cualquier integrante que no haya elegido '
+    + 'un capítulo. No se puede renombrar, eliminar ni desactivar, y todas las familias lo '
+    + 'tienen.',
+  'help.regions-and-chapters.what-it-is.b4':
+    'Los integrantes eligen su propio capítulo, en [Mi perfil](/personal-info). A nadie se '
+    + 'le asigna uno desde aquí: esta pestaña decide qué capítulos EXISTEN.',
+  'help.regions-and-chapters.adding.heading': 'Añadir y mover',
+  'help.regions-and-chapters.adding.b0.i0':
+    'Escriba un nombre bajo **Añadir una región** y pulse **Añadir región**. «Nacional» se '
+    + 'rechaza, porque ya existe.',
+  'help.regions-and-chapters.adding.b0.i1':
+    'Escriba un nombre bajo **Añadir un capítulo**, elija **En la región** — o déjelo en '
+    + 'Nacional — y pulse **Añadir capítulo**.',
+  'help.regions-and-chapters.adding.b0.i2':
+    'Para mover un capítulo más tarde, cambie la celda **Región** de su fila. Se guarda de '
+    + 'inmediato.',
+  'help.regions-and-chapters.adding.b1':
+    'Mover un capítulo de una región a otra cambia quién debe una cuota regional, en el '
+    + 'momento. Eso es intencionado: los integrantes de verdad están ahora en la región '
+    + 'nueva, así que las cuotas de la región nueva son de verdad suyas.',
+  'help.regions-and-chapters.deleting.heading': 'Eliminar una, y cuándo no se puede',
+  'help.regions-and-chapters.deleting.b0':
+    'Eliminar una región mueve sus capítulos a Nacional. La membresía de nadie cambia y no '
+    + 'se toca ningún registro; la confirmación dice cuántos capítulos se moverán.',
+  'help.regions-and-chapters.deleting.b1':
+    'Un capítulo o una región no se puede eliminar mientras algo siga apuntando a él. El '
+    + 'botón Eliminar de la fila no está disponible y dice qué lo impide: integrantes en el '
+    + 'capítulo, un programa de cuotas limitado a él, un anuncio dirigido a él, o un cargo de '
+    + 'la directiva ocupado ahí.',
+  'help.regions-and-chapters.deleting.b2':
+    'Eso es un rechazo y no un ordenamiento hecho de su parte, y a propósito: el capítulo '
+    + 'de alguien decide lo que debe y quién lo dirige, así que mover a catorce personas como '
+    + 'efecto secundario de un borrado no es una decisión que se tome por accidente. Mueva a '
+    + 'los integrantes, cambie el alcance de las cuotas, y después elimine.',
+  'help.regions-and-chapters.deleting.b3':
+    'Nada de aquí es un callejón sin salida. Cambie el alcance de una cuota a toda la '
+    + 'familia en [Contabilidad](/admin/accounting?section=dues) y la región se elimina.',
+  'help.regions-and-chapters.dues.heading': 'Qué decide un capítulo sobre el dinero',
+  'help.regions-and-chapters.dues.b0':
+    'Un programa de cuotas lo debe toda la familia, una región, o un capítulo, y se fija '
+    + 'con **Debido por** en el formulario de cuotas en '
+    + '[Contabilidad](/admin/accounting?section=dues). Vea '
+    + '[Contabilidad](/help/accounting#dues).',
+  'help.regions-and-chapters.dues.b1.i0.term': 'Nacional',
+  'help.regions-and-chapters.dues.b1.i0.text':
+    'Todos los integrantes la deben. Es la opción por defecto, y la única hasta que haya '
+    + 'creado una región o un capítulo.',
+  'help.regions-and-chapters.dues.b1.i1.term': 'Una región',
+  'help.regions-and-chapters.dues.b1.i1.text':
+    'Solo la deben los integrantes cuyo CAPÍTULO está en esa región.',
+  'help.regions-and-chapters.dues.b1.i2.term': 'Un capítulo',
+  'help.regions-and-chapters.dues.b1.i2.text': 'Solo la deben los integrantes de ese capítulo.',
+  'help.regions-and-chapters.dues.b2':
+    '**Un integrante sin capítulo está bajo Nacional**, así que una cuota regional o de '
+    + 'capítulo no se le aplica en absoluto: no aparece en su pantalla de '
+    + '[Cuotas](/accounting/dues-and-donations) y nunca se le factura. Ese es el estado en el '
+    + 'que empiezan todas las familias, y es el motivo más común de que una cuota de capítulo '
+    + 'nueva no recaude nada: [Proyección de cuotas](/reporting/dues-projections) lo dice en '
+    + 'la fila del programa cuando nadie de la familia está en la parte a la que corresponde.',
+  'help.regions-and-chapters.dues.b3':
+    'La región de un integrante se deduce de su capítulo cada vez que se pregunta. No hay '
+    + 'una región aparte que fijar en una persona, y mover un capítulo a otra región mueve '
+    + 'con él a todos los que están dentro sin ningún paso más.',
+  // ──── PART 6 — Administration (Board Positions, Running an election) ──────────
+  'help.board-positions.title': 'Cargos de la directiva',
+  'help.board-positions.summary':
+    'Los cargos que mantiene su familia, quién ocupa cada uno, y por qué la lista empieza '
+    + 'vacía.',
+  'help.board-positions.what-it-is.heading': 'Los cargos de su familia',
+  'help.board-positions.what-it-is.b0':
+    '**Cargos de la directiva** es la lista de cargos que su familia mantiene de hecho — '
+    + 'presidente, tesorero, un responsable de la reunión — y el registro de quién ocupa cada '
+    + 'uno. Es la mitad inferior de la pestaña **Organización** de '
+    + '[Miembros](/admin/members?tab=organization), debajo de las regiones y los capítulos: '
+    + 'una pestaña responde las dos mitades de «qué forma tiene esta familia».',
+  'help.board-positions.what-it-is.b1':
+    '**La lista empieza vacía, y eso es deliberado.** No hay dos familias que funcionen '
+    + 'igual: una tiene cinco directivos y un responsable para la reunión, otra tiene veinte '
+    + 'comisiones. Así que no se le configura nada y no se le sugiere nada: usted añade los '
+    + 'cargos que tiene, y los que no tiene simplemente no están.',
+  'help.board-positions.what-it-is.b2':
+    'Todos los cargos pertenecen solo a su familia. Que otra familia llame igual a su '
+    + 'tesorero no tiene ningún efecto sobre el suyo, y ninguna de las dos familias puede ver '
+    + 'la lista de la otra.',
+  'help.board-positions.adding.heading': 'Añadir un cargo',
+  'help.board-positions.adding.b0.i0': 'Pulse **Añadir cargo**. Se abre un cuadro sobre la página.',
+  'help.board-positions.adding.b0.i1':
+    'Escriba el nombre tal y como lo dice en voz alta: eso es lo que aparece al lado del '
+    + 'nombre de alguien en todos los demás sitios.',
+  'help.board-positions.adding.b0.i2':
+    'Elija una **Categoría**: **Directivo** para un cargo electo, **Cargo designado** para '
+    + 'uno que se le da a alguien.',
+  'help.board-positions.adding.b0.i3':
+    'Elija un **Alcance** — vea más abajo — y pulse **Añadir cargo**.',
+  'help.board-positions.adding.b1.i0.term': 'Nacional',
+  'help.board-positions.adding.b1.i0.text':
+    'Una sola persona para toda la familia. Casi todo es así.',
+  'help.board-positions.adding.b1.i1.term': 'Regional',
+  'help.board-positions.adding.b1.i1.text':
+    'Una persona por región. Usted elige qué región cuando se lo da a alguien.',
+  'help.board-positions.adding.b1.i2.term': 'Capítulo',
+  'help.board-positions.adding.b1.i2.text': 'Una persona por capítulo, elegido de la misma forma.',
+  'help.board-positions.adding.b2':
+    'Regional y Capítulo solo significan algo cuando su familia ha configurado regiones o '
+    + 'capítulos, que es la mitad superior de esta misma pestaña. Hasta entonces, use '
+    + 'Nacional.',
+  'help.board-positions.adding.b3':
+    '**El mismo título puede existir una vez en cada alcance.** Un **presidente** nacional '
+    + 'y un **presidente** regional son dos cargos distintos, y una familia con cuatro '
+    + 'regiones tiene un presidente regional que ocupan cuatro personas, una por región. Así '
+    + 'que no hace falta llamar al segundo «presidente regional» para distinguirlos: eso lo '
+    + 'hace la columna Alcance.',
+  'help.board-positions.adding.b4':
+    'Lo que no se puede repetir es un título en el MISMO alcance. Añada un segundo '
+    + 'presidente nacional y la pantalla lo dice, en vez de crear en silencio un duplicado '
+    + 'que nadie podría distinguir del primero.',
+  'help.board-positions.renaming.heading': 'Corregir un nombre',
+  'help.board-positions.renaming.b0':
+    'El lápiz en la fila de un cargo convierte su nombre en un cuadro de texto. **Entrar** '
+    + 'guarda, **Escape** cancela, y el nombre cambia en todos los sitios donde se imprime: '
+    + 'debajo del nombre de la gente en el [Directorio](/community/directory), en su '
+    + '[Panel](/dashboard) y en su [Mi perfil](/personal-info).',
+  'help.board-positions.renaming.b1':
+    'Solo se puede cambiar el nombre. **Categoría** y **Alcance** no, porque el alcance de '
+    + 'un cargo se copia en la ficha de cada persona que lo ocupa cuando se le da, junto con '
+    + 'la región o el capítulo al que correspondía; así que cambiar el alcance después '
+    + 'dejaría esas fichas describiendo algo que el cargo ya no es. Una familia que tiene el '
+    + 'alcance mal quita el cargo y lo vuelve a añadir, lo cual también vuelve a hacer las '
+    + 'asignaciones que estaban mal.',
+  'help.board-positions.renaming.b2':
+    'Dos cargos en el MISMO alcance no pueden compartir un nombre. Renombrar un cargo '
+    + 'regional con un nombre que su lista nacional ya usa está bien; renombrarlo con el '
+    + 'nombre de otro cargo regional se rechaza, y no se guarda nada.',
+  'help.board-positions.assigning.heading': 'Dar un cargo a alguien',
+  'help.board-positions.assigning.b0':
+    '**No desde este panel.** Configurar qué cargos mantiene su familia se hace aquí; '
+    + 'decidir quién ocupa uno se hace en la pestaña **Miembros**, desde la propia fila de '
+    + 'esa persona.',
+  'help.board-positions.assigning.b1.i0': 'Abra la pestaña **Miembros** y encuentre a la persona.',
+  'help.board-positions.assigning.b1.i1':
+    'Abra el menú al final de su fila y elija **Dar un cargo de la directiva** en '
+    + '**Perfil**.',
+  'help.board-positions.assigning.b1.i2':
+    'Elija el cargo. Para uno regional o de capítulo, elija a qué región o capítulo '
+    + 'corresponde.',
+  'help.board-positions.assigning.b1.i3': 'Pulse **Dar cargo**.',
+  'help.board-positions.assigning.b2':
+    'Se movió ahí el 20-08-2026, y el motivo es lo que uno tiene en mente al hacerlo. Qué '
+    + 'cargos existen es una decisión sobre la FAMILIA, tomada una vez y revisada cada año, y '
+    + 'va al lado de las regiones y los capítulos. Hacer a Ada tesorera es una decisión sobre '
+    + 'ADA, y todo lo demás que se decide sobre Ada ya está en su fila: su plantilla de '
+    + 'permisos, si su acceso está activado, su perfil. Asignar desde la fila del cargo '
+    + 'obligaba a encontrar el cargo para encontrar a la persona.',
+  'help.board-positions.assigning.b3':
+    'Más de una persona puede ocupar el mismo cargo, que es lo que necesita un cargo '
+    + 'regional o de capítulo, y una persona puede ocupar más de uno. Su columna **Cargo** '
+    + 'enumera lo que ocupa, y lo mismo hace el cuadro que se abre desde su fila.',
+  'help.board-positions.assigning.b4':
+    'Solo los familiares que han terminado de registrarse pueden ocupar un cargo. Alguien '
+    + 'registrado en el árbol familiar sin cuenta no puede, porque el registro de quién ocupa '
+    + 'un cargo va unido a su cuenta: invítelo primero, desde el [Árbol '
+    + 'familiar](/community/family-tree).',
+  'help.board-positions.removing.heading': 'Quitar uno, y eliminar un cargo',
+  'help.board-positions.removing.b0':
+    'La papelera al lado de un título, en el cuadro que se abre desde la fila de un '
+    + 'integrante en la pestaña **Miembros**, le quita ese cargo a esa persona. Sigue siendo '
+    + 'integrante de la familia y nada más sobre ella cambia.',
+  'help.board-positions.removing.b1':
+    '**Un cargo que alguien ocupa no se puede eliminar.** Su botón de eliminar no está '
+    + 'disponible y dice cuántas personas lo ocupan; quíteselo a cada una y pasa a estar '
+    + 'disponible.',
+  'help.board-positions.removing.b2':
+    'Eso es un rechazo y no un ordenamiento hecho de su parte, y por el mismo motivo que '
+    + 'eliminar un capítulo: el cargo de alguien está en su perfil y en el Directorio, y '
+    + 'quitar cuatro cargos como efecto secundario de eliminar una fila no es una decisión '
+    + 'que se tome por accidente.',
+  'help.board-positions.where-it-shows.heading': 'Dónde aparece un cargo',
+  'help.board-positions.where-it-shows.b0':
+    'Un cargo es público dentro de la familia. En cuanto alguien ocupa uno, aparece:',
+  'help.board-positions.where-it-shows.b1.i0':
+    'debajo de su nombre en el [Directorio](/community/directory),',
+  'help.board-positions.where-it-shows.b1.i1': 'en su propio [Mi perfil](/personal-info),',
+  'help.board-positions.where-it-shows.b1.i2': 'y en su [Panel](/dashboard) cuando inicia sesión.',
+  'help.board-positions.where-it-shows.b2':
+    'Un cargo regional o de capítulo se escribe completo — «presidente del capítulo de '
+    + 'Houston», «secretario regional de Texas» — así que dos personas que ocupan el mismo '
+    + 'cargo en lugares distintos se leen como dos títulos diferentes.',
+  'help.board-positions.where-it-shows.b3':
+    'Estos cargos son aquello para lo que se celebra una elección. Una elección en un nivel '
+    + 'solo puede cubrir cargos registrados en ese nivel, así que una elección de capítulo '
+    + 'ofrece los cargos del capítulo y nada más: vea [Celebrar una '
+    + 'elección](/help/running-an-election).',
+  'help.running-an-election.title': 'Celebrar una elección',
+  'help.running-an-election.summary':
+    'Fijar las dos ventanas de fechas, elegir qué parte de la familia vota, poner cargos en '
+    + 'la papeleta y publicarla.',
+  'help.running-an-election.what-it-is.heading': 'Qué es esta pantalla',
+  'help.running-an-election.what-it-is.b0':
+    'Todas las elecciones que tiene la familia, en todos los niveles, borradores incluidos. '
+    + 'Cada fila muestra dónde está la elección hoy, para qué parte de la familia es, sus dos '
+    + 'ventanas de fechas, y cuántos cargos, nominaciones y votos tiene.',
+  'help.running-an-election.what-it-is.b1':
+    '**Nueva elección** abre el formulario en un panel sobre la lista, y el control de '
+    + 'editar en un borrador hace lo mismo. La lista se queda detrás, que es la idea: puede '
+    + 'ver lo que la familia ya tiene mientras escribe la siguiente.',
+  'help.running-an-election.what-it-is.b2':
+    'Una elección es o un **borrador** — suyo, invisible para la familia — o está '
+    + '**publicada**, lo que la pone en el calendario de la familia. No hay nada más que '
+    + 'fijar: una vez publicada, la gobiernan las fechas.',
+  'help.running-an-election.the-windows.heading': 'Las dos ventanas de fechas',
+  'help.running-an-election.the-windows.b0':
+    '**Nominaciones** y **Votación**, cada una con una fecha de apertura y una de cierre. '
+    + 'Son lo que hace que la elección ocurra; nadie tiene que volver y pulsar nada.',
+  'help.running-an-election.the-windows.b1.i0':
+    'Las nominaciones corren desde el día en que abren hasta el final del día en que '
+    + 'cierran. Los dos días cuentan.',
+  'help.running-an-election.the-windows.b1.i1':
+    'La votación corre igual, y no puede abrir ANTES de que cierren las nominaciones: una '
+    + 'papeleta nunca se vota mientras la lista de candidatos todavía puede cambiar.',
+  'help.running-an-election.the-windows.b1.i2':
+    'Puede abrir el mismo día en que cierran, y entonces ese día pertenece a la votación: '
+    + 'las nominaciones se cierran al abrir la papeleta. Esa es la elección más corta que el '
+    + 'producto puede describir: un día de nominaciones, un día de votación. Déle a las '
+    + 'nominaciones todo su día de cierre fijándolo un día antes.',
+  'help.running-an-election.the-windows.b1.i3':
+    'Cada ventana tiene que durar al menos un día. Una fecha de cierre en la fecha de '
+    + 'apertura o antes se rechaza a medida que la escribe.',
+  'help.running-an-election.the-windows.b1.i4':
+    'Los selectores de fecha atenúan los días que romperían la cadena: en cuanto las '
+    + 'nominaciones abren el día 1, el selector de cierre no ofrecerá el 1 ni nada anterior, '
+    + 'y los selectores de votación se mueven con él. El selector de apertura de la votación '
+    + 'SÍ ofrece el día en que cierran las nominaciones, porque ese sí está permitido.',
+  'help.running-an-election.the-windows.b2':
+    'El día después de que cierra la votación, la elección ha terminado y sus resultados '
+    + 'aparecen para todas las personas que podían votar en ella. Nada los publica y nada '
+    + 'cierra la urna.',
+  'help.running-an-election.the-windows.b3':
+    'Las cuatro fechas son necesarias para publicar. Un borrador puede no tener ninguna, o '
+    + 'tener algunas: para eso está un borrador.',
+  'help.running-an-election.the-level.heading': 'Elegir quién vota',
+  'help.running-an-election.the-level.b0':
+    '**Quién vota** elige el nivel: toda la familia, una región, o un capítulo. Decide tres '
+    + 'cosas a la vez, y no son separables.',
+  'help.running-an-election.the-level.b1.i0':
+    'Quién puede VER la elección. Una elección de capítulo no se enumera para el resto de '
+    + 'la familia y su enlace no se abre para ellos.',
+  'help.running-an-election.the-level.b1.i1':
+    'Quién puede ser NOMINADO. La lista de personas nominables en la papeleta solo contiene '
+    + 'a las personas para las que es la elección.',
+  'help.running-an-election.the-level.b1.i2':
+    'Qué CARGOS puede cubrir: solo los registrados en el mismo nivel en [Cargos de la '
+    + 'directiva](/help/board-positions).',
+  'help.running-an-election.the-level.b2':
+    'Cambiar el nivel después de haber elegido cargos borra los que ya no le pertenecen, y '
+    + 'dice cuáles. Eso no es el formulario perdiendo su trabajo: es la regla de que una '
+    + 'elección no puede cubrir un cargo de otro nivel.',
+  'help.running-an-election.the-level.b3':
+    'Una familia sin regiones y sin capítulos obtiene Nacional y nada más, porque no hay '
+    + 'nada a lo que apuntar. Las regiones y los capítulos se configuran en [Regiones y '
+    + 'capítulos](/help/regions-and-chapters).',
+  'help.running-an-election.the-level.b4':
+    'Los integrantes que no están en ningún capítulo están bajo Nacional. Participan en las '
+    + 'elecciones nacionales y en ninguna limitada, así que una elección reducida a un '
+    + 'capítulo es más estrecha de lo que puede parecer: compruebe quién está archivado ahí '
+    + 'de verdad antes de publicar una.',
+  'help.running-an-election.positions.heading': 'Qué hay en la papeleta',
+  'help.running-an-election.positions.b0':
+    '**Cargos** es la lista de cargos que cubre esta elección. Cada uno se elige de la '
+    + 'lista de la directiva de la familia en el nivel que coincide, y **Ganadores** es a '
+    + 'cuántas personas sienta el cargo, normalmente una.',
+  'help.running-an-election.positions.b1':
+    'Un cargo que esperaba y no encuentra o está registrado en otro nivel o no está '
+    + 'registrado en absoluto. Añádalo o cámbiele el alcance en [Cargos de la '
+    + 'directiva](/help/board-positions) primero.',
+  'help.running-an-election.positions.b2':
+    'Una elección necesita al menos un cargo antes de poder publicarse.',
+  'help.running-an-election.publishing.heading': 'Publicarla',
+  'help.running-an-election.publishing.b0.i0':
+    'Rellene el formulario y pulse **Crear borrador**. Todavía no hay nada visible para la '
+    + 'familia.',
+  'help.running-an-election.publishing.b0.i1':
+    'Vuelva a leer la fila: el nivel, las dos ventanas y el número de cargos.',
+  'help.running-an-election.publishing.b0.i2':
+    'Deje **Anunciar** marcado si quiere que se avise a la familia, y luego pulse '
+    + '**Publicar** y confirme.',
+  'help.running-an-election.publishing.b1':
+    'El anuncio se dirige igual que la elección: una elección de capítulo se anuncia a ese '
+    + 'capítulo. Una regional va a toda la familia y nombra la región, porque un anuncio se '
+    + 'puede dirigir a un capítulo y no a una región.',
+  'help.running-an-election.publishing.b2':
+    '**El aviso es una vía de entrada.** Su título es un enlace directo a la elección, '
+    + 'tanto en el tablón como en la tarjeta de **Novedades recientes** del '
+    + '[Panel](/dashboard), así que nadie tiene que ir a buscar la papeleta de la que le '
+    + 'acaban de hablar. Un integrante cuya familia ha desactivado las Elecciones, o que no '
+    + 'está en un plan que las incluya, ve el aviso sin el enlace en vez de un enlace que lo '
+    + 'rechaza.',
+  'help.running-an-election.publishing.b3':
+    'Después de eso no hay nada que hacer. Las nominaciones abren en su fecha, cierran en '
+    + 'la suya, la votación abre y cierra por su cuenta, y los resultados aparecen.',
+  'help.running-an-election.watching-it.heading': 'Seguir una en marcha',
+  'help.running-an-election.watching-it.b0':
+    'La flecha al final de cualquier fila abre la pantalla propia de esa elección: la vista '
+    + 'de quien organiza, no la papeleta. Cuatro cifras en la parte superior:',
+  'help.running-an-election.watching-it.b1.i0.term': 'Pueden votar',
+  'help.running-an-election.watching-it.b1.i0.text':
+    'Integrantes aprobados de la parte de la familia a la que corresponde esta elección que '
+    + 'tienen cuenta. Alguien registrado en el árbol familiar sin cuenta propia puede ser '
+    + 'nominado y no puede votar, así que no se cuenta aquí.',
+  'help.running-an-election.watching-it.b1.i1.term': 'Han votado',
+  'help.running-an-election.watching-it.b1.i1.text':
+    'Cuántas de ellas lo han hecho, y la participación que eso da.',
+  'help.running-an-election.watching-it.b1.i2.term': 'No han votado',
+  'help.running-an-election.watching-it.b1.i2.text':
+    'La diferencia. Es un número y nunca una lista: no se nombra a nadie, ni aquí ni en '
+    + 'ninguna parte.',
+  'help.running-an-election.watching-it.b1.i3.term': 'En la papeleta',
+  'help.running-an-election.watching-it.b1.i3.text':
+    'Nominaciones aceptadas frente a nominaciones totales. Una nominación que nadie ha '
+    + 'respondido no está en la papeleta, y solo se puede votar a candidatos que han '
+    + 'aceptado.',
+  'help.running-an-election.watching-it.b2':
+    'Debajo, todos los cargos con las personas que se presentan a ellos, sus recuentos de '
+    + 'votos y su porcentaje. Quienes van en cabeza llevan un trofeo, tantas personas como '
+    + 'sienta el cargo.',
+  'help.running-an-election.watching-it.b3':
+    '**Mientras la votación está abierta estas cifras son una instantánea, y la pantalla lo '
+    + 'dice.** Nada aquí declara un ganador hasta que la ventana cierra; está para que usted '
+    + 'vea si una elección va a funcionar — si alguien aceptó, si alguien está votando — '
+    + 'mientras todavía hay tiempo de hacer algo al respecto.',
+  'help.running-an-election.watching-it.b4':
+    'Esta pantalla nunca muestra en qué sentido votó una persona nombrada, y nada en '
+    + 'ninguna parte lo hace. Vea [Elecciones](/help/elections#voting) para el lado del '
+    + 'integrante.',
+  'help.running-an-election.changing-it.heading': 'Cambiar o retirar una',
+  'help.running-an-election.changing-it.b0':
+    '**Un borrador se puede editar libremente**: su título, sus fechas, su nivel, sus '
+    + 'cargos.',
+  'help.running-an-election.changing-it.b1':
+    '**Una elección publicada no se puede editar.** Sus fechas son lo que se le dijo a la '
+    + 'familia, y moverlas cambiaría lo que una papeleta era en vez de corregir una errata.',
+  'help.running-an-election.changing-it.b2':
+    '**Volver a borrador** devuelve una elección publicada, y se ofrece solo mientras nadie '
+    + 'ha sido nominado y no se ha votado nada. En cuanto alguien ha actuado, la elección es '
+    + 'el registro de algo que la familia hizo: déjela correr, o elimínela.',
+  'help.running-an-election.changing-it.b3':
+    '**Eliminar** quita la elección con todas las nominaciones y todos los votos que tiene, '
+    + 'y no se puede deshacer. La confirmación dice cuántos hay de cada cosa.',
+  'help.running-an-election.changing-it.b4':
+    'Eliminar una región o un capítulo al que está limitada una elección se rechaza '
+    + 'mientras la elección existe: cambie primero el alcance de la elección a toda la '
+    + 'familia, o elimínela. Nada sobre la forma de la familia puede cambiar en silencio '
+    + 'quién tenía derecho a votar.',
+  // ──── PART 6 — Administration (Settings) ──────────────────────────────────────
+  'help.family-settings.title': 'Configuración',
+  'help.family-settings.summary':
+    'El nombre de la familia, el código con el que se unen los familiares, el plan que '
+    + 'tiene y cómo desactivarla.',
+  'help.family-settings.bands.heading': 'Tres secciones',
+  'help.family-settings.bands.b0':
+    'La página son tres secciones, que se eligen en el menú de la parte superior. '
+    + '**Facturación** es lo que su familia ha pagado a GENORRA, hasta cuándo, y todos los '
+    + 'recibos. **Plan** es en qué suscripción está esta familia, qué incluye cada una, y '
+    + 'dónde se pasa de una a otra. **Familia** es la familia en sí: su nombre, el código con '
+    + 'el que se unen los familiares, y cómo desactivarla.',
+  'help.family-settings.bands.b1':
+    'Configuración abre en **Plan**, porque es la sección que la mayoría de la gente viene '
+    + 'a mirar o a cambiar.',
+  'help.family-settings.bands.b2':
+    'Pagar un plan se cubre en [Pagar un plan](/help/plans#paying); esta página es donde '
+    + 'están los controles.',
+  'help.family-settings.name.heading': 'El nombre de la familia',
+  'help.family-settings.name.b0':
+    'Cómo se llama la familia en todo el producto. Renombrarla no cambia nada más: el '
+    + 'código, los integrantes y todos los registros se quedan exactamente como estaban.',
+  'help.family-settings.code.heading': 'El código familiar',
+  'help.family-settings.code.b0':
+    'Seis caracteres, generados cuando se creó la familia, y permanentes. No se puede '
+    + 'cambiar ni volver a generar.',
+  'help.family-settings.code.b1':
+    'Cualquiera que tenga el código puede pedir unirse, así que trátelo como una invitación '
+    + 'y no como una contraseña; y recuerde que pedir no es unirse. Todas las solicitudes '
+    + 'llegan a la cola de aprobaciones para que alguien decida.',
+  'help.family-settings.plan.heading': 'El plan',
+  'help.family-settings.plan.b0':
+    'La sección **Plan**, con la que abre Configuración, muestra en qué plan está la '
+    + 'familia, cuánto cuesta cada uno al mes, y qué incluye. **Funciones** en cualquier fila '
+    + 'abre la lista completa de ese plan. Vea [Planes](/help/plans).',
+  'help.family-settings.plan.b1':
+    '**Todas las filas de plan llevan su propio botón.** Una fila por encima de la que '
+    + 'usted tiene dice **Mejorar a …** y empieza el pago; una fila por debajo dice **Bajar a '
+    + '…**. La fila en la que ya está dice **Plan actual** y no hace nada. Un plan que tiene '
+    + 'precio y todavía no está a la venta muestra **Muy pronto** en vez de un botón.',
+  'help.family-settings.plan.b2':
+    'Bajar pide su contraseña además de una confirmación, porque cierra páginas para todos '
+    + 'los integrantes de la familia a la vez. No se elimina nada en ninguno de los dos '
+    + 'casos.',
+  'help.family-settings.plan.b3':
+    '**Bajar es también la forma de dejar de pagar.** Bajar a Gratis termina un plan '
+    + 'mensual al final del periodo que ya ha pagado: no hay un control aparte de «dejar de '
+    + 'renovar», porque dejar de pagar y elegir dónde se detiene son una sola decisión. La '
+    + 'confirmación nombra la fecha en que surte efecto.',
+  'help.family-settings.billing.heading': 'Pagar el plan',
+  'help.family-settings.billing.b0':
+    '**Facturación** es lo que su familia ha pagado de hecho: qué plan, el día hasta el que '
+    + 'está pagado, el día en que vence el próximo pago, y si algo lo renueva. Nada de ahí '
+    + 'empieza un pago: los botones que lo hacen están en las filas de plan de **Plan**, y '
+    + 'abren la propia página de Stripe. Nada en esta pantalla recibe un número de tarjeta.',
+  'help.family-settings.billing.b1':
+    '**«Próximo pago» significa dos cosas distintas y la fila de al lado dice cuál.** En un '
+    + 'plan mensual es el día en que se carga la tarjeta automáticamente. En un plan pagado '
+    + 'por adelantado no hay nada que lo renueve, así que es el día en que se cierran las '
+    + 'páginas a menos que alguien vuelva a comprar.',
+  'help.family-settings.billing.b2':
+    '**Todas las familias se facturan el día 1.** El primer pago es solo lo que queda del '
+    + 'mes en curso, calculado por día y redondeado hacia arriba, así que entrar el día 20 '
+    + 'cuesta unos días y no un mes, y todos los pagos posteriores caen en el día 1.',
+  'help.family-settings.billing.b3':
+    '**Si lo que queda del mes suma menos de 5 $, el primer pago cubre este mes y el '
+    + 'siguiente.** Un cargo de un dólar o dos no merece aparecer en un extracto de tarjeta, '
+    + 'y por debajo de unos 50 centavos una red de tarjetas no lo acepta en absoluto. La '
+    + 'pantalla dice qué opción se le está ofreciendo y por qué.',
+  'help.family-settings.billing.b4':
+    'Hay dos formas de pagar y una sola tarifa. **Mensual** se renueva hasta que usted lo '
+    + 'detiene. **Por adelantado** es un solo pago que cubre lo que queda de este mes más los '
+    + 'meses completos que quiera, hasta 60, que también puede cambiar en la página de '
+    + 'Stripe. No hay descuento por pagar por adelantado y no hay precio anual: un año por '
+    + 'adelantado son doce meses a la tarifa mensual.',
+  'help.family-settings.billing.b5.i0.term': 'Subir',
+  'help.family-settings.billing.b5.i0.text':
+    'Surte efecto en el momento. Si había pagado por adelantado en un plan más barato, lo '
+    + 'que quedaba de aquello se valora a la tarifa que pagó y se gasta primero en el plan '
+    + 'nuevo, así que a menudo no hay nada que pagar, y lo que sobre se guarda como crédito '
+    + 'para su próxima factura. Nunca se le factura la diferencia de todo el periodo que pagó '
+    + 'por adelantado.',
+  'help.family-settings.billing.b5.i1.term': 'Bajar',
+  'help.family-settings.billing.b5.i1.text':
+    'No cuesta nada y no cambia nada hoy. Surte efecto el día 1: el siguiente si paga '
+    + 'mensualmente, o el día 1 después de que se agote el periodo que pagó por adelantado. '
+    + 'Seis meses de Plus, bajados en el segundo mes, son Plus del mes dos al seis y el plan '
+    + 'más barato a partir del mes siete. No hay reembolso, que es exactamente lo que '
+    + 'mantiene esas páginas abiertas hasta que termina.',
+  'help.family-settings.billing.b6':
+    '**Nada se otorga por pulsar un botón aquí.** El plan cambia cuando el pago se liquida, '
+    + 'que puede ser un momento después, así que si la banda todavía muestra el plan antiguo '
+    + 'justo después de pagar, dele un minuto y recargue. Si un pago falla, esta sección lo '
+    + 'dice y nada de lo que su familia pueda alcanzar cambia mientras Stripe siga intentando '
+    + 'la tarjeta.',
+  'help.family-settings.billing.b7':
+    '**Tarjetas y recibos** abre el propio portal de facturación de Stripe, donde se cambia '
+    + 'la tarjeta registrada y se puede descargar cualquier factura. **Lo que GENORRA ha '
+    + 'cobrado** enumera aquí los mismos pagos: qué se compró, cuándo se pagó, qué cubre y '
+    + 'cuánto.',
+  'help.family-settings.billing.b8':
+    'Estos son los cargos de GENORRA a su familia y están deliberadamente muy lejos del '
+    + 'dinero de su propia familia. Nada de esta sección aparece en sus fondos, en su [Estado '
+    + 'de resultados](/reporting/pl-summary), en su proyección de cuotas ni en el historial '
+    + 'de pagos de ningún integrante: lo que su familia nos paga y lo que sus familiares '
+    + 'pagan a su familia son dos libros separados.',
+  'help.family-settings.billing.b9':
+    '**Para dejar de pagar, baje a Gratis en la sección [Plan](/admin/settings).** Eso '
+    + 'termina un plan mensual al final del periodo ya pagado, nunca de inmediato. Todas las '
+    + 'páginas siguen abiertas hasta entonces y todos los registros se conservan después: '
+    + 'volver a subir más adelante lo encuentra todo donde estaba.',
+  'help.family-settings.removal.heading': 'Quitar la familia',
+  'help.family-settings.removal.b0':
+    '**Quitar esta familia**, al final de la sección **Familia**, desactiva la familia '
+    + 'entera. Nadie puede abrirla, el código familiar deja de funcionar, y cualquier '
+    + 'invitación que siga pendiente deja de aceptarse. Se ofrece solo a alguien cuya '
+    + 'plantilla de permisos otorga **Quitar familia**, que es distinto del permiso que le '
+    + 'deja renombrar la familia.',
+  'help.family-settings.removal.b1':
+    'No se elimina nada. Todos los pagos, fondos, fotografías, eventos, mensajes, '
+    + 'documentos y personas se quedan exactamente donde están. Quitar cierra las puertas de '
+    + 'la familia; no destruye ningún registro.',
+  'help.family-settings.removal.b2':
+    'Son dos pasos. **Enviarme un código de retirada** envía seis dígitos a la dirección '
+    + 'con la que usted inicia sesión, no a una dirección que escriba y no a nadie más. '
+    + '**Introducir el código y quitar** pide después esos dígitos y una confirmación. El '
+    + 'código dura quince minutos, funciona una vez, y se cancela solo tras cinco intentos '
+    + 'fallidos; pida otro con **Enviar otro código**.',
+  'help.family-settings.removal.b3':
+    'A los integrantes de una familia retirada no se los deja adivinando. Iniciar sesión '
+    + 'muestra una pantalla que dice que la familia se retiró y que no se eliminó nada, [Mis '
+    + 'familias](/my-families) la enumera con una marca de **Retirada**, y el menú de familia '
+    + 'de la parte superior de la página también la marca; así que una cuenta que pertenece a '
+    + 'más de una familia sigue en las otras exactamente como antes.',
+  'help.family-settings.removal.b4':
+    '**Solo el soporte de GENORRA puede recuperar una familia.** No hay ningún botón para '
+    + 'eso en ninguna parte del producto, y a propósito: una familia que pudiera revertir su '
+    + 'propia retirada no habría sido retirada. Si fue un error, escriba al soporte y pídalo.',
+}
