@@ -241,6 +241,11 @@ const FINGERPRINTS = join(ROOT, 'lib', 'i18n', 'translated-from.json')
  * still cannot invent a placeholder, and still cannot be an orphan.
  */
 const KNOWN_DYNAMIC = [
+  ['email.auth.changeOld.', 'authEmailChangeEmail() picks the half by which address it is '
+    + 'addressed to: t(`email.auth.${k}.subject`), where `k` is changeOld or changeNew. ONE '
+    + 'function rather than two because the two messages differ only by that, and splitting '
+    + 'them would be two places to keep one link shape — see lib/email/auth-mail.ts.'],
+  ['email.auth.changeNew.', 'The other half of the same pair.'],
   ['nav.item.', 'The rail maps its own registry: t(`nav.item.${item.href}`) in Sidebar.tsx.'],
   ['nav.section.', 'Likewise for section headings, keyed on the section id.'],
   ['theme.', 'ThemeToggle maps its three modes: t(`theme.${mode}`).'],

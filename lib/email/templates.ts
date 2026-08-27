@@ -76,6 +76,7 @@ export function membershipApprovedEmail(o: {
     subject: t('email.approved.subject', { family: o.familyName }),
     tag: 'membership-approved',
     html: renderEmailFrom(o.origin, {
+      t,
       preheader: t('email.approved.preheader', { family: esc(o.familyName) }),
       heading: name
         ? t('email.approved.headingNamed', { name })
@@ -184,6 +185,7 @@ export function familyInvitationEmail(o: {
       : t('email.invitation.subjectNoInviter', { family: o.familyName }),
     tag: 'family-invitation',
     html: renderEmailFrom(o.origin, {
+      t,
       preheader: t('email.invitation.preheader', { family, days: o.expiresInDays }),
       heading: t('email.invitation.heading'),
       // The greeting is its own paragraph and is DROPPED rather than defaulted when
@@ -242,6 +244,7 @@ export function familyRemovalCodeEmail(o: {
     subject: t('email.removal.subject', { family: o.familyName }),
     tag: 'family-removal-code',
     html: renderEmailFrom(o.origin, {
+      t,
       preheader: t('email.removal.preheader', { minutes: o.expiresInMinutes }),
       heading: t('email.removal.heading'),
       paragraphs: [
@@ -298,6 +301,7 @@ export function processorDisconnectCodeEmail(o: {
     subject: t('email.disconnect.subject', { family: o.familyName }),
     tag: 'processor-disconnect-code',
     html: renderEmailFrom(o.origin, {
+      t,
       preheader: t('email.disconnect.preheader', { minutes: o.expiresInMinutes }),
       heading: t('email.disconnect.heading'),
       paragraphs: [
@@ -387,6 +391,7 @@ export function distributionEmail(o: {
     subject: o.subject,
     tag: 'distribution',
     html: renderEmailFrom(o.origin, {
+      t,
       // NOT the first paragraph. A preheader that repeats the opening line wastes the one
       // extra sentence an inbox will show — the rule stated on `EmailOptions.preheader`.
       preheader: sender
@@ -487,6 +492,7 @@ export function safetyCheckInEmail(o: {
     subject: t('email.checkIn.subject', { family: o.familyName }),
     tag: 'safety-check-in',
     html: renderEmailFrom(o.origin, {
+      t,
       // THE RAW TITLE, not the escaped one — a preheader is plain text, like a subject.
       preheader: t('email.checkIn.preheader', { title: o.title }),
       heading: t('email.checkIn.heading'),

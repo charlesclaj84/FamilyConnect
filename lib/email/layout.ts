@@ -22,7 +22,8 @@
  * public HTTP endpoint, and "internal helper" is a comment rather than a boundary.
  */
 
-import { APP_NAME, APP_LEAD, APP_TAGLINE, APP_VALUES } from '@/lib/brand'
+import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * HTML-escape an interpolated value.
@@ -66,6 +67,27 @@ export interface EmailButton {
 }
 
 export interface EmailOptions {
+  /**
+   * The RECIPIENT's language, bound — for the CHROME this file renders, not for the copy the
+   * caller passes in.
+   *
+   * ── THREE STRINGS WERE ENGLISH FOR EVERY READER UNTIL 2026-08-27 ─────────────────
+   * Every caller in `templates.ts` already composed its own paragraphs from the email
+   * catalogue, so the six member-facing emails read correctly — and then rendered "If the
+   * button does not work, paste this into your browser:" underneath in English, plus the
+   * brand lead line and the three values in the footer. It was invisible to
+   * `npm run i18n:literals` because that gate deliberately does not sweep `lib/`, where the
+   * catalogues live and their English IS the source.
+   *
+   * ── `APP_TAGLINE` IS NOT ON THAT LIST, AND MUST NOT JOIN IT ─────────────────────
+   * "Generations Embracing Nurturing Our Roots, Relationships & Ancestry" is what the letters
+   * of the name STAND FOR. Translating it breaks the acronym — the initials would no longer
+   * spell GENORRA — so it is a proper noun in the same sense the product name is, and
+   * `lib/brand.ts` stays its one home. `APP_LEAD` and `APP_VALUES` ARE copy and are keyed,
+   * which is the line `/about` already drew: *a brand constant is a finished English sentence,
+   * and a translator needs the finished sentence rather than a constant to interpolate.*
+   */
+  t: T
   /** The line the inbox shows beside the subject. Extends the subject, never repeats it. */
   preheader: string
   heading: string
@@ -89,7 +111,8 @@ export interface EmailOptions {
  * add it there.
  */
 function renderEmail(o: EmailOptions): string {
-  const values = APP_VALUES.map(v => `<span style="color:#6d5a53;">${esc(v)}</span>`)
+  const values = o.t('email.chrome.values').split('|')
+    .map(v => `<span style="color:#6d5a53;">${esc(v.trim())}</span>`)
     .join('<span style="color:#d6a24a;">&nbsp;&bull;&nbsp;</span>')
 
   const button = o.button ? `
@@ -127,7 +150,7 @@ function renderEmail(o: EmailOptions): string {
         <tr>
           <td class="gn-pad" style="padding:26px 44px 0 44px;">
             <div class="gn-muted" style="font-family:${SANS}; font-size:13px; line-height:20px; color:#6d5a53; padding-bottom:8px;">
-              If the button does not work, paste this into your browser:
+              ${esc(o.t('email.chrome.fallback'))}
             </div>
             <div class="gn-code gn-muted" style="font-family:${MONO}; font-size:12px; line-height:19px; color:#6d5a53; background-color:#f2ece3; border:1px solid #e7dccf; border-radius:8px; padding:12px 14px; word-break:break-all;">
               ${o.fallbackUrl}
@@ -216,7 +239,7 @@ function renderEmail(o: EmailOptions): string {
               ${esc(APP_NAME)}
             </div>
             <div style="font-family:${SANS}; font-size:12px; line-height:18px; color:#e5d9c6; padding-top:6px;">
-              ${esc(APP_LEAD)}
+              ${esc(o.t('email.chrome.lead'))}
             </div>
           </td>
         </tr>

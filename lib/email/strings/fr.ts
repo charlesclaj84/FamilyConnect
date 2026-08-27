@@ -171,4 +171,96 @@ export const emailFr: Catalogue = {
   'email.checkIn.footnoteAnon':
     'Cette demande a été lancée dans la famille {family} sur {app}. Si vous ne pouvez pas ouvrir '
     + 'le lien, répondez à ce courriel.',
+  'email.chrome.values': 'Relier | Organiser | Célébrer',
+  'email.chrome.lead': 'Où chaque génération a sa place.',
+  'email.chrome.fallback': 'Si le bouton ne fonctionne pas, collez ceci dans votre navigateur :',
+
+  'email.auth.confirm.subject': 'Vous y êtes presque',
+  'email.auth.confirm.preheader': 'Un geste et c’est fait. Le lien est valable une heure.',
+  'email.auth.confirm.heading': 'Vous y êtes presque',
+  'email.auth.confirm.p1':
+    'Bienvenue. Confirmez cette adresse et votre compte {app} sera prêt — les histoires, les '
+    + 'photographies et les projets de votre famille, réunis en un seul endroit.',
+  'email.auth.confirm.p2':
+    'Une chose à prévoir ensuite : votre famille examine les nouveaux membres avant de les '
+    + 'admettre, il peut donc y avoir une courte attente après cette étape.',
+  'email.auth.confirm.button': 'Confirmer mon adresse électronique',
+  'email.auth.confirm.fine': 'Ce lien fonctionne une fois et expire au bout d’une heure.',
+  'email.auth.confirm.footnote':
+    'Si vous n’avez pas créé de compte {app}, vous pouvez ignorer ce message : rien ne se passe '
+    + 'avant l’ouverture du lien, et il expire de lui-même.',
+
+  'email.auth.recovery.subject': 'Réinitialisez votre mot de passe',
+  'email.auth.recovery.preheader':
+    'Choisissez un nouveau mot de passe. Le lien est valable une heure.',
+  'email.auth.recovery.heading': 'Choisissez un nouveau mot de passe',
+  'email.auth.recovery.p1':
+    'Quelqu’un a demandé la réinitialisation du mot de passe du compte {app} associé à cette '
+    + 'adresse. Ouvrez le lien ci-dessous et choisissez-en un nouveau.',
+  'email.auth.recovery.button': 'Choisir un nouveau mot de passe',
+  'email.auth.recovery.fine': 'Ce lien fonctionne une fois et expire au bout d’une heure.',
+  'email.auth.recovery.footnote':
+    'Si vous ne l’avez pas demandé, vous pouvez l’ignorer sans crainte. Votre mot de passe ne '
+    + 'changera pas, et le lien expire de lui-même.',
+
+  'email.auth.invite.subject': 'Votre famille vous a gardé une place',
+  'email.auth.invite.preheader': 'Acceptez l’invitation à les rejoindre sur {app}.',
+  'email.auth.invite.heading': 'Votre famille vous a gardé une place',
+  'email.auth.invite.p1':
+    'Quelqu’un de votre famille a invité <strong style="font-weight:600;">{email}</strong> à '
+    + 'les rejoindre sur {app} — où une famille garde ses histoires, ses photographies, ses '
+    + 'projets et la trace de qui appartient à qui.',
+  'email.auth.invite.p2':
+    'Acceptez ci-dessous et votre compte est créé pour vous. Il n’y a aucun code de famille à '
+    + 'trouver ni rien à remplir au préalable.',
+  'email.auth.invite.button': 'Accepter l’invitation',
+  'email.auth.invite.fine': 'Ce lien fonctionne une fois et expire au bout d’une heure.',
+  'email.auth.invite.footnote':
+    'Si vous ne vous y attendiez pas, vous pouvez l’ignorer. Aucun compte n’est créé avant '
+    + 'l’ouverture du lien.',
+
+  'email.auth.reauth.subject': 'Nous vérifions juste que c’est vous',
+  'email.auth.reauth.preheader':
+    'Votre code de confirmation est ci-dessous. Il fonctionne une fois et expire au bout d’une '
+    + 'heure.',
+  'email.auth.reauth.heading': 'Nous vérifions juste que c’est vous',
+  'email.auth.reauth.p1':
+    'Vous effectuez un changement qui demande une seconde vérification. Saisissez ce code dans '
+    + 'l’écran qui vous l’a demandé :',
+  'email.auth.reauth.fine': 'Ce code fonctionne une fois et expire au bout d’une heure.',
+  'email.auth.reauth.footnote':
+    'Nous ne vous demanderons jamais ce code par téléphone, SMS ou courriel. Si vous ne vous y '
+    + 'attendiez pas, ne le communiquez pas : quelqu’un connaît peut-être votre mot de passe, '
+    + 'et c’est celui-ci qu’il faut changer.',
+
+  'email.auth.changeOld.subject': 'Confirmez votre nouvelle adresse',
+  'email.auth.changeOld.preheader':
+    'Confirmez le changement depuis l’adresse que vous avez actuellement.',
+  'email.auth.changeOld.heading': 'Confirmez ce changement',
+  'email.auth.changeOld.p1':
+    'Une demande a été faite pour déplacer le compte {app} de '
+    + '<strong style="font-weight:600;">{email}</strong> vers '
+    + '<strong style="font-weight:600;">{newEmail}</strong>.',
+  'email.auth.changeOld.p2':
+    'Les deux adresses doivent confirmer. Voici la moitié qui vient de l’adresse actuelle.',
+  'email.auth.changeOld.button': 'Confirmer ce changement',
+  'email.auth.changeOld.fine': 'Ce lien fonctionne une fois et expire au bout d’une heure.',
+  'email.auth.changeOld.footnote':
+    'Si vous ne l’avez pas demandé, ne faites rien et l’adresse de votre compte reste telle '
+    + 'quelle. Il vaut la peine de changer aussi votre mot de passe — une telle demande ne peut '
+    + 'être faite que depuis une session ouverte.',
+
+  'email.auth.changeNew.subject': 'Confirmez votre nouvelle adresse',
+  'email.auth.changeNew.preheader': 'Confirmez la nouvelle adresse du compte.',
+  'email.auth.changeNew.heading': 'Confirmez cette adresse',
+  'email.auth.changeNew.p1':
+    'Une demande a été faite pour déplacer le compte {app} de '
+    + '<strong style="font-weight:600;">{email}</strong> vers cette adresse.',
+  'email.auth.changeNew.p2':
+    'Les deux adresses doivent confirmer. Voici la moitié qui vient de la nouvelle.',
+  'email.auth.changeNew.button': 'Confirmer cette adresse',
+  'email.auth.changeNew.fine': 'Ce lien fonctionne une fois et expire au bout d’une heure.',
+  'email.auth.changeNew.footnote':
+    'Si vous ne vous y attendiez pas, vous pouvez l’ignorer : le compte conserve son adresse '
+    + 'actuelle jusqu’à ce que les deux moitiés soient confirmées.',
 }

@@ -735,60 +735,55 @@ Canadian family collecting dues today would be charged in USD into a CAD account
 allowed on a direct charge and settles with conversion; it is not obviously what anybody
 intended.
 
-## BUILD: the five GoTrue auth emails are the last English in the product
+## GO LIVE: turn the Send Email hook on hosted, and in this order
 
-Every piece of mail the APP composes is translated — `lib/email/strings/` is one of the four
-bundles, and `localesOfPeople` is how a batch send addresses each relative in their own
-language. The five in `supabase/templates/` are not, and they are the FIRST mail a new
-member ever receives: confirm your signup, magic link, invite, recovery, reauthentication.
+**BUILT 2026-08-27 and proven locally** — `npm run auth-email:check` reports all five auth
+emails composed by this app, in all three languages, with the right `type=` on every link and
+both halves of an address change. What is left is one auth-config change on the hosted
+project, and the ORDER matters more than the change does.
 
-**They cannot be reached from here, which is the whole of the problem.** GoTrue renders and
-sends them itself, from the copy `npm run email:push` uploads. It substitutes a handful of
-`{{ .Token }}`-style variables and knows nothing about `people.locale`, so there is no hook
-point for a catalogue at all — and no amount of editing those templates makes them
-per-reader, because one body is one body.
+### THE ORDER, AND WHY GETTING IT BACKWARDS TAKES AUTH DOWN
 
-### WHAT WOULD FIX IT
+GoTrue calls the hook SYNCHRONOUSLY, and a non-2xx rolls the whole operation back — measured:
+a failing hook on a signup leaves no `auth.users` row at all. So a hook enabled before the
+endpoint answers means **nobody can register, reset a password, or change their address**, and
+every attempt fails with `unexpected_failure`.
 
-A **Send Email Hook**. GoTrue calls a URL of ours instead of sending, hands over the user,
-the email type and the token, and OUR code composes and sends the message — which puts the
-whole thing inside `lib/email/`, where the catalogue, the layout and the `localesOfPeople`
-resolver already are. The five templates then become five entries in the email bundle and
-`supabase/templates/` goes away.
+1. **Merge to `master` and let it deploy.** `/api/auth/send-email` has to be live and
+   answering before anything is switched on. Confirm with an unsigned POST — it must answer
+   401, which is also the open-relay check.
+2. **Set `SUPABASE_AUTH_HOOK_SECRET` in Vercel** (all environments), and `RESEND_API_KEY` must
+   already be there — it is, or no mail works today.
+3. **Then** enable the hook on the hosted project: `hook_send_email_enabled`,
+   `hook_send_email_uri = https://genorra.com/api/auth/send-email`, and
+   `hook_send_email_secrets` = the same secret. Dashboard → Authentication → Hooks, or the
+   Management API.
+4. **Send yourself a real signup and a real password reset** and look at both on a phone. The
+   GO LIVE item above already asks for this; it is now the same click.
 
-Four things it has to get right, and the first two are the reason this is not a small job:
+To undo, disable the hook. GoTrue falls straight back to `supabase/templates/*.html`, which is
+why those are still in the repo and still pushed.
 
-* **THE HOOK IS AN UNAUTHENTICATED PUBLIC ENDPOINT.** GoTrue signs each request with a
-  shared secret and the handler must verify it before doing anything at all — this is a URL
-  that composes and sends mail on GENORRA's authenticated domain, which is the OPEN RELAY
-  `lib/email/README.md` is written to prevent. Nothing about it may take a recipient as a
-  parameter: the address comes from the payload GoTrue signed, and only from there.
-* **A FAILURE MUST BE A NON-2xx.** GoTrue decides whether to retry from the status code, and
-  the mail lost by swallowing an error into a 200 is a confirmation link somebody is waiting
-  for — the same argument the Stripe webhook section already makes at length. `sendEmail()`
-  fails SOFT by design, so this is the one caller that must read its result and answer
-  accordingly.
-* **THE LANGUAGE COMES FROM `people.locale`, AND FOR A SIGNUP THERE IS NO ROW YET.** A
-  confirmation is sent before the account is confirmed, and `redeem_family_invitation` has
-  not run — so `storedLocale` answers English for exactly the message that most needs to be
-  right. The available signal is what the REGISTRATION page was in: `/es/register` is a real
-  route, so the language is known at the moment `registerUser` runs and would have to be
-  carried into the signup metadata for the hook to read back. That is a schema decision, not
-  a template change, and it is the part to design first.
-* **THE ADDRESS RULES STILL APPLY.** `placeholderEmail()` builds on `@genorra.com`, a REAL
-  domain, so `sendEmail`'s reserved-TLD guard does not catch one — see
-  `community/distributions`' `unreachable` state. An invitation to a generated address is a
-  hard bounce against our own sending reputation.
+### WHY IT IS NOT PUSHED FROM CI, WHICH IS A DECISION RATHER THAN AN OMISSION
 
-### UNTIL THEN
+`npm run email:push` sends only the ten mailer template fields, deliberately — see
+`scripts/auth-templates.mjs`, and AGENTS.md on why it is not `supabase config push`. Adding
+the hook fields to it would mean CI enabling an auth hook, and the failure mode is the one
+above: a green deploy that has taken authentication down. A human doing step 3 after watching
+step 1 land is the whole safeguard.
 
-`AGENTS.md`'s i18n section names this as the one surface that is still English, so nobody
-reports it as a bug. The templates keep their own README and their own hex literals (one of
-the four sanctioned exceptions to the colour rule) and `migrate.yml` keeps pushing them, so
-the current arrangement is correct — just monolingual.
+If it is ever automated, it has to be ordered AFTER the Vercel alias moves — which is
+`migrate.yml`'s Deployment Check in reverse, and that is a mechanism nobody has built.
 
-**Do not "fix" it by translating the templates.** One body cannot be three languages, and a
-template that guessed from `{{ .Data }}` would be guessing from metadata nothing writes.
+### THE TWO THINGS TO WATCH ONCE IT IS ON
+
+* **Auth mail now depends on the Next deployment.** It did not before. A build that fails to
+  alias, or an outage, takes auth email with it — and a signup attempted during one leaves no
+  account rather than an account with no email, so nothing is stranded. Worth knowing before
+  reading a support ticket that says "I cannot sign up".
+* **`supabase/templates/*.html` are FROZEN, not live.** They are the fallback and the English
+  in them is now a second copy. Change wording in `lib/email/auth-mail.ts`; delete the HTML
+  once the hook has been on for long enough that turning it off is not the plan.
 
 ## BUILD: greet a relative on their birthday, and make it feel like a celebration
 

@@ -133,6 +133,12 @@ const NOT_COPY = new Map([
     'app/actions/staff/access.ts — a sort comparator, inside a `=>` body'],
   ['Math.max(m, bar.lane + 1), most), 0, ) return (',
     'components/calendar/MonthCalendar.tsx — the lane reducer, same shape'],
+  // A RESPONSE BODY TO A MACHINE. `app/api/auth/send-email/route.ts` answers GoTrue, and
+  // GoTrue does not pass it on — measured: a refused hook surfaces to the client as its own
+  // `Unexpected status code returned from hook: 500`, never as our text. So nothing reads
+  // this string, and translating it would be translating a status code.
+  ['Not authorized',
+    'app/api/auth/send-email/route.ts — the hook response body, read by GoTrue'],
 ])
 
 function tsxFiles(dir, out = []) {

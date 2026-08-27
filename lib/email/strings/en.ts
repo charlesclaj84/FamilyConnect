@@ -172,4 +172,128 @@ export const emailEn: Catalogue = {
   'email.checkIn.footnoteAnon':
     'This check-in was raised in {family} on {app}. If you cannot open the link, reply to this '
     + 'email.',
+  // ── THE LAYOUT'S OWN CHROME ─────────────────────────────────────────────────────
+  // `lib/email/layout.ts` renders these, not a caller. All three were English for every
+  // reader in EVERY email — including the six that were already translated — and invisible to
+  // `i18n:literals`, which deliberately does not sweep `lib/`.
+  //
+  // `email.chrome.values` is PIPE-SEPARATED because the layout joins them with a gold bullet
+  // and the count is not fixed by anything: a language wanting two or four says so. Trimmed
+  // per item, so the separator can be padded for readability.
+  'email.chrome.values': 'Connect | Plan | Celebrate',
+  'email.chrome.lead': 'Where every generation belongs.',
+  'email.chrome.fallback': 'If the button does not work, paste this into your browser:',
+
+  // ── THE FIVE AUTH EMAILS, WHICH GoTrue USED TO RENDER ───────────────────────────
+  // `supabase/templates/*.html` still holds the English of each, as the fallback for a
+  // deployment where the Send Email hook is not enabled — see that folder's README. These are
+  // what `app/api/auth/send-email/route.ts` composes instead, and the words are the same ones,
+  // carried across rather than rewritten.
+  //
+  // NO SUBJECT IS A QUESTION AND NONE NAMES THE FAMILY. A subject line is the one part of an
+  // email that shows up in a notification on a locked screen, and "Your family kept a place
+  // for you" is as much as should be visible there — which is also why the confirmation code
+  // is never in one.
+
+  // 1. Signup confirmation.
+  'email.auth.confirm.subject': 'You’re almost in',
+  'email.auth.confirm.preheader': 'One tap and you’re set. The link is good for one hour.',
+  'email.auth.confirm.heading': 'You’re almost in',
+  'email.auth.confirm.p1':
+    'Welcome. Confirm this address and your {app} account is ready — your family’s stories, '
+    + 'photographs and plans, kept in one place.',
+  // THE WAIT IS NAMED HERE AND NOWHERE ELSE IN THE FLOW. Somebody who confirms and then lands
+  // on a holding screen with no warning reads it as the product being broken.
+  'email.auth.confirm.p2':
+    'One thing to expect next: your family reviews new members before admitting them, so there '
+    + 'may be a short wait after this step.',
+  'email.auth.confirm.button': 'Confirm my email address',
+  'email.auth.confirm.fine': 'This link works once and expires in one hour.',
+  'email.auth.confirm.footnote':
+    'If you did not create a {app} account, you can ignore this — nothing happens until the '
+    + 'link is opened, and it expires on its own.',
+
+  // 2. Password reset.
+  'email.auth.recovery.subject': 'Reset your password',
+  'email.auth.recovery.preheader': 'Choose a new password. The link is good for one hour.',
+  'email.auth.recovery.heading': 'Choose a new password',
+  'email.auth.recovery.p1':
+    'Somebody asked to reset the password on the {app} account for this address. Open the link '
+    + 'below and choose a new one.',
+  'email.auth.recovery.button': 'Choose a new password',
+  'email.auth.recovery.fine': 'This link works once and expires in one hour.',
+  // IT SAYS THE PASSWORD DOES NOT CHANGE. That is the sentence that stops somebody who did not
+  // ask for this from panicking, and it is true: nothing moves until the link is opened.
+  'email.auth.recovery.footnote':
+    'If you didn’t ask for this, you can safely ignore it. Your password won’t change, and the '
+    + 'link expires on its own.',
+
+  // 3. The GoTrue invite. NOT the family invitation — see `familyInvitationEmail`, which is
+  //    what a member actually sends and which carries the family's name. This one is
+  //    `admin.inviteUserByEmail`, reachable only with the service role, and is here because
+  //    the hook must answer for every action type GoTrue can produce.
+  'email.auth.invite.subject': 'Your family kept a place for you',
+  'email.auth.invite.preheader': 'Accept the invitation to join them on {app}.',
+  'email.auth.invite.heading': 'Your family kept a place for you',
+  'email.auth.invite.p1':
+    'Someone in your family invited <strong style="font-weight:600;">{email}</strong> to join '
+    + 'them on {app} — where a family keeps its stories, its photographs, its plans and the '
+    + 'record of who belongs to whom.',
+  'email.auth.invite.p2':
+    'Accept below and your account is set up for you. There is no family code to find and '
+    + 'nothing to fill in first.',
+  'email.auth.invite.button': 'Accept the invitation',
+  'email.auth.invite.fine': 'This link works once and expires in one hour.',
+  'email.auth.invite.footnote':
+    'If you were not expecting this, you can ignore it. No account is created until the link '
+    + 'is opened.',
+
+  // 4. The reauthentication code. NO BUTTON and NO LINK, deliberately: the code is typed into
+  //    a screen the reader already has open, and a one-click confirmation reachable from a
+  //    forwarded inbox would defeat the gate. Same argument as `familyRemovalCodeEmail`.
+  'email.auth.reauth.subject': 'Just checking it’s you',
+  'email.auth.reauth.preheader':
+    'Your confirmation code is below. It works once and expires in one hour.',
+  'email.auth.reauth.heading': 'Just checking it’s you',
+  'email.auth.reauth.p1':
+    'You’re making a change that needs a second look. Type this code into the screen that '
+    + 'asked for it:',
+  'email.auth.reauth.fine': 'This code works once and expires in one hour.',
+  // THE ONE FOOTNOTE THAT IS A WARNING RATHER THAN A REASSURANCE, because a code arriving
+  // unasked means somebody else is signed in.
+  'email.auth.reauth.footnote':
+    'We’ll never ask you for this code by phone, text or email. If you weren’t expecting it, '
+    + 'don’t share it — someone may know your password, and changing it is the thing to do.',
+
+  // 5. The address change. TWO EMAILS FROM ONE HOOK CALL — see the route: GoTrue fires once
+  //    carrying both tokens, and both addresses have to confirm.
+  'email.auth.changeOld.subject': 'Confirm your new address',
+  'email.auth.changeOld.preheader': 'Confirm the change from the address you have now.',
+  'email.auth.changeOld.heading': 'Confirm this change',
+  'email.auth.changeOld.p1':
+    'A request was made to move the {app} account from '
+    + '<strong style="font-weight:600;">{email}</strong> to '
+    + '<strong style="font-weight:600;">{newEmail}</strong>.',
+  'email.auth.changeOld.p2':
+    'Both addresses have to confirm. This is the half from the address you have now.',
+  'email.auth.changeOld.button': 'Confirm this change',
+  'email.auth.changeOld.fine': 'This link works once and expires in one hour.',
+  'email.auth.changeOld.footnote':
+    'If you didn’t ask for this, do nothing and the address on your account stays as it is. '
+    + 'It’s worth changing your password too — a request like this can only be made from a '
+    + 'signed-in session.',
+
+  'email.auth.changeNew.subject': 'Confirm your new address',
+  'email.auth.changeNew.preheader': 'Confirm the new address on the account.',
+  'email.auth.changeNew.heading': 'Confirm this address',
+  'email.auth.changeNew.p1':
+    'A request was made to move the {app} account from '
+    + '<strong style="font-weight:600;">{email}</strong> to this address.',
+  'email.auth.changeNew.p2':
+    'Both addresses have to confirm. This is the half from the new one.',
+  'email.auth.changeNew.button': 'Confirm this address',
+  'email.auth.changeNew.fine': 'This link works once and expires in one hour.',
+  'email.auth.changeNew.footnote':
+    'If you were not expecting this, you can ignore it — the account keeps the address it has '
+    + 'until both halves are confirmed.',
 }

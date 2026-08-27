@@ -27,6 +27,44 @@ import { SITE_URL } from '@/lib/site'
 const RESEND_ENDPOINT = 'https://api.resend.com/emails'
 
 /**
+ * Where a send actually goes. Resend, unless a DEVELOPMENT capture is configured.
+ *
+ * ── THE GAP THIS CLOSES, WHICH IS OLDER THAN THE REASON IT WAS FOUND ───────────────
+ * This module posts to Resend's HTTPS API. The local Supabase stack captures SMTP in
+ * Mailpit — and these two have never met, so **no email this app composes has ever been
+ * observable locally**. Without `RESEND_API_KEY` a send returns `{ sent: false }` and logs a
+ * line; with one it really sends, to a real inbox, from a laptop. Neither is a way to look at
+ * a message.
+ *
+ * That was survivable while every caller ran AFTER a decision was committed — a failed send
+ * is soft, and the six member-facing emails degrade to a logged warning. It stopped being
+ * survivable with `app/api/auth/send-email/route.ts`, where GoTrue is waiting on the answer:
+ * with the hook enabled and no key, every local signup 500s and GoTrue ROLLS THE ACCOUNT
+ * BACK. Nobody could register at all.
+ *
+ * ── NEVER IN PRODUCTION, AND THE GUARD IS THE POINT ───────────────────────────────
+ * An environment variable that silently redirects all outbound mail is exactly as dangerous
+ * as it sounds: set in production, every approval, invitation and confirmation code would go
+ * to whatever it named instead of to the member, and nothing would report a failure because
+ * the capture would answer 200.
+ *
+ * So it is read ONLY when `NODE_ENV` is not `'production'`. That check is not configurable and
+ * must not become so — a "just this once" override on a deployed environment is how mail goes
+ * missing for a week. On Vercel `NODE_ENV` is `'production'` for every deployment including
+ * previews, so a preview build ignores it too.
+ *
+ * ── WHAT A CAPTURE HAS TO ANSWER ─────────────────────────────────────────────────
+ * Anything 2xx. It receives the same JSON body Resend would — `from`, `to`, `subject`,
+ * `html`, `reply_to`, `tags` — so a capture is a dozen lines of Node.
+ * `scripts/auth-email-check.mjs` runs one.
+ */
+function sendEndpoint(): string {
+  const capture = process.env.EMAIL_CAPTURE_URL?.trim()
+  if (capture && process.env.NODE_ENV !== 'production') return capture
+  return RESEND_ENDPOINT
+}
+
+/**
  * RFC 2606's reserved TLDs, which exist precisely so they can never resolve.
  *
  * Declared once because two things now test against it — the recipient and the reply-to —
@@ -132,13 +170,17 @@ export async function sendEmail(opts: {
 
   // No key configured is the normal state of a fresh local checkout, and it must not
   // crash a signup or an approval. Reported, not thrown.
-  if (!key) {
+  const endpoint = sendEndpoint()
+  // A CAPTURE NEEDS NO KEY. There is nothing to authenticate to, and demanding one would mean
+  // putting a fake `RESEND_API_KEY` in every developer's environment — which is a live key
+  // shaped hole waiting for somebody to paste a real one in.
+  if (!key && endpoint === RESEND_ENDPOINT) {
     console.warn(`[email] RESEND_API_KEY is not set — "${opts.subject}" was not sent to ${opts.to}`)
     return { sent: false, error: 'RESEND_API_KEY is not set' }
   }
 
   try {
-    const res = await fetch(RESEND_ENDPOINT, {
+    const res = await fetch(endpoint, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${key}`,

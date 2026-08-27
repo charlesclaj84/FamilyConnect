@@ -189,7 +189,8 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   // ── `api/` IS EXCLUDED, ADDED 2026-08-23 WITH THE FIRST ROUTE HANDLERS ─────────────
-  // `/api/stripe/platform` and `/api/stripe/connect` are Stripe webhooks. They carry no cookie
+  // `/api/stripe/platform`, `/api/stripe/connect` and — since 2026-08-27 —
+  // `/api/auth/send-email` are webhooks. They carry no cookie
   // and have no session, so everything this file does for them is waste — a GoTrue
   // `getUser()` round trip on a request that is authenticated by an HMAC over its own body,
   // sitting between Stripe's three-day retry window and a payment being recorded.

@@ -190,3 +190,39 @@ VML button, the Heritage band that does not change between themes, the sanctione
 literals, Gmail's 102 KB clip — lives in
 [`supabase/templates/README.md`](../../supabase/templates/README.md) and is not repeated
 here. Read it before changing either side, and change both together.
+
+## The five auth emails come through a hook, and the endpoint is the exception to the rule above
+
+Everything in this folder exists because **a sender must never be exported from a `'use
+server'` file** — that would be an open relay on a domain carrying our SPF and DKIM.
+`app/api/auth/send-email/route.ts` is a `POST` handler that composes and sends, which is that
+shape one layer out, and the three things that make it a feature rather than the hole:
+
+* **It has no recipient parameter.** The address comes from the signed payload and from nowhere
+  else — not a query string, not a header.
+* **The signature is checked before anything else happens.** `lib/auth/hook-signature.ts`,
+  Standard Webhooks, over the raw bytes. There is no session to fall back on: the caller is a
+  Go process in another container.
+* **A failure answers non-2xx.** This is the ONE caller that must read `sendEmail`'s result,
+  because GoTrue is waiting on it — everywhere else in this folder a soft failure is correct,
+  since the decision is already committed.
+
+`lib/email/auth-mail.ts` holds the five compositions. `supabase/templates/*.html` are the
+frozen fallback for a deployment where the hook is off; that folder's README says so at the
+top.
+
+## Looking at an email locally, which was impossible until 2026-08-27
+
+`sendEmail` posts to Resend's HTTPS API. The local Supabase stack captures SMTP in Mailpit.
+**Those two have never met** — so without `RESEND_API_KEY` a send returns `{ sent: false }` and
+logs a line, and with one it really sends, from a laptop, to a real inbox. Neither is a way to
+read a message.
+
+`EMAIL_CAPTURE_URL` points a send at a local listener instead. It receives the same JSON body
+Resend would, so a capture is a dozen lines of Node — `scripts/auth-email-check.mjs` runs one.
+
+**It is read only when `NODE_ENV !== 'production'`, and that guard must not become
+configurable.** Set on a deployed environment, every approval, invitation and confirmation code
+would go somewhere else and nothing would report a failure, because a capture answers 200.
+Note that `next start` sets `NODE_ENV=production`: the capture works under `npm run dev` and is
+correctly ignored by a production build.

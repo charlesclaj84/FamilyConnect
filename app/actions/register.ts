@@ -121,7 +121,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
   // `people.locale` to prefer. `resolveLocale` reads the `/es` or `/fr` this request was
   // rewritten from and then `Accept-Language` — which is exactly why `/register` is in
   // `LOCALIZED_ROOTS`. A reader who filled the Spanish form must not be refused in English.
-  const { t } = await callerI18n(null)
+  const { t, locale } = await callerI18n(null)
   const inviteToken = input.inviteToken?.trim() || null
 
   // ── Registering from an invitation ────────────────────────────────────────
@@ -260,6 +260,18 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
         // `input.familyName!` would throw for them.
         family_name: !inviteToken && input.mode === 'create' ? input.familyName!.trim() : null,
         family_role: !inviteToken && input.mode === 'create' ? 'owner' : 'member',
+        // ── THE LANGUAGE, FOR THE CONFIRMATION EMAIL AND FOR NOTHING ELSE ──────────
+        // `authMailLocale` reads it, and this is the one moment it can be known: a signup
+        // confirmation is sent before any `people` row exists, so `people.locale` answers
+        // nothing for the FIRST mail a new member ever receives. `/es/register` is a real
+        // route, so `resolveLocale` above already knows what language they filled the form
+        // in — carrying it here is what makes that email readable.
+        //
+        // A HINT WITH A SHORTER LIFE THAN THE COLUMN, not a copy of it. Nothing keeps this in
+        // step with `setMyLocale`, and nothing should: once a `people` row exists it shadows
+        // this for every later message. Two facts that are both maintained is the `is_minor`
+        // trap; one authoritative and one one-shot is not.
+        locale,
       },
     },
   })

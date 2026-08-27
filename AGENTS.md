@@ -4449,13 +4449,95 @@ not collapse it, measured. Everything else on the Latin surface sorts identicall
 three, which is the finding that makes threading a locale through the other 81 bare
 `localeCompare` sites NOT worth doing.
 
-## WHAT IS STILL ENGLISH, SO NOBODY REPORTS IT AS A BUG
+## THE FIVE AUTH EMAILS COME THROUGH A HOOK NOW, AND IT IS OFF BY DEFAULT
 
-**The five GoTrue auth emails** in `supabase/templates/`. They are sent by GoTrue rather than
-by this app, so `lib/email/`'s catalogue cannot reach them — the fix is a Send Email Hook that
-moves them into `lib/email/`, and it is not built. `TODO.md` carries it. Every piece of mail
-the APP composes is already translated, and `localesOfPeople` is how a batch send addresses
-each relative in their own language.
+`supabase/templates/*.html` are rendered and sent by GoTrue, which knows nothing about
+`people.locale` and substitutes a handful of `{{ .Token }}`-shaped variables. One body is one
+body. So the first mail a new member ever receives was English for everybody.
+
+`[auth.hook.send_email]` in `config.toml` points GoTrue at
+`app/api/auth/send-email/route.ts`, and with it on **GoTrue sends nothing itself** — measured:
+zero messages in Mailpit and one call on the endpoint. `lib/email/auth-mail.ts` composes all
+five instead, from the email catalogue.
+
+**IT IS `enabled = false` AND THAT IS NOT CAUTION.** GoTrue calls the hook SYNCHRONOUSLY and a
+non-2xx rolls the whole operation back, so with it on, a local signup needs both `npm run dev`
+answering AND a working mail path. Without either, every signup 500s and leaves no
+`auth.users` row — which reads as a database fault rather than a missing process.
+`npm run auth-email:check` is what turns it on and proves it, the arrangement
+`realtime:check` already has.
+
+### FIVE THINGS ABOUT IT, MEASURED AGAINST GoTrue v2.195.0
+
+* **The signature IS the gate.** No cookie, no session, no permission — the caller is a Go
+  process in another container. `lib/auth/hook-signature.ts` is Standard Webhooks:
+  `HMAC-SHA256` over `` `${id}.${timestamp}.${rawBody}` ``, key = base64 after `whsec_`,
+  digest base64, prefix `v1,`. Every one of those was found by sweeping five key derivations ×
+  four content shapes × three encodings against a CAPTURED request, and that capture is the
+  test fixture — a fixture signed by our own code would prove only that the code agrees with
+  itself.
+* **`request.text()` FIRST.** The HMAC is over the bytes GoTrue sent and `JSON.parse` then
+  `JSON.stringify` does not round trip.
+* **A 500 response is NOT retried; an unreachable endpoint IS.** So a deliberate refusal is
+  final and a deployment gap is not, which is the right way round. A 500 also rolls a signup
+  back entirely — no account exists without its confirmation having been sent.
+* **AN UNHANDLED ACTION TYPE ANSWERS 200 AND SENDS NOTHING.** `magiclink` is the case: nothing
+  here offers a sign-in link, but `POST /auth/v1/otp` is reachable with the anon key. A
+  refusal would make that endpoint answer 500 for an address that HAS an account and 200 for
+  one that does not — **an account-enumeration oracle**, the exact leak `ForgotPasswordForm`
+  is written to avoid. The cost is that a NEW auth flow is silently mailless until the route
+  learns it, which is what `auth-email:check` walks every type to catch.
+* **`email_change` is ONE hook call and TWO emails.** `token_hash` for the address the
+  account has now, `token_hash_new` for the one it is moving to, and `user.email` is still the
+  old address while `user.new_email` holds the new one. Sending one leaves a change that can
+  never complete.
+
+### THE LANGUAGE, AND THE ONE PLACE A HINT LIVES IN METADATA
+
+`authMailLocale` in `lib/auth/locale.ts`: `people.locale`, then `user_metadata.locale`, then
+English. `resolveLocale` cannot answer here — there is no caller, the headers are GoTrue's —
+and `localesOfPeople` needs a `family_code` this path does not have.
+
+**THE SECOND RUNG IS THE WHOLE REASON IT EXISTS.** A confirmation is sent before any `people`
+row is written, so the first rung answers nothing for precisely the message that most needs to
+be right. `registerUser` writes `locale` into the signup metadata from the language the
+REGISTRATION PAGE was in, which `/es/register` makes knowable.
+
+That metadata is USER-WRITABLE and it does not matter: it is only ever COMPARED, by
+`storedLocale`, against the three languages the product speaks. **Nothing from it is ever
+RENDERED** — the same distinction `consume_family_action_challenge` makes about a hash. A
+member who writes `locale: "fr"` into their own metadata gets French mail, which is what the
+control is for.
+
+And it is **not kept in step** with the column. `setMyLocale` writes `people.locale` and
+nothing else, so the metadata goes stale — and is shadowed from that moment on. One
+authoritative fact and one hint with a shorter life than the thing it hints at is not the
+`is_minor` trap; two maintained copies would be.
+
+### THE TEMPLATES ARE NOT DELETED
+
+They are the fallback for a deployment where the hook is off, and GoTrue's own defaults link
+with `{{ .ConfirmationURL }}` — which points at GoTrue rather than `/auth/confirm` and is
+wrong for this app. So `email:push` keeps pushing them and they keep their hex literals.
+
+**WHICH MEANS THE ENGLISH EXISTS TWICE, and the mitigation is that the templates are FROZEN.**
+A change to any of those words is made in `lib/email/auth-mail.ts` and the HTML is left alone
+until the hook is on everywhere and it can be deleted. Two copies both edited is how they come
+to disagree; two copies where one is retired is a migration in progress.
+
+### AND `lib/email/` IS OBSERVABLE LOCALLY NOW, WHICH IT NEVER WAS
+
+`sendEmail` posts to Resend's HTTPS API; the local stack captures SMTP in Mailpit. **Those two
+have never met**, so no email this app composes has ever been visible locally — it either
+returned `{ sent: false }` for want of a key or really sent, from a laptop, to a real inbox.
+
+`EMAIL_CAPTURE_URL` (see `sendEndpoint`) points a send at a local listener instead, and is
+read **only when `NODE_ENV !== 'production'`**. That guard is not configurable and must not
+become so: set on a deployed environment, every approval, invitation and confirmation code
+would go somewhere else and nothing would report a failure. Note that `next start` sets
+`NODE_ENV=production` — so the capture works under `npm run dev` and is correctly ignored by a
+production build, which is how a real Resend key in `.env.local` came to send real mail during
+this work.
 
 # Page width is a component, not a per-page guess
 

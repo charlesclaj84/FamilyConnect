@@ -191,3 +191,87 @@ async function browserLocale(): Promise<string | null> {
     return null
   }
 }
+
+/**
+ * The language for one of the FIVE AUTH EMAILS, which is a different question from every other
+ * resolver in this file.
+ *
+ * ── WHY IT CANNOT BE `resolveLocale` OR `localesOfPeople` ──────────────────────────
+ * `resolveLocale` answers for the CALLER of a request, from `next/headers` and the session.
+ * There is no caller here: `app/api/auth/send-email/route.ts` is a webhook and the request
+ * belongs to a Go process. Its headers are GoTrue's, so `Accept-Language` would be nothing and
+ * the path segment would be `/api/auth/send-email`.
+ *
+ * `localesOfPeople` is closer — it is the mail resolver — and it takes a `family_code` this
+ * path does not have and cannot get: a CONFIRMATION is sent before the member belongs to a
+ * family, and a RECOVERY does not know which of several the reader is thinking about.
+ *
+ * ── TWO SOURCES, AND THE SECOND IS THE ONE THAT MATTERS ───────────────────────────
+ *
+ *   1. `people.locale`            what the member SET, on My Profile. Authoritative wherever
+ *                                 there is a row — recovery, reauthentication, email change.
+ *   2. `user_metadata.locale`     what `registerUser` wrote at signup, from the language the
+ *                                 REGISTRATION PAGE was in.
+ *   3. English.
+ *
+ * THE SECOND RUNG IS THE WHOLE REASON THIS FUNCTION EXISTS. A signup confirmation is sent
+ * before `redeem_family_invitation` or `registerUser` has written a `people` row, so rung 1
+ * answers nothing for precisely the message that most needs to be right — the first thing a
+ * new member ever receives from this product, and the one that decides whether they get in.
+ * `/es/register` is a real route (`LOCALIZED_ROOTS`), so the language IS known at that moment,
+ * and carrying it into the signup metadata is what makes it readable here.
+ *
+ * ── THE METADATA IS USER-WRITABLE, AND THAT IS FINE FOR A SELECTOR ────────────────
+ * `supabase.auth.updateUser({ data })` lets any signed-in member write their own
+ * `raw_user_meta_data`. So this value is not trustworthy — and it does not need to be: it is
+ * only ever COMPARED against the three languages the product speaks, by `storedLocale`, and
+ * anything else falls through to English. Nothing from it is ever RENDERED. That distinction is
+ * the same one `consume_family_action_challenge` makes about a hash: only compared, never used
+ * to find the row.
+ *
+ * A member who writes `locale: "fr"` into their own metadata gets French mail, which is what
+ * the control is for.
+ *
+ * ── `people.locale` STAYS THE SOURCE OF TRUTH, AND THE METADATA IS NOT KEPT IN STEP ─
+ * Deliberately. `setMyLocale` writes the column and nothing else, so a member who changes
+ * their language on My Profile has a stale `locale` in their metadata — and it does not matter,
+ * because rung 1 shadows it for every message sent after that row exists. The metadata is a
+ * one-shot hint for the window before there IS a row, not a copy to maintain.
+ *
+ * Which is the point worth being explicit about: writing both would be two facts that can
+ * disagree, the `is_minor` trap (§4b). One is authoritative and the other is a hint with a
+ * shorter life than the thing it hints at.
+ *
+ * ── §3, DISCHARGED THE SAME WAY `resolveLocale` DOES ─────────────────────────────
+ * The admin client with `.eq('user_id', …)` and no `family_code` — the SELF verdict in
+ * `scripts/family-scope.mjs`, filtering on something narrower than a family. `locale` is one of
+ * the columns `people_sync_shared_profile` propagates across every family a user belongs to
+ * (`20260826000002`), so any of their rows holds the same answer.
+ */
+export async function authMailLocale(o: {
+  userId: string | null | undefined
+  metadata: Record<string, unknown> | null | undefined
+}): Promise<string> {
+  const hinted = typeof o.metadata?.locale === 'string' ? o.metadata.locale : null
+
+  if (!o.userId) return storedLocale(hinted)
+
+  const db = createAdminClient()
+  // SELF — narrower than a family. See the header.
+  const { data, error } = await db
+    .from('people')
+    .select('locale')
+    .eq('user_id', o.userId)
+    .not('locale', 'is', null)
+    .limit(1)
+    .maybeSingle()
+
+  // §8: `const { data }` discards the error, and a refused read is indistinguishable from a
+  // member who has not chosen. Both fall through to the metadata hint, which is the same answer
+  // either way — but the error is LOGGED, because a whole family silently receiving English
+  // auth mail would otherwise look like a preference nobody set. And this is the one mail path
+  // where nobody is watching: there is no screen and no administrator to notice.
+  if (error) console.error('authMailLocale: could not read locale', error)
+
+  return storedLocale(isSupportedLocale(data?.locale) ? data?.locale : hinted)
+}

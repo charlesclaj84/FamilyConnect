@@ -1,3 +1,25 @@
+> ## FROZEN AS OF 2026-08-27 — READ THIS FIRST
+>
+> These five files are now the **fallback**. When `[auth.hook.send_email]` is enabled, GoTrue
+> renders none of them: `app/api/auth/send-email/route.ts` composes the message instead, from
+> `lib/email/auth-mail.ts` and the email catalogue, which is what makes them readable in
+> Spanish and French. One HTML body cannot be three languages.
+>
+> **So a change to any of this wording is made in `lib/email/auth-mail.ts`, not here.** The
+> English exists twice while both paths are live, and the mitigation is that this copy is not
+> edited — two copies both maintained is how they come to disagree; two copies where one is
+> retired is a migration in progress.
+>
+> They are kept because the hook is off by default and is a separate, deliberate act per
+> environment (TODO.md's GO LIVE item has the order). In that window GoTrue still needs
+> something to send, and its own defaults link with `{{ .ConfirmationURL }}` — which points at
+> GoTrue rather than at `/auth/confirm` and is wrong for this app. `npm run email:push` keeps
+> pushing them for that reason.
+>
+> Everything below still describes how these files work and why they look the way they do. It
+> is also the reference `lib/email/layout.ts` mirrors, so it is worth reading before changing
+> either.
+
 # Auth email templates
 
 The bodies GoTrue sends. Wired up in `supabase/config.toml` under
