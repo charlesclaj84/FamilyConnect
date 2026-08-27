@@ -1,5 +1,6 @@
 import { CalendarCheck, Images, Megaphone, Globe } from 'lucide-react'
 import { Reveal } from '@/components/marketing/Reveal'
+import { marketingI18n } from '@/lib/marketing/locale'
 import { ComingSoonBadge } from '@/components/marketing/sections'
 import { APP_NAME } from '@/lib/brand'
 
@@ -26,33 +27,29 @@ import { APP_NAME } from '@/lib/brand'
  * aloud — the same argument `app/page.tsx` makes for having replaced `provides.png`.
  */
 
-const SOURCES = [
-  {
-    icon: CalendarCheck,
-    label: 'Your next gathering',
-    detail: 'The reunion you are already planning becomes the page everyone lands on — the date, the place, and who is doing what.',
-    tone: 'text-brand-affirm',
-    chip: 'bg-brand-affirm/15',
-  },
-  {
-    icon: Images,
-    label: 'The photographs',
-    detail: 'Collections your family has already uploaded turn into the gallery, newest first, without anyone rebuilding it.',
-    tone: 'text-brand-accent',
-    chip: 'bg-brand-accent/12',
-  },
-  {
-    icon: Megaphone,
-    label: 'What is happening',
-    detail: 'Announcements and milestones surface as news, so the site is never a year out of date.',
-    // Ink, not Legacy: gold is 2.30 on this card and an icon carrying meaning needs 3:1.
-    // Gold is the wash here and never the foreground.
-    tone: 'text-brand-ink',
-    chip: 'bg-brand-legacy/20',
-  },
-]
+/**
+ * The three inputs, in the reader's language.
+ *
+ * Icons and colour tokens stay here; the two lines each card prints are keyed. The `label` was
+ * also the React key and is not any more — an index is, because a translated label is a poor key
+ * for the ordinary reason that it changes when the copy does.
+ */
+const SOURCE_SHAPES = [
+  { icon: CalendarCheck, tone: 'text-brand-affirm', chip: 'bg-brand-affirm/15' },
+  { icon: Images, tone: 'text-brand-accent', chip: 'bg-brand-accent/12' },
+  // Ink, not Legacy: gold is 2.30 on this card and an icon carrying meaning needs 3:1.
+  // Gold is the wash here and never the foreground.
+  { icon: Megaphone, tone: 'text-brand-ink', chip: 'bg-brand-legacy/20' },
+] as const
 
-export function LivingSitePreview() {
+export async function LivingSitePreview() {
+  const { t } = await marketingI18n()
+  const SOURCES = SOURCE_SHAPES.map((shape, i) => ({
+    ...shape,
+    label: t(`mkt.living.src${i}.label`),
+    detail: t(`mkt.living.src${i}.detail`),
+  }))
+
   return (
     <section
       aria-labelledby="living-site-heading"
@@ -67,18 +64,15 @@ export function LivingSitePreview() {
           <div className="mx-auto max-w-2xl text-center">
             <div className="flex items-center justify-center gap-3">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-accent">
-                On the roadmap
+                {t('mkt.living.eyebrow')}
               </p>
-              <ComingSoonBadge />
+              <ComingSoonBadge label={t('mkt.comingSoon')} />
             </div>
             <h2 id="living-site-heading" className="mt-3 text-3xl sm:text-4xl">
-              Your family&apos;s own website, building itself
+              {t('mkt.living.title')}
             </h2>
             <p className="mt-4 text-lg text-muted-foreground">
-              Every other family site on the internet is abandoned by March, because
-              somebody has to keep it updated. This one takes what your family is already
-              doing inside {APP_NAME} — the next event, the newest photographs, the latest
-              announcement — and keeps itself current.
+              {t('mkt.living.lede')}
             </p>
           </div>
         </Reveal>
@@ -87,7 +81,7 @@ export function LivingSitePreview() {
           {/* The three inputs */}
           <div className="space-y-4">
             {SOURCES.map((source, i) => (
-              <Reveal key={source.label} delay={i * 160}>
+              <Reveal key={i} delay={i * 160}>
                 <div className="flex gap-4 rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
                   <div className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${source.chip}`}>
                     <source.icon className={`h-5 w-5 ${source.tone}`} aria-hidden="true" />
@@ -145,7 +139,7 @@ export function LivingSitePreview() {
               </div>
             </div>
             <p className="mt-3 text-center text-xs text-muted-foreground">
-              Illustration of a feature in development — not a screenshot, and not final.
+              {t('mkt.living.illustration')}
             </p>
           </Reveal>
         </div>

@@ -4,7 +4,8 @@ import { ShieldCheck, EyeOff, Users, Sparkles } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { Reveal } from '@/components/marketing/Reveal'
 import { StructuredData } from '@/components/marketing/StructuredData'
-import { PageHero, SectionHeading, CtaBand, MoreLink } from '@/components/marketing/sections'
+import { PageHero, SectionHeading, MoreLink } from '@/components/marketing/sections'
+import { CtaBand } from '@/components/marketing/CtaBand'
 import { marketingPageGraph } from '@/lib/structured-data'
 import {
   APP_NAME, APP_TAGLINE, APP_LEAD, APP_PUBLISHER,

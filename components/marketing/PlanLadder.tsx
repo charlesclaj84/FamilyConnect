@@ -6,7 +6,9 @@ import { Check, Crown, Sparkles, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ComingSoonBadge } from '@/components/marketing/sections'
 import { ACCENTS, type AccentKey } from '@/components/marketing/tier-accent'
+import { useMarketingLocale, useMarketingT } from '@/components/marketing/MarketingLocale'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
+import { localizedHref } from '@/lib/i18n/route-locale'
 import { TIERS, TIER_LABEL } from '@/lib/tiers'
 import { cn } from '@/lib/utils'
 
@@ -189,6 +191,7 @@ export interface MarketingPlan {
  * and `PersonMultiSelect`. What it is, is a group of buttons that scroll a region.
  */
 export function PlanLadder({ plans }: { plans: readonly MarketingPlan[] }) {
+  const t = useMarketingT()
   const track = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(() => {
     const featured = plans.findIndex(p => p.featured)
@@ -248,7 +251,7 @@ export function PlanLadder({ plans }: { plans: readonly MarketingPlan[] }) {
       <div className="lg:hidden">
         <div
           role="group"
-          aria-label="Choose a plan to read"
+          aria-label={t('mkt.ladder.chooseAria')}
           className="relative mx-auto flex max-w-md rounded-full border border-brand-on-primary/20 bg-brand-on-primary/10 p-1"
         >
           <span
@@ -305,6 +308,8 @@ export function PlanLadder({ plans }: { plans: readonly MarketingPlan[] }) {
 }
 
 function PlanCard({ plan }: { plan: MarketingPlan }) {
+  const t = useMarketingT()
+  const locale = useMarketingLocale()
   const Icon = TIER_ICONS[plan.icon]
   const accent = ACCENTS[plan.accent]
 
@@ -362,7 +367,7 @@ function PlanCard({ plan }: { plan: MarketingPlan }) {
                 which was true of every paid tier and therefore invisible as a bug.
                 Standard and Plus are on sale now, so an ungated badge would put Coming
                 soon on a card whose button takes a payment. */}
-            {!plan.available && <ComingSoonBadge className="mt-2" />}
+            {!plan.available && <ComingSoonBadge label={t('mkt.comingSoon')} className="mt-2" />}
           </div>
           <p className="mt-2 min-h-10 text-sm text-muted-foreground">{plan.tagline}</p>
 
@@ -400,7 +405,9 @@ function PlanCard({ plan }: { plan: MarketingPlan }) {
               {plan.inheritsFrom && (
                 <li className="flex gap-3 border-b pb-3.5">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-affirm" aria-hidden="true" />
-                  <span className="font-semibold">Everything in {plan.inheritsFrom}</span>
+                  <span className="font-semibold">
+                    {t('mkt.ladder.everythingIn', { tier: plan.inheritsFrom })}
+                  </span>
                 </li>
               )}
 
@@ -425,7 +432,7 @@ function PlanCard({ plan }: { plan: MarketingPlan }) {
                 // specified yet" — which is true — rather than inventing
                 // capabilities to pad it out to match its neighbours.
                 <li className="text-muted-foreground">
-                  What this tier adds is still being decided.
+                  {t('mkt.ladder.undecided')}
                 </li>
               )}
             </ul>
@@ -462,22 +469,29 @@ function PlanCard({ plan }: { plan: MarketingPlan }) {
               <>
                 {/* Link OUTSIDE the Button, which is this file's own idiom and the
                     marketing sections' — `Button` here has no `asChild`. */}
-                <Link href={planSignupHref(plan.name)} className="block">
+                {/* `localizedHref` keeps the reader in their language through the one
+                    click that decides whether they sign up. The query string rides along
+                    untouched — `planSignupHref` builds `?plan=`, and the locale is a path
+                    segment, so the two never collide. */}
+                <Link
+                  href={localizedHref(planSignupHref(plan.name), locale)}
+                  className="block"
+                >
                   <Button size="lg" className="w-full text-base">
-                    Start with {plan.name}
+                    {t('mkt.ladder.startWith', { tier: plan.name })}
                   </Button>
                 </Link>
                 <p className="mt-3 text-center text-xs text-muted-foreground">
-                  Create your account first — you choose how to pay once your family exists.
+                  {t('mkt.ladder.accountFirst')}
                 </p>
               </>
             ) : (
               <>
                 <Button size="lg" disabled className="w-full text-base">
-                  Not yet available
+                  {t('mkt.ladder.notYet')}
                 </Button>
                 <p className="mt-3 text-center text-xs text-muted-foreground">
-                  Create a free account and you will hear about it first.
+                  {t('mkt.ladder.hearFirst')}
                 </p>
               </>
             )}

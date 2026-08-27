@@ -1,14 +1,24 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 import { ArrowRight, Sparkles } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import { Reveal } from '@/components/marketing/Reveal'
-import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import { cn } from '@/lib/utils'
 
 /**
- * The three pieces every marketing page repeats, in one file so six pages cannot drift
+ * The pieces every marketing page repeats, in one file so six pages cannot drift
  * into six slightly different versions of the same band.
+ *
+ * ── EVERYTHING IN HERE MUST BE REACHABLE FROM A CLIENT COMPONENT ────────────────────
+ * `PlanLadder` and `FeatureShowcase` are both `'use client'` and both import from here, so this
+ * module lands in a browser bundle whether or not any single export does. That is the constraint
+ * this file now has to keep, and it is why `CtaBand` LEFT it on the day the public site learned
+ * Spanish and French — see `components/marketing/CtaBand.tsx`.
+ *
+ * The failure mode is worth stating because it is a build error rather than a subtle one, which
+ * is the good direction: `marketingI18n()` reads `next/headers`, and a client bundle importing
+ * that fails the build with an import trace naming this file. So the rule is simple and
+ * enforced by the compiler — **nothing in here may import `lib/marketing/locale.ts`.** A piece
+ * that needs the reader's language takes it as a prop, the way `ComingSoonBadge` takes `label`.
  *
  * They are server components. Nothing here is interactive — `Reveal` is the only client
  * boundary and it is already isolated — so the public surface pays for one small
@@ -119,62 +129,12 @@ export function SectionHeading({
 }
 
 /**
- * The closing ask, on every page.
+ * The pill that marks something as not-yet-shipped. Used wherever a roadmap item appears.
  *
- * IDENTICAL EVERYWHERE ON PURPOSE — same ground, same gold button, same words. A visitor
- * who scrolled past it on the features page should recognise it on the pricing page
- * rather than having to re-read it. The landing page's own closing band established the
- * pattern; this is that band, extracted.
- *
- * Gold on burgundy is the brand's signature pairing and the highest-contrast thing on the
- * page, which is where the primary action belongs. `text-brand-on-legacy` is Ink in BOTH
- * themes — plain `text-brand-ink` turns cream in dark mode and fails at 1.65 on gold.
+ * `label` is REQUIRED and is the whole reason this signature changed — see `CtaBand` above on
+ * why this one takes a prop while that one awaits, and why the prop is not defaulted.
  */
-export function CtaBand({
-  title = 'Bring your family together',
-  lede = 'Create your free account and have your first reunion, directory and family tree running this week.',
-  primaryLabel = 'Create Your Free Account',
-}: {
-  title?: string
-  lede?: string
-  primaryLabel?: string
-}) {
-  return (
-    <section className="relative overflow-hidden bg-brand-hero px-4 py-20 sm:px-6">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="gn-float-slow absolute -top-20 left-1/4 h-64 w-64 rounded-full bg-brand-legacy/10 blur-3xl" />
-      </div>
-      <div className="relative mx-auto max-w-2xl text-center">
-        <h2 className="mb-4 text-3xl text-brand-on-primary sm:text-4xl">{title}</h2>
-        <p className="mb-9 text-lg text-brand-on-primary/80">{lede}</p>
-        <div className="flex flex-col justify-center gap-3 sm:flex-row">
-          <Link href={ACCOUNT_ROUTES.register}>
-            <Button
-              size="lg"
-              className="w-full bg-brand-legacy px-8 text-base text-brand-on-legacy hover:opacity-90 sm:w-auto"
-            >
-              {primaryLabel}
-            </Button>
-          </Link>
-          <Link href="/how-it-works">
-            <Button
-              size="lg"
-              className="w-full border-brand-on-primary/40 bg-transparent px-8 text-base text-brand-on-primary hover:bg-brand-on-primary/10 sm:w-auto"
-            >
-              See how it works
-            </Button>
-          </Link>
-        </div>
-        <p className="mt-7 text-sm text-brand-on-primary/70">
-          Free to start. No card required. Your family&apos;s data is never shared or sold.
-        </p>
-      </div>
-    </section>
-  )
-}
-
-/** The pill that marks something as not-yet-shipped. Used wherever a roadmap item appears. */
-export function ComingSoonBadge({ className }: { className?: string }) {
+export function ComingSoonBadge({ label, className }: { label: string; className?: string }) {
   return (
     <span
       className={cn(
@@ -186,7 +146,7 @@ export function ComingSoonBadge({ className }: { className?: string }) {
         className,
       )}
     >
-      <Sparkles className="h-3 w-3" aria-hidden="true" /> Coming soon
+      <Sparkles className="h-3 w-3" aria-hidden="true" /> {label}
     </span>
   )
 }

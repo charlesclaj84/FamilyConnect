@@ -263,6 +263,16 @@ const KNOWN_DYNAMIC = [
   ['mkt.nav.', 'marketingNavLabel() maps a marketing route: t(`mkt.nav.${href}`). '
     + 'lib/marketing-nav.ts keeps the hrefs; the captions are here.'],
   ['mkt.plan.', 'The plan cards map lib/plans.ts by tier: t(`mkt.plan.${tier}.…`).'],
+  ['mkt.also.', '/features builds its catalogue from ALSO_SHAPES: t(`mkt.also.${route}.title`). '
+    + 'Keyed on the ROUTE, which that page treats as the identity — see its header.'],
+  ['mkt.pillar.', 'pillars() maps three shapes and six bullets each: '
+    + 't(`mkt.pillar.${i}.b${n}`) in components/marketing/pillars.ts.'],
+  ['mkt.feat.soon', 'The roadmap table on /features maps four shapes by index. It has no route '
+    + 'to key on — that is what makes each of them a promise rather than a screen.'],
+  ['mkt.living.src', 'LivingSitePreview maps its three inputs: t(`mkt.living.src${i}.label`).'],
+  ['mkt.hiw.step', 'The five steps on /how-it-works: t(`mkt.hiw.step${i}.title`).'],
+  ['mkt.hiw.faq', 'The FAQ on /how-it-works, which is also the FAQPage node: '
+    + 't(`mkt.hiw.faq${i}.q`). The graph is built from the same `t` the body renders from.'],
   ['mkt.claim.', 'Every plan bullet is keyed on its own `claim` id, which marketing:check '
     + 'already walks per tier — so the two gates agree about one set of ids.'],
   ['help.', 'EVERY manual key is built from the content tree by lib/help/keys.ts — '

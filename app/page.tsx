@@ -5,10 +5,12 @@ import { FeatureShowcase } from '@/components/marketing/FeatureShowcase'
 import { StructuredData } from '@/components/marketing/StructuredData'
 import { MarketingHeader } from '@/components/marketing/MarketingHeader'
 import { MarketingFooter } from '@/components/marketing/MarketingFooter'
+import { MarketingLocaleProvider } from '@/components/marketing/MarketingLocale'
+import { marketingI18n } from '@/lib/marketing/locale'
 import { FoundingFamily } from '@/components/marketing/FoundingFamily'
 import { LivingSitePreview } from '@/components/marketing/LivingSitePreview'
 import { Testimonials } from '@/components/marketing/Testimonials'
-import { CtaBand } from '@/components/marketing/sections'
+import { CtaBand } from '@/components/marketing/CtaBand'
 import { landingPageGraph } from '@/lib/structured-data'
 import {
   APP_NAME, APP_LEAD, APP_BANNER_ALT,
@@ -92,8 +94,24 @@ export const metadata: Metadata = {
  * `/features` too, deliberately — it is the strongest thing on the roadmap and
  * both audiences should meet it.
  */
-export default function LandingPage() {
+/**
+ * ── IT MOUNTS ITS OWN `MarketingLocaleProvider`, AND THAT IS THE COST OF BEING `/` ──
+ * `app/(marketing)/layout.tsx` mounts one for the five pages in that group, and this page is
+ * deliberately not in it (see the note beside `MarketingHeader` below). So the provider has to
+ * be here too, and forgetting it is not a build error — it is a page that renders the ENGLISH
+ * chrome around SPANISH content, because `MarketingHeader` is a client component that falls back
+ * to `BASE_LOCALE` with no provider while `MarketingFooter` resolves the language itself.
+ *
+ * Measured, on `/es`, before this was added: the header said *Features* and *Sign In* while the
+ * footer three inches below said *Funciones* and *Iniciar sesión*. Nothing failed and nothing
+ * warned. That is the shape of every localization bug on this surface, and it is why the footer
+ * resolves rather than taking a prop — one of the two had to be able to be right on its own.
+ */
+export default async function LandingPage() {
+  const { locale } = await marketingI18n()
+
   return (
+    <MarketingLocaleProvider locale={locale}>
     <div className="min-h-screen flex flex-col">
       {/* Where an advertisement lands. Renders null and fires nothing unless a Pixel is
           configured for this deployment and consent has been granted — see
@@ -276,5 +294,6 @@ export default function LandingPage() {
           the one place a crawler reliably follows every internal link. */}
       <MarketingFooter />
     </div>
+    </MarketingLocaleProvider>
   )
 }
