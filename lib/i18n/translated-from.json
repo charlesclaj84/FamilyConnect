@@ -3337,7 +3337,22 @@
     "help.gathering-templates.archiving.heading": "3e0f299aa3ac",
     "help.gathering-templates.archiving.b0": "b9e70797f467",
     "help.gathering-templates.archiving.b1": "625fece2674b",
-    "help.gathering-templates.archiving.b2": "1a8bfac27606"
+    "help.gathering-templates.archiving.b2": "1a8bfac27606",
+    "mkt.nav./features": "5697d03daef4",
+    "mkt.nav./how-it-works": "c1879525c75c",
+    "mkt.nav./why-us": "d52a3b3e4beb",
+    "mkt.nav./pricing": "dfe95783edfe",
+    "mkt.nav./about": "4efca0d10c5f",
+    "mkt.signIn": "bcc0bcc9140b",
+    "mkt.getStarted": "6bb5a4a7be14",
+    "mkt.openMenu": "b40b3713b43d",
+    "mkt.closeMenu": "6ccd5c785604",
+    "mkt.footer.blurb": "7f7d92bc6231",
+    "mkt.footer.product": "fb9ef894175c",
+    "mkt.footer.account": "7e1b0d5641f2",
+    "mkt.footer.createAccount": "627c03c23b0f",
+    "mkt.footer.rights": "40d816f53b2b",
+    "mkt.language": "a4fe65264ef7"
   },
   "fr": {
     "nav.section.community": "bb501d7877eb",
@@ -6649,6 +6664,21 @@
     "help.gathering-templates.archiving.heading": "3e0f299aa3ac",
     "help.gathering-templates.archiving.b0": "b9e70797f467",
     "help.gathering-templates.archiving.b1": "625fece2674b",
-    "help.gathering-templates.archiving.b2": "1a8bfac27606"
+    "help.gathering-templates.archiving.b2": "1a8bfac27606",
+    "mkt.nav./features": "5697d03daef4",
+    "mkt.nav./how-it-works": "c1879525c75c",
+    "mkt.nav./why-us": "d52a3b3e4beb",
+    "mkt.nav./pricing": "dfe95783edfe",
+    "mkt.nav./about": "4efca0d10c5f",
+    "mkt.signIn": "bcc0bcc9140b",
+    "mkt.getStarted": "6bb5a4a7be14",
+    "mkt.openMenu": "b40b3713b43d",
+    "mkt.closeMenu": "6ccd5c785604",
+    "mkt.footer.blurb": "7f7d92bc6231",
+    "mkt.footer.product": "fb9ef894175c",
+    "mkt.footer.account": "7e1b0d5641f2",
+    "mkt.footer.createAccount": "627c03c23b0f",
+    "mkt.footer.rights": "40d816f53b2b",
+    "mkt.language": "a4fe65264ef7"
   }
 }

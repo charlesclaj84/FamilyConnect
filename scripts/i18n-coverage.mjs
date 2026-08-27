@@ -176,6 +176,8 @@ const { EMAIL_BUNDLE } = await import(
   pathToFileURL(join(ROOT, 'lib', 'email', 'strings', 'index.ts')).href)
 const { HELP_BUNDLE } = await import(
   pathToFileURL(join(ROOT, 'lib', 'help', 'strings', 'index.ts')).href)
+const { MARKETING_BUNDLE } = await import(
+  pathToFileURL(join(ROOT, 'lib', 'marketing', 'strings', 'index.ts')).href)
 
 /**
  * Every translation bundle in the product, and where its call sites live.
@@ -184,7 +186,8 @@ const { HELP_BUNDLE } = await import(
  * does not care which bundle a key belongs to, because a key can only belong to one
  * (DUPLICATE-KEY). It is here so a finding names something a reader can go and look at.
  *
- * Phase 5's manual is the third entry and needs nothing else.
+ * Phase 5's manual is the third entry and the public site's copy is the fourth. Neither needed
+ * anything else — which is the property `BUNDLES` exists to have.
  */
 const BUNDLES = [
   {
@@ -201,6 +204,11 @@ const BUNDLES = [
     id: 'help',
     catalogues: HELP_BUNDLE,
     where: 'lib/help/content.ts — the English is DERIVED from it; see lib/help/keys.ts',
+  },
+  {
+    id: 'marketing',
+    catalogues: MARKETING_BUNDLE,
+    where: 'app/page.tsx, app/(marketing)/ and components/marketing/ — Home, in three languages',
   },
 ]
 
@@ -252,6 +260,11 @@ const KNOWN_DYNAMIC = [
   ['pos.cat.', 'positionCategoryLabel() maps a family_roles.category.'],
   ['pos.scope.', 'positionScopeLabel() maps a user_roles.scope.'],
   ['set.pane.', 'settingsPaneLabel() maps a SettingsPane id.'],
+  ['mkt.nav.', 'marketingNavLabel() maps a marketing route: t(`mkt.nav.${href}`). '
+    + 'lib/marketing-nav.ts keeps the hrefs; the captions are here.'],
+  ['mkt.plan.', 'The plan cards map lib/plans.ts by tier: t(`mkt.plan.${tier}.…`).'],
+  ['mkt.claim.', 'Every plan bullet is keyed on its own `claim` id, which marketing:check '
+    + 'already walks per tier — so the two gates agree about one set of ids.'],
   ['help.', 'EVERY manual key is built from the content tree by lib/help/keys.ts — '
     + 'help.<slug>.<sectionId>.b<n>. No call site names one, and none can: the '
     + 'manual is data, and `localizeChapter` walks it.'],

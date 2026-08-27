@@ -1,5 +1,7 @@
 import { MarketingHeader } from '@/components/marketing/MarketingHeader'
 import { MarketingFooter } from '@/components/marketing/MarketingFooter'
+import { MarketingLocaleProvider } from '@/components/marketing/MarketingLocale'
+import { marketingLocale } from '@/lib/marketing/locale'
 
 /**
  * Chrome for the public pages.
@@ -18,10 +20,25 @@ import { MarketingFooter } from '@/components/marketing/MarketingFooter'
  * name, and each page below declares its own title, description and canonical — a
  * canonical in a shared layout is inherited, which would tell Google that five pages are
  * duplicates of one. That is the one metadata mistake worse than having none, and
- * `app/page.tsx` carries a comment saying so.
+ * `app/page.tsx` carries a comment saying so. That reason now covers `alternates` as well:
+ * `hreflang` names a set of addresses for ONE page, so each page builds its own with
+ * `marketingAlternates(path, locale)`.
+ *
+ * ── THE LANGUAGE IS RESOLVED HERE AND HANDED DOWN AS A STRING ───────────────────────
+ * `MarketingLocaleProvider` is what `useMarketingT()` reads, and it is mounted at the layout
+ * for the reason `LocaleProvider` is mounted at the protected one: the alternative is a
+ * `locale` prop threaded through `MarketingHeader`, `MarketingFooter` and every client
+ * component either of them renders, and a prop that has to be passed is a prop a page will
+ * forget. A string crosses the RSC boundary; a `t` function cannot.
+ *
+ * `app/page.tsx` is not in this group and therefore mounts its own — see the note above about
+ * why `/` cannot join it.
  */
-export default function MarketingLayout({ children }: { children: React.ReactNode }) {
+export default async function MarketingLayout({ children }: { children: React.ReactNode }) {
+  const locale = await marketingLocale()
+
   return (
+    <MarketingLocaleProvider locale={locale}>
     <div className="flex min-h-screen flex-col">
       <MarketingHeader />
       {/* `flex-1` so a short page still pins the footer to the bottom of the viewport
@@ -29,5 +46,6 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <main className="flex-1">{children}</main>
       <MarketingFooter />
     </div>
+    </MarketingLocaleProvider>
   )
 }

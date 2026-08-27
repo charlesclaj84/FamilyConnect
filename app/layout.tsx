@@ -6,7 +6,8 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import { APP_NAME, APP_SEO_DESCRIPTION, APP_LEAD, BRAND_THEME_COLOR } from '@/lib/brand'
 import { SITE_ORIGIN } from '@/lib/site'
 import { THEME_BOOT_SCRIPT } from '@/lib/theme'
-import { BASE_LOCALE, negotiateLocale } from '@/lib/i18n/locales'
+import { BASE_LOCALE, isSupportedLocale, negotiateLocale } from '@/lib/i18n/locales'
+import { LOCALE_HEADER } from '@/lib/i18n/route-locale'
 import { consentDefault, metaClientConfig } from '@/lib/meta/config'
 import { MetaPixel } from '@/components/meta/MetaPixel'
 import { MetaAttributionCapture } from '@/components/meta/MetaAttributionCapture'
@@ -138,6 +139,16 @@ export const viewport: Viewport = {
  * A signed-in member's stored choice is applied one level down by `LocaleSync`, mounted in
  * `app/(protected)/layout.tsx` — the same division `resolveZone` and `ZoneHint` already use, and
  * the same Home-versus-Dashboard split the whole localization plan is built on.
+ *
+ * ── THE PATH SEGMENT BEATS THE HEADER, AND THAT IS WHY IT IS READ FIRST ─────────────
+ * Added with `/es` and `/fr` on Home. A reader on `/es/pricing` has said what they want in the
+ * address bar, and their browser may well still be asking for English — a relative forwarding a
+ * link to a cousin is the ordinary case. Negotiating here would set `lang="en"` on a page of
+ * Spanish prose, which is the one thing this attribute must never do: a screen reader uses it to
+ * choose pronunciation, so it would read Spanish aloud with English phonetics.
+ *
+ * It costs nothing. `proxy.ts` has already put the locale in a request header, so this is one
+ * more `get()` on the `headers()` call the negotiation was making anyway.
  */
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Meta advertising measurement. Null on any deployment that must not track — a laptop, a
@@ -151,10 +162,14 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   // crosses from here is the deployment's DEFAULT. Both are explained on `MetaPixel`.
   const meta = metaClientConfig()
   const defaultConsent = consentDefault()
-  // The browser's own request, narrowed to a language the product speaks. `BASE_LOCALE` where
-  // it asks for none we have — never a guess, because `lang` is what a screen reader uses to
-  // decide pronunciation and getting it wrong is worse than defaulting.
-  const lang = negotiateLocale((await headers()).get('accept-language')) ?? BASE_LOCALE
+  // The address bar first, then the browser's own request, then English. `BASE_LOCALE` where
+  // neither answers — never a guess, because `lang` is what a screen reader uses to decide
+  // pronunciation and getting it wrong is worse than defaulting.
+  const h = await headers()
+  const named = h.get(LOCALE_HEADER)
+  const lang = (isSupportedLocale(named) ? named : null)
+    ?? negotiateLocale(h.get('accept-language'))
+    ?? BASE_LOCALE
 
   return (
     // suppressHydrationWarning is required and narrow: the boot script below
