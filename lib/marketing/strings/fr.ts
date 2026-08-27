@@ -699,4 +699,40 @@ export const marketingFr: Catalogue = {
   'mkt.about.whySwitch': 'Pourquoi les familles migrent',
   'mkt.about.ctaTitle': 'Un seul endroit, pour chaque génération',
   'mkt.about.ctaLede': 'Créez votre compte gratuit et faites entrer toute la famille.',
+
+  // ──── HOME — the hero, and the founding family ──────────────────────────────────
+  'mkt.home.metaTitle': 'Organisez vos retrouvailles familiales en privé — GENORRA',
+  'mkt.home.lead': 'Où chaque génération a sa place.',
+  'mkt.home.heroLede':
+    'Le portail unique pour organiser des événements, partager des souvenirs et garder '
+    + 'votre famille proche — quelle que soit la distance.',
+  'mkt.home.heroPrimary': 'Rejoignez votre famille',
+  'mkt.home.heroReassure':
+    'Privé et sécurisé — les données de votre famille ne sont jamais partagées ni vendues.',
+  'mkt.home.ctaTitle': 'Prêt à vous retrouver ?',
+  'mkt.founding.eyebrow': 'À propos de ce chiffre',
+  'mkt.founding.title': 'Nous préférons vous montrer comment ça marche',
+  'mkt.founding.ledeBefore':
+    'Des milliers de familles fonctionnent avec GENORRA. Nous pourrions ouvrir sur ce '
+    + 'chiffre et nous en tenir là, mais il ne vous dit rien sur la capacité du produit à '
+    + 'porter',
+  // THE HINGE — see the Spanish note. *votre* is the possessive itself rather than a
+  // separate word, which is the clearest case for why this could not have been
+  // a JSX tag inside one translated sentence.
+  'mkt.founding.ledeEm': 'votre',
+  'mkt.founding.ledeAfter':
+    'famille. Tout ce qui précède est ce qu’il fait réellement. Ci-dessous se trouve le '
+    + 'seul décompte qui l’a façonné.',
+  'mkt.founding.statsTitle': 'La famille pour laquelle nous l’avons construit',
+  'mkt.founding.stat0': 'générations vivantes',
+  'mkt.founding.stat1': 'membres de la famille',
+  'mkt.founding.stat2': 'endroit où tout cela vit maintenant',
+  'mkt.founding.statsFoot':
+    'Notre propre famille — non un décompte de clients. GENORRA a été construit pour la '
+    + 'porter, puis ouvert à d’autres familles qui avaient le même problème.',
+
+  // ──── THE BRAND LOCKUP, READ ALOUD ──────────────────────────────────────────────
+  'mkt.bannerAlt':
+    'GENORRA — générations organisées, ressources enregistrées, ascendance archivée. '
+    + 'Héritage · Communauté · Legs',
 }

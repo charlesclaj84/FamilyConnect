@@ -1,5 +1,5 @@
 import { Reveal } from '@/components/marketing/Reveal'
-import { APP_NAME } from '@/lib/brand'
+import { marketingI18n } from '@/lib/marketing/locale'
 
 /**
  * The founders' own family, as three figures — restored from `/about`, where it ran until
@@ -51,7 +51,9 @@ import { APP_NAME } from '@/lib/brand'
  * on the page and the two that bookend it already carry them; a quieter middle is what
  * makes them read as bookends rather than as three of the same thing.
  */
-export function FoundingFamily() {
+export async function FoundingFamily() {
+  const { t } = await marketingI18n()
+
   return (
     <section
       aria-labelledby="founding-family-heading"
@@ -60,7 +62,7 @@ export function FoundingFamily() {
       <div className="mx-auto max-w-3xl text-center">
         <Reveal>
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-legacy">
-            About that number
+            {t('mkt.founding.eyebrow')}
           </p>
           {/* Explicit colour: the base layer paints h1/h2 with --brand-ink, which is
               burgundy in light mode and invisible on this ground. */}
@@ -68,16 +70,26 @@ export function FoundingFamily() {
             id="founding-family-heading"
             className="mt-3 text-3xl text-brand-on-primary sm:text-4xl"
           >
-            We would rather show you how it works
+            {t('mkt.founding.title')}
           </h2>
           {/* The customer figure is the owner's claim — see the note at the top of this
-              file before changing it. `<em>your</em>` is the hinge of the whole paragraph:
-              it is what turns a boast into an offer, so keep the emphasis. */}
+              file before changing it.
+
+              ── THE EMPHASIS SURVIVED THE TRANSLATION, AND IT HAD TO ──────────────────
+              `<em>your</em>` is the hinge of the whole paragraph: it is what turns a boast
+              into an offer. The sentence is one catalogue entry now, so the emphasis cannot
+              be a JSX tag around one word — the word it belongs on is not in the same place
+              in Spanish or French, and in French it is *votre* rather than a separate word
+              at all.
+
+              So the paragraph is TWO entries with the emphasised clause between them, and
+              each language decides where its own hinge falls. The alternative was
+              `InlineText` and a `**your**` marker, which would have worked and would have
+              put a second inline-markup dialect on the marketing surface for one word. */}
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-relaxed text-brand-on-primary/80">
-            Thousands of families run on {APP_NAME}. We could open with that figure and
-            leave it there, but it tells you nothing about whether the product will hold{' '}
-            <em>your</em> family. Everything above is what it actually does. Below is the
-            only count that shaped it.
+            {t('mkt.founding.ledeBefore')}{' '}
+            <em>{t('mkt.founding.ledeEm')}</em>{' '}
+            {t('mkt.founding.ledeAfter')}
           </p>
         </Reveal>
       </div>
@@ -97,7 +109,7 @@ export function FoundingFamily() {
           </div>
 
           <h3 className="mt-8 text-xs font-semibold uppercase tracking-[0.18em] text-brand-legacy">
-            The family we built it for
+            {t('mkt.founding.statsTitle')}
           </h3>
 
           {/* THE VISIBLE CAPTION IS THE `dt`. It reads as a caption under the figure and it
@@ -114,10 +126,14 @@ export function FoundingFamily() {
               its <dd> in the DOM, and the design wants the figure on top — so the pair is
               swapped visually and left correct structurally. */}
           <dl className="mt-6 grid gap-8 sm:grid-cols-3">
+            {/* THE FIGURES ARE NOT COPY AND ARE NOT KEYED. `6`, `400+` and `1` are facts
+                about the founders' own family — the note at the top of this file says they
+                are the owner's claim — and a figure that could be translated is a figure
+                that could be changed by a translator. Only the captions move. */}
             {[
-              { figure: '6', label: 'living generations' },
-              { figure: '400+', label: 'family members' },
-              { figure: '1', label: 'place it all lives now' },
+              { figure: '6', label: t('mkt.founding.stat0') },
+              { figure: '400+', label: t('mkt.founding.stat1') },
+              { figure: '1', label: t('mkt.founding.stat2') },
             ].map(stat => (
               <div key={stat.label} className="flex flex-col">
                 <dt className="order-2 mt-1 text-sm text-brand-on-primary/70">
@@ -131,8 +147,7 @@ export function FoundingFamily() {
           </dl>
 
           <p className="mx-auto mt-8 max-w-xl text-sm text-brand-on-primary/70">
-            Our own family — not a customer count. {APP_NAME} was built to hold it, and then
-            opened up to other families who had the same problem.
+            {t('mkt.founding.statsFoot')}
           </p>
         </Reveal>
       </div>

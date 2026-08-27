@@ -683,4 +683,47 @@ export const marketingEs: Catalogue = {
   'mkt.about.whySwitch': 'Por qué las familias se pasan',
   'mkt.about.ctaTitle': 'Un solo lugar, para cada generación',
   'mkt.about.ctaLede': 'Cree su cuenta gratis y traiga a toda la familia.',
+
+  // ──── HOME — the hero, and the founding family ──────────────────────────────────
+  // The job leads and the brand closes, which is app/page.tsx’s own argument: nobody
+  // searches for a brand they have not heard of. Written to ~60 characters —
+  // a literal rendering of *Family Reunion Planning & Private Family Website*
+  // runs well past it and Google cuts it mid-phrase.
+  'mkt.home.metaTitle': 'Organice su reunión familiar en un sitio privado — GENORRA',
+  'mkt.home.lead': 'Donde cada generación tiene su lugar.',
+  'mkt.home.heroLede':
+    'El portal que reúne todo para organizar eventos, compartir recuerdos y mantener a su '
+    + 'familia cerca, sin importar la distancia.',
+  'mkt.home.heroPrimary': 'Únase a su familia',
+  'mkt.home.heroReassure':
+    'Privado y seguro: los datos de su familia nunca se comparten ni se venden.',
+  'mkt.home.ctaTitle': '¿Listo para conectar?',
+  'mkt.founding.eyebrow': 'Sobre esa cifra',
+  'mkt.founding.title': 'Preferimos mostrarle cómo funciona',
+  'mkt.founding.ledeBefore':
+    'Miles de familias funcionan con GENORRA. Podríamos abrir con esa cifra y dejarlo ahí, '
+    + 'pero no le dice nada sobre si el producto podrá sostener a',
+  // THE HINGE. `<em>` around this one word is what turns the paragraph from a boast
+  // into an offer, and the word is not in the same position in every language —
+  // which is why the sentence is three entries rather than one. *su* here
+  // carries the same weight *your* does; it must stay emphasised.
+  'mkt.founding.ledeEm': 'su',
+  'mkt.founding.ledeAfter':
+    'familia. Todo lo que está arriba es lo que hace de verdad. Abajo está la única cifra '
+    + 'que lo dio forma.',
+  'mkt.founding.statsTitle': 'La familia para la que lo construimos',
+  'mkt.founding.stat0': 'generaciones vivas',
+  'mkt.founding.stat1': 'integrantes de la familia',
+  'mkt.founding.stat2': 'lugar donde vive todo ahora',
+  'mkt.founding.statsFoot':
+    'Nuestra propia familia, no un recuento de clientes. GENORRA se construyó para '
+    + 'sostenerla, y después se abrió a otras familias que tenían el mismo problema.',
+
+  // ──── THE BRAND LOCKUP, READ ALOUD ──────────────────────────────────────────────
+  // ALT TEXT, so this is what a screen reader SAYS. It was `APP_BANNER_ALT` from
+  // lib/brand.ts and therefore English on every page, in every language — the one
+  // string on Home that a sighted reviewer could never have caught.
+  'mkt.bannerAlt':
+    'GENORRA: generaciones organizadas, recursos registrados, linaje archivado. Herencia · '
+    + 'Comunidad · Legado',
 }

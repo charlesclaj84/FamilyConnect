@@ -606,4 +606,35 @@ export const marketingEn: Catalogue = {
   'mkt.about.whySwitch': 'Why families switch',
   'mkt.about.ctaTitle': 'One place, for every generation',
   'mkt.about.ctaLede': 'Create your free account and bring the whole family in.',
+
+  // ──── HOME — the hero, and the founding family ──────────────────────────────────
+  'mkt.home.metaTitle': 'Family Reunion Planning & Private Family Website — GENORRA',
+  'mkt.home.lead': 'Where every generation belongs.',
+  'mkt.home.heroLede':
+    'The all-in-one portal to plan events, share memories, and keep your family close — no '
+    + 'matter the distance.',
+  'mkt.home.heroPrimary': 'Join Your Family',
+  'mkt.home.heroReassure': 'Private & secure — your family’s data is never shared or sold.',
+  'mkt.home.ctaTitle': 'Ready to connect?',
+  'mkt.founding.eyebrow': 'About that number',
+  'mkt.founding.title': 'We would rather show you how it works',
+  'mkt.founding.ledeBefore':
+    'Thousands of families run on GENORRA. We could open with that figure and leave it '
+    + 'there, but it tells you nothing about whether the product will hold',
+  'mkt.founding.ledeEm': 'your',
+  'mkt.founding.ledeAfter':
+    'family. Everything above is what it actually does. Below is the only count that shaped '
+    + 'it.',
+  'mkt.founding.statsTitle': 'The family we built it for',
+  'mkt.founding.stat0': 'living generations',
+  'mkt.founding.stat1': 'family members',
+  'mkt.founding.stat2': 'place it all lives now',
+  'mkt.founding.statsFoot':
+    'Our own family — not a customer count. GENORRA was built to hold it, and then opened '
+    + 'up to other families who had the same problem.',
+
+  // ──── THE BRAND LOCKUP, READ ALOUD ──────────────────────────────────────────────
+  'mkt.bannerAlt':
+    'GENORRA — Generations Organized, Resources Recorded, Ancestry Archived. Heritage · '
+    + 'Community · Legacy',
 }
