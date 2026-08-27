@@ -6,6 +6,7 @@ import { getMyFamilies, getMyNameInFamily } from '@/lib/auth/family'
 import { getMyPermissionSet } from '@/lib/auth/permissions'
 import { getMyFamilyTier } from '@/lib/auth/tier'
 import { notifyMembershipAppeal } from '@/lib/notifications'
+import { currentUser } from '@/lib/auth/current-user'
 
 export type ResendResult =
   | { success: true }
@@ -58,7 +59,7 @@ export async function appealMembershipDecision(
   note: string,
 ): Promise<AppealResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const { data, error } = await supabase
@@ -158,8 +159,7 @@ export interface ShellState {
 }
 
 export async function getMyShellState(): Promise<ShellState> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { fingerprint: '' }
 
   const families = await getMyFamilies(user.id)
@@ -204,7 +204,7 @@ export async function getMyShellState(): Promise<ShellState> {
 
 export async function resendConfirmationEmail(): Promise<ResendResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user?.email) return { success: false, message: 'Not authenticated' }
 
   if (user.email_confirmed_at) {

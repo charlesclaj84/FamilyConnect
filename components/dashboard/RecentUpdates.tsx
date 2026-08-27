@@ -8,6 +8,7 @@ import { timeAgo } from '@/lib/date-utils'
 import { formatTimeAgo } from '@/lib/i18n/catalogues'
 import { unpinAnnouncementForMe, repinAnnouncementForMe } from '@/app/actions/announcements'
 import type { UpdateItem } from '@/components/dashboard/updates'
+import { useLocale, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The Golden Master's "Recent Activity" card, renamed to what it can honestly show —
@@ -44,14 +45,14 @@ import type { UpdateItem } from '@/components/dashboard/updates'
  * columns worth naming; these rows are one thing each.
  */
 export function RecentUpdates({
-  items, mayViewArchive = false, locale,
+  items, mayViewArchive = false,
 }: {
   items: UpdateItem[]
   /** Whether to offer the archive. Resolved on the dashboard; see the link below. */
   mayViewArchive?: boolean
-  /** The reader's language. A string, not a `t` — see lib/i18n/catalogues.ts. */
-  locale: string
 }) {
+  const t = useT()
+  const locale = useLocale()
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -69,12 +70,12 @@ export function RecentUpdates({
 
   return (
     <section className="flex flex-col rounded-3xl border bg-card p-5 shadow-[var(--shadow-card)]">
-      <h2 className="mb-4 text-lg">Recent Updates</h2>
+      <h2 className="mb-4 text-lg">{t('dash.updates.title')}</h2>
 
       {items.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-2 py-8 text-center">
           <Bell className="h-6 w-6 text-muted-foreground/40" />
-          <p className="text-sm text-muted-foreground">Nothing new right now.</p>
+          <p className="text-sm text-muted-foreground">{t('dash.updates.empty')}</p>
         </div>
       ) : (
         <ul className="flex flex-col">
@@ -101,8 +102,8 @@ export function RecentUpdates({
                   onClick={() => setPinned(item.id, !item.pinnedForMe)}
                   disabled={isPending}
                   title={item.pinnedForMe
-                    ? 'Hide this from the top of my updates'
-                    : 'Show this at the top of my updates'}
+                    ? t('dash.updates.unpin')
+                    : t('dash.updates.pin')}
                   aria-label={
                     item.pinnedForMe
                       ? `Hide “${item.title}” from the top of your own updates`
@@ -139,7 +140,7 @@ export function RecentUpdates({
           the archive there hid it in the one state it is most useful in. */}
       {mayViewArchive && (
         <p className="mt-4 text-sm">
-          <Link href="/community/updates" className="hover:underline">View all updates</Link>
+          <Link href="/community/updates" className="hover:underline">{t('dash.updates.viewAll')}</Link>
         </p>
       )}
     </section>

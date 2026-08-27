@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { resolveFamilyZone } from '@/lib/auth/zone'
@@ -8,6 +7,8 @@ import { buildCalendarMonth, isValidMonth } from '@/lib/calendar'
 import { getCalendarMonth } from '@/app/actions/calendar'
 import { PageShell } from '@/components/layout/PageShell'
 import { MonthCalendar } from '@/components/calendar/MonthCalendar'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Calendar' }
 
@@ -58,11 +59,12 @@ export default async function CalendarPage({
   // same way.
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'gatherings/calendar')
+
+  const { t } = await callerI18n(user.id)
 
   const requested = (await searchParams).month
   // `?month=a&month=b` arrives as an array. Taking the first is the same recovery every other
@@ -102,7 +104,7 @@ export default async function CalendarPage({
   return (
     <PageShell className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">Calendar</h1>
+        <h1 className="text-3xl font-bold">{t('page./gatherings/calendar.title')}</h1>
       </div>
 
       {withheld.length > 0 && (

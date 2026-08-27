@@ -37,7 +37,7 @@ import {
   BookText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { tFor } from '@/lib/i18n/catalogues'
+import { useT } from '@/components/layout/LocaleProvider'
 import type { T } from '@/lib/i18n/t'
 import { isFeatureFuture } from '@/lib/features'
 import { BetaBadge } from '@/components/ui/beta-badge'
@@ -976,20 +976,16 @@ function RailBrand() {
  * Only the top-left. The kit rounds its bottom corners too, but its sidebar is a card on a
  * canvas; this one runs to the bottom of a page of unknown length.
  */
-export function Sidebar({ viewable, locale }: {
+export function Sidebar({ viewable }: {
   viewable: string[]
-  /**
-   * The reader's language, resolved by the layout.
-   *
-   * A STRING AND NOT A `t`, because a function cannot cross the RSC boundary — props are
-   * serialized. Each side builds its own `t` from the same static registry; see
-   * `lib/i18n/catalogues.ts`.
-   */
-  locale: string
 }) {
   const pathname = usePathname()
   const navGroups = buildNavGroups(new Set(viewable))
-  const t = tFor(locale)
+  // `useT()`, not a `locale` prop. This took one until Phase 5, which was fine for a component
+  // the layout renders itself — and the page BODIES underneath are a hundred and fifteen client
+  // components at arbitrary depth, where a threaded prop gets dropped in the middle and a pane
+  // reverts to English with nothing to show for it. One mechanism; see `LocaleProvider`.
+  const t = useT()
 
   return (
     <aside className="relative hidden md:flex w-56 shrink-0 flex-col">
@@ -1043,21 +1039,13 @@ export function Sidebar({ viewable, locale }: {
  *
  * `Sidebar` above is now desktop-only and holds no state at all.
  */
-export function MobileNav({ viewable, locale }: {
+export function MobileNav({ viewable }: {
   viewable: string[]
-  /**
-   * The reader's language, resolved by the layout.
-   *
-   * A STRING AND NOT A `t`, because a function cannot cross the RSC boundary — props are
-   * serialized. Each side builds its own `t` from the same static registry; see
-   * `lib/i18n/catalogues.ts`.
-   */
-  locale: string
 }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
   const navGroups = buildNavGroups(new Set(viewable))
-  const t = tFor(locale)
+  const t = useT()
 
   // Close the drawer on navigation, during render rather than in an effect — same
   // reasoning as NavTree above. Every link in the drawer already calls setMobileOpen(false)

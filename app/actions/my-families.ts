@@ -6,6 +6,7 @@ import { getMyFamilies, getMyNameInFamily } from '@/lib/auth/family'
 import { switchActiveFamily } from '@/app/actions/family'
 import { notifyMembershipRequest } from '@/lib/notifications'
 import { trackFamilyCreated } from '@/lib/meta/conversions'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * Joining an existing family by its code, from /my-families.
@@ -96,7 +97,7 @@ const overCreateLimit = (userId: string) => overLimit('create', userId, CREATE_L
 /** Step one: does this code name a family, and which one? */
 export async function validateFamilyCode(code: string): Promise<ValidateCodeResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const normalized = (code ?? '').trim().toUpperCase()
@@ -138,7 +139,7 @@ export async function validateFamilyCode(code: string): Promise<ValidateCodeResu
 /** Step two: the user has confirmed the name. Create the pending membership. */
 export async function joinFamilyByCode(code: string): Promise<JoinFamilyResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const normalized = (code ?? '').trim().toUpperCase()
@@ -201,7 +202,7 @@ export async function joinFamilyByCode(code: string): Promise<JoinFamilyResult> 
  */
 export async function createFamily(familyName: string): Promise<CreateFamilyResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const name = (familyName ?? '').trim()

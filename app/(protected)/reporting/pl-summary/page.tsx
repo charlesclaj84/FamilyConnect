@@ -1,11 +1,12 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { can, canAny, requireView } from '@/lib/auth/permissions'
 import { getFamilyPnL } from '@/app/actions/dues'
 import { getFunds } from '@/app/actions/funds'
 import { AccountPnLCard } from '@/components/account/AccountPnLCard'
 import { FundsSection } from '@/components/account/FundsSection'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'P&L Summary' }
 
@@ -36,11 +37,12 @@ export const metadata = { title: 'P&L Summary' }
  * were fixed together, and this is the half that stops the page opening over a `null`.
  */
 export default async function FamilyFinancesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'reporting/pl-summary')
+
+  const { t } = await callerI18n(user.id)
   if (!(await canAny(user.id, 'reporting/pl-summary', 'view'))) notFound()
 
   const [pnlData, funds] = await Promise.all([
@@ -56,7 +58,7 @@ export default async function FamilyFinancesPage() {
   return (
     <PageShell className="space-y-10">
       <div>
-        <h1 className="text-3xl font-bold">P&amp;L Summary</h1>
+        <h1 className="text-3xl font-bold">{t('page./reporting/pl-summary.title')}</h1>
       </div>
 
       <section className="space-y-3">

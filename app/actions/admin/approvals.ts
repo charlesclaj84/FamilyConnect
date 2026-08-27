@@ -10,6 +10,7 @@ import { createNotification } from '@/lib/notifications'
 import { sendEmail, emailOrigin } from '@/lib/email/send'
 import { membershipApprovedEmail } from '@/lib/email/templates'
 import { storedLocale } from '@/lib/i18n/locales'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * Member Approvals: review, admit or refuse the people who have asked to join.
@@ -225,8 +226,7 @@ export interface PendingQueue {
 }
 
 export async function getPendingApprovalQueues(): Promise<PendingQueue[]> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   const [families, scopes] = await Promise.all([
@@ -283,7 +283,7 @@ async function decide(
   note?: string,
 ): Promise<ApprovalResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   // The friendly layer. canAny and not can(): admitting a stranger to the family has

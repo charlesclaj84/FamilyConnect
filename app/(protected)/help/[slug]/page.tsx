@@ -2,7 +2,6 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { requireViewOrPending } from '@/lib/auth/permissions'
 import { resolveHelpAvailability } from '@/lib/help/availability'
 import { getHelpChapter, getHelpPart, helpNeighbours } from '@/lib/help/content'
@@ -10,6 +9,7 @@ import { stripInline } from '@/lib/help/inline'
 import { HelpBlocks } from '@/components/help/HelpProse'
 import { HelpAvailabilityNote } from '@/components/help/HelpAvailabilityBadge'
 import { PageShell } from '@/components/layout/PageShell'
+import { currentUser } from '@/lib/auth/current-user'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -49,8 +49,7 @@ export default async function HelpChapterPage({ params }: Props) {
   const chapter = getHelpChapter(slug)
   if (!chapter) notFound()
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   const gate = await requireViewOrPending(user.id, 'help')

@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
@@ -13,6 +12,8 @@ import {
 } from '@/components/admin/account-sections'
 import { can, canAny } from '@/lib/auth/permissions'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Accounting — Admin' }
 
@@ -28,12 +29,12 @@ export default async function AdminAccountPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   const admin = createAdminClient()
   await requireView(user.id, 'admin/accounting')
+  const { t } = await callerI18n(user.id)
 
   const familyCode = await getMyFamilyCode(user.id)
 
@@ -151,7 +152,7 @@ export default async function AdminAccountPage({
   // horizontal page uses; see components/layout/PageShell.tsx.
   return (
     <PageShell className="space-y-8">
-      <h1 className="text-3xl font-bold">Accounting</h1>
+      <h1 className="text-3xl font-bold">{t('page./admin/accounting.title')}</h1>
 
       <AdminAccountShell
         initialSection={initialSection}

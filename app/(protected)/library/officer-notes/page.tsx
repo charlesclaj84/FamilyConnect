@@ -1,13 +1,14 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { BookText } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { resolveZone } from '@/lib/auth/zone'
 import { getJournalEntries, getMyOffices } from '@/app/actions/journal'
 import { OfficerNotesClient } from '@/components/library/OfficerNotesClient'
 import { HelpLink } from '@/components/help/HelpLink'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Officer' }
 
@@ -61,11 +62,12 @@ export const metadata = { title: 'Officer' }
  * fetch, not the button" forbids.
  */
 export default async function JournalPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'library/officer-notes')
+
+  const { t } = await callerI18n(user.id)
 
   const offices = await getMyOffices()
   // NOT FETCHED AT ALL for a member with no office. The action would answer `[]` on its own —
@@ -105,7 +107,7 @@ export default async function JournalPage() {
           with no office at all, who has no notebook to look at and needs to be told what the
           screen would be for. That branch is untouched. */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-3xl font-bold">Officer</h1>
+        <h1 className="text-3xl font-bold">{t('page./library/officer-notes.title')}</h1>
         {offices.length > 0 && (
           <HelpLink
             variant="inline"

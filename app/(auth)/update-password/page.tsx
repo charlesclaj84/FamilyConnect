@@ -1,7 +1,7 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
 import { UpdatePasswordForm } from '@/components/auth/UpdatePasswordForm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { currentUser } from '@/lib/auth/current-user'
 
 // `noindex` as well as the `Disallow: /update-password` in robots.txt — same
 // reasoning as /invite/[token]. This page is only reachable holding a live
@@ -24,8 +24,7 @@ export const metadata = {
  * instead of trusting a cookie this page did not write.
  */
 export default async function UpdatePasswordPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
 
   if (!user) {
     return (

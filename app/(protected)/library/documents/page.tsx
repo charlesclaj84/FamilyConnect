@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import { getMyPersonId } from '@/lib/auth/family'
 import { resolveZone } from '@/lib/auth/zone'
 import { getDocuments } from '@/app/actions/documents'
 import { DocumentList } from '@/components/documents/DocumentList'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Documents' }
 
@@ -23,11 +24,12 @@ export const metadata = { title: 'Documents' }
  * `uploaded_by` and the action enforces with `requireOwn`.
  */
 export default async function DocumentsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'library/documents')
+
+  const { t } = await callerI18n(user.id)
 
   const [documents, canUpload, canDeleteAny, myPersonId, zone] = await Promise.all([
     getDocuments(),
@@ -40,7 +42,7 @@ export default async function DocumentsPage() {
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Documents</h1>
+        <h1 className="text-3xl font-bold">{t('page./library/documents.title')}</h1>
       </div>
       <DocumentList
         initialDocuments={documents}

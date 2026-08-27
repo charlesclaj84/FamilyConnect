@@ -11,6 +11,7 @@ import { addressedTo, readMyChapterId } from '@/lib/announcement-audience'
 import { resolveFamilyZone } from '@/lib/auth/zone'
 import { todayIn } from '@/lib/tz'
 import { upcomingBirthdays, type UpcomingBirthday } from '@/lib/birthdays'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * Family announcements.
@@ -422,7 +423,7 @@ function byPinThenDate(a: Announcement, b: Announcement): number {
  */
 export async function getAnnouncements(): Promise<Announcement[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   // THE DISMISSALS ARE READ HERE TOO, since 2026-08-21. Without them this screen could only
@@ -460,7 +461,7 @@ export async function getAnnouncements(): Promise<Announcement[]> {
 /** Only what this member is addressed by — national/regional, plus their own chapter. */
 export async function getMyAnnouncements(): Promise<Announcement[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   const chapter = await readMyChapterId()
@@ -501,7 +502,7 @@ export async function getMyAnnouncements(): Promise<Announcement[]> {
  */
 export async function getAnnouncementFeed(limit = 20): Promise<FeedAnnouncement[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   const chapter = await readMyChapterId()
@@ -541,9 +542,8 @@ export async function getAnnouncementFeed(limit = 20): Promise<FeedAnnouncement[
 export async function createAnnouncement(
   input: AnnouncementInput
 ): Promise<{ success: boolean; id?: string; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   if (!input.title.trim() || !input.body.trim()) return { success: false, message: 'Title and message are required' }
 

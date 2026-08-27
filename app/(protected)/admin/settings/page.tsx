@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getFamilySettings } from '@/app/actions/admin/family'
 import { getPlatformBilling } from '@/app/actions/billing'
 import { FAMILY_RESOURCE, resolveSettingsPane } from '@/components/admin/family-settings'
 import { FamilySettingsClient } from '@/components/admin/FamilySettingsClient'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 // "Settings", not "Family Settings" — see the note on the FEATURES entry in
 // lib/features.ts. The route and the resource key both stay `admin/family`.
@@ -48,14 +49,14 @@ interface Props {
  * `canRemove` — so a caller without it never receives the props that section would render.
  */
 export default async function FamilySettingsPage({ searchParams }: Props) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   // 404s anyone without view, before anything is read. getFamilySettings() checks the
   // same grant again — it is a `'use server'` export with a URL of its own, so the page
   // in front of it is a convenience and not a gate.
   await requireView(user.id, FAMILY_RESOURCE)
+  const { t } = await callerI18n(user.id)
 
   // BOTH BEHIND THE SAME GRANT, which is the decision `getPlatformBilling`'s header argues:
   // choosing a plan and paying for it are one job on one screen, so billing rides
@@ -69,7 +70,7 @@ export default async function FamilySettingsPage({ searchParams }: Props) {
   return (
     <PageShell className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">Settings</h1>
+        <h1 className="text-3xl font-bold">{t('page./admin/settings.title')}</h1>
       </div>
 
       {settings

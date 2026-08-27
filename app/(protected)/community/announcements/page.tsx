@@ -1,5 +1,4 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { resolveLocale } from '@/lib/auth/locale'
 import {
   can, canAny, requireFamilyActive, requireTier, scopeFor, type PermissionScope,
@@ -12,6 +11,8 @@ import {
   ANNOUNCEMENT_PANES, isAnnouncementPane, type AnnouncementPane,
 } from '@/lib/announcement-panes'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Announcements' }
 
@@ -115,9 +116,9 @@ const first = (v: string | string[] | undefined): string | undefined =>
  * all three keys in its `viewKeys`.
  */
 export default async function AnnouncementsPage({ searchParams }: Props) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
+  const { t } = await callerI18n(user.id)
 
   // The reader's language, for the shell strings and the relative-time captions below.
   const locale = await resolveLocale(user.id)
@@ -208,7 +209,7 @@ export default async function AnnouncementsPage({ searchParams }: Props) {
       {/* The heading only. The sentence under it is per-pane and lives in the shell — it used
           to describe pinning, which is true of the board and meaningless over a birthday
           list, and a lede describing the wrong pane is worse than none. */}
-      <h1 className="text-3xl font-bold">Announcements</h1>
+      <h1 className="text-3xl font-bold">{t('page./community/announcements.title')}</h1>
 
       <AnnouncementsShell
         initialPane={initialPane}

@@ -2,7 +2,6 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireMember } from '@/lib/auth/guard'
 import { getDonationProgress, getMyDuesSummary, type DuesSummary } from '@/app/actions/dues'
@@ -10,6 +9,7 @@ import { intentKey, onAccount, stripeClient, stripeUnavailableReason } from '@/l
 import { INTEGRATION_IDS, checkoutReturnUrls } from '@/lib/stripe/config'
 import { formatCurrency } from '@/lib/currency-utils'
 import type { PayCadence } from '@/lib/dues-utils'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * A member paying their own dues with a card — the family's money, on the family's account.
@@ -714,8 +714,7 @@ function allocationMetadata(
  * the guard is worth keeping even where it should be unreachable.
  */
 async function payerEmail(): Promise<string | undefined> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   return user?.email ?? undefined
 }
 

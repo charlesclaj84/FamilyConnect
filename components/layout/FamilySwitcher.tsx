@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useTransition } from 'react'
-import { tFor } from '@/lib/i18n/catalogues'
+import { useT } from '@/components/layout/LocaleProvider'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronDown, Clock, Home, PowerOff, Star } from 'lucide-react'
 import { switchActiveFamily } from '@/app/actions/family'
@@ -20,12 +20,10 @@ import { cn } from '@/lib/utils'
  * refresh rather than update locally: every family-scoped query on the page,
  * including the sidebar and navbar, has to be re-fetched.
  */
-export function FamilySwitcher({ families, locale }: {
+export function FamilySwitcher({ families }: {
   families: FamilyMembership[]
-  /** The reader's language. A string, not a `t` — see lib/i18n/catalogues.ts. */
-  locale: string
 }) {
-  const t = tFor(locale)
+  const t = useT()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')

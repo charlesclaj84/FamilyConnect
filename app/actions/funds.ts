@@ -10,6 +10,7 @@ import { moneyAttachedTo, moneyAttachedMessage } from '@/lib/money-attached'
 import { effectiveAllocations } from '@/lib/fund-routing'
 import { embedMany } from '@/lib/supabase/embed'
 import { formatCurrency } from '@/lib/currency-utils'
+import { currentUser } from '@/lib/auth/current-user'
 
 export interface Fund {
   id: string
@@ -499,7 +500,7 @@ export async function createFund(input: {
 }): Promise<{ success: boolean; id?: string; message?: string }> {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const familyCode = await getMyFamilyCode(user.id)
@@ -542,9 +543,8 @@ export async function updateFund(
   id: string,
   input: { name?: string; description?: string; goal_cents?: number | null; active?: boolean; priority?: number; open_contributions?: boolean }
 ): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   if (!(await canAny(user.id, 'admin/accounting/funds', 'edit'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
@@ -569,9 +569,8 @@ export async function updateFund(
 }
 
 export async function deleteFund(id: string): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   if (!(await canAny(user.id, 'admin/accounting/funds', 'delete'))) return { success: false, message: 'Not authorized' }
   const familyCode = await getMyFamilyCode(user.id)
@@ -735,9 +734,8 @@ export async function recordDisbursement(input: {
   payment_reference: string | null
   notes: string | null
 }): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const familyCode = await getMyFamilyCode(user.id)
@@ -868,9 +866,8 @@ export async function getFundAllocations(): Promise<FundAllocationRow[]> {
 export async function saveFundAllocations(
   rows: { fund_id: string; basis_points: number; priority: number; minimum_cents: number }[]
 ): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
   // Redrawing the split that every future payment follows.
@@ -939,9 +936,8 @@ export async function recordFundContribution(input: {
   payment_reference: string | null
   notes: string | null
 }): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
   // Logging money INTO a fund by hand.
@@ -1053,9 +1049,8 @@ export async function transferBetweenFunds(input: {
   transferred_date: string
   reason: string
 }): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const familyCode = await getMyFamilyCode(user.id)

@@ -5,6 +5,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { TreeSummary } from '@/lib/family-tree'
 import familyTreeIllustration from '@/components/dashboard/illustrations/family-tree.png'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * The Golden Master's "Family Tree Highlights" panel, answered with the numbers the data
@@ -53,14 +54,22 @@ import familyTreeIllustration from '@/components/dashboard/illustrations/family-
  * connecting people is a judgement about who is related to whom, and nothing should ever
  * guess at it.
  */
-export function FamilyTreeCard({ summary }: { summary: TreeSummary }) {
+export function FamilyTreeCard({ summary, t }: {
+  summary: TreeSummary
+  /**
+   * The reader's language, bound. Threaded from the page rather than resolved here: a
+   * Server Component cannot read `LocaleProvider` and has no `user` of its own. See
+   * `lib/i18n/server.ts`.
+   */
+  t: T
+}) {
   const { people, generations, leaves } = summary
 
   return (
     <section className="rounded-3xl border bg-card p-5 shadow-[var(--shadow-card)]">
       <h2 className="mb-4 flex items-center gap-2 text-lg">
         <GitBranch className="h-4 w-4 text-brand-accent" aria-hidden="true" />
-        Family Tree
+        {t('dash.tree.title')}
       </h2>
 
       {/* THE KIT'S OWN ARRANGEMENT: figures down the left, the tree at the right, the
@@ -73,7 +82,7 @@ export function FamilyTreeCard({ summary }: { summary: TreeSummary }) {
           bare for the same reason, so following it costs nothing that was chosen. */}
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 space-y-3">
-          <Figure value={generations} label={generations === 1 ? 'Generation' : 'Generations'} />
+          <Figure value={generations} label={generations === 1 ? t('dash.tree.generationOne') : t('dash.tree.generationMany')} />
           <Figure value={people} label={people === 1 ? 'Member' : 'Members'} />
           <Figure value={leaves} label={leaves === 1 ? 'Leaf' : 'Leaves'} />
         </div>
@@ -115,12 +124,12 @@ export function FamilyTreeCard({ summary }: { summary: TreeSummary }) {
       <p className="mt-4 flex items-start gap-2 text-sm text-muted-foreground">
         <Sprout className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-affirm" aria-hidden="true" />
         {people === 0
-          ? 'There is nobody in this family to build a tree from yet.'
+          ? t('dash.tree.empty')
           : leaves === 0
-            ? 'No loose leaves — everybody in the family is connected to somebody.'
+            ? t('dash.tree.allConnected')
             : leaves === 1
-              ? 'One leaf: a member who is not connected to anybody on the tree yet.'
-              : `${leaves} leaves — members who are not connected to anybody on the tree yet.`}
+              ? t('dash.tree.oneLeaf')
+              : t('dash.tree.manyLeaves', { n: leaves })}
       </p>
 
       <Link
@@ -130,7 +139,7 @@ export function FamilyTreeCard({ summary }: { summary: TreeSummary }) {
           'mt-4 w-full justify-center',
         )}
       >
-        {leaves > 0 ? 'Open the tree' : 'View family tree'}
+        {leaves > 0 ? t('dash.tree.open') : t('dash.tree.view')}
       </Link>
     </section>
   )

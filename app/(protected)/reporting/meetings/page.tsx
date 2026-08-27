@@ -1,7 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Gavel } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import { getMeetingsReport } from '@/app/actions/activity-reports'
 import { cn } from '@/lib/utils'
@@ -9,6 +8,8 @@ import { formatDate } from '@/lib/date-utils'
 import { PageShell } from '@/components/layout/PageShell'
 import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Meetings Report' }
 
@@ -27,11 +28,12 @@ export const metadata = { title: 'Meetings Report' }
  * the kind of number that gets quoted in a meeting a year later.
  */
 export default async function MeetingsReportPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'reporting/meetings')
+
+  const { t } = await callerI18n(user.id)
   if (!(await canAny(user.id, 'reporting/meetings', 'view'))) notFound()
 
   const report = await getMeetingsReport()
@@ -42,7 +44,7 @@ export default async function MeetingsReportPage() {
   return (
     <PageShell className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">Meetings</h1>
+        <h1 className="text-3xl font-bold">{t('page./reporting/meetings.title')}</h1>
       </div>
 
       <ReportStats stats={[

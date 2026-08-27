@@ -22,6 +22,7 @@ import {
 import {
   FAMILY_RESOURCE, MAX_FAMILY_NAME, REMOVE_FAMILY_RESOURCE,
 } from '@/components/admin/family-settings'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * Family Settings — the family's own identity, as opposed to the eighteen admin
@@ -566,8 +567,7 @@ export async function requestFamilyRemovalCode(): Promise<RemovalCodeResult> {
   // because a `people` row may legitimately hold a GENERATED placeholder address
   // (AGENTS.md §4b) and mailing one is mailing nobody. This is the mailbox the caller
   // signs in with, which is what "the acting administrator" means.
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   const to = user?.email?.trim() ?? ''
   if (!to) {
     return { success: false, message: 'This account has no email address to send a code to.' }

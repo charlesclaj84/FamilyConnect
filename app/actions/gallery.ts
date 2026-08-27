@@ -9,6 +9,7 @@ import { requireMember, requireOwn } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedMany, embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { IMAGE_FORMATS, isAllowedUpload, uploadRejection } from '@/lib/upload-types'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * The Gallery — `/community/gallery`, and `review/photos` until 2026-08-22.
@@ -226,7 +227,7 @@ export async function createCollection(input: {
   description?: string
 }): Promise<{ success: boolean; id?: string; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const familyCode = await getMyFamilyCode(user.id)

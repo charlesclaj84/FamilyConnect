@@ -9,6 +9,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { FieldError } from '@/components/ui/form-message'
 import { saveChapterAndPropagate } from '@/app/actions/personal-info'
 import type { Chapter } from '@/app/actions/announcements'
+import { useT } from '@/components/layout/LocaleProvider'
 
 interface Props {
   chapters: Chapter[]
@@ -18,6 +19,7 @@ export function ChapterReminderBanner({ chapters }: Props) {
   const router = useRouter()
   const confirm = useConfirm()
   const [dismissed, setDismissed] = useState(false)
+  const t = useT()
   const [chapterId, setChapterId] = useState('')
   const [error, setError] = useState('')
   const [saved, setSaved] = useState(false)
@@ -33,21 +35,21 @@ export function ChapterReminderBanner({ chapters }: Props) {
     return (
       <div className="flex items-center gap-3 rounded-xl bg-brand-affirm px-4 py-3 text-brand-on-affirm">
         <MapPin className="h-4 w-4 shrink-0" />
-        <p className="text-sm font-medium">Chapter saved successfully.</p>
+        <p className="text-sm font-medium">{t('dash.chapter.saved')}</p>
       </div>
     )
   }
 
   async function handleSave() {
-    if (!chapterId) { setError('Please select a chapter.'); return }
+    if (!chapterId) { setError(t('dash.chapter.required')); return }
     const ok = await confirm({
-      title: 'Set your chapter',
+      title: t('dash.chapter.title'),
       // WHAT MOVES, IN THE WORDS OF THE RULE. There is no household in this product — every
       // member is their own person — and `propagateChapterToChildren` moves exactly one other
       // kind of row: a son or daughter under eighteen with no account of their own. "Everyone
       // in your household" said both more than is true and less than is clear.
       description: `Set your chapter to ${chapters.find(c => c.id === chapterId)?.name ?? 'the selected chapter'}? Any sons or daughters under 18 who have no account of their own move with you.`,
-      confirmLabel: 'Set chapter',
+      confirmLabel: t('dash.chapter.action'),
     })
     if (!ok) return
     setError('')
@@ -58,7 +60,7 @@ export function ChapterReminderBanner({ chapters }: Props) {
         router.refresh()
         setTimeout(() => setDismissed(true), 2000)
       } else {
-        setError(result.message ?? 'Failed to save. Please try again.')
+        setError(result.message ?? t('dash.chapter.failed'))
       }
     })
   }
@@ -79,10 +81,10 @@ export function ChapterReminderBanner({ chapters }: Props) {
       <div className="flex-1 min-w-0 space-y-3">
         <div>
           <p className="text-sm font-medium text-brand-on-soft">
-            Select your chapter
+            {t('dash.chapter.select')}
           </p>
           <p className="mt-0.5 text-xs text-brand-on-soft/80">
-            Assigning your chapter ensures you receive the right announcements and are grouped correctly within the family.
+            {t('dash.chapter.lede')}
           </p>
         </div>
 
@@ -104,7 +106,7 @@ export function ChapterReminderBanner({ chapters }: Props) {
             disabled={isPending || !chapterId}
             className="shrink-0"
           >
-            {isPending ? 'Saving…' : 'Save Chapter'}
+            {isPending ? t('dash.chapter.saving') : t('dash.chapter.action')}
           </Button>
         </div>
 
@@ -119,7 +121,7 @@ export function ChapterReminderBanner({ chapters }: Props) {
       <button
         onClick={() => setDismissed(true)}
         className="shrink-0 self-start text-brand-on-soft/60 transition-colors hover:text-brand-on-soft"
-        aria-label="Dismiss"
+        aria-label={t('dash.dismiss')}
       >
         <X className="h-4 w-4" />
       </button>

@@ -1,11 +1,11 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import {
   getDistributionAudiences, getDistributionRights, getDistributions,
 } from '@/app/actions/distributions'
 import { DistributionsClient } from '@/components/distributions/DistributionsClient'
 import { PageShell } from '@/components/layout/PageShell'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Distributions' }
 
@@ -36,8 +36,7 @@ export const metadata = { title: 'Distributions' }
  * same grant itself, because this page is a convenience and not a gate (§2).
  */
 export default async function DistributionsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'community/distributions')

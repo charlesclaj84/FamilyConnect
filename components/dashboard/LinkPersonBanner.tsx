@@ -7,24 +7,19 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useConfirm } from '@/components/ui/confirm'
 import { FieldError } from '@/components/ui/form-message'
-import type { MatchReason } from '@/lib/match-utils'
 import type { UnlinkedPerson } from '@/app/actions/link-person'
 import { linkPersonToCurrentUser } from '@/app/actions/link-person'
+import { useT } from '@/components/layout/LocaleProvider'
 
 interface Props {
   unlinkedPeople: UnlinkedPerson[]
 }
 
-const REASON_LABELS: Record<MatchReason, string> = {
-  name: 'Name',
-  email: 'Email',
-  phone: 'Phone',
-  dob: 'Birthday',
-}
 
 export function LinkPersonBanner({ unlinkedPeople }: Props) {
   const confirm = useConfirm()
   const [dismissed, setDismissed] = useState(false)
+  const t = useT()
   const [search, setSearch] = useState('')
   const [showAll, setShowAll] = useState(false)
   const [error, setError] = useState('')
@@ -48,9 +43,9 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
     const person = unlinkedPeople.find(p => p.id === id)
     const name = person ? `${person.first_name} ${person.last_name}` : 'this person'
     const ok = await confirm({
-      title: 'Link to your account',
+      title: t('dash.link.aria'),
       description: `Link ${name}'s record to your account? Their history becomes yours, and this cannot be undone.`,
-      confirmLabel: 'Link record',
+      confirmLabel: t('dash.link.action'),
     })
     if (!ok) return
     setError('')
@@ -93,7 +88,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
                   key={r}
                   className="inline-flex items-center text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-warm text-brand-on-warm"
                 >
-                  {REASON_LABELS[r]} match
+                  {t(`dash.link.match.${r}`)}
                 </span>
               ))}
             </div>
@@ -106,7 +101,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
           disabled={isPending}
           className="shrink-0"
         >
-          {isThisLinking ? 'Linking…' : 'This is me'}
+          {isThisLinking ? t('dash.link.linking') : t('dash.link.thisIsMe')}
         </Button>
       </div>
     )
@@ -125,7 +120,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
       <div className="flex-1 min-w-0 space-y-3">
         <div>
           <p className="text-sm font-medium text-brand-on-soft">
-            Were you already added to the family?
+            {t('dash.link.title')}
           </p>
           <p className="text-xs text-brand-on-soft/80 mt-0.5">
             A family member may have already added you. Find yourself below and link your
@@ -138,7 +133,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
           <Input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search by name…"
+            placeholder={t('dash.link.search')}
             className="pl-8 bg-background"
             disabled={isPending}
           />
@@ -148,7 +143,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
         {strongMatches.length > 0 && (
           <div className="space-y-2">
             <p className="text-xs font-semibold text-brand-on-soft">
-              {strongMatches.length === 1 ? 'Is this you?' : 'These might be you'}
+              {strongMatches.length === 1 ? t('dash.link.isThisYou') : t('dash.link.maybe')}
             </p>
             {strongMatches.map(p => (
               <PersonCard key={p.id} person={p} />
@@ -171,7 +166,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
             <div className="space-y-2">
               {strongMatches.length > 0 && (
                 <p className="text-xs font-semibold text-brand-on-soft">
-                  Everyone else
+                  {t('dash.link.everyoneElse')}
                 </p>
               )}
               {others.map(p => (
@@ -182,7 +177,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
         )}
 
         {strongMatches.length === 0 && others.length === 0 && (
-          <p className="text-xs text-brand-on-soft/80">No matching family members found.</p>
+          <p className="text-xs text-brand-on-soft/80">{t('dash.link.none')}</p>
         )}
 
         <FieldError message={error} />
@@ -192,7 +187,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
         type="button"
         onClick={() => setDismissed(true)}
         className="shrink-0 self-start text-brand-on-soft/70 hover:text-brand-on-soft transition-colors"
-        aria-label="Dismiss"
+        aria-label={t('dash.dismiss')}
       >
         <X className="h-4 w-4" />
       </button>

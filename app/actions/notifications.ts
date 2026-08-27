@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/server'
 import { getMyPersonId } from '@/lib/auth/family'
+import { currentUser } from '@/lib/auth/current-user'
 
 export interface Notification {
   id: string
@@ -15,7 +16,7 @@ export interface Notification {
 
 export async function getNotifications(): Promise<Notification[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   // Notifications hang off a family-scoped people row, so only the active
@@ -35,7 +36,7 @@ export async function getNotifications(): Promise<Notification[]> {
 
 export async function getUnreadCount(): Promise<number> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return 0
 
   const personId = await getMyPersonId(user.id)
@@ -62,7 +63,7 @@ export async function markNotificationRead(
 
 export async function markAllNotificationsRead(): Promise<void> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return
 
   const personId = await getMyPersonId(user.id)

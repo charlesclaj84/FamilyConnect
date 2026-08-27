@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Clock } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { requireViewOrPending } from '@/lib/auth/permissions'
 import { getPersonalInfo } from '@/app/actions/personal-info'
 import { getMyRoles } from '@/app/actions/admin/users'
@@ -13,6 +12,8 @@ import { getMyNotificationSettings } from '@/app/actions/notification-prefs'
 import { PersonalInfoForm } from '@/components/personal-info/PersonalInfoForm'
 import { resolveProfileSection } from '@/components/personal-info/profile-sections'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'My Profile' }
 
@@ -21,9 +22,9 @@ export default async function PersonalInfoPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
+  const { t } = await callerI18n(user.id)
 
   // Resolved server-side so the first paint already shows the right section, and so the
   // client's initial state matches the server HTML exactly — which is what keeps this
@@ -74,7 +75,7 @@ export default async function PersonalInfoPage({
   return (
     <PageShell>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">My Profile</h1>
+        <h1 className="text-3xl font-bold mb-1">{t('page./personal-info.title')}</h1>
         {myRoles.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-2 mb-1">
             {myRoles.map((r, i) => (

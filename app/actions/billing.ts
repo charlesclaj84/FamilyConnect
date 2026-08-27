@@ -3,7 +3,6 @@
 import { revalidatePath } from 'next/cache'
 import type Stripe from 'stripe'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireEdit, requireRead } from '@/lib/auth/guard'
 import { FAMILY_RESOURCE } from '@/components/admin/family-settings'
@@ -27,6 +26,7 @@ import {
 // file gets a URL, and `trackCheckoutStarted` takes an email and a name (lib/email/send.ts'
 // open-relay rule, applied to the analytics transport).
 import { trackCheckoutStarted } from '@/lib/meta/billing'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * A family paying GENORRA for its plan — the hosted-checkout half.
@@ -1462,8 +1462,7 @@ async function trackMetaCheckoutStart(input: {
 }): Promise<void> {
   const quote = prepayQuoteCents(input.tier, input.mode === 'prepaid' ? input.months : 1)
   if (quote == null) return
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   await trackCheckoutStarted({
     checkoutId: input.sessionId,
     amountCents: quote,

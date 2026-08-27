@@ -1,7 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { CalendarDays, ChevronLeft, Clock, MapPin, Settings2, Star } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { can, requireView } from '@/lib/auth/permissions'
 import { familyPlansGatherings } from '@/lib/auth/tier'
 import { getGatheringDetail } from '@/app/actions/gatherings'
@@ -14,6 +13,7 @@ import { GatheringStatusPill } from '@/components/gatherings/StatusPill'
 import { GATHERING_PREMIER_PILL } from '@/components/gatherings/status'
 import { GatheringDetailClient } from '@/components/gatherings/GatheringDetailClient'
 import { PlanningUpsell } from '@/components/gatherings/PlanningUpsell'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Gathering' }
 
@@ -56,8 +56,7 @@ export const metadata = { title: 'Gathering' }
 export default async function GatheringDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'gatherings')

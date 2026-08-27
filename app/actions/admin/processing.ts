@@ -5,7 +5,6 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 // The USER client, and only to read the caller's own session address off GoTrue — never to
 // read family data, which every query here does through the admin client with §3 by hand.
-import { createClient } from '@/lib/supabase/server'
 import { requireEdit, requireRead } from '@/lib/auth/guard'
 import { SECTION_RESOURCE } from '@/components/admin/account-sections'
 import { intentKey, onAccount, stripeClient, stripeUnavailableReason } from '@/lib/stripe/client'
@@ -18,6 +17,7 @@ import { processorDisconnectCodeEmail } from '@/lib/email/templates'
 import { resolveLocale } from '@/lib/auth/locale'
 import { hashChallengeCode, mintChallenge } from '@/lib/action-challenge'
 import { SITE_URL } from '@/lib/site'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * Connecting a family's OWN Stripe account, so its members can pay dues with a card.
@@ -355,8 +355,7 @@ export async function requestProcessorDisconnectCode(): Promise<DisconnectCodeRe
   // The session's own address — read from GoTrue rather than from `people.primary_email`,
   // because a `people` row may legitimately hold a GENERATED placeholder address (§4b) and
   // mailing one is mailing nobody.
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   const to = user?.email?.trim() ?? ''
   if (!to) {
     return { success: false, message: 'This account has no email address to send a code to.' }

@@ -1,7 +1,7 @@
 import { Avatar } from '@/components/ui/Avatar'
-import { createClient } from '@/lib/supabase/server'
 import { getMyFamilies, isApproved, type FamilyMembership } from '@/lib/auth/family'
 import { PendingApprovalScreen } from '@/components/membership/PendingApprovalScreen'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * Server half of the awaiting-approval screen: resolves the few things it needs and
@@ -27,8 +27,7 @@ import { PendingApprovalScreen } from '@/components/membership/PendingApprovalSc
  * invitation they had just accepted.
  */
 export async function PendingApproval({ membership }: { membership: FamilyMembership }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
 
   const firstName = user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'Member'
   const lastName  = user?.user_metadata?.last_name ?? ''

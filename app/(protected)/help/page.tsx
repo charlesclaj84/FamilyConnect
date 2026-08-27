@@ -1,12 +1,13 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { requireViewOrPending } from '@/lib/auth/permissions'
 import { resolveHelpAvailability } from '@/lib/help/availability'
 import { HELP_PARTS } from '@/lib/help/content'
 import { HelpAvailabilityBadge } from '@/components/help/HelpAvailabilityBadge'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Help' }
 
@@ -41,9 +42,9 @@ export const metadata = { title: 'Help' }
  * access is one decision away.
  */
 export default async function HelpIndexPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
+  const { t } = await callerI18n(user.id)
 
   const gate = await requireViewOrPending(user.id, 'help')
 
@@ -56,7 +57,7 @@ export default async function HelpIndexPage() {
           FamilySettingsClient capping its name box: a constraint on one element belongs on
           that element, and the page keeps the measure its neighbours have. */}
       <div className="max-w-3xl">
-        <h1 className="text-3xl font-bold">Help</h1>
+        <h1 className="text-3xl font-bold">{t('page./help.title')}</h1>
       </div>
 
       {gate.pending && (

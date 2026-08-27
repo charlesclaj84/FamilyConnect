@@ -1,6 +1,6 @@
-import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, getMyPersonId, isApprovedMember } from '@/lib/auth/family'
 import { can, canAny, canOn, type PermissionAction } from '@/lib/auth/permissions'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * The preamble every mutating server action needs, in one call.
@@ -76,13 +76,20 @@ async function resolve(userId: string): Promise<GuardOk> {
  * the unhappy path to save one press on a rare one.
  */
 async function caller(): Promise<{ userId: string } | GuardFail> {
-  const supabase = await createClient()
-  const { data: { user }, error } = await supabase.auth.getUser()
+  // REQUEST-CACHED. Every guarded action reaches GoTrue through here, and so does the page
+  // that rendered the form, and so does the layout above it — `currentUser()` is what makes
+  // those one round trip instead of three, and what makes them agree about the caller even
+  // when a token rotates mid-request. Its header carries the measurements.
+  //
+  // The error still arrives distinct from a null user, which is what the two branches below
+  // are for — and it is now cached WITH the answer, so a request that could not verify the
+  // session fails the same way everywhere in it rather than half-succeeding.
+  const { user, error } = await currentUser()
 
   if (error) {
     // Logged, not swallowed: this is the branch that used to be indistinguishable from a
     // signed-out caller, and the whole point of separating it is that it leaves a record.
-    console.error(`[guard] could not verify the session: ${error.message}`)
+    console.error(`[guard] could not verify the session: ${error}`)
     return {
       ok: false,
       message: 'Your session could not be verified. Reload the page and try again.',

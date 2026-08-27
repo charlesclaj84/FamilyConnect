@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode } from '@/lib/auth/family'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * Who an announcement is addressed to, and how the caller's own chapter is resolved.
@@ -98,7 +99,7 @@ export function announcementAudienceFilter(chapterId: string | null): string {
  */
 export async function readMyChapterId(): Promise<string | null> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return null
   const { data, error } = await supabase
     .from('people').select('chapter_id')

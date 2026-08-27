@@ -4,7 +4,8 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Languages } from 'lucide-react'
 import { setMyLocale } from '@/app/actions/personal-info'
-import { availableLocales, hasLanguageChoice, tFor } from '@/lib/i18n/catalogues'
+import { availableLocales, hasLanguageChoice } from '@/lib/i18n/catalogues'
+import { useLocale, useT } from '@/components/layout/LocaleProvider'
 import { cn } from '@/lib/utils'
 
 /**
@@ -40,11 +41,11 @@ import { cn } from '@/lib/utils'
  * should do, and what a cookie cannot. The cost is that it needs a session; Home's switcher is a
  * different component with a different mechanism (a path segment), and that is Phase 4.
  */
-export function LocaleSwitcher({ locale, className }: {
-  locale: string
+export function LocaleSwitcher({ className }: {
   className?: string
 }) {
-  const t = tFor(locale)
+  const t = useT()
+  const locale = useLocale()
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState('')

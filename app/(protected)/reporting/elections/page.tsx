@@ -1,13 +1,14 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Vote } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import { getElectionsReport } from '@/app/actions/activity-reports'
 import { cn } from '@/lib/utils'
 import { PageShell } from '@/components/layout/PageShell'
 import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Elections Report' }
 
@@ -25,11 +26,12 @@ export const metadata = { title: 'Elections Report' }
  * told about.
  */
 export default async function ElectionsReportPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'reporting/elections')
+
+  const { t } = await callerI18n(user.id)
   if (!(await canAny(user.id, 'reporting/elections', 'view'))) notFound()
 
   const report = await getElectionsReport()
@@ -41,7 +43,7 @@ export default async function ElectionsReportPage() {
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Elections</h1>
+        <h1 className="text-3xl font-bold">{t('page./reporting/elections.title')}</h1>
       </div>
 
       {/* THE EXCLUSION RIDES ON THE FIGURE IT QUALIFIES. It was the second sentence of a lede

@@ -8,6 +8,7 @@ import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { familyShowsPhotos } from '@/lib/auth/tier'
 import { pickProfileColumns } from '@/lib/profile-columns'
 import { isSupportedLocale } from '@/lib/i18n/locales'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * The extensions the `avatars` bucket accepts, keyed by the MIME type that goes with each.
@@ -39,7 +40,7 @@ export async function uploadAvatar(
   formData: FormData
 ): Promise<{ success: boolean; url?: string; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   // ── THE ONE TIER CHECK ON A WRITE IN THIS PRODUCT, AND WHY IT IS ADMISSIBLE ────────
@@ -177,7 +178,7 @@ export type PersonalInfoRecord = PersonalInfoData & {
 
 export async function getPersonalInfo(): Promise<PersonalInfoRecord | null> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return null
 
   // A multi-family user has one row per family. Profile fields are kept in sync
@@ -260,7 +261,7 @@ export async function setMyLocale(
   locale: string
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   if (!isSupportedLocale(locale)) {
@@ -295,7 +296,7 @@ export async function saveProfileSection(
   fields: Partial<PersonalInfoData>
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const dateFields = new Set(['date_of_birth', 'sunset_date'])
@@ -352,7 +353,7 @@ export async function upsertPersonalInfo(
   input: PersonalInfoData
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   // The family being viewed, not the one the account was created in.
@@ -408,7 +409,7 @@ export async function saveChapterAndPropagate(
   chapterId: string | null
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   // chapter_id is per-family, so this must target the family being viewed —

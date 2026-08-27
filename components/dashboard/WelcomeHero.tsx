@@ -1,8 +1,15 @@
 import { Award, MapPin } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { EventPhoto, HeroCurve, TreeWatermark } from '@/components/dashboard/curves'
+import type { T } from '@/lib/i18n/t'
 
 interface Props {
+  /**
+   * The reader's language, bound. Threaded from the page rather than resolved here: a
+   * Server Component cannot read `LocaleProvider` and has no `user` of its own. See
+   * `lib/i18n/server.ts`.
+   */
+  t: T
   firstName: string
   initials: string
   avatarUrl?: string | null
@@ -99,7 +106,7 @@ interface Props {
  * absolutely positioned at the bottom. Reduce one and the greeting sits in the swoop.
  */
 export function WelcomeHero({
-  firstName, initials, avatarUrl, roles, chapterName, photoUrl, ground = 'band',
+  firstName, initials, avatarUrl, roles, chapterName, photoUrl, ground = 'band', t,
 }: Props) {
   const onBand = ground === 'band'
 
@@ -135,7 +142,7 @@ export function WelcomeHero({
               : 'font-display text-xl text-brand-ink sm:text-2xl'
           }
         >
-          Welcome back,
+          {t('dash.welcome')}
         </p>
         <h1
           className={

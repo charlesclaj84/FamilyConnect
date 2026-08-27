@@ -1,11 +1,12 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getMyDuesSummary, getDonationProgress } from '@/app/actions/dues'
 import { getDuesOnlineStatus } from '@/app/actions/pay-dues'
 import { DuesAndDonationsShell } from '@/components/account/DuesAndDonationsShell'
 import { PageShell } from '@/components/layout/PageShell'
 import { resolveMoneyPane } from '@/lib/money-panes'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Dues & Donations' }
 
@@ -44,11 +45,12 @@ export default async function DuesAndDonationsPage({
 }: {
   searchParams: Promise<{ pane?: string | string[] }>
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'accounting/dues-and-donations')
+
+  const { t } = await callerI18n(user.id)
 
   // Resolved on the server so the first paint is already the right pane — a client-side
   // default followed by a correction is a visible flash of the wrong list. `resolveMoneyPane`
@@ -69,7 +71,7 @@ export default async function DuesAndDonationsPage({
 
   return (
     <PageShell className="space-y-8">
-      <h1 className="text-3xl font-bold">Dues &amp; Donations</h1>
+      <h1 className="text-3xl font-bold">{t('page./accounting/dues-and-donations.title')}</h1>
       <DuesAndDonationsShell
         initialPane={pane}
         summary={summary}

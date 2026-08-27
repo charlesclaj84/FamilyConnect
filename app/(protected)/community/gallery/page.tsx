@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getMyPersonId } from '@/lib/auth/family'
 import { getGalleryRights } from '@/app/actions/gallery'
 import { GalleryClient } from '@/components/gallery/GalleryClient'
 import { PageShell } from '@/components/layout/PageShell'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Gallery' }
 
@@ -25,8 +25,7 @@ export const metadata = { title: 'Gallery' }
  * gallery is the one screen a member opens and leaves without acting.
  */
 export default async function GalleryPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'community/gallery')

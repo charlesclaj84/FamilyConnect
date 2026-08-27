@@ -3,6 +3,7 @@ import { UserRoundPen } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { missingFieldsSentence, type ProfileCompleteness } from '@/lib/profile-completeness'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * "Your profile is mostly empty" — the Dashboard's one nudge to finish it.
@@ -35,7 +36,15 @@ import { missingFieldsSentence, type ProfileCompleteness } from '@/lib/profile-c
  * banner does not print it, because a number invites a member to optimise it and the fields
  * are a judgement rather than a score. What they need is the list and the way through.
  */
-export function ProfileReminderBanner({ completeness }: { completeness: ProfileCompleteness }) {
+export function ProfileReminderBanner({ completeness, t }: {
+  completeness: ProfileCompleteness
+  /**
+   * The reader's language, bound. Threaded from the page rather than resolved here: a
+   * Server Component cannot read `LocaleProvider` and has no `user` of its own. See
+   * `lib/i18n/server.ts`.
+   */
+  t: T
+}) {
   // The page already decides this, and the component re-checks it: a banner that renders
   // itself over a complete profile because a caller forgot the condition is worse than one
   // that occasionally renders nothing.
@@ -50,7 +59,7 @@ export function ProfileReminderBanner({ completeness }: { completeness: ProfileC
       <div className="min-w-0 flex-1 space-y-3">
         <div>
           <p className="text-sm font-medium text-brand-on-soft">
-            Finish your profile
+            {t('dash.profile.title')}
           </p>
           <p className="mt-0.5 text-xs text-brand-on-soft/80">
             {/* WHAT IT IS FOR, not what is wrong with it. A member is being asked to do
@@ -64,7 +73,7 @@ export function ProfileReminderBanner({ completeness }: { completeness: ProfileC
           href="/personal-info"
           className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}
         >
-          Update my profile
+          {t('dash.profile.action')}
         </Link>
       </div>
     </div>

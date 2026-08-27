@@ -13,6 +13,7 @@ import { notifyMembershipRequest } from '@/lib/notifications'
 // whether it has an account, which as an endpoint is an enumeration oracle. See the
 // header of lib/auth/account-state.ts.
 import { accountStateForEmail, requestConfirmationResend } from '@/lib/auth/account-state'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * Invitations to join a family.
@@ -128,7 +129,7 @@ export async function inviteMember(
   personId?: string,
 ): Promise<InviteResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const normalized = (email ?? '').trim().toLowerCase()
@@ -351,7 +352,7 @@ export type ResendResult =
  */
 export async function resendInvitation(invitationId: string): Promise<ResendResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const { data: invitation, error } = await supabase
@@ -441,7 +442,7 @@ export async function resendInvitation(invitationId: string): Promise<ResendResu
 /** Cancel an invitation that has not been used. The sender or an approver may. */
 export async function revokeInvitation(invitationId: string): Promise<InvitationActionResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
 
   const { data, error } = await supabase
@@ -514,7 +515,7 @@ export type RedeemResult =
  */
 export async function redeemInvitation(token: string): Promise<RedeemResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Sign in to accept this invitation.' }
 
   const { data, error } = await supabase

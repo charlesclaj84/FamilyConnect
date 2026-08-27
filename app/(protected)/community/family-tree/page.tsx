@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { can, canAny, requireView } from '@/lib/auth/permissions'
 import { getFamilyTree } from '@/app/actions/family-tree'
 import { PageShell } from '@/components/layout/PageShell'
 import { FamilyTreeBuilder, TreeLegend } from '@/components/family-tree/FamilyTreeBuilder'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Family Tree' }
 
@@ -64,11 +65,12 @@ export const metadata = { title: 'Family Tree' }
  * real key, and `canAny` for the edit toggle.
  */
 export default async function FamilyTreePage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'community/family-tree')
+
+  const { t } = await callerI18n(user.id)
 
   // Gated INSIDE the action on the same key, because a `'use server'` export has a URL of
   // its own and the page in front of it is a convenience rather than a gate.
@@ -135,7 +137,7 @@ export default async function FamilyTreePage() {
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Family Tree</h1>
+        <h1 className="text-3xl font-bold">{t('page./community/family-tree.title')}</h1>
       </div>
 
       <TreeLegend />

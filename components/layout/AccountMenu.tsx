@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { tFor } from '@/lib/i18n/catalogues'
+import { useT } from '@/components/layout/LocaleProvider'
 import { LocaleSwitcher } from '@/components/layout/LocaleSwitcher'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -32,8 +32,6 @@ interface Props {
    * every route under `/staff` gates itself again and 404s a caller without a row.
    */
   isStaff?: boolean
-  /** The reader's language. A string, not a `t` — see lib/i18n/catalogues.ts. */
-  locale: string
 }
 
 /**
@@ -69,8 +67,8 @@ interface Props {
  * nothing at all for a single-family account, which is why the bar still matches the
  * Golden Master for most people.
  */
-export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false, locale }: Props) {
-  const t = tFor(locale)
+export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false }: Props) {
+  const t = useT()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -161,7 +159,7 @@ export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false,
                   something people do two or three times in a row to compare. */}
               <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-card-foreground">
                 <span className="opacity-90">{t('account.appearance')}</span>
-                <ThemeToggle locale={locale} />
+                <ThemeToggle />
               </div>
               {/* ── LANGUAGE, BESIDE APPEARANCE ────────────────────────────────────────
                   The two are the same kind of thing — how the product presents itself to
@@ -172,7 +170,7 @@ export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false,
                   IT RENDERS NOTHING while the product speaks one language, so this row is
                   absent rather than a picker with a single option. See LocaleSwitcher. */}
               <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-card-foreground">
-                <LocaleSwitcher locale={locale} className="ml-auto" />
+                <LocaleSwitcher className="ml-auto" />
               </div>
               {/* THE STAFF CONSOLE, and only for staff.
                   ─────────────────────────────────────────────────────────────────

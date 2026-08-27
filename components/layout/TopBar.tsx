@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { NotificationBell } from '@/components/layout/NotificationBell'
 import { FamilySwitcher } from '@/components/layout/FamilySwitcher'
 import { AccountMenu } from '@/components/layout/AccountMenu'
@@ -12,6 +11,7 @@ import { familyShowsPhotos } from '@/lib/auth/tier'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PAGE_MEASURE } from '@/components/layout/PageShell'
 import { cn } from '@/lib/utils'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * The controls at the top of the workspace — and, as of the Golden Master, NOT a header
@@ -55,14 +55,8 @@ import { cn } from '@/lib/utils'
 export default async function TopBar({
   viewable,
   isStaff = false,
-  locale,
 }: {
   viewable: string[]
-  /**
-   * The reader's language, resolved by the layout and carried the last hop to the client
-   * components below. A STRING and not a `t`, because a function cannot cross the RSC boundary.
-   */
-  locale: string
   /**
    * Whether this account may open the GENORRA staff console. Passed straight through to
    * `AccountMenu`, which renders the one link that leads there.
@@ -78,8 +72,7 @@ export default async function TopBar({
    */
   isStaff?: boolean
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
 
   let notifications: Awaited<ReturnType<typeof getNotifications>> = []
   let personId = ''
@@ -171,7 +164,7 @@ export default async function TopBar({
     <header className="sticky top-0 z-30 bg-background">
       <div className={cn(PAGE_MEASURE, 'flex h-16 items-center gap-2')}>
         {/* Left: the drawer trigger, below md only. */}
-        <MobileNav viewable={viewable} locale={locale} />
+        <MobileNav viewable={viewable} />
 
         {/* `ml-auto`, NOT `justify-between` on the parent. The trigger beside this is
             `md:hidden`, and a `display: none` flex child is removed from layout entirely —
@@ -194,7 +187,7 @@ export default async function TopBar({
               why this bar matches the Golden Master's three controls for most people
               while still giving a multi-family member the one piece of state they cannot
               afford to have hidden. */}
-          <FamilySwitcher locale={locale} families={families} />
+          <FamilySwitcher families={families} />
           {/* The chapter about the screen the member is on, or nothing at all when no
               chapter covers it (see the component — it degrades to nothing, never to a
               broken link).
@@ -226,7 +219,6 @@ export default async function TopBar({
               initialNotifications={notifications}
               personId={personId}
               pendingQueues={pendingQueues}
-              locale={locale}
             />
           )}
           <AccountMenu
@@ -235,7 +227,6 @@ export default async function TopBar({
             initials={initials}
             avatarUrl={avatarUrl}
             isStaff={isStaff}
-        locale={locale}
           />
         </div>
       </div>

@@ -1,9 +1,10 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getElectionsForOrganizer, getElectionScopeOptions } from '@/app/actions/elections'
 import { AdminElectionsClient } from '@/components/admin/AdminElectionsClient'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Elections — Admin' }
 
@@ -22,11 +23,12 @@ export const metadata = { title: 'Elections — Admin' }
  * the options to build a form must not be one grant cheaper than the list they attach to.
  */
 export default async function AdminElectionsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'admin/elections')
+
+  const { t } = await callerI18n(user.id)
 
   const [elections, options] = await Promise.all([
     getElectionsForOrganizer(),
@@ -36,7 +38,7 @@ export default async function AdminElectionsPage() {
   return (
     <PageShell>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold">Elections</h1>
+        <h1 className="text-3xl font-bold">{t('page./admin/elections.title')}</h1>
       </div>
       <AdminElectionsClient
         initialElections={elections}

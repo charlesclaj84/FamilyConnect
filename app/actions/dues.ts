@@ -31,6 +31,7 @@ import {
 } from '@/lib/family-tree'
 import { routePaidPayment } from '@/lib/dues-routing'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * A dues schedule or a donation drive — see `kind`.
@@ -775,8 +776,7 @@ async function myHiddenDonationScheduleIds(
  * its own whatever page renders it. Someone with neither grant gets nothing back.
  */
 export async function getScheduleUsage(): Promise<Record<string, ScheduleUsage>> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return {}
   const [mayDues, mayDonations] = await Promise.all([
     can(user.id, 'admin/accounting/dues', 'view'),
@@ -796,7 +796,7 @@ export async function createDuesSchedule(
   input: Omit<DuesSchedule, 'id' | 'active'>
 ): Promise<{ success: boolean; schedule?: DuesSchedule; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
   // Never taken on trust: an unrecognized kind would be a schedule nobody owes and
@@ -885,9 +885,8 @@ export async function updateDuesSchedule(
   id: string,
   input: Partial<Omit<DuesSchedule, 'id'>>
 ): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
 
@@ -1053,9 +1052,8 @@ export async function updateDuesSchedule(
 }
 
 export async function deleteDuesSchedule(id: string): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
 
@@ -1106,7 +1104,7 @@ export async function deleteDuesSchedule(id: string): Promise<{ success: boolean
 
 export async function getMyDuesSummary(): Promise<DuesSummary[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   // Dues are owed per family, so this must be the active family's person row.
@@ -1362,7 +1360,7 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
 export async function getDonationProgress(): Promise<DonationSummary[]> {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   const familyCode = await getMyFamilyCode(user.id)
@@ -1416,7 +1414,7 @@ export async function setMyDuesPlan(
   cadence: PayCadence,
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
   const myPersonId = await getMyPersonId(user.id)
@@ -1481,7 +1479,7 @@ export async function setMyDuesOptOut(
   optedOut: boolean,
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
   const myPersonId = await getMyPersonId(user.id)
@@ -1530,7 +1528,7 @@ export async function setMyDuesOptOut(
 
 export async function clearMyDuesPlan(scheduleId: string): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
   const myPersonId = await getMyPersonId(user.id)
@@ -1625,7 +1623,7 @@ export async function getAllDuesPayments(): Promise<DuesPayment[]> {
  */
 export async function getFamilyDuesCollected(): Promise<number | null> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return null
 
   const entitled =
@@ -1911,8 +1909,7 @@ export interface DuesProjectionResult {
  * that split (§7b).
  */
 export async function getDuesProjection(): Promise<DuesProjectionResult | null> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return null
 
   if (!(await canAny(user.id, 'reporting/dues-projections', 'view'))) return null
@@ -2130,8 +2127,7 @@ export async function getDuesScopeOptions(): Promise<{
   regions: { id: string; name: string }[]
   chapters: { id: string; name: string; region_id: string | null }[]
 }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { regions: [], chapters: [] }
   if (!(await can(user.id, 'admin/accounting/dues', 'view'))) return { regions: [], chapters: [] }
 
@@ -2160,7 +2156,7 @@ export async function getDuesScopeOptions(): Promise<{
 
 export async function getMyPaymentHistory(): Promise<DuesPayment[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   const myPersonId = await getMyPersonId(user.id)
@@ -2215,7 +2211,7 @@ export async function recordPayment(input: {
 }): Promise<{ success: boolean; message?: string }> {
   const admin = createAdminClient()
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
   const { data: myPerson } = await supabase
@@ -2367,8 +2363,7 @@ export async function reversePayment(
   reason: string,
 ): Promise<{ success: boolean; message?: string }> {
   const admin = createAdminClient()
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated' }
   const familyCode = await getMyFamilyCode(user.id)
   const myPersonId = await getMyPersonId(user.id)
@@ -2477,9 +2472,8 @@ export async function reversePayment(
  * meeting. Same reasoning as `getDuesProjection`, and the page 404s on it.
  */
 export async function getFamilyPnL(): Promise<PnLData | null> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return null
   if (!(await canAny(user.id, 'reporting/pl-summary', 'view'))) return null
   const familyCode = await getMyFamilyCode(user.id)

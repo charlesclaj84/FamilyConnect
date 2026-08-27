@@ -17,6 +17,7 @@ import {
 } from '@/lib/auth/permissions'
 import type { MembershipStatus } from '@/lib/auth/family'
 import { chapterPlaces } from '@/lib/chapter-places'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * Members & Access — the whole of the family's authorization surface.
@@ -157,8 +158,7 @@ async function requireAccessAdmin(
   resource: string,
   action: PermissionAction = 'edit',
 ): Promise<{ ok: true; userId: string; familyCode: string } | { ok: false; message: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { ok: false, message: 'Not authenticated.' }
 
   const { familyCode } = await getMyActiveMembership(user.id)
@@ -209,8 +209,7 @@ export async function canManageAccess(): Promise<{
   members: AccessRights
   templates: AccessRights
 }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { members: NO_RIGHTS, templates: NO_RIGHTS }
   const [members, templates] = await Promise.all([
     rightsOn(user.id, RESOURCE),
@@ -565,8 +564,7 @@ export async function getTemplatePolicy(templateId: string): Promise<PolicyMap> 
 
 /** The caller's own effective permissions — used to render the UI honestly. */
 export async function getMyEffectivePermissions(): Promise<{ legacy: boolean }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { legacy: false }
   const perms = await getMyPermissionSet(user.id)
   return { legacy: perms.legacy }
@@ -887,7 +885,7 @@ async function wouldLoseLastAdmin(
  */
 export async function applyTemplate(personId: string, templateId: string): Promise<AdminResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated.' }
 
   // canAny would be the guard-file equivalent; assigning permissions has no coherent
@@ -920,7 +918,7 @@ export async function applyTemplate(personId: string, templateId: string): Promi
  */
 export async function setMemberEnabled(personId: string, enabled: boolean): Promise<AdminResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated.' }
 
   if ((await can(user.id, RESOURCE, 'edit')) === false) {

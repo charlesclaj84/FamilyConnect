@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { ACCENT_CHIP, TILE_META, type ResolvedTile } from '@/components/dashboard/tiles'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * The Golden Master's "At a Glance" panel — a card of inset metric tiles.
@@ -45,9 +46,15 @@ import { ACCENT_CHIP, TILE_META, type ResolvedTile } from '@/components/dashboar
  * the same way.
  */
 export function AtAGlance({
-  tiles, children,
+  tiles, children, t,
 }: {
   tiles: ResolvedTile[]
+  /**
+   * The reader's language, bound. Threaded from the page rather than resolved here: a
+   * Server Component cannot read `LocaleProvider` and has no `user` of its own. See
+   * `lib/i18n/server.ts`.
+   */
+  t: T
   /**
    * Rendered under the tile grid, inside the same card — the dues balance and the open
    * donation drives. Both are already gated and already fetched (or not) by the page.
@@ -65,7 +72,7 @@ export function AtAGlance({
 
   return (
     <section className="rounded-3xl border bg-card p-5 shadow-[var(--shadow-card)]">
-      <h2 className="mb-4 text-lg">At a Glance</h2>
+      <h2 className="mb-4 text-lg">{t('dash.atAGlance')}</h2>
       {/* `auto-fit` rather than a fixed column count, because the number of tiles is not
           known until the caller's grants are resolved — it is anywhere from one to four
           today (the fourth is the kit's own calendar tile, added with Gatherings on

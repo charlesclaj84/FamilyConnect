@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { resolveFamilyZone, resolveZone } from '@/lib/auth/zone'
@@ -9,6 +8,7 @@ import {
 } from '@/app/actions/meetings'
 import { MeetingsClient } from '@/components/meetings/MeetingsClient'
 import { PageShell } from '@/components/layout/PageShell'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Meeting Minutes' }
 
@@ -41,8 +41,7 @@ export const metadata = { title: 'Meeting Minutes' }
  * comment on the call).
  */
 export default async function MeetingMinutesPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'library/meeting-minutes')

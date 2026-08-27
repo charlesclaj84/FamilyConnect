@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilies, type FamilyMembership } from '@/lib/auth/family'
+import { currentUser } from '@/lib/auth/current-user'
 
 export type FamilyActionResult =
   | { success: true }
@@ -10,8 +11,7 @@ export type FamilyActionResult =
 
 /** The caller's memberships, for the switcher and the profile page. */
 export async function getMyFamilyMemberships(): Promise<FamilyMembership[]> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
   return getMyFamilies(user.id)
 }
@@ -29,7 +29,7 @@ async function callFamilyRpc(
   if (!familyCode) return { success: false, message: 'No family selected.' }
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated.' }
 
   const { error } = await supabase.rpc(fn, { p_family_code: familyCode })

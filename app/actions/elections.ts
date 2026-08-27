@@ -18,6 +18,7 @@ import {
   electionAreaMatch, electionScope, electionScopeLabel, rolesForScope,
   type ElectionScope,
 } from '@/lib/election-area'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * ── WHAT AN ELECTION IS, AFTER 20260821000000 AND 20260821000001 ───────────────────
@@ -331,7 +332,7 @@ function mapElection(
  */
 export async function getElectionsForMember(): Promise<Election[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
   const familyCode = await getMyFamilyCode(user.id)
 
@@ -400,8 +401,7 @@ export interface ActionableElection {
 }
 
 export async function getMyActionableElection(): Promise<ActionableElection | null> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return null
   if (!(await can(user.id, 'community/elections', 'view'))) return null
 
@@ -519,7 +519,7 @@ export async function getElectionDetail(id: string): Promise<{
 }> {
   const empty = { election: null, positions: [], nominations: [], myVotes: {} }
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return empty
   const familyCode = await getMyFamilyCode(user.id)
 
@@ -688,8 +688,7 @@ export async function getElectionNomineeOptions(electionId: string): Promise<Ele
  * one thing that keeps a Georgia member out of the Austin chapter's results is this function.
  */
 export async function getElectionResults(id: string): Promise<ElectionVoteCount[]> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   const familyCode = await getMyFamilyCode(user.id)

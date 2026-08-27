@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { can, requireView } from '@/lib/auth/permissions'
 import { getMyDuesSummary, getMyPaymentHistory, getDonationProgress } from '@/app/actions/dues'
 import { getFunds } from '@/app/actions/funds'
@@ -12,6 +11,8 @@ import { PaidThisYearCard } from '@/components/account/PaidThisYearCard'
 import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
 import { PageShell } from '@/components/layout/PageShell'
 import { cn } from '@/lib/utils'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 // "Summary", not "My Summary" — see the note on the FEATURES entry in lib/features.ts.
 // The route and the resource key both stay `account-summary`.
@@ -54,11 +55,12 @@ export const metadata = { title: 'Summary' }
  * entry — and this sub-key is where that would attach if the answer ever changes.
  */
 export default async function AccountSummaryPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'accounting/summary')
+
+  const { t } = await callerI18n(user.id)
 
   const [canDues, canHistory, canDonations, canFunds] = await Promise.all([
     can(user.id, 'accounting/dues-and-donations', 'view'),
@@ -107,7 +109,7 @@ export default async function AccountSummaryPage() {
   if (!canDues && !canHistory && !canDonations && !canFunds) {
     return (
       <PageShell className="space-y-8">
-        <h1 className="text-3xl font-bold">Summary</h1>
+        <h1 className="text-3xl font-bold">{t('page./accounting/summary.title')}</h1>
         <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
           None of the sections of Summary have been shared with you. Ask an administrator
           for access to the ones you need — your dues, the donation drives, your payment
@@ -119,7 +121,7 @@ export default async function AccountSummaryPage() {
 
   return (
     <PageShell className="space-y-10">
-      <h1 className="text-3xl font-bold">Summary</h1>
+      <h1 className="text-3xl font-bold">{t('page./accounting/summary.title')}</h1>
 
       {cardCount > 0 && (
         <div className={cn(

@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { can, canAny, requireView } from '@/lib/auth/permissions'
@@ -12,6 +11,8 @@ import {
   LEDGERS, resolveLedger, LEDGER_RESOURCE, REVERSAL_RESOURCE, type Ledger,
 } from '@/components/transactions/ledgers'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Transactions' }
 
@@ -48,11 +49,12 @@ export default async function TransactionsPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'accounting/transactions')
+
+  const { t } = await callerI18n(user.id)
 
   const admin = createAdminClient()
   const familyCode = await getMyFamilyCode(user.id)
@@ -223,7 +225,7 @@ export default async function TransactionsPage({
   // 1280px for a rail that lives inside the measure rather than beside it.
   return (
     <PageShell className="space-y-8">
-      <h1 className="text-3xl font-bold">Transactions</h1>
+      <h1 className="text-3xl font-bold">{t('page./accounting/transactions.title')}</h1>
 
       <TransactionsClient
         initialLedger={initialLedger}

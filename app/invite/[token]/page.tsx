@@ -1,12 +1,12 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { Clock, ShieldCheck, Ban, AtSign } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { peekInvitation, redeemInvitation } from '@/app/actions/invitations'
 import { matchesInvitedAuthAddress } from '@/lib/invitations'
 import { InviteMismatchActions } from '@/components/invitations/InviteMismatchActions'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { APP_NAME } from '@/lib/brand'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * `noindex`, on top of the `Disallow: /invite/` already in robots.txt.
@@ -104,8 +104,7 @@ export default async function InvitePage({
   const { token } = await params
   const invitation = await peekInvitation(token)
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
 
   if (!invitation.valid) {
     return (

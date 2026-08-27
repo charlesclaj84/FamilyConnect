@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { resolveZone } from '@/lib/auth/zone'
 import {
@@ -10,6 +9,8 @@ import {
 import { ChatShell } from '@/components/chat/ChatShell'
 import { PAGE_MEASURE } from '@/components/layout/PageShell'
 import { cn } from '@/lib/utils'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Chat' }
 
@@ -49,11 +50,12 @@ export const metadata = { title: 'Chat' }
  * the thread's height, which is exactly what the arithmetic above is arranged to allow.
  */
 export default async function ChatPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'community/chat')
+
+  const { t } = await callerI18n(user.id)
 
   const [{ room: familyRoom, error: chatError }, rooms, familyMembers, zone] = await Promise.all([
     getOrCreateFamilyRoom(),
@@ -65,7 +67,7 @@ export default async function ChatPage() {
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
       <div className={cn(PAGE_MEASURE, 'shrink-0 pb-6 pt-10')}>
-        <h1 className="text-3xl font-bold">Chat</h1>
+        <h1 className="text-3xl font-bold">{t('page./community/chat.title')}</h1>
       </div>
 
       {/* THE BODY IS INSET TO THE SAME MEASURE AS THE HEADING, and until 2026-08-13 it was

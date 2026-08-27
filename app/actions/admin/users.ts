@@ -9,6 +9,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { pickProfileColumns } from '@/lib/profile-columns'
 import { emailOrigin } from '@/lib/email/send'
 import type { PersonalInfoData } from '@/app/actions/personal-info'
+import { currentUser } from '@/lib/auth/current-user'
 
 export type MyRoleSummary = import('@/lib/role-utils').RoleSummary
 
@@ -44,8 +45,7 @@ export type MyRoleSummary = import('@/lib/role-utils').RoleSummary
  */
 
 export async function getMyRoles(): Promise<MyRoleSummary[]> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
   const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
@@ -108,8 +108,7 @@ export async function updateUserProfile(
   peopleId: string,
   data: Partial<PersonalInfoData>
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, error: 'Not authenticated' }
   // THE KEY WAS `admin/boardpositions:edit` UNTIL 2026-08-19, through a helper shared with
   // the role-assignment actions above — so a family that let somebody curate its board
@@ -242,8 +241,7 @@ export interface MemberProfileForEdit {
 export async function getMemberProfileForEdit(
   peopleId: string
 ): Promise<{ success: boolean; error?: string; profile?: MemberProfileForEdit }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, error: 'Not authenticated' }
 
   // The SAME gate as the write it feeds — `admin/members:edit` at `canAny`, because the row is
@@ -363,8 +361,7 @@ export async function setMemberChapter(
   peopleId: string,
   chapterId: string | null,
 ): Promise<{ success: boolean; error?: string; message?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, error: 'Not authenticated' }
   if (!(await canAny(user.id, 'admin/members', 'edit'))) {
     return { success: false, error: 'Not authorized' }
@@ -454,7 +451,7 @@ export async function sendMemberPasswordReset(
   peopleId: string
 ): Promise<{ success: boolean; error?: string; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, error: 'Not authenticated' }
 
   if (!(await canAny(user.id, 'admin/members', 'edit'))) return { success: false, error: 'Not authorized' }

@@ -9,6 +9,8 @@ import { FormError } from '@/components/ui/form-message'
 import { dismissSignupPlan, startPlanCheckout } from '@/app/actions/billing'
 import { TIER_PRICE, formatPlanPrice } from '@/lib/plans'
 import { TIER_LABEL, type FamilyTier } from '@/lib/tiers'
+import { useT } from '@/components/layout/LocaleProvider'
+import { InlineText } from '@/components/ui/inline-text'
 
 /**
  * "You chose Standard when you signed up, and nobody has paid for it yet."
@@ -58,6 +60,7 @@ import { TIER_LABEL, type FamilyTier } from '@/lib/tiers'
 export function PlanSetupBanner({ tier }: { tier: FamilyTier }) {
   const router = useRouter()
   const [dismissed, setDismissed] = useState(false)
+  const t = useT()
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -143,7 +146,7 @@ export function PlanSetupBanner({ tier }: { tier: FamilyTier }) {
         <div className="flex flex-col gap-2 sm:flex-row">
           <Button size="sm" onClick={handlePay} disabled={isPending} className="shrink-0">
             <CreditCard className="h-4 w-4" />
-            {isPending ? 'Opening…' : 'Pay Now'}
+            {isPending ? t('dash.plan.opening') : t('dash.plan.pay')}
           </Button>
           {/* "Cancel" is the word the ask used and it is the right one HERE, where the thing
               being cancelled is the signup choice rather than a payment or a subscription —
@@ -157,20 +160,19 @@ export function PlanSetupBanner({ tier }: { tier: FamilyTier }) {
             disabled={isPending}
             className="shrink-0"
           >
-            Cancel
+            {t('dash.cancel')}
           </Button>
         </div>
 
         <p className="text-xs text-brand-on-soft/80">
-          <strong>Pay Now</strong> takes you to Stripe to pay monthly, starting with the rest of
-          this month. <strong>Cancel</strong> drops the plan and leaves your family on Free —
-          nothing is charged either way, and you can buy it later.
-          {' '}
+          <InlineText text={t('dash.plan.explain', {
+            pay: t('dash.plan.pay'), cancel: t('dash.cancel'),
+          })} />
           {/* NAMES THE PANE EXPLICITLY even though `plan` is `DEFAULT_SETTINGS_PANE`. The
               default is a decision that screen is free to change, and a link that relies on it
               lands somebody sent here to pay on the family-name form instead. */}
           <Link href="/admin/settings?pane=plan" className="underline">
-            Buy months in advance instead
+            {t('dash.plan.advance')}
           </Link>.
         </p>
 

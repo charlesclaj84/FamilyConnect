@@ -1,5 +1,4 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { can, canAny, requireFamilyActive, requireTier } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
 import {
@@ -12,6 +11,8 @@ import {
   ADMIN_GATHERING_PANES, isAdminGatheringPane, type AdminGatheringPane,
 } from '@/lib/gathering-panes'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Gatherings — Admin' }
 
@@ -107,9 +108,9 @@ export default async function AdminGatheringsPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
+  const { t } = await callerI18n(user.id)
 
   // `requireView`, taken apart — see the essay above. Both must stay above the grants.
   await requireFamilyActive(user.id, 'admin/gatherings')
@@ -217,7 +218,7 @@ export default async function AdminGatheringsPage({
   return (
     <PageShell className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">Gatherings</h1>
+        <h1 className="text-3xl font-bold">{t('page./admin/gatherings.title')}</h1>
       </div>
       <AdminGatheringsClient
         initialPane={initialPane}

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef, useTransition } from 'react'
-import { tFor, formatTimeAgo } from '@/lib/i18n/catalogues'
+import { formatTimeAgo } from '@/lib/i18n/catalogues'
+import { useLocale, useT } from '@/components/layout/LocaleProvider'
 import { useRouter } from 'next/navigation'
 import { Bell, UserCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -36,12 +37,11 @@ interface Props {
    * this component does not re-check it and could not, holding only counts and names.
    */
   pendingQueues?: PendingQueue[]
-  /** The reader's language. A string, not a `t` — see lib/i18n/catalogues.ts. */
-  locale: string
 }
 
-export function NotificationBell({ initialNotifications, personId, pendingQueues = [], locale }: Props) {
-  const t = tFor(locale)
+export function NotificationBell({ initialNotifications, personId, pendingQueues = [] }: Props) {
+  const t = useT()
+  const locale = useLocale()
   const router = useRouter()
   const [notifications, setNotifications] = useState(initialNotifications)
   const [open, setOpen] = useState(false)

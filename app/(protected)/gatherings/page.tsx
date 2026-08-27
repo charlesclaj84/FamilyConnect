@@ -1,5 +1,4 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { can, canAny, requireFamilyActive, requireTier } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
 import { getMyFamilyCode } from '@/lib/auth/family'
@@ -15,6 +14,8 @@ import type { GatheringRow } from '@/components/gatherings/GatheringsClient'
 import {
   GATHERING_PANES, isGatheringPane, type GatheringPane,
 } from '@/lib/gathering-panes'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Gatherings' }
 
@@ -93,9 +94,9 @@ interface Props {
  * tasks pane, which marks an overdue task by comparing against it.
  */
 export default async function GatheringsPage({ searchParams }: Props) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
+  const { t } = await callerI18n(user.id)
 
   // `requireView`, taken apart — see the essay above. Both must stay above the fetches.
   await requireFamilyActive(user.id, 'gatherings')
@@ -205,7 +206,7 @@ export default async function GatheringsPage({ searchParams }: Props) {
       {/* The heading only. The sentence under it is per-pane and lives in the shell — one
           describes the family's plans and the other the reader's own to-do list, and a lede
           describing the wrong one is worse than none. */}
-      <h1 className="text-3xl font-bold">Gatherings</h1>
+      <h1 className="text-3xl font-bold">{t('page./gatherings.title')}</h1>
 
       <GatheringsShell
         initialPane={initialPane}

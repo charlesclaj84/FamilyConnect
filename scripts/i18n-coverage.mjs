@@ -45,6 +45,14 @@
  *                       the real gate and turns this into a build failure; this is the second
  *                       opinion, and it names the file.
  *
+ *   TWO-MECHANISMS      a `'use client'` file calling `tFor()` directly instead of `useT()`.
+ *                       It WORKS, which is why it needs a gate: the component renders correct
+ *                       text in whatever locale it was handed, and the bug is that it was
+ *                       handed one at all. Phase 5 converted the shell off `locale` props onto
+ *                       one context precisely so a prop cannot be dropped through an
+ *                       intermediate component that does not use it — and a `tFor` call site is
+ *                       how that prop comes back, one component at a time.
+ *
  *   PINNED-FORMATTER    a date or money formatter called WITHOUT a locale. It renders English,
  *                       silently and correctly, which is exactly why it needs counting: a
  *                       half-localized product has no symptom. `lib/date-utils.ts` defaults
@@ -71,6 +79,7 @@
  *
  * The throwaway catalogue was then removed. Phase 4's `es` is the first real one.
  *
+ *   TWO-MECHANISMS      `const t = tFor('es')` put back into `components/layout/Sidebar.tsx`.
  *   DUPLICATE-KEY       `email.approved.subject` copied into `lib/i18n/en.ts` as well.
  *   CLIENT-BUNDLE       an `import { emailT } from '@/lib/email/strings'` added to
  *                       `components/layout/ThemeToggle.tsx`, which is `'use client'`.
@@ -221,6 +230,7 @@ const KNOWN_DYNAMIC = [
   ['nav.section.', 'Likewise for section headings, keyed on the section id.'],
   ['theme.', 'ThemeToggle maps its three modes: t(`theme.${mode}`).'],
   ['switcher.badge.', 'FamilySwitcher picks a badge by membership state.'],
+  ['dash.link.match.', 'LinkPersonBanner names why a record matched: t(`dash.link.match.${reason}`).'],
 ]
 
 const isDynamic = key => KNOWN_DYNAMIC.some(([prefix]) => key.startsWith(prefix))
@@ -456,6 +466,35 @@ for (const dir of SCAN) {
         kind: 'CLIENT-BUNDLE', key: rel,
         detail: 'a client component imports the email bundle — that ships six messages\' prose '
           + 'to the browser. Compose the mail in a server action and pass the result down.',
+      })
+    }
+  }
+}
+
+// 5c. One mechanism for client components: `useT()`, never `tFor()`.
+//
+// `tFor` is the binder both entry points are built on, so three files legitimately name it —
+// the provider, the server helper, and the tests that exercise the registry directly. Anywhere
+// else in a `'use client'` file it is a `locale` prop coming back, which is the thing Phase 5
+// removed. Server components are NOT checked: they have no context to read and call
+// `callerI18n()`, which is built on `tFor` by design.
+const TFOR_ALLOWED = new Set([
+  'components/layout/LocaleProvider.tsx',
+  'lib/i18n/server.ts',
+  'lib/i18n/catalogues.ts',
+])
+for (const dir of SCAN) {
+  for (const file of walk(join(ROOT, dir))) {
+    const rel = relative(ROOT, file).split(SEP).join('/')
+    if (TFOR_ALLOWED.has(rel)) continue
+    const code = stripComments(readFileSync(file, 'utf8'))
+    if (!/^\s*(?:'use client'|"use client")/.test(code)) continue
+    if (/(^|[^A-Za-z0-9_$])tFor\s*\(/.test(code)) {
+      findings.push({
+        kind: 'TWO-MECHANISMS', key: rel,
+        detail: 'a client component builds its own `t` with tFor() — use useT() from '
+          + 'components/layout/LocaleProvider, so the locale cannot arrive as a prop that an '
+          + 'intermediate component forgets to pass on',
       })
     }
   }

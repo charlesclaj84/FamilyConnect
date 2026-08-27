@@ -5,6 +5,7 @@ import { InviteMemberDialog } from '@/components/invitations/InviteMemberDialog'
 import {
   ACCENT_CHIP, QUICK_ACTION_META, type ResolvedQuickAction,
 } from '@/components/dashboard/tiles'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The Golden Master's Quick Actions strip — round accent chips over a caption.
@@ -55,11 +56,12 @@ import {
  * already been taken down once by exactly that (see `ROUTE_OVERRIDE` in tiles.ts).
  */
 export function QuickActions({ actions }: { actions: ResolvedQuickAction[] }) {
+  const t = useT()
   if (actions.length === 0) return null
 
   return (
     <section className="rounded-3xl border bg-card p-5 shadow-[var(--shadow-card)]">
-      <h2 className="mb-4 text-lg">Quick Actions</h2>
+      <h2 className="mb-4 text-lg">{t('dash.quickActions')}</h2>
       {/* `auto-fill` with a floor, not a fixed column count: the number of surviving
           buttons is between one and three today and will grow to six as features ship,
           and this reflows for any of those without a breakpoint per case. */}

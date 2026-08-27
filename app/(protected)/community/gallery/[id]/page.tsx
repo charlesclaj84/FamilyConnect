@@ -1,13 +1,13 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, Images } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { getMyPersonId } from '@/lib/auth/family'
 import { requireView } from '@/lib/auth/permissions'
 import { getCollectionDetail, getGalleryRights } from '@/app/actions/gallery'
 import { getMembers } from '@/app/actions/members'
 import { CollectionView } from '@/components/gallery/CollectionView'
 import { PageShell } from '@/components/layout/PageShell'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Album' }
 
@@ -23,8 +23,7 @@ export const metadata = { title: 'Album' }
 export default async function AlbumPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'community/gallery')

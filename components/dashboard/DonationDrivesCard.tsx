@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import type { DonationSummary } from '@/app/actions/dues'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * The family's open donation drives, on the Dashboard.
@@ -56,7 +57,15 @@ import type { DonationSummary } from '@/app/actions/dues'
  * is a beneficiary of never reaches this component at all — the restrictive policies from
  * 20260811000000 refuse the schedule row, so there is no filtering to forget here.
  */
-export function DonationDrivesCard({ donations }: { donations: DonationSummary[] }) {
+export function DonationDrivesCard({ donations, t }: {
+  donations: DonationSummary[]
+  /**
+   * The reader's language, bound. Threaded from the page rather than resolved here: a
+   * Server Component cannot read `LocaleProvider` and has no `user` of its own. See
+   * `lib/i18n/server.ts`.
+   */
+  t: T
+}) {
   // Soonest to close first, then the ones with no end date at all. A drive with a
   // deadline is the one worth acting on today, which is the whole reason this card is on
   // the landing screen rather than only on Donations.
@@ -77,11 +86,11 @@ export function DonationDrivesCard({ donations }: { donations: DonationSummary[]
     <section className="rounded-2xl border bg-card p-5">
       <h2 className="mb-4 flex items-center gap-2 text-lg">
         <HeartHandshake className="h-4 w-4 text-brand-accent" aria-hidden="true" />
-        Donation Drives
+        {t('dash.donations.title')}
       </h2>
 
       <ul className="space-y-4">
-        {shown.map(d => <DriveRow key={d.schedule.id} donation={d} />)}
+        {shown.map(d => <DriveRow key={d.schedule.id} donation={d} t={t} />)}
       </ul>
 
       {hidden > 0 && (
@@ -97,7 +106,7 @@ export function DonationDrivesCard({ donations }: { donations: DonationSummary[]
           'mt-4 w-full justify-center',
         )}
       >
-        View donation drives
+        {t('dash.donations.view')}
       </Link>
     </section>
   )
@@ -111,7 +120,11 @@ export function DonationDrivesCard({ donations }: { donations: DonationSummary[]
  * called "Martha's Medical Fund" plus two currency amounts does not fit on one. The name gets
  * the line it needs; the figures share the next.
  */
-function DriveRow({ donation: d }: { donation: DonationSummary }) {
+function DriveRow({ donation: d, t }: {
+  donation: DonationSummary
+  /** Threaded one more hop, for the same reason the card takes it. */
+  t: T
+}) {
   const { schedule, goalCents, raisedCents, myGivenCents, progressPercent, goalMet } = d
 
   return (
@@ -122,7 +135,7 @@ function DriveRow({ donation: d }: { donation: DonationSummary }) {
         </span>
         {goalMet && (
           <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-affirm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-on-affirm">
-            <Check className="h-3 w-3" aria-hidden="true" /> Met
+            <Check className="h-3 w-3" aria-hidden="true" /> {t('dash.donations.met')}
           </span>
         )}
       </p>

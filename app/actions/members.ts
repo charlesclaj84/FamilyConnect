@@ -9,6 +9,7 @@ import { resolveFamilyZone } from '@/lib/auth/zone'
 import { todayIn } from '@/lib/tz'
 import { formatRoleTitle } from '@/lib/role-utils'
 import { chapterPlaces } from '@/lib/chapter-places'
+import { currentUser } from '@/lib/auth/current-user'
 
 export interface MemberRecord {
   id: string
@@ -105,7 +106,7 @@ interface RoleRow {
 
 export async function getMembers(): Promise<MemberRecord[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   // Fetch all people in the family (adults and minors).

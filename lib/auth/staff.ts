@@ -1,7 +1,7 @@
 import { cache } from 'react'
 import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * Who may open the GENORRA staff console, and the guard every staff surface calls.
@@ -205,8 +205,7 @@ export async function requireStaff(): Promise<StaffCaller> {
   // The USER client, so the session is resolved from the caller's own cookies and
   // verified by GoTrue — `getUser()` and not `getSession()`, which would trust a JWT the
   // browser handed us. The admin client below is for the table only.
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) notFound()
 
   const role = await staffGrant(user.id)

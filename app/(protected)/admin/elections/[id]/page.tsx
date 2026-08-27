@@ -1,13 +1,13 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, MapPin } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getElectionSummary } from '@/app/actions/elections'
 import { formatDateRange } from '@/lib/date-utils'
 import { ElectionSummary } from '@/components/admin/ElectionSummary'
 import { ELECTION_WINDOW } from '@/components/elections/status'
 import { PageShell } from '@/components/layout/PageShell'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Election' }
 
@@ -43,8 +43,7 @@ export default async function AdminElectionDetailPage(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'admin/elections')

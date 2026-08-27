@@ -9,6 +9,7 @@ import { isMinorOn } from '@/lib/age-utils'
 import { resolveFamilyZone } from '@/lib/auth/zone'
 import { todayIn } from '@/lib/tz'
 import { LINK_EXISTING_PERSON_ENABLED } from '@/lib/feature-flags'
+import { currentUser } from '@/lib/auth/current-user'
 
 export interface UnlinkedPerson {
   id: string
@@ -44,7 +45,7 @@ export async function getLinkPersonBannerData(): Promise<{
   if (!LINK_EXISTING_PERSON_ENABLED) return { showBanner: false, unlinkedPeople: [] }
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { showBanner: false, unlinkedPeople: [] }
 
   const familyCode = await getMyFamilyCode(user.id)
@@ -144,8 +145,7 @@ export async function linkPersonToCurrentUser(
     return { success: false, message: 'This feature is not currently available.' }
   }
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, message: 'Not authenticated.' }
 
   if (!(await isApprovedMember(user.id))) {

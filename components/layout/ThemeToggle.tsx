@@ -1,8 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
-import { tFor } from '@/lib/i18n/catalogues'
-import { BASE_LOCALE } from '@/lib/i18n/locales'
+import { useT } from '@/components/layout/LocaleProvider'
 import { Sun, Moon, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { THEME_STORAGE_KEY, DEFAULT_THEME, type Theme } from '@/lib/theme'
@@ -98,21 +97,20 @@ function subscribe(onChange: () => void) {
  *
  * The size is fixed across all three states so the row beside it never jumps.
  */
-export function ThemeToggle({ className, locale }: {
+export function ThemeToggle({ className }: {
   className?: string
-  /**
-   * The reader's language. A string, not a `t` — see lib/i18n/catalogues.ts.
+  /*
+   * NO `locale` PROP SINCE PHASE 5. It took an optional one, defaulting to English, because this
+   * control appears on FOUR surfaces and only one of them had a locale to give it: the
+   * Dashboard's account menu, plus Home's header and the auth and staff layouts.
    *
-   * OPTIONAL, AND THAT IS PHASE 3'S SCOPE RATHER THAN CARELESSNESS. This control appears on
-   * three surfaces: the Dashboard's account menu, Home's header and the auth pages. Only the
-   * first is in Phase 3, and Home takes its language from a `/es` PATH segment rather than
-   * from a caller (Phase 4). Defaulting to English there is what the product already does;
-   * threading a locale through Home now would be plumbing for a route structure that does not
-   * exist yet.
+   * `useT()` answers on all four without a prop — `BASE_LOCALE` where no provider is mounted,
+   * which is exactly what the default did, and the reader's own language the moment one is. So
+   * the three surfaces outside the Dashboard become translatable by mounting a provider in their
+   * layout rather than by editing this file. See `LocaleProvider`.
    */
-  locale?: string
 }) {
-  const t = tFor(locale ?? BASE_LOCALE)
+  const t = useT()
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
   const [preference, resolved] = snapshot.split('|') as [Theme, 'light' | 'dark']
 

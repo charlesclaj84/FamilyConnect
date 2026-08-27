@@ -1,12 +1,12 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { resolveZone } from '@/lib/auth/zone'
 import { getMeetingDetail } from '@/app/actions/meetings'
 import { MeetingDetailClient } from '@/components/meetings/MeetingDetailClient'
 import { PageShell } from '@/components/layout/PageShell'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Meeting' }
 
@@ -21,8 +21,7 @@ export const metadata = { title: 'Meeting' }
 export default async function MeetingPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'library/meeting-minutes')

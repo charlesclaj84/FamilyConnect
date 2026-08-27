@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
-import { resolveLocale } from '@/lib/auth/locale'
+import { callerI18n } from '@/lib/i18n/server'
 import { requireViewOrPending, can, canAny } from '@/lib/auth/permissions'
 import { PendingApproval } from '@/components/membership/PendingApproval'
 import { FamilyRemoved } from '@/components/membership/FamilyRemoved'
@@ -45,6 +45,7 @@ import {
   type ResolvedTile, type ResolvedQuickAction,
 } from '@/components/dashboard/tiles'
 import { isFeatureLive } from '@/lib/features'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Dashboard' }
 
@@ -116,11 +117,14 @@ export const metadata = { title: 'Dashboard' }
  */
 export default async function DashboardPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
-  // The reader's language, for the shell strings and the relative-time captions below.
-  const locale = await resolveLocale(user.id)
+  // The reader's language. `t` is threaded into the SERVER cards below — they cannot read
+  // `LocaleProvider`, and a `T` crossing a server-to-server boundary is passed by reference
+  // rather than serialized. The client ones (RecentUpdates, QuickActions, the three
+  // banners) take nothing and call `useT()`. See lib/i18n/server.ts.
+  const { t } = await callerI18n(user.id)
 
   // requireViewOrPending, not requireView: a pending member must be able to LAND
   // somewhere that tells them what is happening. The early return is above every fetch
@@ -543,6 +547,7 @@ export default async function DashboardPage() {
       {premierGathering ? (
         <div>
           <WelcomeHero
+            t={t}
             firstName={firstName}
             initials={initials}
             avatarUrl={heroAvatarUrl}
@@ -551,10 +556,11 @@ export default async function DashboardPage() {
             photoUrl={premierGathering.photoUrl}
             ground="page"
           />
-          <PremierGatheringHero gathering={premierGathering} />
+          <PremierGatheringHero gathering={premierGathering} t={t} />
         </div>
       ) : (
         <WelcomeHero
+          t={t}
           firstName={firstName}
           initials={initials}
           avatarUrl={heroAvatarUrl}
@@ -577,7 +583,7 @@ export default async function DashboardPage() {
 
           It renders `null` for nobody most of the time: one filtered read that returns
           nothing for a member on no open check-in. */}
-      <SafetyCheckInBanner />
+      <SafetyCheckInBanner t={t} />
 
       {/* Banners sit between the hero and the grid: each one is a thing this member has
           to do, and burying an action item under four metric tiles is how it gets
@@ -608,7 +614,7 @@ export default async function DashboardPage() {
           the broader ask, and the chapter picker below it is one of the things a member would
           otherwise go looking for on the profile page. Neither is dismissible in the same way
           — see ProfileReminderBanner on why this one has no X. */}
-      <ProfileReminderBanner completeness={completeness} />
+      <ProfileReminderBanner completeness={completeness} t={t} />
       {needsChapter && <ChapterReminderBanner chapters={chapters} />}
 
       {/* NO ANNOUNCEMENTS BANNER, since 2026-08-13, and its absence is the change rather
@@ -666,9 +672,9 @@ export default async function DashboardPage() {
               and what lets the balance fill the row on its own when no drive is open. The
               order here is the order they appear in: what you owe, then what you are being
               asked to give. */}
-          <AtAGlance tiles={tiles}>
+          <AtAGlance tiles={tiles} t={t}>
             <DuesBalanceKpi summary={duesSummary} showViewLink />
-            <DonationDrivesCard donations={donations} />
+            <DonationDrivesCard donations={donations} t={t} />
           </AtAGlance>
           {/* Merged and ordered on the server: pinned announcements first, then
               notifications and dismissed announcements interleaved by date. The rule is
@@ -676,7 +682,6 @@ export default async function DashboardPage() {
               feature — "pinned stays at the top, unpinned falls into natural order" —
               and it should be readable without a browser. */}
           <RecentUpdates
-            locale={locale}
             items={mergeUpdates(notifications, announcements)}
             mayViewArchive={mayViewUpdates}
           />
@@ -689,7 +694,7 @@ export default async function DashboardPage() {
               and it was the one tile whose figure grew without bound and set the width of
               every tile beside it. It renders nothing at all when the caller holds neither
               ledger grant — `null` is "not entitled" and `0` is a real zero. */}
-          <FamilyDuesCollectedCard collectedCents={duesCollectedCents} />
+          <FamilyDuesCollectedCard collectedCents={duesCollectedCents} t={t} />
           {/* THE KIT'S "Family Tree Highlights", finally answerable — see the header of
               this file, which listed it among four omitted panels because the tree was a
               scaffold and nothing computed a generation depth. Both are now false.
@@ -699,7 +704,7 @@ export default async function DashboardPage() {
               their family IS. It renders whether or not the tree has anything in it, which
               is the one place it departs from every other card here, and the component
               says why. */}
-          {treeSummary && <FamilyTreeCard summary={treeSummary} />}
+          {treeSummary && <FamilyTreeCard summary={treeSummary} t={t} />}
         </div>
       </div>
     </PageShell>

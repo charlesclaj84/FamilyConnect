@@ -3,6 +3,7 @@ import { HandCoins } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { formatCurrency } from '@/lib/currency-utils'
 import { cn } from '@/lib/utils'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * What the family has collected in dues and donations — a widget in the Dashboard's narrow
@@ -36,7 +37,15 @@ import { cn } from '@/lib/utils'
  * is what keeps it reading as a card rather than a link, and the button at the foot takes its
  * own colour from `buttonVariants` — the same trap answered the same way as in `AtAGlance`.
  */
-export function FamilyDuesCollectedCard({ collectedCents }: { collectedCents: number | null }) {
+export function FamilyDuesCollectedCard({ collectedCents, t }: {
+  collectedCents: number | null
+  /**
+   * The reader's language, bound. Threaded from the page rather than resolved here: a
+   * Server Component cannot read `LocaleProvider` and has no `user` of its own. See
+   * `lib/i18n/server.ts`.
+   */
+  t: T
+}) {
   if (collectedCents === null) return null
 
   return (
@@ -53,7 +62,7 @@ export function FamilyDuesCollectedCard({ collectedCents }: { collectedCents: nu
       <span className="text-2xl font-semibold leading-none tabular-nums">
         {formatCurrency(collectedCents)}
       </span>
-      <span className="text-sm text-muted-foreground">Collected this year</span>
+      <span className="text-sm text-muted-foreground">{t('dash.collected.title')}</span>
       {/* A button-SHAPED span, not a nested <Link>: the whole card is already an anchor and an
           <a> inside an <a> is invalid HTML that browsers silently unnest. `group-hover` rather
           than its own `hover:` for the same reason — the target is the card. */}
@@ -63,7 +72,7 @@ export function FamilyDuesCollectedCard({ collectedCents }: { collectedCents: nu
           'mt-auto w-full justify-center group-hover:bg-brand-soft/60',
         )}
       >
-        View payments
+        {t('dash.collected.view')}
       </span>
     </Link>
   )

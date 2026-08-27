@@ -1,5 +1,4 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import { resolveZone } from '@/lib/auth/zone'
 import {
@@ -7,6 +6,7 @@ import {
 } from '@/app/actions/safety-check-ins'
 import { SafetyCheckInsClient } from '@/components/safety/SafetyCheckInsClient'
 import { PageShell } from '@/components/layout/PageShell'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Safety Check-Ins' }
 
@@ -53,8 +53,7 @@ export const metadata = { title: 'Safety Check-Ins' }
  * redundancy is deliberate — see the migration's §10.
  */
 export default async function SafetyCheckInsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'community/safety-check-ins')

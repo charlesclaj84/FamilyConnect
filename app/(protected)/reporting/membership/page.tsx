@@ -1,10 +1,11 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import { getMembershipReport } from '@/app/actions/reports'
 import { PageShell } from '@/components/layout/PageShell'
 import { MembershipReportView } from '@/components/reports/MembershipReportView'
 import type { MembershipRepairRights } from '@/lib/membership-drill'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Membership' }
 
@@ -58,8 +59,7 @@ export const metadata = { title: 'Membership' }
  * `'use server'` export has a URL whether or not a button exists (§2).
  */
 export default async function MembershipReportPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   // ── THE KEY IS `reporting/membership`, AND IT SAID `membership-report` UNTIL 2026-08-22 ──
@@ -74,6 +74,7 @@ export default async function MembershipReportPage() {
   // Members & Access moved nothing. That is the exact failure §6 describes for a key that
   // has no row.
   await requireView(user.id, 'reporting/membership')
+  const { t } = await callerI18n(user.id)
   if (!(await canAny(user.id, 'reporting/membership', 'view'))) notFound()
 
   // RESOLVED BESIDE THE REPORT rather than after it, so the page costs one round trip's worth
@@ -92,7 +93,7 @@ export default async function MembershipReportPage() {
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">Membership</h1>
+        <h1 className="text-3xl font-bold">{t('page./reporting/membership.title')}</h1>
       </div>
 
       <MembershipReportView report={report} rights={rights} />

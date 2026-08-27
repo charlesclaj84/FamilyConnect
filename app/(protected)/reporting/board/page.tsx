@@ -1,6 +1,5 @@
 import { notFound, redirect } from 'next/navigation'
 import { ShieldCheck } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import { getBoardReport } from '@/app/actions/activity-reports'
 import { cn } from '@/lib/utils'
@@ -8,6 +7,8 @@ import { POSITION_CATEGORY_LABELS } from '@/lib/board-positions'
 import { PageShell } from '@/components/layout/PageShell'
 import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Board & Offices Report' }
 
@@ -31,11 +32,12 @@ export const metadata = { title: 'Board & Offices Report' }
  * filled offices would be a report that cannot state its most useful fact.
  */
 export default async function BoardReportPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'reporting/board')
+
+  const { t } = await callerI18n(user.id)
   if (!(await canAny(user.id, 'reporting/board', 'view'))) notFound()
 
   const report = await getBoardReport()
@@ -46,7 +48,7 @@ export default async function BoardReportPage() {
   return (
     <PageShell className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">Board &amp; Offices</h1>
+        <h1 className="text-3xl font-bold">{t('page./reporting/board.title')}</h1>
       </div>
 
       <ReportStats stats={[

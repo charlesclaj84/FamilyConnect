@@ -152,4 +152,118 @@ export const en: Catalogue = {
   // use for it and that word does not change with the interface they are reading.
   'language.label': 'Language',
   'language.choose': 'Choose a language',
+
+  // ── PAGE HEADINGS ────────────────────────────────────────────────────────────────
+  // The `<h1>` at the top of each screen, keyed on its ROUTE — which §1 makes the same string
+  // as its permission key, so `page.<key>.title` needs no lookup table.
+  //
+  // SEPARATE FROM `nav.item.*`, AND THAT DUPLICATION IS THE POINT. On most screens the two are
+  // the same word today, because AGENTS.md makes a route the kebab-cased rail caption. They are
+  // still two keys, for the reason this catalogue already keeps two keys for every caption that
+  // repeats: a heading and a rail item are different jobs, and where they diverge they diverge
+  // permanently. Three already do — `/help` is "User Guide" in the rail and "Help" here,
+  // `/admin/members` is "Members" in both but "Members & Access" in the manual, and
+  // `/library/officer-notes` had drifted outright (see below).
+  //
+  // THE DOCUMENT TITLE IS NOT HERE YET, deliberately. `export const metadata` is static, so
+  // translating a tab title means `generateMetadata`, which has no `user` and would have to make
+  // its own GoTrue `getUser()` call — doubling the auth round trips on every page load to
+  // translate a browser tab. Deferred as a decision rather than an omission; the alternative
+  // (falling back to `Accept-Language` there) would print a Spanish tab over an English page for
+  // anybody whose browser and stored choice disagree, which is worse than English.
+  'page./accounting/dues-and-donations.title': 'Dues & Donations',
+  'page./accounting/summary.title': 'Summary',
+  'page./accounting/transactions.title': 'Transactions',
+  'page./admin/accounting.title': 'Accounting',
+  'page./admin/elections.title': 'Elections',
+  'page./admin/gatherings.title': 'Gatherings',
+  'page./admin/members.title': 'Members',
+  'page./admin/settings.title': 'Settings',
+  'page./community/announcements.title': 'Announcements',
+  'page./community/chat.title': 'Chat',
+  'page./community/directory.title': 'Directory',
+  'page./community/elections.title': 'Elections',
+  'page./community/family-tree.title': 'Family Tree',
+  'page./gatherings.title': 'Gatherings',
+  'page./gatherings/calendar.title': 'Calendar',
+  'page./help.title': 'Help',
+  'page./library/documents.title': 'Documents',
+  'page./library/officer-notes.title': 'Officer Notes',
+  'page./my-families.title': 'My Families',
+  'page./personal-info.title': 'My Profile',
+  'page./reporting/board.title': 'Board & Offices',
+  'page./reporting/dues-projections.title': 'Dues Projections',
+  'page./reporting/elections.title': 'Elections',
+  'page./reporting/gatherings.title': 'Gatherings',
+  'page./reporting/meetings.title': 'Meetings',
+  'page./reporting/membership.title': 'Membership',
+  'page./reporting/payment-history.title': 'Payment History',
+  'page./reporting/pl-summary.title': 'P&L Summary',
+
+  // ── THE DASHBOARD ────────────────────────────────────────────────────────────────
+  // The landing screen: `/dashboard`, and the cards and banners on it. `dash.*` rather than
+  // `page./dashboard.*` because these are the CONTENTS of one screen rather than its heading —
+  // the same split `nav.item.*` and `page.*.title` already make.
+  'dash.welcome': 'Welcome back,',
+  'dash.atAGlance': 'At a Glance',
+  'dash.quickActions': 'Quick Actions',
+  'dash.premier.label': 'Premier gathering',
+  'dash.premier.view': 'View details',
+  'dash.donations.title': 'Donation Drives',
+  'dash.donations.view': 'View donation drives',
+  'dash.donations.met': 'Met',
+  'dash.collected.title': 'Collected this year',
+  'dash.collected.view': 'View payments',
+  'dash.tree.title': 'Family Tree',
+  'dash.tree.generationOne': 'Generation',
+  'dash.tree.generationMany': 'Generations',
+  'dash.tree.empty': 'There is nobody in this family to build a tree from yet.',
+  'dash.tree.allConnected': 'No loose leaves — everybody in the family is connected to somebody.',
+  'dash.tree.oneLeaf': 'One leaf: a member who is not connected to anybody on the tree yet.',
+  'dash.tree.open': 'Open the tree',
+  'dash.tree.view': 'View family tree',
+  'dash.updates.title': 'Recent Updates',
+  'dash.updates.empty': 'Nothing new right now.',
+  'dash.updates.viewAll': 'View all updates',
+  'dash.updates.unpin': 'Hide this from the top of my updates',
+  'dash.updates.pin': 'Show this at the top of my updates',
+  'dash.profile.title': 'Finish your profile',
+  'dash.profile.action': 'Update my profile',
+  'dash.safety.title': 'Your family is asking whether you are safe',
+  'dash.safety.action': 'Open Safety Check-Ins',
+  'dash.chapter.title': 'Set your chapter',
+  'dash.chapter.lede':
+    'Assigning your chapter ensures you receive the right announcements and are grouped correctly within the family.',
+  'dash.chapter.select': 'Select your chapter',
+  'dash.chapter.action': 'Set chapter',
+  'dash.chapter.saving': 'Save Chapter',
+  'dash.chapter.required': 'Please select a chapter.',
+  'dash.chapter.saved': 'Chapter saved successfully.',
+  'dash.chapter.failed': 'Failed to save. Please try again.',
+  'dash.link.title': 'Were you already added to the family?',
+  'dash.link.maybe': 'These might be you',
+  'dash.link.isThisYou': 'Is this you?',
+  'dash.link.thisIsMe': 'This is me',
+  'dash.link.everyoneElse': 'Everyone else',
+  'dash.link.search': 'Search by name…',
+  'dash.link.none': 'No matching family members found.',
+  'dash.link.match.name': 'Name match',
+  'dash.link.match.email': 'Email match',
+  'dash.link.match.phone': 'Phone match',
+  'dash.link.match.dob': 'Birthday match',
+  'dash.link.action': 'Link record',
+  'dash.link.linking': 'Linking…',
+  'dash.link.aria': 'Link to your account',
+  'dash.plan.pay': 'Pay Now',
+  'dash.plan.opening': 'Opening…',
+  'dash.plan.advance': 'Buy months in advance instead',
+  'dash.dismiss': 'Dismiss',
+  'dash.cancel': 'Cancel',
+  'dash.plan.explain':
+    '**{pay}** takes you to Stripe to pay monthly, starting with the rest of this month. '
+    + '**{cancel}** drops the plan and leaves your family on Free — nothing is charged either '
+    + 'way, and you can buy it later. ',
+  'dash.safety.titleMany': 'Your family is asking whether you are safe ({n} check-ins)',
+  'dash.tree.manyLeaves':
+    '{n} leaves — members who are not connected to anybody on the tree yet.',
 }

@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { createClient } from '@/lib/supabase/server'
 import { viewableResources } from '@/lib/auth/permissions'
 import {
   getMyFamilyCode, getViewingMembership, isApproved, isActiveFamily,
@@ -14,9 +13,11 @@ import { IdleTimeout } from '@/components/layout/IdleTimeout'
 import { ShellWatcher } from '@/components/layout/ShellWatcher'
 import { ZoneHint } from '@/components/layout/ZoneHint'
 import { LocaleSync } from '@/components/layout/LocaleSync'
+import { LocaleProvider } from '@/components/layout/LocaleProvider'
 import { resolveLocale } from '@/lib/auth/locale'
 import { BASE_LOCALE } from '@/lib/i18n/locales'
 import { ShellSwoop, ShellHill } from '@/components/layout/ShellDecor'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * The signed-in app says "do not index me", on every route beneath this layout.
@@ -96,8 +97,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   let sessionStartedAt: string | null = null
 
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { user } = await currentUser()
     if (user) {
       signedIn = true
       sessionStartedAt = user.last_sign_in_at ?? null
@@ -171,6 +171,18 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   // the provider has to sit above the whole shell — the top bar and the rail
   // mutate state too.
   return (
+    // THE LANGUAGE WRAPS EVERYTHING, and the two providers nest in this order deliberately:
+    // `useConfirm()`'s dialogs carry captions of their own, so the language has to be resolvable
+    // from inside them.
+    //
+    // OUTSIDE `<main key={familyCode}>`, like IdleTimeout and ZoneHint, because a language
+    // belongs to the PERSON and not to the family they are looking at — a switch must not tear
+    // the provider down and rebuild it.
+    //
+    // It is what every client component in the product reads through `useT()`. Server components
+    // cannot see a context and call `callerI18n()` instead; `LocaleProvider`'s header carries the
+    // argument for both.
+    <LocaleProvider locale={locale || BASE_LOCALE}>
     <ConfirmProvider>
       {/* ONE ROW, NO HEADER ABOVE IT. There used to be a full-width `bg-brand-hero`
           Navbar here carrying the mark, the wordmark and four controls. The Golden
@@ -188,7 +200,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
           hides the round entirely. Cream is what the kit puts outside that corner. */}
       <div className="min-h-screen flex flex-col">
         <div className="flex flex-1 flex-col bg-background md:flex-row">
-          <Sidebar viewable={viewable} locale={locale || BASE_LOCALE} />
+          <Sidebar viewable={viewable} />
           {/* SWITCHING FAMILY THROWS THE PAGE AWAY AND BUILDS A NEW ONE.
               ─────────────────────────────────────────────────────────────────────
               FamilySwitcher lands its change with `router.refresh()`, and a refresh
@@ -257,7 +269,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
                 what puts the shape over the bar's background is tree order alone. Moving
                 this line above TopBar hides the top third of the bite again. */}
             <div className="relative z-10">
-              <TopBar viewable={viewable} isStaff={isStaff} locale={locale || BASE_LOCALE} />
+              <TopBar viewable={viewable} isStaff={isStaff} />
               <ShellSwoop />
               {children}
             </div>
@@ -307,5 +319,6 @@ export default async function ProtectedLayout({ children }: { children: React.Re
           looking at. Renders nothing. */}
       {signedIn && <LocaleSync locale={locale} />}
     </ConfirmProvider>
+    </LocaleProvider>
   )
 }
