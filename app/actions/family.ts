@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilies, type FamilyMembership } from '@/lib/auth/family'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 export type FamilyActionResult =
   | { success: true }
@@ -26,11 +27,15 @@ async function callFamilyRpc(
   fn: 'set_active_family' | 'set_default_family',
   familyCode: string,
 ): Promise<FamilyActionResult> {
-  if (!familyCode) return { success: false, message: 'No family selected.' }
-
   const supabase = await createClient()
   const { user } = await currentUser()
-  if (!user) return { success: false, message: 'Not authenticated.' }
+  const { t } = await callerI18n(user?.id ?? null)
+  // AFTER the translator, not before it. This refusal is the first thing the function does
+  // and needs no session — but it needs a sentence, and the sentence needs a language, so
+  // the two cheap resolves above it come first. `currentUser()` is cached and this action
+  // was going to call it on the next line regardless.
+  if (!familyCode) return { success: false, message: t('act.noFamilySelected2') }
+  if (!user) return { success: false, message: t('act.notAuthenticated2') }
 
   const { error } = await supabase.rpc(fn, { p_family_code: familyCode })
 
@@ -39,13 +44,13 @@ async function callFamilyRpc(
     if (error.code === 'PGRST202') {
       return {
         success: false,
-        message: 'Multi-family support is not enabled on the database yet. Apply migration 20260617000000_multi_family_membership.sql.',
+        message: t('act.multiFamilySupportNotEnabled'),
       }
     }
     if (error.message?.includes('not a member of family')) {
-      return { success: false, message: 'You are not a member of that family.' }
+      return { success: false, message: t('act.youNotMemberFamily') }
     }
-    return { success: false, message: 'Could not update your family selection. Please try again.' }
+    return { success: false, message: t('act.couldNotUpdateYourFamily') }
   }
 
   return { success: true }

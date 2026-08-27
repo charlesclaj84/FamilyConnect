@@ -21,6 +21,7 @@ import {
   type GatheringStatus, type GatheringTaskKind, type GatheringTaskStatus,
   type TaskProgress,
 } from '@/lib/gatherings'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * GATHERINGS, member facing — the list, one gathering, my tasks, and scheduling.
@@ -1381,11 +1382,12 @@ export async function submitGatheringTask(input: {
 }): Promise<ActionResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   // `getMyPersonId` answers '' for a caller it cannot resolve, and '' is not a uuid — the
   // unchecked version reaches the database as `invalid input syntax for type uuid: ""` and
   // surfaces that to a member as the whole of the error message.
-  if (!g.personId) return { success: false, message: 'Profile not found' }
-  if (!input?.taskId) return { success: false, message: 'Task not found' }
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
+  if (!input?.taskId) return { success: false, message: t('act.taskNotFound') }
 
   const admin = createAdminClient()
   const { data, error } = await admin
@@ -1400,9 +1402,9 @@ export async function submitGatheringTask(input: {
 
   if (error) {
     console.error(`[gatherings] submit could not read task ${input.taskId} in ${g.familyCode}: ${error.message}`)
-    return { success: false, message: 'Could not read that task' }
+    return { success: false, message: t('act.couldNotReadTask') }
   }
-  if (!data) return { success: false, message: 'Task not found' }
+  if (!data) return { success: false, message: t('act.taskNotFound') }
 
   const task = data as unknown as {
     id: string
@@ -1415,18 +1417,18 @@ export async function submitGatheringTask(input: {
   }
 
   if (task.assignee_id !== g.personId) {
-    return { success: false, message: 'This task is assigned to somebody else' }
+    return { success: false, message: t('act.taskAssignedSomebodyElse') }
   }
   if (task.gatherings?.status === 'cancelled') {
     return {
       success: false,
-      message: 'This gathering has been cancelled, so its tasks are no longer being collected. Ask an organizer if that is not right.',
+      message: t('act.gatheringBeenCancelledSoIts'),
     }
   }
   if (task.status === 'approved') {
     return {
       success: false,
-      message: 'This task has already been approved, and an approved answer is final. Ask an organizer to reopen it if it needs to change.',
+      message: t('act.taskAlreadyBeenApprovedApproved'),
     }
   }
   if (!isGatheringTaskKind(task.kind)) {
@@ -1434,7 +1436,7 @@ export async function submitGatheringTask(input: {
     // not. Refusing is the only safe answer: `parseAnswer` cannot normalise it, and writing
     // the raw value would store an answer no screen in this build can render.
     console.error(`[gatherings] task ${task.id} in ${g.familyCode} has unknown kind "${task.kind}"`)
-    return { success: false, message: 'This task cannot be answered in this version' }
+    return { success: false, message: t('act.taskCannotAnsweredVersion') }
   }
 
   const answer = parseAnswer(task.kind, input.answer)
@@ -1461,7 +1463,7 @@ export async function submitGatheringTask(input: {
   })
   if (submissionRes.error) {
     console.error(`[gatherings] submission insert failed for task ${task.id} in ${g.familyCode}: ${submissionRes.error.message}`)
-    return { success: false, message: 'Could not record your answer' }
+    return { success: false, message: t('act.couldNotRecordYourAnswer') }
   }
 
   const taskRes = await admin
@@ -1481,7 +1483,7 @@ export async function submitGatheringTask(input: {
 
   if (taskRes.error) {
     console.error(`[gatherings] task status update failed for ${task.id} in ${g.familyCode}: ${taskRes.error.message}`)
-    return { success: false, message: 'Your answer was saved but the task could not be moved to review. Try again.' }
+    return { success: false, message: t('act.yourAnswerSavedButTask') }
   }
 
   // A BELL FAILURE MUST NEVER UNDO THE DECISION IT ANNOUNCES, so this is wrapped and the
@@ -1585,7 +1587,8 @@ export async function scheduleGathering(input: {
 }): Promise<ActionResult & { gatheringId?: string }> {
   const g = await requireScope('gatherings', 'create')
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'Profile not found' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
 
   const asOrganizer = await canAny(g.userId, 'admin/gatherings', 'create')
 
@@ -1600,7 +1603,7 @@ export async function scheduleGathering(input: {
     ...input,
     startsOn: when.startsOn,
     endsOn: when.endsOn ?? undefined,
-  })
+  }, t)
   if ('message' in fields) return { success: false, message: fields.message }
 
   // Deduplicated before anything is checked or written: `UNIQUE (gathering_id, template_id)`
@@ -1627,7 +1630,7 @@ export async function scheduleGathering(input: {
 
   if (templateError) {
     console.error(`[gatherings] schedule could not read templates in ${g.familyCode}: ${templateError.message}`)
-    return { success: false, message: 'Could not read the templates' }
+    return { success: false, message: t('act.couldNotReadTemplates') }
   }
 
   const rows = (templates ?? []) as {
@@ -1637,7 +1640,7 @@ export async function scheduleGathering(input: {
   // or does not exist, and both answer the same sentence — telling a caller which is an
   // enumeration signal about another family's data.
   if (rows.length !== templateIds.length) {
-    return { success: false, message: 'Template not found' }
+    return { success: false, message: t('act.templateNotFound') }
   }
 
   const allowed = asOrganizer ? new Set(['family', 'admin']) : new Set(['family'])
@@ -1766,20 +1769,23 @@ function normalizeGatheringFields(input: {
   location?: string | null
   startsOn?: string
   endsOn?: string | null
-}): { title: string; summary: string | null; location: string | null; startsOn: string; endsOn: string | null }
+},
+  /** The caller's language. A pure validator, so it is handed one rather than resolving it. */
+  t: T,
+): { title: string; summary: string | null; location: string | null; startsOn: string; endsOn: string | null }
   | { message: string } {
   const title = (input.title ?? '').trim()
-  if (!title) return { message: 'A gathering needs a title' }
+  if (!title) return { message: t('act.gatheringNeedsTitle') }
 
   const start = parseAnswer('date', input.startsOn ?? '')
-  if (!start || !('date' in start)) return { message: 'Choose the date the gathering starts' }
+  if (!start || !('date' in start)) return { message: t('act.chooseDateGatheringStarts') }
 
   let endsOn: string | null = null
   const rawEnd = (input.endsOn ?? '') || ''
   if (rawEnd) {
     const end = parseAnswer('date', rawEnd)
-    if (!end || !('date' in end)) return { message: 'That end date is not a real date' }
-    if (end.date < start.date) return { message: 'The gathering cannot end before it starts' }
+    if (!end || !('date' in end)) return { message: t('act.endDateNotRealDate') }
+    if (end.date < start.date) return { message: t('act.gatheringCannotEndBeforeStarts') }
     endsOn = end.date
   }
 

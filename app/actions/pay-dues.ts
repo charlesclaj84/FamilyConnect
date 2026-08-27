@@ -195,14 +195,15 @@ export async function startDuesCheckout(input: {
 }): Promise<PayDuesResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   const { intl } = await callerI18n(g.userId)
-  if (!g.familyCode || !g.personId) return { success: false, message: 'Profile not found.' }
+  if (!g.familyCode || !g.personId) return { success: false, message: t('act.profileNotFound2') }
 
   // `input?.items`, not `input.items`. A server action is a public HTTP endpoint and its
   // argument is whatever was deserialised off the wire — the TypeScript signature is erased
   // at runtime, so a POST carrying `null` would throw here rather than be refused.
   const items = Array.isArray(input?.items) ? input.items : []
-  if (items.length === 0) return { success: false, message: 'Choose at least one due to pay.' }
+  if (items.length === 0) return { success: false, message: t('act.chooseLeastOneDuePay') }
   if (items.length > MAX_PAY_ITEMS) {
     return {
       success: false,
@@ -214,17 +215,17 @@ export async function startDuesCheckout(input: {
   // for it and credited once. Refused before any of that.
   const seen = new Set(items.map(i => i.scheduleId))
   if (seen.size !== items.length) {
-    return { success: false, message: 'The same due is listed twice.' }
+    return { success: false, message: t('act.sameDueListedTwice') }
   }
 
   const unavailable = stripeUnavailableReason()
   if (unavailable) return { success: false, message: unavailable }
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const account = await readyAccount(g.familyCode)
   if (!account) {
-    return { success: false, message: 'This family is not set up to take card payments yet.' }
+    return { success: false, message: t('act.familyNotSetUpTake') }
   }
 
   // THE SCHEDULES COME OUT OF THE CALLER'S OWN SUMMARY. An id that is not in it — another
@@ -235,9 +236,9 @@ export async function startDuesCheckout(input: {
   const resolved: { row: DuesSummary; amount: number }[] = []
   for (const item of items) {
     const row = summary.find(s => s.schedule.id === item.scheduleId)
-    if (!row) return { success: false, message: 'That due is not one of yours.' }
+    if (!row) return { success: false, message: t('act.dueNotOneYours') }
     if (row.schedule.kind !== 'dues') {
-      return { success: false, message: 'Donations are given from the Donations pane, not paid as dues.' }
+      return { success: false, message: t('act.donationsGivenFromDonationsPane') }
     }
 
     const owed = row.remainingBalanceCents
@@ -247,7 +248,7 @@ export async function startDuesCheckout(input: {
 
     const amount = Math.round(item.amountCents)
     if (!Number.isFinite(amount) || amount <= 0) {
-      return { success: false, message: 'Enter an amount to pay.' }
+      return { success: false, message: t('act.enterAmountPay') }
     }
     if (amount > owed) {
       // NAMES THE CEILING, AND THE DUE. "Invalid amount" would leave somebody guessing at a
@@ -322,11 +323,11 @@ export async function startDuesCheckout(input: {
       ),
     })
 
-    if (!session.url) return { success: false, message: 'Could not start the payment. Please try again.' }
+    if (!session.url) return { success: false, message: t('act.couldNotStartPaymentPlease') }
     return { success: true, url: session.url }
   } catch (e) {
     console.error(`[pay-dues] checkout failed for ${g.familyCode}/${g.personId}: ${describe(e)}`)
-    return { success: false, message: 'Could not start the payment. Please try again.' }
+    return { success: false, message: t('act.couldNotStartPaymentPlease') }
   }
 }
 
@@ -352,40 +353,41 @@ export async function startDuesCheckout(input: {
 export async function startDuesAutopay(input: { scheduleId: string }): Promise<PayDuesResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode || !g.personId) return { success: false, message: 'Profile not found.' }
+  const { t } = g
+  if (!g.familyCode || !g.personId) return { success: false, message: t('act.profileNotFound2') }
 
   const unavailable = stripeUnavailableReason()
   if (unavailable) return { success: false, message: unavailable }
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const account = await readyAccount(g.familyCode)
   if (!account) {
-    return { success: false, message: 'This family is not set up to take card payments yet.' }
+    return { success: false, message: t('act.familyNotSetUpTake') }
   }
 
   const summary = (await getMyDuesSummary()).find(s => s.schedule.id === input.scheduleId)
-  if (!summary) return { success: false, message: 'That due is not one of yours.' }
+  if (!summary) return { success: false, message: t('act.dueNotOneYours') }
   if (summary.schedule.kind !== 'dues') {
     // Belt and braces over the guard trigger on `dues_autopay`, which refuses a donation
     // schedule in the database. Saying so here means the member reads a sentence rather than
     // watching a Stripe subscription get created and then orphaned.
-    return { success: false, message: 'Recurring payments are for dues only.' }
+    return { success: false, message: t('act.recurringPaymentsDuesOnly') }
   }
   if (summary.optedOut) {
-    return { success: false, message: 'You have declined this due. Opt back in before setting up automatic payments.' }
+    return { success: false, message: t('act.youDeclinedDueOptBack') }
   }
 
   const recurring = stripeInterval(summary.cadence)
   if (!recurring) {
     return {
       success: false,
-      message: 'Pick how often you want to pay this due first — automatic payments follow the cadence you choose.',
+      message: t('act.pickHowOftenYouWant'),
     }
   }
 
   const amount = summary.installmentCents
-  if (amount <= 0) return { success: false, message: 'There is nothing to set up on this due.' }
+  if (amount <= 0) return { success: false, message: t('act.thereNothingSetUpDue') }
 
   // One LIVE arrangement per member per schedule is a partial unique index, so a second one
   // would be refused by the database on the way back in from the webhook — after the member
@@ -399,7 +401,7 @@ export async function startDuesAutopay(input: { scheduleId: string }): Promise<P
     .is('cancelled_at', null)
     .maybeSingle()
   if (existing) {
-    return { success: false, message: 'Automatic payments are already set up for this due.' }
+    return { success: false, message: t('act.automaticPaymentsAlreadySetUp') }
   }
 
   try {
@@ -433,11 +435,11 @@ export async function startDuesAutopay(input: { scheduleId: string }): Promise<P
       idempotencyKey: intentKey(['dues-autopay', g.personId, input.scheduleId, amount, summary.cadence]),
     })
 
-    if (!session.url) return { success: false, message: 'Could not start the setup. Please try again.' }
+    if (!session.url) return { success: false, message: t('act.couldNotStartSetupPlease') }
     return { success: true, url: session.url }
   } catch (e) {
     console.error(`[pay-dues] autopay setup failed for ${g.familyCode}/${g.personId}: ${describe(e)}`)
-    return { success: false, message: 'Could not set up automatic payments. Please try again.' }
+    return { success: false, message: t('act.couldNotSetUpAutomatic') }
   }
 }
 
@@ -461,10 +463,11 @@ export type CancelAutopayResult =
 export async function cancelDuesAutopay(input: { scheduleId: string }): Promise<CancelAutopayResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode || !g.personId) return { success: false, message: 'Profile not found.' }
+  const { t } = g
+  if (!g.familyCode || !g.personId) return { success: false, message: t('act.profileNotFound2') }
 
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const admin = createAdminClient()
   // THE CALLER'S OWN ROW, and all three conjuncts are load-bearing: the family, the person and
@@ -477,7 +480,7 @@ export async function cancelDuesAutopay(input: { scheduleId: string }): Promise<
     .eq('schedule_id', input.scheduleId)
     .is('cancelled_at', null)
     .maybeSingle()
-  if (!row) return { success: false, message: 'There are no automatic payments set up for this due.' }
+  if (!row) return { success: false, message: t('act.thereNoAutomaticPaymentsSet') }
 
   try {
     await stripe.subscriptions.cancel(
@@ -492,7 +495,7 @@ export async function cancelDuesAutopay(input: { scheduleId: string }): Promise<
     // available here.
     if (!/No such subscription|resource_missing/i.test(message)) {
       console.error(`[pay-dues] could not cancel autopay ${row.id}: ${message}`)
-      return { success: false, message: 'Could not stop the automatic payments. Please try again.' }
+      return { success: false, message: t('act.couldNotStopAutomaticPayments') }
     }
   }
 
@@ -510,12 +513,12 @@ export async function cancelDuesAutopay(input: { scheduleId: string }): Promise<
     console.error(`[pay-dues] Stripe cancelled but the row did not update (${row.id}): ${error.message}`)
     return {
       success: false,
-      message: 'The payments have been stopped at Stripe but we could not update your record. Please refresh.',
+      message: t('act.paymentsBeenStoppedStripeBut'),
     }
   }
 
   revalidatePath('/accounting/dues-and-donations')
-  return { success: true, message: 'Automatic payments have been stopped. Every payment already made is kept.' }
+  return { success: true, message: t('act.automaticPaymentsBeenStoppedEvery') }
 }
 
 // ── Giving to a drive ───────────────────────────────────────────────────────────────
@@ -559,28 +562,29 @@ export async function startDonationCheckout(input: {
 }): Promise<PayDuesResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   const { intl } = await callerI18n(g.userId)
-  if (!g.familyCode || !g.personId) return { success: false, message: 'Profile not found.' }
+  if (!g.familyCode || !g.personId) return { success: false, message: t('act.profileNotFound2') }
 
   const unavailable = stripeUnavailableReason()
   if (unavailable) return { success: false, message: unavailable }
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const account = await readyAccount(g.familyCode)
   if (!account) {
-    return { success: false, message: 'This family is not set up to take card payments yet.' }
+    return { success: false, message: t('act.familyNotSetUpTake') }
   }
 
   const drive = (await getDonationProgress()).find(d => d.schedule.id === input?.scheduleId)
-  if (!drive) return { success: false, message: 'That drive is not one of your family’s.' }
+  if (!drive) return { success: false, message: t('act.driveNotOneYourFamily') }
   if (drive.closed) {
     return { success: false, message: `${drive.schedule.label} has closed. Nothing more can be given to it.` }
   }
 
   const amount = Math.round(input.amountCents)
   if (!Number.isFinite(amount) || amount <= 0) {
-    return { success: false, message: 'Enter an amount to give.' }
+    return { success: false, message: t('act.enterAmountGive') }
   }
   // STRIPE'S OWN CEILING, not one this product invented. There is no reason a family should
   // not be given a large gift, so the only honest limit is the one the processor enforces —
@@ -628,11 +632,11 @@ export async function startDonationCheckout(input: {
       idempotencyKey: intentKey(['donation', g.personId, drive.schedule.id, amount]),
     })
 
-    if (!session.url) return { success: false, message: 'Could not start the payment. Please try again.' }
+    if (!session.url) return { success: false, message: t('act.couldNotStartPaymentPlease') }
     return { success: true, url: session.url }
   } catch (e) {
     console.error(`[pay-dues] donation checkout failed for ${g.familyCode}/${g.personId}: ${describe(e)}`)
-    return { success: false, message: 'Could not start the payment. Please try again.' }
+    return { success: false, message: t('act.couldNotStartPaymentPlease') }
   }
 }
 

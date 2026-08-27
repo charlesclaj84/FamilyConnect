@@ -28,6 +28,7 @@ import {
 import { trackCheckoutStarted } from '@/lib/meta/billing'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * A family paying GENORRA for its plan — the hosted-checkout half.
@@ -278,17 +279,18 @@ export async function startPlanCheckout(input: {
 }): Promise<CheckoutResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   const { intl } = await callerI18n(g.userId)
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   // NARROWED, NEVER CAST. This is a `'use server'` export, so every argument arrives from an
   // HTTP request and the panel in front of it is a convenience (§2).
   if (!isFamilyTier(input.tier) || input.tier === 'free') {
-    return { success: false, message: 'That is not a plan that can be bought.' }
+    return { success: false, message: t('act.notPlanCanBought') }
   }
   const tier = input.tier
   if (input.mode !== 'recurring' && input.mode !== 'prepaid') {
-    return { success: false, message: 'Choose whether to pay monthly or in advance.' }
+    return { success: false, message: t('act.chooseWhetherPayMonthlyAdvance') }
   }
   const mode: BillingMode = input.mode
   const months = mode === 'prepaid' ? (input.months ?? 6) : 1
@@ -307,7 +309,7 @@ export async function startPlanCheckout(input: {
   if (input.firstPayment != null
       && input.firstPayment !== 'remainder'
       && input.firstPayment !== 'remainder-plus-next') {
-    return { success: false, message: 'Choose which first payment to make.' }
+    return { success: false, message: t('act.chooseWhichFirstPaymentMake') }
   }
   const firstPayment = input.firstPayment ?? 'remainder'
 
@@ -322,7 +324,7 @@ export async function startPlanCheckout(input: {
 
   const stripe = stripeClient()
   const priceId = platformPriceId(tier, mode)
-  if (!stripe || !priceId) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe || !priceId) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   // ── IS THE PRICE THE RIGHT SHAPE? ASKED BEFORE THE SESSION, NOT AFTER ─────────────
   //
@@ -351,13 +353,13 @@ export async function startPlanCheckout(input: {
   if (mode === 'prepaid' && record.stripe_subscription_id && record.mode === 'recurring') {
     return {
       success: false,
-      message: 'This family pays monthly. Cancel the monthly plan first, then pay in advance from the next period.',
+      message: t('act.familyPaysMonthlyCancelMonthly'),
     }
   }
   if (mode === 'recurring' && record.stripe_subscription_id && record.mode === 'recurring') {
     return {
       success: false,
-      message: 'This family already pays monthly. Use Change plan instead of starting a second subscription.',
+      message: t('act.familyAlreadyPaysMonthlyUse'),
     }
   }
   if (mode === 'prepaid' && tierMove(toRecord(record).paidTier, tier) === 'downgrade') {
@@ -371,7 +373,7 @@ export async function startPlanCheckout(input: {
     familyCode: g.familyCode,
     existing: record.stripe_customer_id,
   })
-  if (!customerId) return { success: false, message: 'Could not start the payment. Please try again.' }
+  if (!customerId) return { success: false, message: t('act.couldNotStartPaymentPlease') }
 
   // Metadata carried on everything the webhook might see it on. It is OURS — set here, never
   // client-supplied — and it is still re-verified on the way back in: it round-trips through
@@ -461,7 +463,7 @@ export async function startPlanCheckout(input: {
   if (mode === 'recurring' && dueNowCents > 0 && trialEnd == null) {
     return {
       success: false,
-      message: 'Too few days are left this month to start a monthly plan today. Choose the option that covers this month and next.',
+      message: t('act.tooFewDaysLeftMonth'),
     }
   }
 
@@ -593,7 +595,7 @@ export async function startPlanCheckout(input: {
     })
 
     if (!session.url) {
-      return { success: false, message: 'Could not start the payment. Please try again.' }
+      return { success: false, message: t('act.couldNotStartPaymentPlease') }
     }
 
     // InitiateCheckout — the customer has genuinely entered the checkout, which is what that
@@ -611,7 +613,7 @@ export async function startPlanCheckout(input: {
   } catch (e) {
     // Stripe's own message can name a price id and an account. Logged, never returned.
     console.error(`[billing] checkout failed for ${g.familyCode} (${tier}/${mode}): ${describe(e)}`)
-    return { success: false, message: 'Could not start the payment. Please try again.' }
+    return { success: false, message: t('act.couldNotStartPaymentPlease') }
   }
 }
 
@@ -665,14 +667,15 @@ export async function changePlanTier(
 ): Promise<PlanChangeResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   const { intl } = await callerI18n(g.userId)
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
-  if (!isFamilyTier(nextTier)) return { success: false, message: 'That is not a plan.' }
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
+  if (!isFamilyTier(nextTier)) return { success: false, message: t('act.notPlan') }
 
   const unavailable = stripeUnavailableReason()
   if (unavailable) return { success: false, message: unavailable }
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const admin = createAdminClient()
   const record = await loadRecord(admin, g.familyCode)
@@ -694,13 +697,13 @@ export async function changePlanTier(
     // the paid term ends. `cancelPlanRenewal` above handles the same move to Free, which is
     // where a family with no subscription and no term will already have gone.
     if (move === 'downgrade') {
-      return scheduleDowngradeOnly({ admin, familyCode: g.familyCode, record, nextTier })
+      return scheduleDowngradeOnly({ admin, familyCode: g.familyCode, record, nextTier, t })
     }
     // An UPGRADE, and `upgradeQuote` is its rule: value the unused old term at the OLD rate,
     // spend it on the new tier, carry the remainder as a credit. `lib/platform-billing.ts`
     // holds the arithmetic and the worked example.
     return upgradeFromPrepaid({
-      intl, admin, stripe, familyCode: g.familyCode, userId: g.userId,
+      intl, t, admin, stripe, familyCode: g.familyCode, userId: g.userId,
       record, nextTier, includeNextMonth,
     })
   }
@@ -711,7 +714,7 @@ export async function changePlanTier(
     const subscription = await stripe.subscriptions.retrieve(record.stripe_subscription_id)
     const itemId = subscription.items.data[0]?.id
     if (!itemId) {
-      return { success: false, message: 'Could not read the current plan from Stripe. Please try again.' }
+      return { success: false, message: t('act.couldNotReadCurrentPlan') }
     }
 
     await stripe.subscriptions.update(record.stripe_subscription_id, {
@@ -744,7 +747,7 @@ export async function changePlanTier(
         console.error(`[billing] could not record the scheduled downgrade for ${g.familyCode}: ${error.message}`)
         return {
           success: false,
-          message: 'Stripe was updated but we could not record the change. Please contact support before trying again.',
+          message: t('act.stripeUpdatedButWeCould2'),
         }
       }
       revalidateBilling()
@@ -761,7 +764,7 @@ export async function changePlanTier(
     }
   } catch (e) {
     console.error(`[billing] plan change failed for ${g.familyCode} -> ${nextTier}: ${describe(e)}`)
-    return { success: false, message: 'Could not change the plan. Please try again.' }
+    return { success: false, message: t('act.couldNotChangePlanPlease') }
   }
 }
 
@@ -776,15 +779,16 @@ export async function changePlanTier(
 export async function cancelPlanRenewal(): Promise<PlanChangeResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const admin = createAdminClient()
   const record = await loadRecord(admin, g.familyCode)
   if (!record.stripe_subscription_id) {
-    return { success: false, message: 'This family has no monthly plan to stop.' }
+    return { success: false, message: t('act.familyNoMonthlyPlanStop') }
   }
 
   try {
@@ -793,7 +797,7 @@ export async function cancelPlanRenewal(): Promise<PlanChangeResult> {
     }, { idempotencyKey: intentKey(['plan-cancel', g.familyCode, record.stripe_subscription_id]) })
   } catch (e) {
     console.error(`[billing] cancel failed for ${g.familyCode}: ${describe(e)}`)
-    return { success: false, message: 'Could not stop the plan. Please try again.' }
+    return { success: false, message: t('act.couldNotStopPlanPlease') }
   }
 
   const scheduled = scheduleDowngrade({ record: toRecord(record), toTier: 'free', today: todayISO() })
@@ -808,7 +812,7 @@ export async function cancelPlanRenewal(): Promise<PlanChangeResult> {
     console.error(`[billing] could not record the cancellation for ${g.familyCode}: ${error.message}`)
     return {
       success: false,
-      message: 'Stripe was updated but we could not record it. Please contact support before trying again.',
+      message: t('act.stripeUpdatedButWeCould'),
     }
   }
 
@@ -914,7 +918,8 @@ export async function getSignupPlanPrompt(): Promise<{ tier: FamilyTier } | null
 export async function dismissSignupPlan(): Promise<PlanChangeResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   const admin = createAdminClient()
   // §3 by hand: the service role sees past RLS, so the family conjunct is the only thing
@@ -930,10 +935,10 @@ export async function dismissSignupPlan(): Promise<PlanChangeResult> {
 
   if (error) {
     console.error(`[billing] could not dismiss the signup plan for ${g.familyCode}: ${error.message}`)
-    return { success: false, message: 'Could not update that. Please try again.' }
+    return { success: false, message: t('act.couldNotUpdatePleaseTry') }
   }
   if (!data?.length) {
-    return { success: false, message: 'There was no plan waiting to be set up.' }
+    return { success: false, message: t('act.thereNoPlanWaitingSet') }
   }
 
   revalidateBilling()
@@ -942,7 +947,7 @@ export async function dismissSignupPlan(): Promise<PlanChangeResult> {
   revalidatePath('/dashboard')
   return {
     success: true,
-    message: 'We will stop asking. You can move to a paid plan whenever you like.',
+    message: t('act.weWillStopAskingYou'),
   }
 }
 
@@ -959,15 +964,16 @@ export async function dismissSignupPlan(): Promise<PlanChangeResult> {
 export async function openBillingPortal(): Promise<CheckoutResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const admin = createAdminClient()
   const record = await loadRecord(admin, g.familyCode)
   if (!record.stripe_customer_id) {
-    return { success: false, message: 'This family has no payment history yet.' }
+    return { success: false, message: t('act.familyNoPaymentHistoryYet') }
   }
 
   try {
@@ -978,7 +984,7 @@ export async function openBillingPortal(): Promise<CheckoutResult> {
     return { success: true, url: session.url }
   } catch (e) {
     console.error(`[billing] portal failed for ${g.familyCode}: ${describe(e)}`)
-    return { success: false, message: 'Could not open the billing portal. Please try again.' }
+    return { success: false, message: t('act.couldNotOpenBillingPortal') }
   }
 }
 
@@ -995,8 +1001,11 @@ async function scheduleDowngradeOnly(input: {
   familyCode: string
   record: BillingRow
   nextTier: FamilyTier
+  /** The caller's language. In the options object rather than a positional, to match `intl`
+      on `upgradeFromPrepaid` below — every one of these helpers is called by name. */
+  t: T
 }): Promise<PlanChangeResult> {
-  const { admin, familyCode, record, nextTier } = input
+  const { admin, familyCode, record, nextTier, t } = input
   const scheduled = scheduleDowngrade({
     record: toRecord(record), toTier: nextTier, today: todayISO(),
   })
@@ -1009,7 +1018,7 @@ async function scheduleDowngradeOnly(input: {
     }, { onConflict: 'family_code' })
   if (error) {
     console.error(`[billing] could not record the scheduled downgrade for ${familyCode}: ${error.message}`)
-    return { success: false, message: 'Could not record the change. Please try again.' }
+    return { success: false, message: t('act.couldNotRecordChangePlease') }
   }
 
   revalidateBilling()
@@ -1043,6 +1052,8 @@ async function scheduleDowngradeOnly(input: {
 async function upgradeFromPrepaid(input: {
   /** The reader's `Intl` tag, for the figures in the message below. */
   intl: string
+  /** And their language, for the words around them. */
+  t: T
   admin: AdminClient
   stripe: NonNullable<ReturnType<typeof stripeClient>>
   familyCode: string
@@ -1051,7 +1062,9 @@ async function upgradeFromPrepaid(input: {
   nextTier: FamilyTier
   includeNextMonth: boolean
 }): Promise<PlanChangeResult> {
-  const { intl, admin, stripe, familyCode, userId, record, nextTier, includeNextMonth } = input
+  const {
+    intl, t, admin, stripe, familyCode, userId, record, nextTier, includeNextMonth,
+  } = input
   const today = todayISO()
   const from = toRecord(record)
 
@@ -1079,7 +1092,7 @@ async function upgradeFromPrepaid(input: {
     }, { onConflict: 'family_code' })
     if (error) {
       console.error(`[billing] could not apply the upgrade for ${familyCode}: ${error.message}`)
-      return { success: false, message: 'Could not change the plan. Please try again.' }
+      return { success: false, message: t('act.couldNotChangePlanPlease') }
     }
 
     await promoteFamilyTier(admin, familyCode, nextTier)
@@ -1104,7 +1117,7 @@ async function upgradeFromPrepaid(input: {
   const customerId = await ensureCustomer(admin, stripe, {
     familyCode, existing: record.stripe_customer_id,
   })
-  if (!customerId) return { success: false, message: 'Could not start the payment. Please try again.' }
+  if (!customerId) return { success: false, message: t('act.couldNotStartPaymentPlease') }
 
   // THE OUTCOME TRAVELS IN METADATA, and the webhook narrows every field of it rather than
   // casting. It is carried rather than recomputed because `today` can differ by a day between
@@ -1148,7 +1161,7 @@ async function upgradeFromPrepaid(input: {
       idempotencyKey: intentKey(['upgrade', familyCode, nextTier, quote.dueNowCents, String(includeNextMonth)]),
     })
 
-    if (!session.url) return { success: false, message: 'Could not start the payment. Please try again.' }
+    if (!session.url) return { success: false, message: t('act.couldNotStartPaymentPlease') }
 
     void trackMetaCheckoutStart({
       sessionId: session.id, tier: nextTier, mode: 'prepaid', months: 1, userId,
@@ -1161,7 +1174,7 @@ async function upgradeFromPrepaid(input: {
     }
   } catch (e) {
     console.error(`[billing] upgrade checkout failed for ${familyCode} -> ${nextTier}: ${describe(e)}`)
-    return { success: false, message: 'Could not start the payment. Please try again.' }
+    return { success: false, message: t('act.couldNotStartPaymentPlease') }
   }
 }
 

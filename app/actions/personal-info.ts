@@ -9,6 +9,7 @@ import { familyShowsPhotos } from '@/lib/auth/tier'
 import { pickProfileColumns } from '@/lib/profile-columns'
 import { isSupportedLocale } from '@/lib/i18n/locales'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * The extensions the `avatars` bucket accepts, keyed by the MIME type that goes with each.
@@ -41,7 +42,8 @@ export async function uploadAvatar(
 ): Promise<{ success: boolean; url?: string; message?: string }> {
   const supabase = await createClient()
   const { user } = await currentUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   // ── THE ONE TIER CHECK ON A WRITE IN THIS PRODUCT, AND WHY IT IS ADMISSIBLE ────────
   // AGENTS.md forbids tier-checking the actions behind a paid page, and the reason is precise:
@@ -60,13 +62,13 @@ export async function uploadAvatar(
   if (!(await familyShowsPhotos(user.id))) {
     return {
       success: false,
-      message: 'Profile pictures are part of the Standard plan. This family is on Free.',
+      message: t('act.profilePicturesPartStandardPlan'),
     }
   }
 
   const file = formData.get('file') as File | null
-  if (!file || file.size === 0) return { success: false, message: 'No file provided' }
-  if (file.size > 2 * 1024 * 1024) return { success: false, message: 'File must be under 2 MB' }
+  if (!file || file.size === 0) return { success: false, message: t('act.noFileProvided') }
+  if (file.size > 2 * 1024 * 1024) return { success: false, message: t('act.fileMustUnder2Mb') }
 
   // SERVER-SIDE, because `accept` on the input is a hint to a file picker and this action is a
   // public HTTP endpoint like every other. `file.type` is still the browser's claim about the
@@ -74,7 +76,7 @@ export async function uploadAvatar(
   // does not take our word for it, and it is why this list matches that one.
   const ext = AVATAR_TYPES[file.type]
   if (!ext) {
-    return { success: false, message: 'Choose a JPEG, PNG or WebP image' }
+    return { success: false, message: t('act.chooseJpegPngWebpImage') }
   }
 
   const path = `${user.id}/avatar.${ext}`
@@ -262,10 +264,11 @@ export async function setMyLocale(
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
   const { user } = await currentUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   if (!isSupportedLocale(locale)) {
-    return { success: false, message: 'That is not a language we speak yet' }
+    return { success: false, message: t('act.notLanguageWeSpeakYet') }
   }
 
   // The USER client, so the `people` UPDATE policy — which admits a member's write to their own
@@ -279,10 +282,10 @@ export async function setMyLocale(
 
   if (error) {
     console.error(`[personal-info] locale change failed for ${user.id}: ${error.message}`)
-    return { success: false, message: 'Could not change the language. Please try again.' }
+    return { success: false, message: t('act.couldNotChangeLanguagePlease') }
   }
   if (!data || data.length === 0) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   // THE WHOLE LAYOUT, not this route: the rail, the top bar, the account menu and every caption
@@ -297,7 +300,8 @@ export async function saveProfileSection(
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
   const { user } = await currentUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   const dateFields = new Set(['date_of_birth', 'sunset_date'])
   const cleaned: Record<string, unknown> = {}
@@ -319,7 +323,7 @@ export async function saveProfileSection(
   // user belongs to more than one. Shared profile columns propagate to the user's
   // other families via the people_sync_shared_profile trigger.
   const familyCode = (await getMyFamilyCode(user.id)) || user.app_metadata?.family_code || ''
-  if (!familyCode) return { success: false, message: 'No family associated with account' }
+  if (!familyCode) return { success: false, message: t('act.noFamilyAssociatedAccount') }
 
   // THE SECOND LAYER, not the only one, and today not the one doing the work:
   // `chapter_id` is no longer on the profile allow-list, so `cleaned` cannot carry it
@@ -328,7 +332,7 @@ export async function saveProfileSection(
   // one-line change nobody would think of as a security decision. If it ever comes
   // back, the §4 check is already here rather than needing to be remembered.
   if (!(await chapterIsOurs(cleaned.chapter_id, familyCode))) {
-    return { success: false, message: 'Chapter not found' }
+    return { success: false, message: t('act.chapterNotFound') }
   }
 
   const { error } = await supabase
@@ -354,15 +358,16 @@ export async function upsertPersonalInfo(
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
   const { user } = await currentUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   // The family being viewed, not the one the account was created in.
   const familyCode = (await getMyFamilyCode(user.id)) || user.app_metadata?.family_code
-  if (!familyCode) return { success: false, message: 'No family code associated with account' }
+  if (!familyCode) return { success: false, message: t('act.noFamilyCodeAssociatedAccount') }
 
   // §4 — chapter_id is a client-supplied reference written onto the caller's own row.
   if (!(await chapterIsOurs(input.chapter_id, familyCode))) {
-    return { success: false, message: 'Chapter not found' }
+    return { success: false, message: t('act.chapterNotFound') }
   }
 
   const normalize = (v?: string) => v?.trim() || null
@@ -410,12 +415,13 @@ export async function saveChapterAndPropagate(
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
   const { user } = await currentUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   // chapter_id is per-family, so this must target the family being viewed —
   // chapters themselves belong to a single family.
   const familyCode = (await getMyFamilyCode(user.id)) || user.app_metadata?.family_code || ''
-  if (!familyCode) return { success: false, message: 'No family associated with account' }
+  if (!familyCode) return { success: false, message: t('act.noFamilyAssociatedAccount') }
 
   // The comment above already knew chapters belong to a single family; it scoped the
   // people ROW to this family and never checked the CHAPTER. That is exactly §4 — the
@@ -423,7 +429,7 @@ export async function saveChapterAndPropagate(
   // This one also propagates to the caller's under-18 children below, so an unchecked id
   // would have spread rather than sitting on one row.
   if (!(await chapterIsOurs(chapterId, familyCode))) {
-    return { success: false, message: 'Chapter not found' }
+    return { success: false, message: t('act.chapterNotFound') }
   }
 
   // Update own record
@@ -465,9 +471,7 @@ export async function saveChapterAndPropagate(
   if (propagation.error) {
     return {
       success: true,
-      message: 'Your chapter was saved, but your children under 18 with no account of their '
-        + 'own could not be moved with you. Ask an administrator to set their chapter on '
-        + 'Members & Access.',
+      message: t('act.yourChapterSavedButYour'),
     }
   }
   return { success: true }

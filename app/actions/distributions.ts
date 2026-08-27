@@ -630,28 +630,29 @@ export async function sendDistribution(
 ): Promise<SendDistributionResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   // §2: `canAny`, not `can`. Mail to the whole family is family-wide operation with no
   // coherent "own" version, and the distribution a member would own is the abuse case.
   if (!(await canAny(g.userId, 'community/distributions', 'create'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   const subject = input.subject?.trim() ?? ''
   const body = input.body?.trim() ?? ''
-  if (!subject) return { success: false, message: 'Give the message a subject' }
-  if (!body) return { success: false, message: 'Write something to send' }
+  if (!subject) return { success: false, message: t('act.giveMessageSubject') }
+  if (!body) return { success: false, message: t('act.writeSomethingSend') }
   // A CEILING ON BOTH, because these are stored, escaped and rendered in a mail client, and
   // an unbounded textarea is an unbounded row. Generous rather than tight: a long family
   // update is a legitimate thing to send.
   if (subject.length > 200) {
-    return { success: false, message: 'The subject is too long — keep it under 200 characters.' }
+    return { success: false, message: t('act.subjectTooLongKeepUnder') }
   }
   if (body.length > 20_000) {
-    return { success: false, message: 'The message is too long — keep it under 20,000 characters.' }
+    return { success: false, message: t('act.messageTooLongKeepUnder') }
   }
 
-  if (!isScope(input.scope)) return { success: false, message: 'Choose who this is going to' }
+  if (!isScope(input.scope)) return { success: false, message: t('act.chooseWhoGoing') }
 
   // ── THE AREA, CHECKED BEFORE IT IS WRITTEN (§4) ────────────────────────────────────
   // A row stamped with the caller's own family_code satisfies every policy while the id it
@@ -668,15 +669,15 @@ export async function sendDistribution(
   let chapterId: string | null = null
 
   if (input.scope === 'region') {
-    if (!areaId) return { success: false, message: 'Choose which region this is going to' }
+    if (!areaId) return { success: false, message: t('act.chooseWhichRegionGoing') }
     if (!(await belongsToFamily('regions', areaId, g.familyCode))) {
-      return { success: false, message: 'Region not found' }
+      return { success: false, message: t('act.regionNotFound') }
     }
     regionId = areaId
   } else if (input.scope === 'chapter') {
-    if (!areaId) return { success: false, message: 'Choose which chapter this is going to' }
+    if (!areaId) return { success: false, message: t('act.chooseWhichChapterGoing') }
     if (!(await belongsToFamily('chapters', areaId, g.familyCode))) {
-      return { success: false, message: 'Chapter not found' }
+      return { success: false, message: t('act.chapterNotFound') }
     }
     chapterId = areaId
   }
@@ -689,7 +690,7 @@ export async function sendDistribution(
     // the second would report a completed send of zero messages.
     return {
       success: false,
-      message: 'We could not read the family roster just now. Nothing has been sent.',
+      message: t('act.weCouldNotReadFamily'),
     }
   }
 
@@ -699,7 +700,7 @@ export async function sendDistribution(
   if (recipients.length === 0) {
     return {
       success: false,
-      message: 'Nobody in the family matches that audience, so there is nothing to send.',
+      message: t('act.nobodyFamilyMatchesAudienceSo2'),
     }
   }
   if (!recipients.some(r => r.state === 'pending')) {
@@ -708,8 +709,7 @@ export async function sendDistribution(
     // WHY, since "no email address on file" is fixable and "nobody matched" is not.
     return {
       success: false,
-      message: 'Everyone in that audience is on the family tree without an email address, '
-        + 'so there is nobody to send to.',
+      message: t('act.everyoneAudienceFamilyTreeWithout'),
     }
   }
 
@@ -772,7 +772,7 @@ export async function sendDistribution(
     console.error(`[distributions] roster insert failed: ${rosterError.message}`)
     await admin.from('distributions').delete()
       .eq('id', distributionId).eq('family_code', g.familyCode)
-    return { success: false, message: 'That could not be prepared. Nothing has been sent.' }
+    return { success: false, message: t('act.couldNotPreparedNothingBeen') }
   }
 
   revalidatePath('/community/distributions')
@@ -818,10 +818,11 @@ export interface BatchResult {
 export async function sendDistributionBatch(distributionId: string): Promise<BatchResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   // SENDING, NOT VIEWING. The batch is the act of mailing, so it takes the same grant as
   // starting one — a caller who may only read the log must not be able to drive a send.
   if (!(await canAny(g.userId, 'community/distributions', 'create'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   const admin = createAdminClient()
@@ -837,12 +838,12 @@ export async function sendDistributionBatch(distributionId: string): Promise<Bat
 
   if (readError) {
     console.error(`[distributions] batch read failed for ${distributionId}: ${readError.message}`)
-    return { success: false, message: 'That could not be read just now.' }
+    return { success: false, message: t('act.couldNotReadJustNow') }
   }
   const distribution = (row ?? null) as {
     id: string; subject: string; body: string; reply_to: string | null; people: unknown
   } | null
-  if (!distribution) return { success: false, message: 'Not found' }
+  if (!distribution) return { success: false, message: t('act.notFound') }
 
   const { data: claimed, error: claimError } = await admin.rpc('claim_distribution_recipients', {
     p_distribution_id: distributionId,
@@ -852,7 +853,7 @@ export async function sendDistributionBatch(distributionId: string): Promise<Bat
 
   if (claimError) {
     console.error(`[distributions] claim failed for ${distributionId}: ${claimError.message}`)
-    return { success: false, message: 'That send could not be continued just now.' }
+    return { success: false, message: t('act.sendCouldNotContinuedJust') }
   }
 
   const batch = (claimed ?? []) as { id: string; person_id: string; email: string }[]
@@ -917,7 +918,7 @@ export async function sendDistributionBatch(distributionId: string): Promise<Bat
   }
 
   const counts = await readCounts([distributionId], g.familyCode)
-  if (!counts) return { success: false, message: 'The send progressed but could not be read.' }
+  if (!counts) return { success: false, message: t('act.sendProgressedButCouldNot') }
   const progress = distributionProgress(counts.get(distributionId)!)
 
   revalidatePath('/community/distributions')
@@ -956,13 +957,14 @@ export async function cancelDistribution(
 ): Promise<{ success: boolean; message?: string; cancelled?: number }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   if (!(await canAny(g.userId, 'community/distributions', 'create'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   const admin = createAdminClient()
   if (!(await belongsToFamily('distributions', distributionId, g.familyCode))) {
-    return { success: false, message: 'Not found' }
+    return { success: false, message: t('act.notFound') }
   }
 
   const { data, error } = await admin
@@ -1003,13 +1005,14 @@ export async function requeueDistribution(
 ): Promise<{ success: boolean; message?: string; requeued?: number }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   if (!(await canAny(g.userId, 'community/distributions', 'create'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   const admin = createAdminClient()
   if (!(await belongsToFamily('distributions', distributionId, g.familyCode))) {
-    return { success: false, message: 'Not found' }
+    return { success: false, message: t('act.notFound') }
   }
 
   const { data, error } = await admin
@@ -1042,8 +1045,9 @@ export async function deleteDistribution(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   if (!(await canAny(g.userId, 'community/distributions', 'delete'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   const admin = createAdminClient()
@@ -1065,7 +1069,7 @@ export async function deleteDistribution(
   // caller from another family "this send has not finished", which is both the wrong answer and
   // a disclosure that a send is under way in a family they cannot see.
   if (!(await belongsToFamily('distributions', distributionId, g.familyCode))) {
-    return { success: false, message: 'Not found' }
+    return { success: false, message: t('act.notFound') }
   }
 
   const { data: pending, error: pendingError } = await admin
@@ -1078,12 +1082,12 @@ export async function deleteDistribution(
 
   if (pendingError) {
     console.error(`[distributions] delete pre-check failed: ${pendingError.message}`)
-    return { success: false, message: 'That could not be removed just now.' }
+    return { success: false, message: t('act.couldNotRemovedJustNow') }
   }
   if (((pending ?? []) as unknown[]).length > 0) {
     return {
       success: false,
-      message: 'This send has not finished. Stop it first, then remove it.',
+      message: t('act.sendNotFinishedStopFirst'),
     }
   }
 

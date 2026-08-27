@@ -10,6 +10,7 @@ import { resolveFamilyZone } from '@/lib/auth/zone'
 import { todayIn } from '@/lib/tz'
 import { LINK_EXISTING_PERSON_ENABLED } from '@/lib/feature-flags'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 export interface UnlinkedPerson {
   id: string
@@ -141,15 +142,19 @@ export async function linkPersonToCurrentUser(
   // whatever dues history, payments, relationships and photo tags it carries — onto the
   // caller's account, on nothing more than their say-so that it is them. Hiding the
   // banner leaves that a live POST away. Refused here first, before anything is read.
-  if (!LINK_EXISTING_PERSON_ENABLED) {
-    return { success: false, message: 'This feature is not currently available.' }
-  }
-
   const { user } = await currentUser()
-  if (!user) return { success: false, message: 'Not authenticated.' }
+  const { t } = await callerI18n(user?.id ?? null)
+  // THE FLAG IS STILL THE FIRST DECISION, and the comment above still holds: nothing is
+  // read and nothing is written above this line. What moved above it is the caller's
+  // LANGUAGE — two cached resolves that decide nothing — because a refusal owes a
+  // sentence and a sentence owes a language.
+  if (!LINK_EXISTING_PERSON_ENABLED) {
+    return { success: false, message: t('act.featureNotCurrentlyAvailable') }
+  }
+  if (!user) return { success: false, message: t('act.notAuthenticated2') }
 
   if (!(await isApprovedMember(user.id))) {
-    return { success: false, message: 'Your membership is awaiting approval.' }
+    return { success: false, message: t('act.yourMembershipAwaitingApproval') }
   }
 
   const familyCode = await getMyFamilyCode(user.id)
@@ -162,9 +167,9 @@ export async function linkPersonToCurrentUser(
     .eq('id', targetPersonId)
     .maybeSingle()
 
-  if (!target) return { success: false, message: 'Person not found.' }
-  if (target.family_code !== familyCode) return { success: false, message: 'Person is not in your family.' }
-  if (target.user_id) return { success: false, message: 'That person already has an account linked.' }
+  if (!target) return { success: false, message: t('act.personNotFound2') }
+  if (target.family_code !== familyCode) return { success: false, message: t('act.personNotYourFamily') }
+  if (target.user_id) return { success: false, message: t('act.personAlreadyAccountLinked') }
 
   // Find the current stub record (created at registration) for THIS family.
   // membership_status comes along because it has to be carried onto the target — see
@@ -176,7 +181,7 @@ export async function linkPersonToCurrentUser(
     .eq('family_code', familyCode)
     .maybeSingle()
 
-  if (!stub) return { success: false, message: 'Could not find your current profile record.' }
+  if (!stub) return { success: false, message: t('act.couldNotFindYourCurrent') }
 
   // Confirm stub has no relationships before deleting
   const { count: relCount } = await admin
@@ -185,7 +190,7 @@ export async function linkPersonToCurrentUser(
     .or(`person_id.eq.${stub.id},related_person_id.eq.${stub.id}`)
 
   if ((relCount ?? 0) > 0) {
-    return { success: false, message: 'Your current record already has family connections. Please contact an admin to merge.' }
+    return { success: false, message: t('act.yourCurrentRecordAlreadyFamily') }
   }
 
   // Clear user_id from the stub first — UNIQUE(user_id, family_code) means we
@@ -195,7 +200,7 @@ export async function linkPersonToCurrentUser(
     .update({ user_id: null })
     .eq('id', stub.id)
 
-  if (clearError) return { success: false, message: 'Failed to prepare account link. Please try again.' }
+  if (clearError) return { success: false, message: t('act.failedPrepareAccountLinkPlease') }
 
   // Link the existing record to this user.
   //
@@ -225,7 +230,7 @@ export async function linkPersonToCurrentUser(
   if (updateError) {
     // Restore the stub's user_id so the user isn't left unlinked
     await admin.from('people').update({ user_id: user.id }).eq('id', stub.id)
-    return { success: false, message: 'Failed to link your account. Please try again.' }
+    return { success: false, message: t('act.failedLinkYourAccountPlease') }
   }
 
   // Remove the now-unlinked stub

@@ -1551,6 +1551,12 @@ export const fr: Catalogue = {
     'Mot de passe {app} oublié ? Saisissez l’adresse électronique du compte de votre famille '
     + 'et nous vous enverrons un lien pour en choisir un nouveau.',
 
+  'guard.sessionUnverified':
+    'Votre session n’a pas pu être vérifiée. Rechargez la page et réessayez.',
+  'guard.signedOut': 'Vous êtes déconnecté. Connectez-vous et réessayez.',
+  'guard.notAuthorized': 'Non autorisé',
+  'guard.awaitingApproval': 'Votre adhésion est en attente d’approbation',
+
   'auth.signInToYour': 'Connectez-vous à votre compte {app}',
   'reg.invitedToJoin': 'Vous avez été invité à rejoindre',
   'reg.joinOn': 'Rejoignez votre famille sur {app}',
@@ -2480,4 +2486,560 @@ export const fr: Catalogue = {
   'plan.adds.premium/custom-domain.detail':
     'Aucune facture d’hébergement, aucune extension, et personne dans la famille à '
     + 'l’entretenir.',
+
+  // Les 395 refus qu’une action serveur peut renvoyer. Voir la version anglaise pour le
+  // raisonnement ; il n’y a ici que les traductions.
+  'act.budgetCannotNegative': 'Un budget ne peut pas être négatif',
+  'act.budgetLineCannotNegative': 'Une ligne de budget ne peut pas être négative',
+  'act.budgetLineMustWholeNumber': 
+    'Une ligne de budget doit être un nombre entier de centimes et ne peut '
+    + 'pas être négative',
+  'act.budgetMustWholeNumberCents': 
+    'Un budget doit être un nombre entier de centimes et ne peut pas être '
+    + 'négatif',
+  'act.donationNeedsGoalWorkToward': 'Une collecte a besoin d’un objectif à atteindre',
+  'act.duesScheduleRequired': 'Un barème de cotisations est requis',
+  'act.gatheringNeedsTitle': 'Le rassemblement a besoin d’un titre',
+  'act.publishedElectionCannotEditedReturn': 
+    'Une élection publiée ne peut pas être modifiée. Remettez-la d’abord au '
+    + 'brouillon, ce qui n’est possible que tant que personne n’a été nommé et '
+    + 'qu’aucun vote n’a été exprimé.',
+  'act.resetLinkBeenRequestedMember': 
+    'Un lien de réinitialisation a été demandé pour ce membre. Il le recevra '
+    + 'si son adresse est joignable.',
+  'act.stepNeedsLabel': 'L’étape a besoin d’un intitulé',
+  'act.suggestedBudgetMustWholeNumber': 
+    'Un budget suggéré doit être un nombre entier de centimes et ne peut pas '
+    + 'être négatif',
+  'act.templateCannotIncludeItself': 'Un modèle ne peut pas s’inclure lui-même',
+  'act.templateNeedsName': 'Le modèle a besoin d’un nom',
+  'act.templateNameAlreadyExists': 'Un modèle porte déjà ce nom.',
+  'act.addMobileNumberFirst': 'Ajoutez d’abord un numéro de mobile',
+  'act.addLeastOnePositionBefore': 
+    'Ajoutez au moins un poste avant de publier : un scrutin sans poste n’a '
+    + 'rien à faire élire.',
+  'act.addTheirDateBirthWhat': 
+    'Ajoutez sa date de naissance. C’est elle qui détermine quand les '
+    + 'cotisations commencent.',
+  'act.administratorsGeneralBuiltCannotDeleted': 
+    'Administrateurs et Général sont intégrés et ne peuvent pas être '
+    + 'supprimés. Modifiez plutôt ce qu’ils accordent.',
+  'act.albumNotFound': 'Album introuvable',
+  'act.announcementNotFound': 'Annonce introuvable',
+  'act.archivedMustYesNo': 'Archivé doit être oui ou non',
+  'act.automaticPaymentsAlreadySetUp': 'Les paiements automatiques sont déjà en place pour cette cotisation.',
+  'act.automaticPaymentsBeenStoppedEvery': 
+    'Les paiements automatiques ont été arrêtés. Chaque paiement déjà '
+    + 'effectué est conservé.',
+  'act.chapterNotFound': 'Chapitre introuvable',
+  'act.chapterSavedButTheirChildren': 
+    'Le chapitre est enregistré, mais ses enfants de moins de 18 ans sans '
+    + 'compte propre n’ont pas pu être déplacés avec lui. Réessayez, ou '
+    + 'définissez chaque chapitre séparément.',
+  'act.checkClosed': 'Point de contact clos',
+  'act.checkDeleted': 'Point de contact supprimé',
+  'act.checkNotFound': 'Point de contact introuvable',
+  'act.chooseApproveSendBack': 'Choisissez Approuver ou Renvoyer',
+  'act.chooseJpegPngWebpImage': 'Choisissez une image JPEG, PNG ou WebP',
+  'act.chooseJpegPngWebpGif': 'Choisissez une image JPEG, PNG, WebP ou GIF',
+  'act.chooseChapter': 'Choisissez un chapitre',
+  'act.chooseDateMeeting': 'Choisissez une date pour la réunion',
+  'act.chooseFile': 'Choisissez un fichier',
+  'act.choosePhotoUpload': 'Choisissez une photographie à téléverser',
+  'act.chooseRegion': 'Choisissez une région',
+  'act.chooseTimezone': 'Choisissez un fuseau horaire',
+  'act.chooseLeastOneDuePay': 'Choisissez au moins une cotisation à payer.',
+  'act.chooseLeastOneRelativeAsk': 'Choisissez au moins un proche à interroger',
+  'act.chooseSomebodyFromYourFamily': 'Choisissez quelqu’un de votre famille',
+  'act.chooseDateGatheringStarts': 'Choisissez la date à laquelle commence le rassemblement',
+  'act.chooseFundBudgetDrawn': 'Choisissez la caisse sur laquelle ce budget est prélevé',
+  'act.chooseTwoDifferentFunds': 'Choisissez deux caisses différentes',
+  'act.chooseWhatKindAccessGive': 'Choisissez quel type d’accès lui donner',
+  'act.chooseWhatKindAccessGrant': 'Choisissez quel type d’accès accorder',
+  'act.chooseWhatStepAsks': 'Choisissez ce que demande l’étape',
+  'act.chooseWhetherPayMonthlyAdvance': 'Choisissez de payer mensuellement ou à l’avance.',
+  'act.chooseWhetherYouSafe': 'Indiquez si vous êtes en sécurité',
+  'act.chooseWhichChapterGoing': 'Choisissez à quel chapitre ceci est destiné',
+  'act.chooseWhichFirstPaymentMake': 'Choisissez quel premier paiement effectuer.',
+  'act.chooseWhichRegionGoing': 'Choisissez à quelle région ceci est destiné',
+  'act.chooseWhoTakingMinutes': 'Choisissez qui rédige le procès-verbal',
+  'act.chooseWhoMayScheduleFrom': 'Choisissez qui peut programmer à partir de ce modèle',
+  'act.chooseWhoGoing': 'Choisissez à qui ceci est destiné',
+  'act.chooseWhoAsk': 'Choisissez qui interroger',
+  'act.contributorNotFoundFamily': 'Ce contributeur est introuvable dans cette famille',
+  'act.couldNotAcceptInvitationPlease': 'Cette invitation n’a pas pu être acceptée. Réessayez.',
+  'act.couldNotAddStepTry': 'Cette étape n’a pas pu être ajoutée. Réessayez.',
+  'act.couldNotApplyTemplatePlease': 'Ce modèle n’a pas pu être appliqué. Réessayez.',
+  'act.couldNotBuildRosterSo': 'La liste n’a pas pu être établie, rien n’a donc été envoyé',
+  'act.couldNotCancelInvitation': 'Cette invitation n’a pas pu être annulée.',
+  'act.couldNotChangeMemberPlease': 'Ce membre n’a pas pu être modifié. Réessayez.',
+  'act.couldNotChangeLanguagePlease': 'La langue n’a pas pu être changée. Réessayez.',
+  'act.couldNotChangePlanPlease': 'Le forfait n’a pas pu être changé. Réessayez.',
+  'act.couldNotChangeTimezonePlease': 'Le fuseau horaire n’a pas pu être changé. Réessayez.',
+  'act.couldNotChangeTheirAccess': 'Son accès n’a pas pu être modifié pour le moment. Réessayez.',
+  'act.couldNotCheckRecurringPayments': 'Impossible de vérifier s’il existe des paiements récurrents. Réessayez.',
+  'act.couldNotCheckCodePlease': 'Ce code n’a pas pu être vérifié. Réessayez.',
+  'act.couldNotCheckPersonS': 'L’adhésion de cette personne n’a pas pu être vérifiée',
+  'act.couldNotCheckOwnerList': 
+    'La liste des propriétaires n’a pas pu être consultée pour le moment. '
+    + 'Réessayez.',
+  'act.couldNotCheckWhatWork': 'Impossible de vérifier quel travail a été traité pour ce rassemblement',
+  'act.couldNotCheckWhetherAny': 
+    'Impossible de vérifier si un rassemblement a été créé à partir de ce '
+    + 'modèle ; rien n’a donc été supprimé. Réessayez.',
+  'act.couldNotCheckWhoAdult': 
+    'Impossible de vérifier qui est majeur pour le moment. Rien n’a été '
+    + 'enregistré.',
+  'act.couldNotCheckYourText': 'Votre consentement aux SMS n’a pas pu être vérifié. Réessayez.',
+  'act.couldNotClaimNextBatch': 'Le lot suivant n’a pas pu être réservé',
+  'act.couldNotCloseCheck': 'Le point de contact n’a pas pu être clos',
+  'act.couldNotConfirmCodePlease': 'Ce code n’a pas pu être confirmé. Réessayez.',
+  'act.couldNotConfirmNumber': 'Ce numéro n’a pas pu être confirmé',
+  'act.couldNotCreateFamilyPlease': 'Cette famille n’a pas pu être créée. Réessayez.',
+  'act.couldNotCreateInvitationPlease': 'Cette invitation n’a pas pu être créée. Réessayez.',
+  'act.couldNotCreateTemplate': 'Le modèle n’a pas pu être créé.',
+  'act.couldNotDeleteCheck': 'Le point de contact n’a pas pu être supprimé',
+  'act.couldNotDeleteTemplate': 'Le modèle n’a pas pu être supprimé.',
+  'act.couldNotDisconnectPleaseTry': 'La déconnexion a échoué. Réessayez.',
+  'act.couldNotDismissAnnouncement': 'Cette annonce n’a pas pu être écartée.',
+  'act.couldNotFindYourCurrent': 'Votre fiche de profil actuelle est introuvable.',
+  'act.couldNotGenerateUniqueFamily': 'Aucun code de famille unique n’a pu être généré. Réessayez.',
+  'act.couldNotGrantAccessJust': 'L’accès n’a pas pu être accordé pour le moment. Réessayez.',
+  'act.couldNotJoinFamilyPlease': 'Vous n’avez pas pu rejoindre cette famille. Réessayez.',
+  'act.couldNotLookUpCode': 'Ce code n’a pas pu être recherché. Réessayez.',
+  'act.couldNotMoveStepTry': 'Cette étape n’a pas pu être déplacée. Réessayez.',
+  'act.couldNotOpenStripeOnboarding': 'L’inscription Stripe n’a pas pu être ouverte. Réessayez.',
+  'act.couldNotOpenBillingPortal': 'Le portail de facturation n’a pas pu être ouvert. Réessayez.',
+  'act.couldNotPinAnnouncement': 'Cette annonce n’a pas pu être épinglée.',
+  'act.couldNotQueueThoseAsks': 'Ces demandes n’ont pas pu être remises en file.',
+  'act.couldNotRaiseCheck': 'Le point de contact n’a pas pu être ouvert',
+  'act.couldNotReachStripePlease': 'Stripe est injoignable. Réessayez.',
+  'act.couldNotReachAccountService': 'Le service des comptes est injoignable pour le moment. Réessayez.',
+  'act.couldNotReadConnection': 'Cette connexion n’a pas pu être lue',
+  'act.couldNotReadGathering': 'Ce rassemblement n’a pas pu être lu',
+  'act.couldNotReadRecord': 'Cette fiche n’a pas pu être lue',
+  'act.couldNotReadStaffMember': 
+    'Les informations de ce membre du personnel n’ont pas pu être lues pour '
+    + 'le moment. Réessayez.',
+  'act.couldNotReadStepTry': 'Cette étape n’a pas pu être lue. Réessayez.',
+  'act.couldNotReadTask': 'Cette tâche n’a pas pu être lue',
+  'act.couldNotReadTemplateTry': 'Ce modèle n’a pas pu être lu. Réessayez.',
+  'act.couldNotReadAlbumNothing': 'L’album n’a pas pu être lu. Rien n’a été supprimé.',
+  'act.couldNotReadCurrentPlan': 'Le forfait actuel n’a pas pu être lu depuis Stripe. Réessayez.',
+  'act.couldNotReadFamilyRoster': 
+    'La liste de la famille n’a pas pu être lue pour le moment ; rien n’a '
+    + 'donc été envoyé. Réessayez.',
+  'act.couldNotReadRelationshipTypes': 'Les types de lien de parenté n’ont pas pu être lus',
+  'act.couldNotReadSubmission': 'La réponse envoyée n’a pas pu être lue',
+  'act.couldNotReadTasksFrom': 'Les tâches de ce modèle n’ont pas pu être lues',
+  'act.couldNotReadTemplateCopy': 'Le modèle à copier n’a pas pu être lu.',
+  'act.couldNotReadTemplates': 'Les modèles n’ont pas pu être lus',
+  'act.couldNotReadGatheringS': 'Les modèles de ce rassemblement n’ont pas pu être lus',
+  'act.couldNotRecordDecisionPlease': 'Cette décision n’a pas pu être enregistrée. Réessayez.',
+  'act.couldNotRecordChangePlease': 'Le changement n’a pas pu être enregistré. Réessayez.',
+  'act.couldNotRecordDecision': 'La décision n’a pas pu être enregistrée',
+  'act.couldNotRecordYourAnswer': 'Votre réponse n’a pas pu être enregistrée',
+  'act.couldNotRecordYourAnswer2': 'Votre réponse n’a pas pu être enregistrée — réessayez',
+  'act.couldNotRecordYourChoice': 'Votre choix n’a pas pu être enregistré. Réessayez.',
+  'act.couldNotRemoveNumber': 'Ce numéro n’a pas pu être supprimé',
+  'act.couldNotRemoveFamilyPlease': 'La famille n’a pas pu être supprimée. Réessayez.',
+  'act.couldNotRemoveTheirAccess': 'Son accès n’a pas pu être retiré pour le moment. Réessayez.',
+  'act.couldNotRenameFamilyPlease': 'La famille n’a pas pu être renommée. Réessayez.',
+  'act.couldNotRenameTemplate': 'Le modèle n’a pas pu être renommé.',
+  'act.couldNotResendInvitation': 'Cette invitation n’a pas pu être renvoyée.',
+  'act.couldNotResolveAddressUnambiguously': 
+    'Cette adresse n’a pas pu être identifiée sans ambiguïté — saisissez-la '
+    + 'exactement et réessayez.',
+  'act.couldNotRestoreFamilyPlease': 'Cette famille n’a pas pu être restaurée. Réessayez.',
+  'act.couldNotSave': 'Cela n’a pas pu être enregistré',
+  'act.couldNotSaveNumber': 'Ce numéro n’a pas pu être enregistré',
+  'act.couldNotSaveSegmentJust': 'Ce segment n’a pas pu être enregistré pour le moment. Réessayez.',
+  'act.couldNotSavePleaseTry': 'Cela n’a pas pu être enregistré. Réessayez.',
+  'act.couldNotSavePermission': 'L’autorisation n’a pas pu être enregistrée.',
+  'act.couldNotSaveWhatStripe': 'Ce que Stripe nous a indiqué n’a pas pu être enregistré. Réessayez.',
+  'act.couldNotSendCodeJust': 'Aucun code n’a pu être envoyé pour le moment',
+  'act.couldNotSendCodeJust2': 'Aucun code n’a pu être envoyé pour le moment. Réessayez.',
+  'act.couldNotSendJustNow': 'Cela n’a pas pu être envoyé pour le moment. Réessayez.',
+  'act.couldNotSetUpAutomatic': 'Les paiements automatiques n’ont pas pu être mis en place. Réessayez.',
+  'act.couldNotStartSettingUp': 'La mise en place des paiements n’a pas pu commencer. Réessayez.',
+  'act.couldNotStartPaymentPlease': 'Le paiement n’a pas pu être lancé. Réessayez.',
+  'act.couldNotStartSetupPlease': 'La configuration n’a pas pu être lancée. Réessayez.',
+  'act.couldNotStopAutomaticPayments': 'Les paiements automatiques n’ont pas pu être arrêtés. Réessayez.',
+  'act.couldNotStopPlanPlease': 'Le forfait n’a pas pu être arrêté. Réessayez.',
+  'act.couldNotUpdatePleaseTry': 'Cela n’a pas pu être mis à jour. Réessayez.',
+  'act.couldNotUpdateYourFamily': 'Votre choix de famille n’a pas pu être mis à jour. Réessayez.',
+  'act.destinationFundNotFound': 'Caisse de destination introuvable',
+  'act.documentNotFound': 'Document introuvable',
+  'act.donationsAlreadyOptionalThereNothing': 'Les dons sont déjà facultatifs — il n’y a rien à refuser.',
+  'act.donationsGivenFromDonationsPane': 
+    'Les dons se font depuis le volet Dons ; ils ne se paient pas comme des '
+    + 'cotisations.',
+  'act.duesNeedAmount': 'Les cotisations ont besoin d’un montant',
+  'act.duesScheduleNotFound': 'Barème de cotisations introuvable',
+  'act.electionNotFound': 'Élection introuvable',
+  'act.enterBudgetAmount': 'Saisissez un montant de budget',
+  'act.enterFamilyCode': 'Saisissez un code de famille',
+  'act.enterFamilyCode2': 'Saisissez un code de famille.',
+  'act.enterFamilyName': 'Saisissez un nom de famille',
+  'act.enterFirstLastName': 'Saisissez un prénom et un nom',
+  'act.enterAmount': 'Saisissez un montant',
+  'act.enterAmountGreaterThanZero': 'Saisissez un montant supérieur à zéro',
+  'act.enterAmountGive': 'Saisissez le montant à donner.',
+  'act.enterAmountPay': 'Saisissez le montant à payer.',
+  'act.enterEmailAddress': 'Saisissez une adresse électronique',
+  'act.enterEmailAddressAccountGrant': 'Saisissez l’adresse électronique du compte à autoriser',
+  'act.enterFirstLastNamePerson': 'Saisissez le prénom et le nom de la personne que vous invitez',
+  'act.enterSixDigitsFromText': 'Saisissez les six chiffres reçus par SMS.',
+  'act.everyoneAudienceFamilyTreeWithout': 
+    'Tout le monde dans ce public figure sur l’arbre généalogique sans '
+    + 'adresse électronique ; il n’y a donc personne à qui envoyer.',
+  'act.failedCreateFamilyRecordPlease': 'La fiche de famille n’a pas pu être créée. Réessayez.',
+  'act.failedLinkYourAccountPlease': 'Votre compte n’a pas pu être lié. Réessayez.',
+  'act.failedPrepareAccountLinkPlease': 'Le lien de compte n’a pas pu être préparé. Réessayez.',
+  'act.familyCodeRequired': 'Le code de famille est requis',
+  'act.familyCodeNotFoundCheck': 
+    'Code de famille introuvable. Vérifiez auprès de votre famille et '
+    + 'réessayez.',
+  'act.fileMustUnder2Mb': 'Le fichier doit peser moins de 2 Mo',
+  'act.fundNotFound': 'Caisse introuvable',
+  'act.gatheringNotFound': 'Rassemblement introuvable',
+  'act.gatheringTemplateNotFound': 'Rassemblement ou modèle introuvable',
+  'act.giveStartTimeWellLeave': 'Indiquez aussi une heure de début, ou laissez l’heure de fin vide',
+  'act.giveAlbumName': 'Donnez un nom à l’album',
+  'act.giveArticleTitle': 'Donnez un titre à l’article',
+  'act.giveDocumentName': 'Donnez un nom au document',
+  'act.giveElectionTitle': 'Donnez un titre à l’élection.',
+  'act.giveEntryTitle': 'Donnez un titre au sujet.',
+  'act.giveMeetingTitle': 'Donnez un titre à la réunion',
+  'act.giveMessageSubject': 'Donnez un objet au message',
+  'act.giveTopicTitle': 'Donnez un titre au point à l’ordre du jour',
+  'act.giveThemFirstLastName': 'Indiquez son prénom et son nom avant de l’inviter',
+  'act.invitationNotFound': 'Invitation introuvable',
+  'act.meetingNotFound': 'Réunion introuvable',
+  'act.memberNotFound': 'Membre introuvable',
+  'act.milestoneNotFound': 'Étape introuvable',
+  'act.mobileNumberRemoved': 'Numéro de mobile supprimé.',
+  'act.moveStepUpDown': 'Déplacez une étape vers le haut ou vers le bas',
+  'act.multiFamilySupportNotEnabled': 
+    'La prise en charge de plusieurs familles n’est pas encore activée sur la '
+    + 'base de données. Appliquez la migration '
+    + '20260617000000_multi_family_membership.sql.',
+  'act.noFamilyAssociatedAccount': 'Aucune famille associée au compte',
+  'act.noFamilyAssociatedYourAccount': 'Aucune famille associée à votre compte.',
+  'act.noFamilyCodeAssociatedAccount': 'Aucun code de famille associé au compte',
+  'act.noFamilySelected': 'Aucune famille sélectionnée',
+  'act.noFamilySelected2': 'Aucune famille sélectionnée.',
+  'act.noFileProvided': 'Aucun fichier fourni',
+  'act.noFilesChosen': 'Aucun fichier n’a été choisi',
+  'act.noVoteBeenCalledTopic': 'Aucun vote n’a été convoqué sur ce point.',
+  'act.noVoteBeenCalledTopic2': 'Aucun vote n’a encore été convoqué sur ce point.',
+  'act.nobodyFamilyMatchesAudienceSo': 
+    'Personne dans la famille ne correspond à ce public ; rien n’a donc été '
+    + 'envoyé. Vérifiez la région ou le chapitre que vous avez choisi.',
+  'act.nobodyFamilyMatchesAudienceSo2': 
+    'Personne dans la famille ne correspond à ce public ; il n’y a donc rien '
+    + 'à envoyer.',
+  'act.notMemberFamily': 'Vous n’êtes pas membre de cette famille',
+  'act.notAuthenticated': 'Non authentifié',
+  'act.notAuthenticated2': 'Non authentifié.',
+  'act.notAuthorized': 'Non autorisé',
+  'act.notFound': 'Introuvable',
+  'act.noteNotFound': 'Note introuvable',
+  'act.nothingChange': 'Rien à modifier',
+  'act.numberConfirmed': 'Numéro confirmé.',
+  'act.oneThoseAttendeesNotFamily': 'L’un de ces participants n’est pas dans cette famille',
+  'act.oneThosePeopleNotFamily': 'L’une de ces personnes n’est pas dans cette famille',
+  'act.oneThosePeopleNotFamily2': 'L’une de ces personnes n’est pas dans cette famille.',
+  'act.onlinePaymentsNotSetUp': 
+    'Les paiements en ligne ne sont pas encore configurés sur cette '
+    + 'installation.',
+  'act.onlinePaymentsNotSetUp2': 'Les paiements en ligne ne sont pas encore configurés.',
+  'act.onlyTemplateStepCanInclude': 'Seule une étape de modèle peut inclure un autre modèle',
+  'act.onlyPeopleAttendeeListCan': 
+    'Seules les personnes inscrites sur la liste des participants peuvent '
+    + 'voter à cette réunion.',
+  'act.onlySecretaryMeetingCanWrite': 
+    'Seule la personne chargée du procès-verbal de cette réunion peut le '
+    + 'rédiger.',
+  'act.paymentNotFound': 'Paiement introuvable',
+  'act.paymentsBeenRecordedAgainstDue': 
+    'Des paiements ont été enregistrés pour cette cotisation ; sa date de '
+    + 'début, son montant, sa fréquence, l’âge de départ, le réglage de '
+    + 'filiation et les personnes qui la doivent ne peuvent donc plus changer. '
+    + 'Vous pouvez encore modifier la date de fin.',
+  'act.personNotYourFamily': 'Cette personne n’est pas dans votre famille.',
+  'act.personNotFound': 'Personne introuvable',
+  'act.personNotFound2': 'Personne introuvable.',
+  'act.photoNotFound': 'Photographie introuvable',
+  'act.pickHowOftenYouWant': 
+    'Choisissez d’abord à quelle fréquence vous voulez payer cette cotisation '
+    + '— les paiements automatiques suivent la cadence que vous choisissez.',
+  'act.pickTemplateStepIncludes': 'Choisissez le modèle que cette étape inclut',
+  'act.profileNotFound': 'Profil introuvable',
+  'act.profileNotFound2': 'Profil introuvable.',
+  'act.profilePicturesPartStandardPlan': 
+    'Les photos de profil font partie du forfait Standard. Cette famille est '
+    + 'sur Free.',
+  'act.recipientNotFoundFamily': 'Ce destinataire est introuvable dans cette famille',
+  'act.recordCheckNumberReferenceContribution': 'Enregistrez un numéro de chèque ou une référence pour la contribution',
+  'act.recordCheckNumberReferenceDisbursement': 'Enregistrez un numéro de chèque ou une référence pour le versement',
+  'act.recordCheckNumberReferencePayment': 'Enregistrez un numéro de chèque ou une référence pour le paiement',
+  'act.recordGenderOtherPersonFirst': 
+    'Enregistrez d’abord le genre de l’autre personne, afin que nous '
+    + 'puissions aussi nommer ce lien de son côté.',
+  'act.recordHowContributionGiven': 'Enregistrez comment la contribution a été remise',
+  'act.recordHowPaymentMade': 'Enregistrez comment le paiement a été effectué',
+  'act.recordWhoContributionCameFrom': 'Enregistrez de qui vient la contribution',
+  'act.recordWhyMoneyBeingMoved': 'Enregistrez pourquoi l’argent est déplacé',
+  'act.recurringPaymentsDuesOnly': 'Les paiements récurrents ne concernent que les cotisations.',
+  'act.regionNotFound': 'Région introuvable',
+  'act.relationshipNotFound': 'Lien de parenté introuvable',
+  'act.requiredMustYesNo': 'Obligatoire doit être oui ou non',
+  'act.savedYourFamilyMaySend': 'Enregistré. Votre famille peut vous envoyer des points de contact par SMS.',
+  'act.sayWhatHappeningSoRelatives': 'Dites ce qui se passe, pour que vos proches sachent ce qu’on leur demande',
+  'act.sayWhatNeedsChangeSending': 
+    'Dites ce qui doit changer — renvoyer une tâche sans remarques ne laisse '
+    + 'rien sur quoi agir',
+  'act.sayWhichTimezoneTimeSo': 
+    'Précisez le fuseau horaire de cette heure, pour que vos proches ailleurs '
+    + 'puissent la lire',
+  'act.sayWhyPersonNoEmail': 'Dites pourquoi cette personne n’a pas d’adresse électronique',
+  'act.sayWhyPersonNeedsStaff': 
+    'Dites pourquoi cette personne a besoin d’un accès au personnel. La liste '
+    + 'est un registre d’audit.',
+  'act.scheduleNotFound': 'Barème introuvable',
+  'act.segmentNotFound': 'Segment introuvable',
+  'act.signAcceptInvitation': 'Connectez-vous pour accepter cette invitation.',
+  'act.someMembersStillBeingCharged': 
+    'Certains membres sont encore prélevés automatiquement et nous n’avons '
+    + 'pas pu l’arrêter. Rien n’a été déconnecté — réessayez.',
+  'act.somebodyCannotTheirOwnRelative': 'Personne ne peut être son propre parent',
+  'act.somebodyYouRemovingAlreadyVoted': 
+    'Quelqu’un que vous retirez a déjà voté. Un vote ne peut pas être retiré '
+    + ': cette personne doit rester sur la liste.',
+  'act.staffMemberNotFound': 'Membre du personnel introuvable',
+  'act.stepNotFound': 'Étape introuvable',
+  'act.stripeUpdatedButWeCould': 
+    'Stripe a été mis à jour mais nous n’avons pas pu l’enregistrer. '
+    + 'Contactez l’assistance avant de réessayer.',
+  'act.stripeUpdatedButWeCould2': 
+    'Stripe a été mis à jour mais nous n’avons pas pu enregistrer le '
+    + 'changement. Contactez l’assistance avant de réessayer.',
+  'act.taskNotFound': 'Tâche introuvable',
+  'act.templateNameRequired': 'Le nom du modèle est requis.',
+  'act.templateNotFound': 'Modèle introuvable',
+  'act.templateNotFoundYourFamily': 'Modèle introuvable dans votre famille.',
+  'act.templateNotFound2': 'Modèle introuvable.',
+  'act.bylawNoFileAttached': 'Ce statut n’a aucun fichier joint.',
+  'act.channelNotAvailableNotificationYet': 'Ce canal n’est pas encore disponible pour cette notification.',
+  'act.checkAlreadyClosed': 'Ce point de contact était déjà clos',
+  'act.codeNotRight': 'Ce code n’est pas le bon.',
+  'act.couldNotPreparedNothingBeen': 'Cela n’a pas pu être préparé. Rien n’a été envoyé.',
+  'act.couldNotReadJustNow': 'Cela n’a pas pu être lu pour le moment.',
+  'act.couldNotRemovedJustNow': 'Cela n’a pas pu être supprimé pour le moment.',
+  'act.couldNotWithdrawnNominationsMay': 
+    'Cela n’a pas pu être retiré. Les candidatures sont peut-être closes, ou '
+    + 'la personne a peut-être accepté depuis le chargement de cette page — une '
+    + 'candidature acceptée reste sur le scrutin, et la seule sortie est '
+    + 'qu’elle la décline.',
+  'act.doesNotLookLikeMobile': 
+    'Cela ne ressemble pas à un numéro de mobile. Indiquez l’indicatif '
+    + 'régional — par exemple 512-555-0134.',
+  'act.driveNotOneYourFamily': 'Cette collecte n’appartient pas à votre famille.',
+  'act.dueDateNotRealDate': 'Cette date d’échéance n’est pas une date réelle',
+  'act.dueNotOneYours': 'Cette cotisation n’est pas la vôtre.',
+  'act.endDateNotRealDate': 'Cette date de fin n’est pas une date réelle',
+  'act.entryCouldNotChangedOnly': 
+    'Ce sujet n’a pas pu être modifié. Seule la personne qui l’a consigné '
+    + 'peut le faire, et seulement tant qu’elle occupe encore la fonction.',
+  'act.entryCouldNotRemovedOnly': 
+    'Ce sujet n’a pas pu être supprimé. Seule la personne qui l’a consigné '
+    + 'peut le faire, et seulement tant qu’elle occupe encore la fonction.',
+  'act.entryRefusedJournalOnlyWritable': 
+    'Ce sujet a été refusé. Un carnet n’est modifiable que par la personne '
+    + 'qui occupe la fonction — rechargez la page pour voir lesquelles sont les '
+    + 'vôtres.',
+  'act.familyNameTooLong100': 'Ce nom de famille est trop long (100 caractères au maximum).',
+  'act.fileCouldNotOpenedMay': 'Ce fichier n’a pas pu être ouvert. Il a peut-être été supprimé.',
+  'act.invitationAlreadyBeenAccepted': 'Cette invitation a déjà été acceptée.',
+  'act.invitationNoLongerValidAsk': 'Cette invitation n’est plus valable. Demandez-en une nouvelle.',
+  'act.invitationCancelledSendNewOne': 'Cette invitation a été annulée. Envoyez-en une nouvelle à la place.',
+  'act.notChannelWeSend': 'Ce n’est pas un canal par lequel nous envoyons.',
+  'act.notDate': 'Ce n’est pas une date',
+  'act.notDateSegmentCanHappen': 'Ce n’est pas une date à laquelle ce segment peut avoir lieu',
+  'act.notGatheringStatus': 'Ce n’est pas un état de rassemblement',
+  'act.notLanguageWeSpeakYet': 'Ce n’est pas une langue que nous parlons encore',
+  'act.notNotificationWeSend': 'Ce n’est pas une notification que nous envoyons.',
+  'act.notPlanCanBought': 'Ce n’est pas un forfait que l’on peut acheter.',
+  'act.notPlan': 'Ce n’est pas un forfait.',
+  'act.notRelationshipKind': 'Ce n’est pas un type de lien',
+  'act.notRelationshipTreeRecords': 'Ce n’est pas un lien de parenté que cet arbre enregistre',
+  'act.notTimeWeCanRead': 'Ce n’est pas une heure que nous pouvons lire',
+  'act.notTimezoneWeRecognise': 'Ce n’est pas un fuseau horaire que nous reconnaissons',
+  'act.notVote': 'Ce n’est pas un vote.',
+  'act.nominationNotBallot': 'Cette candidature n’est pas sur ce scrutin.',
+  'act.nominationRefusedNominationsMayClosed': 
+    'Cette candidature a été refusée — les candidatures sont peut-être '
+    + 'closes, ou cette élection ne concerne peut-être pas votre partie de la '
+    + 'famille. Rechargez la page pour voir où elle en est.',
+  'act.nominationWithdrawnWhileYouLooking': 'Cette candidature a été retirée pendant que vous la regardiez. Réessayez.',
+  'act.noteCouldNotChangedOnly': 
+    'Cette note n’a pas pu être modifiée. Seule la personne qui l’a écrite '
+    + 'peut le faire, et seulement tant qu’elle occupe encore la fonction.',
+  'act.noteCouldNotRemovedOnly': 
+    'Cette note n’a pas pu être supprimée. Seule la personne qui l’a écrite '
+    + 'peut le faire, et seulement tant qu’elle occupe encore la fonction.',
+  'act.noteRefusedJournalOnlyWritable': 
+    'Cette note a été refusée. Un carnet n’est modifiable que par la personne '
+    + 'qui occupe la fonction — rechargez la page pour voir lesquelles sont les '
+    + 'vôtres.',
+  'act.numberChangedWhileCodeFlight': 
+    'Ce numéro a changé pendant que le code était en route. Envoyez un '
+    + 'nouveau code et réessayez.',
+  'act.numberAlreadyConfirmed': 'Ce numéro est déjà confirmé',
+  'act.paymentAlreadyBeenReversed': 'Ce paiement a déjà été annulé.',
+  'act.personAlreadyAccountLinked': 'Cette personne a déjà un compte lié.',
+  'act.personNotFinishedJoiningFamily': 'Cette personne n’a pas encore terminé de rejoindre la famille.',
+  'act.personNotCandidatePosition': 'Cette personne n’est pas candidate à ce poste.',
+  'act.personNotPartFamilyElection': 
+    'Cette personne n’est pas dans la partie de la famille que concerne cette '
+    + 'élection.',
+  'act.personNotFamily': 'Cette personne n’est pas dans cette famille',
+  'act.personNotFamily2': 'Cette personne n’est pas dans cette famille.',
+  'act.personNotPartConnection': 'Cette personne ne fait pas partie de cette connexion',
+  'act.personSMembershipNotBeen': 'L’adhésion de cette personne n’a pas encore été approuvée',
+  'act.photoMustUnder10Mb': 'Cette photographie doit peser moins de 10 Mo',
+  'act.positionNotBallot': 'Ce poste n’est pas sur ce scrutin.',
+  'act.relationshipTypeNotSetUp': 'Ce type de lien de parenté n’est pas configuré',
+  'act.rowItselfReversal': 'Cette ligne est elle-même une annulation.',
+  'act.secretaryNotFamily': 'Cette personne chargée du procès-verbal n’est pas dans cette famille',
+  'act.sendCouldNotContinuedJust': 'Cet envoi n’a pas pu être poursuivi pour le moment.',
+  'act.templateNotPartGathering': 'Ce modèle ne fait pas partie de ce rassemblement',
+  'act.templateNotFound3': 'Ce modèle est introuvable',
+  'act.voteAlreadyClosedDeleteTopic': 
+    'Ce vote est déjà clos. Supprimez le point et reposez la question s’il '
+    + 'faut un second tour.',
+  'act.voteClosed': 'Ce vote est clos.',
+  'act.wouldChangeHowTheyRelated': 'Cela changerait la nature de leur lien, et pas seulement son nom',
+  'act.endDateCannotPast': 'La date de fin ne peut pas être dans le passé.',
+  'act.endTimeAfterStartTime': 'L’heure de fin doit être postérieure à l’heure de début',
+  'act.fileMustUnder25Mb': 'Le fichier doit peser moins de 25 Mo.',
+  'act.gatheringCannotEndBeforeStarts': 'Le rassemblement ne peut pas se terminer avant de commencer',
+  'act.messageTooLongKeepUnder': 'Le message est trop long — restez sous 20 000 caractères.',
+  'act.paymentsBeenStoppedStripeBut': 
+    'Les paiements ont été arrêtés chez Stripe mais nous n’avons pas pu '
+    + 'mettre votre fiche à jour. Rechargez la page.',
+  'act.restoreReturnedNoResultPlease': 'La restauration n’a renvoyé aucun résultat. Réessayez.',
+  'act.sameDueListedTwice': 'La même cotisation est listée deux fois.',
+  'act.sendProgressedButCouldNot': 'L’envoi a progressé mais n’a pas pu être lu.',
+  'act.subjectTooLongKeepUnder': 'L’objet est trop long — restez sous 200 caractères.',
+  'act.templateCopyNotFoundYour': 'Le modèle à copier est introuvable dans votre famille.',
+  'act.thereNoAutomaticPaymentsSet': 'Aucun paiement automatique n’est en place pour cette cotisation.',
+  'act.thereNothingSetUpDue': 'Il n’y a rien à configurer sur cette cotisation.',
+  'act.thereNoPlanWaitingSet': 'Aucun forfait n’attendait d’être configuré.',
+  'act.theyAlreadyAccount': 'Cette personne a déjà un compte.',
+  'act.theyAccountManageTheirOwn': 'Cette personne a un compte et gère son propre profil.',
+  'act.accountNoEmailAddressSend': 'Ce compte n’a pas d’adresse électronique à laquelle envoyer un code.',
+  'act.checkBeenClosedSoNo': 'Ce point de contact est clos ; aucune autre demande ne sera envoyée',
+  'act.checkBeenClosedIfYou': 
+    'Ce point de contact est clos. Si vous avez encore besoin d’aide, '
+    + 'contactez directement votre famille.',
+  'act.donationReceivedFundsSoIts': 
+    'Cette collecte a reçu des fonds ; sa date de début ne peut donc plus '
+    + 'changer.',
+  'act.electionNotYourPartFamily': 'Cette élection ne concerne pas votre partie de la famille.',
+  'act.familyAlreadyPaysMonthlyUse': 
+    'Cette famille paie déjà mensuellement. Utilisez Changer de forfait '
+    + 'plutôt que de lancer un second abonnement.',
+  'act.familyNoMonthlyPlanStop': 'Cette famille n’a aucun forfait mensuel à arrêter.',
+  'act.familyNoPaymentHistoryYet': 'Cette famille n’a pas encore d’historique de paiements.',
+  'act.familyNoSettingsRecordChange': 'Cette famille n’a pas de fiche de réglages à modifier.',
+  'act.familyNotConnectedAccountYet': 'Cette famille n’a pas encore connecté de compte.',
+  'act.familyNotConnectedAccount': 'Cette famille n’a pas connecté de compte.',
+  'act.familyAlreadyRemovedNoSettings': 
+    'Cette famille est déjà supprimée, ou n’a pas de fiche de réglages à '
+    + 'supprimer.',
+  'act.familyNotSetUpTake': 
+    'Cette famille n’est pas encore configurée pour accepter les paiements '
+    + 'par carte.',
+  'act.familyPaidPlanChangeFrom': 
+    'Cette famille est sur un forfait payant. Modifiez-le depuis la section '
+    + 'Facturation des Réglages, pour que le paiement suive le forfait.',
+  'act.familyPaysMonthlyCancelMonthly': 
+    'Cette famille paie mensuellement. Annulez d’abord le forfait mensuel, '
+    + 'puis payez à l’avance à partir de la prochaine période.',
+  'act.featureNotCurrentlyAvailable': 'Cette fonctionnalité n’est pas disponible actuellement.',
+  'act.gatheringBeenCancelledSoIts': 
+    'Ce rassemblement a été annulé ; ses tâches ne sont donc plus collectées. '
+    + 'Demandez à un organisateur si ce n’est pas exact.',
+  'act.invitationCreatedBeforeWeStarted': 
+    'Cette invitation a été créée avant que nous n’enregistrions les noms. '
+    + 'Annulez-la et envoyez-en une nouvelle à la place.',
+  'act.lastOwnerMakeSomebodyElse': 
+    'C’est le dernier propriétaire. Nommez d’abord quelqu’un d’autre '
+    + 'propriétaire, sinon personne ne pourra accorder l’accès au personnel.',
+  'act.meetingClosed': 'Cette réunion est close.',
+  'act.meetingClosedReopenChangeMinutes': 'Cette réunion est close. Rouvrez-la pour modifier le procès-verbal.',
+  'act.sendNotFinishedStopFirst': 'Cet envoi n’est pas terminé. Arrêtez-le d’abord, puis supprimez-le.',
+  'act.taskCannotAnsweredVersion': 'Cette tâche ne peut pas être traitée dans cette version',
+  'act.taskAlreadyBeenApprovedApproved': 
+    'Cette tâche a déjà été approuvée, et une réponse approuvée est '
+    + 'définitive. Demandez à un organisateur de la rouvrir si elle doit '
+    + 'changer.',
+  'act.taskAssignedSomebodyElse': 'Cette tâche est confiée à quelqu’un d’autre',
+  'act.titleMessageRequired': 'Le titre et le message sont requis',
+  'act.tooFewDaysLeftMonth': 
+    'Il reste trop peu de jours ce mois-ci pour lancer un forfait mensuel '
+    + 'aujourd’hui. Choisissez l’option qui couvre ce mois et le suivant.',
+  'act.tooManyAttemptsWaitMinute': 'Trop de tentatives. Attendez une minute et réessayez.',
+  'act.tooManyFamiliesCreatedJust': 'Trop de familles créées à l’instant. Attendez une minute et réessayez.',
+  'act.topicNotFound': 'Point à l’ordre du jour introuvable',
+  'act.turnedOffYourFamilyWill': 'Désactivé. Votre famille ne vous enverra pas de SMS.',
+  'act.weCouldNotReadFamily': 
+    'Nous n’avons pas pu lire la liste de la famille pour le moment. Rien n’a '
+    + 'été envoyé.',
+  'act.weWillStopAskingYou': 
+    'Nous cesserons de vous le demander. Vous pouvez passer à un forfait '
+    + 'payant quand vous le souhaitez.',
+  'act.writeSomethingFirst': 'Écrivez d’abord quelque chose',
+  'act.writeSomethingFirst2': 'Écrivez d’abord quelque chose.',
+  'act.writeSomethingSend': 'Écrivez quelque chose à envoyer',
+  'act.youAlreadyAccountAddressSign': 
+    'Vous avez déjà un compte avec cette adresse. Connectez-vous et cette '
+    + 'invitation vous attendra.',
+  'act.youNotMemberFamily': 'Vous n’êtes pas membre de cette famille.',
+  'act.youNotCheck': 'Vous ne figurez pas sur ce point de contact',
+  'act.youCannotChangeYourOwn': 
+    'Vous ne pouvez pas modifier votre propre accès au personnel. Demandez-le '
+    + 'à un autre propriétaire.',
+  'act.youDoNotBelongFamily': 'Vous n’appartenez encore à aucune famille.',
+  'act.youDoNotPermissionCopy': 
+    'Vous n’avez pas l’autorisation de copier ce qu’accorde un modèle. Créez '
+    + 'plutôt un modèle vierge.',
+  'act.youDoNotPermissionManage': 'Vous n’avez pas l’autorisation de gérer les accès.',
+  'act.notPermissionDeleteTemplates':
+    'Vous n’avez pas l’autorisation de supprimer des modèles.',
+  'act.notPermissionChangePermissionTemplates':
+    'Vous n’avez pas l’autorisation de modifier les modèles d’autorisations.',
+  'act.youDoNotPermissionReverse': 'Vous n’avez pas l’autorisation d’annuler des paiements.',
+  'act.youAlreadyNominatedThemPosition': 'Vous l’avez déjà proposé pour ce poste.',
+  'act.youDeclinedDueOptBack': 
+    'Vous avez refusé cette cotisation. Acceptez-la de nouveau avant de '
+    + 'mettre en place des paiements automatiques.',
+  'act.youNoMemberRecordFamily': 'Vous n’avez pas de fiche de membre dans cette famille.',
+  'act.youRepliedStopTextFrom': 
+    'Vous avez répondu STOP à un de nos SMS ; nous ne pouvons donc pas les '
+    + 'réactiver d’ici. Envoyez START au numéro qui vous a écrit.',
+  'act.yourAnswerSavedButTask': 
+    'Votre réponse a été enregistrée mais la tâche n’a pas pu passer en '
+    + 'révision. Réessayez.',
+  'act.yourChapterSavedButYour': 
+    'Votre chapitre a été enregistré, mais vos enfants de moins de 18 ans '
+    + 'sans compte propre n’ont pas pu être déplacés avec vous. Demandez à un '
+    + 'administrateur de définir leur chapitre depuis Membres et accès.',
+  'act.yourCurrentRecordAlreadyFamily': 
+    'Votre fiche actuelle comporte déjà des liens familiaux. Contactez un '
+    + 'administrateur pour les fusionner.',
+  'act.yourEmailAddressAlreadyConfirmed': 'Votre adresse électronique est déjà confirmée.',
+  'act.yourMembershipAwaitingApproval': 'Votre adhésion est en attente d’approbation.',
 }

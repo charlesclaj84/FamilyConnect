@@ -10,6 +10,7 @@ import { trackFamilyCreated, trackRegistrationCompleted } from '@/lib/meta/conve
 import { persistAttributionForUser } from '@/lib/meta/attribution-store'
 import { sellablePlanParam } from '@/lib/signup-plan'
 import type { FamilyTier } from '@/lib/tiers'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * The event ids the BROWSER must fire with, so the Pixel event and the Conversions API
@@ -114,6 +115,13 @@ async function generateUniqueFamilyCode(): Promise<string | null> {
 
 export async function registerUser(input: RegisterInput): Promise<RegisterResult> {
   const admin = createAdminClient()
+  // ── THE LANGUAGE, FROM THE ADDRESS BAR ─────────────────────────────────────────────
+  // `callerI18n(null)`, and this is the one action in the product where that is not a
+  // fallback but the ONLY possible answer: nobody has an account yet, so there is no
+  // `people.locale` to prefer. `resolveLocale` reads the `/es` or `/fr` this request was
+  // rewritten from and then `Accept-Language` — which is exactly why `/register` is in
+  // `LOCALIZED_ROOTS`. A reader who filled the Spanish form must not be refused in English.
+  const { t } = await callerI18n(null)
   const inviteToken = input.inviteToken?.trim() || null
 
   // ── Registering from an invitation ────────────────────────────────────────
@@ -132,7 +140,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     if (!peek?.valid) {
       return {
         success: false,
-        message: 'That invitation is no longer valid. Ask for a new one.',
+        message: t('act.invitationNoLongerValidAsk'),
       }
     }
     // The invitation names an address; registering under a different one would create
@@ -158,7 +166,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       return {
         success: false,
         field: 'email',
-        message: 'You already have an account with this address. Sign in and this invitation will be waiting for you.',
+        message: t('act.youAlreadyAccountAddressSign'),
       }
     }
   }
@@ -170,7 +178,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
   if (!inviteToken && input.mode === 'join') {
     const code = input.familyCode?.trim().toUpperCase() ?? ''
     if (!code) {
-      return { success: false, field: 'familyCode', message: 'Family code is required' }
+      return { success: false, field: 'familyCode', message: t('act.familyCodeRequired') }
     }
     const { data } = await admin
       .from('families')
@@ -182,7 +190,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       return {
         success: false,
         field: 'familyCode',
-        message: 'Family code not found. Check with your family and try again.',
+        message: t('act.familyCodeNotFoundCheck'),
       }
     }
 
@@ -211,7 +219,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       return {
         success: false,
         field: 'familyCode',
-        message: 'Family code not found. Check with your family and try again.',
+        message: t('act.familyCodeNotFoundCheck'),
       }
     }
   }
@@ -224,7 +232,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     if (input.mode === 'create') {
       const generated = await generateUniqueFamilyCode()
       if (!generated) {
-        return { success: false, message: 'Could not generate a unique family code. Please try again.' }
+        return { success: false, message: t('act.couldNotGenerateUniqueFamily') }
       }
       familyCode = generated
     } else {
@@ -365,7 +373,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     if (familyError) {
       // Roll back to avoid an orphaned auth account.
       await admin.auth.admin.deleteUser(authData.user.id)
-      return { success: false, message: 'Failed to create family record. Please try again.' }
+      return { success: false, message: t('act.failedCreateFamilyRecordPlease') }
     }
   }
 

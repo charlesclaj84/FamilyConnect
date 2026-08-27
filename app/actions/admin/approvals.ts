@@ -11,6 +11,7 @@ import { sendEmail, emailOrigin } from '@/lib/email/send'
 import { membershipApprovedEmail } from '@/lib/email/templates'
 import { storedLocale } from '@/lib/i18n/locales'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Member Approvals: review, admit or refuse the people who have asked to join.
@@ -284,13 +285,14 @@ async function decide(
 ): Promise<ApprovalResult> {
   const supabase = await createClient()
   const { user } = await currentUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   // The friendly layer. canAny and not can(): admitting a stranger to the family has
   // no coherent "own" version — the row a member would own is their own application,
   // and self-approval is the abuse case the RPC also refuses outright.
   if (!(await canAny(user.id, 'admin/members/approvals', 'edit'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   // USER client. See the header.
@@ -302,7 +304,7 @@ async function decide(
     })
     .maybeSingle<{ ok: boolean; message: string | null }>()
 
-  if (error) return { success: false, message: 'Could not record that decision. Please try again.' }
+  if (error) return { success: false, message: t('act.couldNotRecordDecisionPlease') }
   if (!data?.ok) return { success: false, message: data?.message ?? 'Not authorized' }
 
   // Tell the applicant. Their own notification, in the family they applied to — the

@@ -21,6 +21,7 @@
     "help:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/help-check.mjs",
     "marketing:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/marketing-coverage.mjs",
     "i18n:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/i18n-coverage.mjs",
+    "i18n:literals": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/i18n-literals.mjs",
     "i18n:accept": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/i18n-coverage.mjs accept",
     "email:check": "node scripts/auth-templates.mjs check",
     "email:push": "node scripts/auth-templates.mjs push",

@@ -205,10 +205,11 @@ export async function getFamilySettings(): Promise<FamilySettings | null> {
 export async function renameFamily(familyName: string): Promise<RenameFamilyResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   const name = (familyName ?? '').trim()
-  if (!name) return { success: false, message: 'Enter a family name' }
+  if (!name) return { success: false, message: t('act.enterFamilyName') }
   if (name.length > MAX_FAMILY_NAME) {
     return { success: false, message: `That family name is too long (${MAX_FAMILY_NAME} characters maximum).` }
   }
@@ -234,10 +235,10 @@ export async function renameFamily(familyName: string): Promise<RenameFamilyResu
 
   if (error) {
     console.error(`[admin/family] rename refused for ${g.familyCode}: ${error.message}`)
-    return { success: false, message: 'Could not rename the family. Please try again.' }
+    return { success: false, message: t('act.couldNotRenameFamilyPlease') }
   }
   if (!data || data.length === 0) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   // The name is read on every page that names the family — the switcher, My Families,
@@ -285,11 +286,12 @@ export type SetFamilyZoneResult =
 export async function setFamilyZone(timeZone: string): Promise<SetFamilyZoneResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   const zone = (timeZone ?? '').trim()
-  if (!zone) return { success: false, message: 'Choose a timezone' }
-  if (!isValidZone(zone)) return { success: false, message: 'That is not a timezone we recognise' }
+  if (!zone) return { success: false, message: t('act.chooseTimezone') }
+  if (!isValidZone(zone)) return { success: false, message: t('act.notTimezoneWeRecognise') }
 
   // `.select()` for both reasons `renameFamily`'s comment gives at length: a write the policy
   // matched zero rows with comes back as a failure rather than a silent success (§8b), and
@@ -304,10 +306,10 @@ export async function setFamilyZone(timeZone: string): Promise<SetFamilyZoneResu
 
   if (error) {
     console.error(`[admin/family] zone change refused for ${g.familyCode}: ${error.message}`)
-    return { success: false, message: 'Could not change the timezone. Please try again.' }
+    return { success: false, message: t('act.couldNotChangeTimezonePlease') }
   }
   if (!data || data.length === 0) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   revalidatePath('/', 'layout')
@@ -350,13 +352,14 @@ export async function setFamilyZone(timeZone: string): Promise<SetFamilyZoneResu
 export async function setFamilyTier(tier: string): Promise<SetTierResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   // Narrowed rather than cast. This is a `'use server'` export, so the argument arrives
   // from an HTTP request and the panel is not in its path; `families_tier_check` would
   // refuse an unknown value anyway, but a checked string is a message the caller can read
   // instead of a constraint violation logged as "could not save".
-  if (!isFamilyTier(tier)) return { success: false, message: 'That is not a plan.' }
+  if (!isFamilyTier(tier)) return { success: false, message: t('act.notPlan') }
 
   const admin = createAdminClient()
 
@@ -394,7 +397,7 @@ export async function setFamilyTier(tier: string): Promise<SetTierResult> {
       && billing.paid_through >= new Date().toISOString().slice(0, 10)) {
     return {
       success: false,
-      message: 'This family is on a paid plan. Change it from the Billing section of Settings, so the payment follows the plan.',
+      message: t('act.familyPaidPlanChangeFrom'),
     }
   }
 
@@ -443,13 +446,13 @@ export async function setFamilyTier(tier: string): Promise<SetTierResult> {
 
   if (error) {
     console.error(`[admin/family] tier change refused for ${g.familyCode}: ${error.message}`)
-    return { success: false, message: 'Could not change the plan. Please try again.' }
+    return { success: false, message: t('act.couldNotChangePlanPlease') }
   }
   // Zero rows is a family with a people row and no `families` row — the same pre-table
   // case `getFamilySettings` handles by falling back to the code. Reported rather than
   // returned as success over an unchanged value.
   if (!data || data.length === 0) {
-    return { success: false, message: 'This family has no settings record to change.' }
+    return { success: false, message: t('act.familyNoSettingsRecordChange') }
   }
 
   // THE WHOLE LAYOUT, not this route. A tier decides which items the sidebar renders
@@ -557,11 +560,12 @@ const hashCode = hashChallengeCode
 export async function requestFamilyRemovalCode(): Promise<RemovalCodeResult> {
   const g = await requireDelete(REMOVE_FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
   // The challenge is resolved from (family_code, requested_by), so a caller with no
   // `people` row in this family has nothing to resolve against. Refused here rather than
   // written as a NULL nothing could ever match.
-  if (!g.personId) return { success: false, message: 'You do not belong to a family yet.' }
+  if (!g.personId) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   // The session's own address — read from GoTrue rather than from `people.primary_email`,
   // because a `people` row may legitimately hold a GENERATED placeholder address
@@ -570,7 +574,7 @@ export async function requestFamilyRemovalCode(): Promise<RemovalCodeResult> {
   const { user } = await currentUser()
   const to = user?.email?.trim() ?? ''
   if (!to) {
-    return { success: false, message: 'This account has no email address to send a code to.' }
+    return { success: false, message: t('act.accountNoEmailAddressSend') }
   }
 
   const admin = createAdminClient()
@@ -584,7 +588,7 @@ export async function requestFamilyRemovalCode(): Promise<RemovalCodeResult> {
     .maybeSingle()
   if (familyError) {
     console.error(`[admin/family] could not read families for ${g.familyCode}: ${familyError.message}`)
-    return { success: false, message: 'Could not send a code just now. Please try again.' }
+    return { success: false, message: t('act.couldNotSendCodeJust2') }
   }
   const familyName = (family?.family_name as string) ?? g.familyCode
 
@@ -601,7 +605,7 @@ export async function requestFamilyRemovalCode(): Promise<RemovalCodeResult> {
     logTag: '[admin/family]',
   })
   if (!minted.ok) {
-    return { success: false, message: 'Could not send a code just now. Please try again.' }
+    return { success: false, message: t('act.couldNotSendCodeJust2') }
   }
 
   const mail = familyRemovalCodeEmail({
@@ -656,15 +660,16 @@ export async function requestFamilyRemovalCode(): Promise<RemovalCodeResult> {
 export async function removeFamily(code: string): Promise<RemoveFamilyResult> {
   const g = await requireDelete(REMOVE_FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
-  if (!g.personId) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
+  if (!g.personId) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   // Narrowed rather than trusted. This is a public endpoint, so the argument arrives from
   // an HTTP request and the form is not in its path; a shape check here is a message the
   // caller can read instead of a wasted attempt against the cap.
   const typed = (code ?? '').trim()
   if (!new RegExp(`^\\d{${REMOVAL_CODE_LENGTH}}$`).test(typed)) {
-    return { success: false, message: 'That code is not right.' }
+    return { success: false, message: t('act.codeNotRight') }
   }
 
   const admin = createAdminClient()
@@ -682,7 +687,7 @@ export async function removeFamily(code: string): Promise<RemoveFamilyResult> {
   // and `data` cannot tell them apart — `null` from maybeSingle() is what both look like.
   if (challengeError) {
     console.error(`[admin/family] removal challenge failed for ${g.familyCode}: ${challengeError.message}`)
-    return { success: false, message: 'Could not confirm that code. Please try again.' }
+    return { success: false, message: t('act.couldNotConfirmCodePlease') }
   }
   if (!challenge?.ok) {
     return { success: false, message: challenge?.message ?? 'That code is not right.' }
@@ -701,7 +706,7 @@ export async function removeFamily(code: string): Promise<RemoveFamilyResult> {
 
   if (error) {
     console.error(`[admin/family] removal refused for ${g.familyCode}: ${error.message}`)
-    return { success: false, message: 'Could not remove the family. Please try again.' }
+    return { success: false, message: t('act.couldNotRemoveFamilyPlease') }
   }
   // Zero rows is one of two things, and neither is a success: the family is already
   // removed, or it has a `people` row and no `families` row (the pre-table case
@@ -710,7 +715,7 @@ export async function removeFamily(code: string): Promise<RemoveFamilyResult> {
   if (!data || data.length === 0) {
     return {
       success: false,
-      message: 'This family is already removed, or has no settings record to remove.',
+      message: t('act.familyAlreadyRemovedNoSettings'),
     }
   }
 

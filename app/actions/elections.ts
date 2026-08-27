@@ -20,6 +20,7 @@ import {
 } from '@/lib/election-area'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * ── WHAT AN ELECTION IS, AFTER 20260821000000 AND 20260821000001 ───────────────────
@@ -1106,9 +1107,10 @@ export async function createElection(
 ): Promise<{ success: boolean; id?: string; message?: string }> {
   const g = await requireScope('admin/elections', 'create')
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const title = input.title?.trim() ?? ''
-  if (!title) return { success: false, message: 'Give the election a title.' }
+  if (!title) return { success: false, message: t('act.giveElectionTitle') }
 
   // A draft may be half-written, so the windows are only checked against each other.
   const problem = windowProblem(input, { requireAll: false })
@@ -1193,21 +1195,21 @@ export async function updateElection(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireScope('admin/elections', 'edit')
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const admin = createAdminClient()
   const { data: existing } = await admin.from('elections')
     .select('status').eq('id', id).eq('family_code', g.familyCode).maybeSingle()
-  if (!existing) return { success: false, message: 'Election not found' }
+  if (!existing) return { success: false, message: t('act.electionNotFound') }
   if ((existing as { status: string }).status !== 'draft') {
     return {
       success: false,
-      message: 'A published election cannot be edited. Return it to draft first — which is only '
-        + 'possible while nobody has been nominated and no vote has been cast.',
+      message: t('act.publishedElectionCannotEditedReturn'),
     }
   }
 
   const title = input.title?.trim() ?? ''
-  if (!title) return { success: false, message: 'Give the election a title.' }
+  if (!title) return { success: false, message: t('act.giveElectionTitle') }
   const problem = windowProblem(input, { requireAll: false })
   if (problem) return { success: false, message: problem }
 
@@ -1282,13 +1284,14 @@ export async function publishElection(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireScope('admin/elections', 'edit')
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   const { intl } = await callerI18n(g.userId)
 
   const admin = createAdminClient()
   const { data: row } = await admin.from('elections')
     .select(ELECTION_COLUMNS).eq('id', id).eq('family_code', g.familyCode).maybeSingle()
   const existing = row as unknown as RawElection | null
-  if (!existing) return { success: false, message: 'Election not found' }
+  if (!existing) return { success: false, message: t('act.electionNotFound') }
   if (existing.status === 'published') return { success: true }
 
   const problem = windowProblem({
@@ -1304,8 +1307,7 @@ export async function publishElection(
   if (!count) {
     return {
       success: false,
-      message: 'Add at least one position before publishing — a ballot with no offices on it '
-        + 'has nothing to vote for.',
+      message: t('act.addLeastOnePositionBefore'),
     }
   }
 
@@ -1409,11 +1411,12 @@ export async function unpublishElection(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireScope('admin/elections', 'edit')
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const admin = createAdminClient()
   const { data: existing } = await admin.from('elections')
     .select('id').eq('id', id).eq('family_code', g.familyCode).maybeSingle()
-  if (!existing) return { success: false, message: 'Election not found' }
+  if (!existing) return { success: false, message: t('act.electionNotFound') }
 
   const [noms, votes] = await Promise.all([
     admin.from('election_nominations').select('id', { count: 'exact', head: true })
@@ -1478,20 +1481,21 @@ export async function submitNomination(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   const { intl } = await callerI18n(g.userId)
 
   if (!(await belongsToFamily('elections', electionId, g.familyCode))) {
-    return { success: false, message: 'Election not found' }
+    return { success: false, message: t('act.electionNotFound') }
   }
   if (!(await belongsToFamily('people', nomineeId, g.familyCode))) {
-    return { success: false, message: 'That person is not in this family.' }
+    return { success: false, message: t('act.personNotFamily2') }
   }
 
   const admin = createAdminClient()
   const { data: row } = await admin.from('elections')
     .select(ELECTION_COLUMNS).eq('id', electionId).eq('family_code', g.familyCode).maybeSingle()
   const election = row as unknown as RawElection | null
-  if (!election) return { success: false, message: 'Election not found' }
+  if (!election) return { success: false, message: t('act.electionNotFound') }
 
   // THE ELECTION'S OWN ZONE, matching election_window_open() in SQL. These two layers
   // refuse in sequence — this one first, the policy second — so a disagreement between
@@ -1509,7 +1513,7 @@ export async function submitNomination(
   // it — the same shape as `getElectionResults`' check on `election_votes`.
   const { data: position } = await admin.from('election_positions')
     .select('id').eq('id', positionId).eq('election_id', electionId).maybeSingle()
-  if (!position) return { success: false, message: 'That position is not on this ballot.' }
+  if (!position) return { success: false, message: t('act.positionNotBallot') }
 
   const places = await familyPlaces(g.familyCode)
   const { data: nominee } = await admin.from('people')
@@ -1517,16 +1521,16 @@ export async function submitNomination(
     .eq('id', nomineeId).eq('family_code', g.familyCode).maybeSingle()
   const nomineeRow = nominee as
     { chapter_id: string | null; membership_status: string | null } | null
-  if (!nomineeRow) return { success: false, message: 'That person is not in this family.' }
+  if (!nomineeRow) return { success: false, message: t('act.personNotFamily2') }
   if (nomineeRow.membership_status !== 'approved') {
-    return { success: false, message: 'That person has not finished joining the family yet.' }
+    return { success: false, message: t('act.personNotFinishedJoiningFamily') }
   }
   if (electionAreaMatch({
     election, memberChapterId: nomineeRow.chapter_id, chapterRegions: places.chapterRegions,
   }) !== 'in') {
     return {
       success: false,
-      message: 'That person is not in the part of the family this election is for.',
+      message: t('act.personNotPartFamilyElection'),
     }
   }
 
@@ -1569,10 +1573,10 @@ export async function submitNomination(
       // something twice.
       return {
         success: false,
-        message: 'That nomination was withdrawn while you were looking at it. Try again.',
+        message: t('act.nominationWithdrawnWhileYouLooking'),
       }
     }
-    return addNominationSupport(electionId, (existing as { id: string }).id, g.personId)
+    return addNominationSupport(electionId, (existing as { id: string }).id, g.personId, t)
   }
   if (error) return { success: false, message: error.message }
 
@@ -1605,12 +1609,14 @@ async function addNominationSupport(
   electionId: string,
   nominationId: string,
   personId: string | null,
+  /** The caller's language. A parameter, because this helper has no caller of its own. */
+  t: T,
 ): Promise<{ success: boolean; message?: string }> {
   // `election_nomination_supporters.person_id` is NOT NULL, and `requireMember()` types
   // `personId` as nullable because a caller can in principle hold a membership with no
   // person row. Checked rather than asserted, the way `castVote` does it: the alternative is
   // a 23502 for a message.
-  if (!personId) return { success: false, message: 'Profile not found' }
+  if (!personId) return { success: false, message: t('act.profileNotFound') }
 
   const supabase = await createClient()
   const { error } = await supabase.from('election_nomination_supporters').insert({
@@ -1623,7 +1629,7 @@ async function addNominationSupport(
     // already nominated this person for this office. An ordinary collision, and the one
     // message in this function that is not about a refusal.
     if (error.code === '23505') {
-      return { success: false, message: 'You have already nominated them for that position.' }
+      return { success: false, message: t('act.youAlreadyNominatedThemPosition') }
     }
     // 42501 is the INSERT policy refusing. The most likely reasons, in order: nominations
     // closed since the page rendered, or the caller is not in this election's part of the
@@ -1632,8 +1638,7 @@ async function addNominationSupport(
     if (error.code === '42501') {
       return {
         success: false,
-        message: 'That nomination was refused — nominations may have closed, or this election '
-          + 'may not be for your part of the family. Reload the page to see where it stands.',
+        message: t('act.nominationRefusedNominationsMayClosed'),
       }
     }
     return { success: false, message: error.message }
@@ -1672,9 +1677,10 @@ export async function retractNomination(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   if (!(await belongsToFamily('elections', electionId, g.familyCode))) {
-    return { success: false, message: 'Election not found' }
+    return { success: false, message: t('act.electionNotFound') }
   }
 
   // The nomination has to be ON that election. Without this, `nominationId` is any id in the
@@ -1686,7 +1692,7 @@ export async function retractNomination(
   const { data: nomination } = await createAdminClient()
     .from('election_nominations').select('id')
     .eq('id', nominationId).eq('election_id', electionId).maybeSingle()
-  if (!nomination) return { success: false, message: 'That nomination is not on this ballot.' }
+  if (!nomination) return { success: false, message: t('act.nominationNotBallot') }
 
   const supabase = await createClient()
   const outcome = await confirmWrite(() => supabase
@@ -1702,9 +1708,7 @@ export async function retractNomination(
   if (!outcome.ok) {
     return {
       success: false,
-      message: 'That could not be withdrawn. Nominations may have closed, or the person may '
-        + 'have accepted since this page loaded — an accepted nomination stays on the ballot, '
-        + 'and the way off it is for them to decline.',
+      message: t('act.couldNotWithdrawnNominationsMay'),
     }
   }
 
@@ -1773,21 +1777,22 @@ export async function castVote(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   const { intl } = await callerI18n(g.userId)
   // `election_votes.voter_id` is NOT NULL, and `requireMember()` types `personId` as nullable
   // because a caller can in principle hold a membership with no person row. Checked rather
   // than asserted: the alternative is a 23502 for a message.
-  if (!g.personId) return { success: false, message: 'Profile not found' }
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
 
   if (!(await belongsToFamily('elections', electionId, g.familyCode))) {
-    return { success: false, message: 'Election not found' }
+    return { success: false, message: t('act.electionNotFound') }
   }
 
   const admin = createAdminClient()
   const { data: row } = await admin.from('elections')
     .select(ELECTION_COLUMNS).eq('id', electionId).eq('family_code', g.familyCode).maybeSingle()
   const election = row as unknown as RawElection | null
-  if (!election) return { success: false, message: 'Election not found' }
+  if (!election) return { success: false, message: t('act.electionNotFound') }
 
   // THE ELECTION'S OWN ZONE, matching election_window_open() in SQL. These two layers
   // refuse in sequence — this one first, the policy second — so a disagreement between
@@ -1814,7 +1819,7 @@ export async function castVote(
   if (electionAreaMatch({
     election, memberChapterId: chapterId, chapterRegions: places.chapterRegions,
   }) !== 'in') {
-    return { success: false, message: 'This election is not for your part of the family.' }
+    return { success: false, message: t('act.electionNotYourPartFamily') }
   }
 
   // The nominee has to be a candidate FOR THIS POSITION on THIS election, and one who
@@ -1825,7 +1830,7 @@ export async function castVote(
     .select('id').eq('election_id', electionId).eq('position_id', positionId)
     .eq('nominee_id', nomineeId).eq('accepted', true).maybeSingle()
   if (!nomination) {
-    return { success: false, message: 'That person is not a candidate for that position.' }
+    return { success: false, message: t('act.personNotCandidatePosition') }
   }
 
   const supabase = await createClient()

@@ -156,15 +156,16 @@ export type ProcessorLinkResult =
 export async function startProcessorOnboarding(): Promise<ProcessorLinkResult> {
   const g = await requireEdit(PROCESSING)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   const unavailable = stripeUnavailableReason()
   if (unavailable) return { success: false, message: unavailable }
   if (!connectConfigured()) {
-    return { success: false, message: 'Online payments are not set up on this deployment yet.' }
+    return { success: false, message: t('act.onlinePaymentsNotSetUp') }
   }
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const admin = createAdminClient()
   const accountId = await ensureConnectedAccount(admin, stripe, {
@@ -172,7 +173,7 @@ export async function startProcessorOnboarding(): Promise<ProcessorLinkResult> {
     personId: g.personId,
   })
   if (!accountId) {
-    return { success: false, message: 'Could not start setting up payments. Please try again.' }
+    return { success: false, message: t('act.couldNotStartSettingUp') }
   }
 
   try {
@@ -201,7 +202,7 @@ export async function startProcessorOnboarding(): Promise<ProcessorLinkResult> {
     return { success: true, url: link.url }
   } catch (e) {
     console.error(`[processing] account link failed for ${g.familyCode}: ${describe(e)}`)
-    return { success: false, message: 'Could not open Stripe onboarding. Please try again.' }
+    return { success: false, message: t('act.couldNotOpenStripeOnboarding') }
   }
 }
 
@@ -233,10 +234,11 @@ export type ProcessorActionResult =
 export async function refreshProcessorStatus(): Promise<ProcessorActionResult> {
   const g = await requireEdit(PROCESSING)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const admin = createAdminClient()
   const { data: row } = await admin
@@ -245,7 +247,7 @@ export async function refreshProcessorStatus(): Promise<ProcessorActionResult> {
     .eq('family_code', g.familyCode)
     .maybeSingle()
   const accountId = row?.stripe_account_id as string | undefined
-  if (!accountId) return { success: false, message: 'This family has not connected an account yet.' }
+  if (!accountId) return { success: false, message: t('act.familyNotConnectedAccountYet') }
 
   try {
     const account = await stripe.v2.core.accounts.retrieve(accountId, {
@@ -282,7 +284,7 @@ export async function refreshProcessorStatus(): Promise<ProcessorActionResult> {
     }).eq('family_code', g.familyCode).eq('stripe_account_id', accountId)
     if (error) {
       console.error(`[processing] could not record the account state for ${g.familyCode}: ${error.message}`)
-      return { success: false, message: 'Could not save what Stripe told us. Please try again.' }
+      return { success: false, message: t('act.couldNotSaveWhatStripe') }
     }
 
     revalidatePath('/admin/accounting')
@@ -297,7 +299,7 @@ export async function refreshProcessorStatus(): Promise<ProcessorActionResult> {
     }
   } catch (e) {
     console.error(`[processing] refresh failed for ${g.familyCode}: ${describe(e)}`)
-    return { success: false, message: 'Could not reach Stripe. Please try again.' }
+    return { success: false, message: t('act.couldNotReachStripePlease') }
   }
 }
 
@@ -349,8 +351,9 @@ export type DisconnectCodeResult =
 export async function requestProcessorDisconnectCode(): Promise<DisconnectCodeResult> {
   const g = await requireEdit(PROCESSING)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
-  if (!g.personId) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
+  if (!g.personId) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   // The session's own address — read from GoTrue rather than from `people.primary_email`,
   // because a `people` row may legitimately hold a GENERATED placeholder address (§4b) and
@@ -358,7 +361,7 @@ export async function requestProcessorDisconnectCode(): Promise<DisconnectCodeRe
   const { user } = await currentUser()
   const to = user?.email?.trim() ?? ''
   if (!to) {
-    return { success: false, message: 'This account has no email address to send a code to.' }
+    return { success: false, message: t('act.accountNoEmailAddressSend') }
   }
 
   const admin = createAdminClient()
@@ -372,7 +375,7 @@ export async function requestProcessorDisconnectCode(): Promise<DisconnectCodeRe
     .maybeSingle()
   if (familyError) {
     console.error(`[processing] could not read families for ${g.familyCode}: ${familyError.message}`)
-    return { success: false, message: 'Could not send a code just now. Please try again.' }
+    return { success: false, message: t('act.couldNotSendCodeJust2') }
   }
 
   const { count, error: countError } = await admin
@@ -384,7 +387,7 @@ export async function requestProcessorDisconnectCode(): Promise<DisconnectCodeRe
   // is paying automatically at the exact moment they are deciding whether to cancel them all.
   if (countError) {
     console.error(`[processing] could not count autopays for ${g.familyCode}: ${countError.message}`)
-    return { success: false, message: 'Could not check for recurring payments. Please try again.' }
+    return { success: false, message: t('act.couldNotCheckRecurringPayments') }
   }
   const autopayCount = count ?? 0
 
@@ -395,7 +398,7 @@ export async function requestProcessorDisconnectCode(): Promise<DisconnectCodeRe
     logTag: '[processing]',
   })
   if (!minted.ok) {
-    return { success: false, message: 'Could not send a code just now. Please try again.' }
+    return { success: false, message: t('act.couldNotSendCodeJust2') }
   }
 
   const mail = processorDisconnectCodeEmail({
@@ -451,13 +454,14 @@ export async function requestProcessorDisconnectCode(): Promise<DisconnectCodeRe
 export async function disconnectProcessor(code: string): Promise<ProcessorActionResult> {
   const g = await requireEdit(PROCESSING)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
   // The challenge is resolved from (family_code, requested_by, purpose), so a caller with no
   // `people` row in this family has nothing to resolve against.
-  if (!g.personId) return { success: false, message: 'You do not belong to a family yet.' }
+  if (!g.personId) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const admin = createAdminClient()
 
@@ -485,7 +489,7 @@ export async function disconnectProcessor(code: string): Promise<ProcessorAction
   // cannot tell them apart — `null` from maybeSingle() is what both look like.
   if (challengeError) {
     console.error(`[processing] could not verify the disconnect code for ${g.familyCode}: ${challengeError.message}`)
-    return { success: false, message: 'Could not check that code. Please try again.' }
+    return { success: false, message: t('act.couldNotCheckCodePlease') }
   }
   if (!challenge?.ok) {
     const left = challenge?.attempts_left ?? 0
@@ -502,7 +506,7 @@ export async function disconnectProcessor(code: string): Promise<ProcessorAction
     .eq('family_code', g.familyCode)
     .maybeSingle()
   const accountId = row?.stripe_account_id as string | undefined
-  if (!accountId) return { success: false, message: 'This family has not connected an account.' }
+  if (!accountId) return { success: false, message: t('act.familyNotConnectedAccount') }
 
   const { data: autopays, error: readError } = await admin
     .from('dues_autopay')
@@ -510,7 +514,7 @@ export async function disconnectProcessor(code: string): Promise<ProcessorAction
     .eq('family_code', g.familyCode)
     .is('cancelled_at', null)
   if (readError) {
-    return { success: false, message: 'Could not check for recurring payments. Please try again.' }
+    return { success: false, message: t('act.couldNotCheckRecurringPayments') }
   }
 
   let cancelled = 0
@@ -526,7 +530,7 @@ export async function disconnectProcessor(code: string): Promise<ProcessorAction
         console.error(`[processing] could not cancel ${subscriptionId} for ${g.familyCode}: ${message}`)
         return {
           success: false,
-          message: 'Some members are still being charged automatically and we could not stop it. Nothing has been disconnected — please try again.',
+          message: t('act.someMembersStillBeingCharged'),
         }
       }
     }
@@ -542,7 +546,7 @@ export async function disconnectProcessor(code: string): Promise<ProcessorAction
     .eq('family_code', g.familyCode)
     .eq('stripe_account_id', accountId)
   if (error) {
-    return { success: false, message: 'Could not disconnect. Please try again.' }
+    return { success: false, message: t('act.couldNotDisconnectPleaseTry') }
   }
 
   revalidatePath('/admin/accounting')

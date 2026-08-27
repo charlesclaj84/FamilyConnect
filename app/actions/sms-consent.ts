@@ -9,6 +9,7 @@ import {
   consentStatus, lastFour, smsBlockReason, toE164,
   type ConsentRecord, type SmsBlockReason, type SmsConsentStatus,
 } from '@/lib/sms/consent'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * A member's own text-message settings — their number, and whether we may use it.
@@ -207,14 +208,14 @@ export async function getMySmsSettings(): Promise<MySmsSettings> {
 export async function setMyMobileNumber(input: { phone: string }): Promise<ActionResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'Profile not found' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
 
   const e164 = toE164(input?.phone ?? '')
   if (!e164) {
     return {
       success: false,
-      message: 'That does not look like a mobile number. Include the area code — for example '
-        + '512-555-0134.',
+      message: t('act.doesNotLookLikeMobile'),
     }
   }
 
@@ -242,10 +243,10 @@ export async function setMyMobileNumber(input: { phone: string }): Promise<Actio
     )
   if (upsertError) {
     console.error(`[sms-consent] number write failed for ${g.personId}: ${upsertError.message}`)
-    return { success: false, message: 'Could not save that number' }
+    return { success: false, message: t('act.couldNotSaveNumber') }
   }
 
-  const sent = await issueCode(admin, g.familyCode, g.personId, e164)
+  const sent = await issueCode(admin, g.familyCode, g.personId, e164, t)
   revalidatePath('/personal-info')
   return sent
 }
@@ -254,7 +255,8 @@ export async function setMyMobileNumber(input: { phone: string }): Promise<Actio
 export async function resendMyPhoneCode(): Promise<ActionResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'Profile not found' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
 
   const admin = createAdminClient()
   const { data, error } = await admin.from('person_sms')
@@ -262,17 +264,17 @@ export async function resendMyPhoneCode(): Promise<ActionResult> {
     .eq('family_code', g.familyCode).eq('person_id', g.personId).maybeSingle()
   if (error) {
     console.error(`[sms-consent] resend read failed for ${g.personId}: ${error.message}`)
-    return { success: false, message: 'Could not send a code just now' }
+    return { success: false, message: t('act.couldNotSendCodeJust') }
   }
   const row = data as { phone_e164: string | null; verified_at: string | null } | null
-  if (!row?.phone_e164) return { success: false, message: 'Add a mobile number first' }
-  if (row.verified_at) return { success: false, message: 'That number is already confirmed' }
+  if (!row?.phone_e164) return { success: false, message: t('act.addMobileNumberFirst') }
+  if (row.verified_at) return { success: false, message: t('act.numberAlreadyConfirmed') }
 
   if (await currentStatus(admin, g.familyCode, g.personId) === 'stopped') {
     return { success: false, message: STOPPED_MESSAGE }
   }
 
-  const result = await issueCode(admin, g.familyCode, g.personId, row.phone_e164)
+  const result = await issueCode(admin, g.familyCode, g.personId, row.phone_e164, t)
   revalidatePath('/personal-info')
   return result
 }
@@ -323,6 +325,8 @@ async function issueCode(
   familyCode: string,
   personId: string,
   phoneE164: string,
+  /** The caller's language, for the one refusal below. `t` last, per the other helpers. */
+  t: T,
 ): Promise<ActionResult> {
   const code = mintCode()
   const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60_000).toISOString()
@@ -336,7 +340,7 @@ async function issueCode(
   })
   if (error) {
     console.error(`[sms-consent] challenge insert failed for ${personId}: ${error.message}`)
-    return { success: false, message: 'Could not send a code just now' }
+    return { success: false, message: t('act.couldNotSendCodeJust') }
   }
 
   const result = await sendSms({
@@ -375,11 +379,12 @@ async function issueCode(
 export async function confirmMyMobileNumber(input: { code: string }): Promise<ActionResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'Profile not found' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
 
   const code = (input?.code ?? '').replace(/\D/g, '')
   if (code.length !== 6) {
-    return { success: false, message: 'Enter the six digits from the text message.' }
+    return { success: false, message: t('act.enterSixDigitsFromText') }
   }
 
   const admin = createAdminClient()
@@ -388,10 +393,10 @@ export async function confirmMyMobileNumber(input: { code: string }): Promise<Ac
     .eq('family_code', g.familyCode).eq('person_id', g.personId).maybeSingle()
   if (readError) {
     console.error(`[sms-consent] confirm read failed for ${g.personId}: ${readError.message}`)
-    return { success: false, message: 'Could not confirm that number' }
+    return { success: false, message: t('act.couldNotConfirmNumber') }
   }
   const phoneE164 = (smsRow as { phone_e164: string | null } | null)?.phone_e164
-  if (!phoneE164) return { success: false, message: 'Add a mobile number first' }
+  if (!phoneE164) return { success: false, message: t('act.addMobileNumberFirst') }
 
   const { data, error } = await admin.rpc('consume_phone_verification', {
     p_family_code: g.familyCode,
@@ -401,7 +406,7 @@ export async function confirmMyMobileNumber(input: { code: string }): Promise<Ac
   })
   if (error) {
     console.error(`[sms-consent] consume failed for ${g.personId}: ${error.message}`)
-    return { success: false, message: 'Could not confirm that number' }
+    return { success: false, message: t('act.couldNotConfirmNumber') }
   }
 
   const verdict = ((data ?? []) as {
@@ -422,7 +427,7 @@ export async function confirmMyMobileNumber(input: { code: string }): Promise<Ac
     .select('id')
   if (writeError) {
     console.error(`[sms-consent] verify write failed for ${g.personId}: ${writeError.message}`)
-    return { success: false, message: 'Could not confirm that number' }
+    return { success: false, message: t('act.couldNotConfirmNumber') }
   }
   // §8b: a write that matched nothing is a FAILED write. The code has been spent by now, so
   // saying "confirmed" over an unchanged row would leave a member believing a number is usable
@@ -430,19 +435,20 @@ export async function confirmMyMobileNumber(input: { code: string }): Promise<Ac
   if ((written ?? []).length === 0) {
     return {
       success: false,
-      message: 'That number changed while the code was in flight. Send a new code and try again.',
+      message: t('act.numberChangedWhileCodeFlight'),
     }
   }
 
   revalidatePath('/personal-info')
-  return { success: true, message: 'Number confirmed.' }
+  return { success: true, message: t('act.numberConfirmed') }
 }
 
 /** Remove the number entirely. Consent history is untouched — it is a record, not a setting. */
 export async function removeMyMobileNumber(): Promise<ActionResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'Profile not found' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
 
   const { error } = await createAdminClient().from('person_sms')
     .update({ phone_e164: null, verified_at: null })
@@ -450,14 +456,14 @@ export async function removeMyMobileNumber(): Promise<ActionResult> {
     .eq('person_id', g.personId)
   if (error) {
     console.error(`[sms-consent] number removal failed for ${g.personId}: ${error.message}`)
-    return { success: false, message: 'Could not remove that number' }
+    return { success: false, message: t('act.couldNotRemoveNumber') }
   }
 
   // NO `confirmWrite` AND NO ZERO-ROW REFUSAL HERE, deliberately: a member with no row at all is
   // asking for a state they are already in, and telling them it failed would be wrong. Removal is
   // idempotent by nature, which is the one shape §8b's rule does not apply to.
   revalidatePath('/personal-info')
-  return { success: true, message: 'Mobile number removed.' }
+  return { success: true, message: t('act.mobileNumberRemoved') }
 }
 
 // ── Consent ───────────────────────────────────────────────────────────────────────────
@@ -482,7 +488,8 @@ export async function removeMyMobileNumber(): Promise<ActionResult> {
 export async function grantSmsConsent(): Promise<ActionResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'Profile not found' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
 
   const admin = createAdminClient()
   if (await currentStatus(admin, g.familyCode, g.personId) === 'stopped') {
@@ -498,11 +505,11 @@ export async function grantSmsConsent(): Promise<ActionResult> {
   })
   if (error) {
     console.error(`[sms-consent] grant failed for ${g.personId}: ${error.message}`)
-    return { success: false, message: 'Could not save that' }
+    return { success: false, message: t('act.couldNotSave') }
   }
 
   revalidatePath('/personal-info')
-  return { success: true, message: 'Saved. Your family may send you check-ins by text.' }
+  return { success: true, message: t('act.savedYourFamilyMaySend') }
 }
 
 /**
@@ -517,7 +524,8 @@ export async function grantSmsConsent(): Promise<ActionResult> {
 export async function withdrawSmsConsent(): Promise<ActionResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'Profile not found' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
 
   const { error } = await createAdminClient().from('sms_consent_events').insert({
     family_code: g.familyCode,
@@ -528,9 +536,9 @@ export async function withdrawSmsConsent(): Promise<ActionResult> {
   })
   if (error) {
     console.error(`[sms-consent] withdrawal failed for ${g.personId}: ${error.message}`)
-    return { success: false, message: 'Could not save that' }
+    return { success: false, message: t('act.couldNotSave') }
   }
 
   revalidatePath('/personal-info')
-  return { success: true, message: 'Turned off. Your family will not text you.' }
+  return { success: true, message: t('act.turnedOffYourFamilyWill') }
 }

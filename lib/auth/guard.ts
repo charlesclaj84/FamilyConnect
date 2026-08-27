@@ -1,5 +1,7 @@
 import { getMyFamilyCode, getMyPersonId, isApprovedMember } from '@/lib/auth/family'
 import { can, canAny, canOn, type PermissionAction } from '@/lib/auth/permissions'
+import { callerI18n } from '@/lib/i18n/server'
+import type { T } from '@/lib/i18n/t'
 import { currentUser } from '@/lib/auth/current-user'
 
 /**
@@ -32,21 +34,80 @@ export interface GuardOk {
   familyCode: string
   /** people.id in the active family. Null only if the caller has no person row. */
   personId: string | null
+  /**
+   * The caller's language, bound. Every refusal an action composes reads this.
+   *
+   * ── IT COSTS NOTHING, WHICH IS WHY IT IS HERE RATHER THAN AT 700 CALL SITES ───────
+   * The alternative was `const { t } = await callerI18n(g.userId)` on the line after every
+   * guard — about a hundred actions, each adding a third read of `people` for the same
+   * user in the same request. `resolve()` already awaits two, so the locale joins the same
+   * `Promise.all` and the round trip is absorbed rather than added.
+   *
+   * And it removes the failure mode that shape invites: a line every action must also
+   * remember is a line three actions will not have, which is the argument
+   * `requireView` makes for folding `requireTier` in. A missing `t` here is a type error.
+   *
+   * ── DO NOT USE IT TO DECIDE ANYTHING ─────────────────────────────────────────────
+   * A language is a display fact. Nothing about what a caller may do may branch on it,
+   * exactly as nothing may branch on `families.tier` in a policy.
+   */
+  t: T
+  /**
+   * The caller's `Intl` tag, for a date or a figure inside a message. NOT the same string
+   * as their locale — see `lib/i18n/locales.ts`.
+   */
+  intl: string
 }
 
 export interface GuardFail {
   ok: false
+  /**
+   * What to show the caller, IN THEIR LANGUAGE.
+   *
+   * ── RESOLVED IN THE FAILURE BRANCH, NEVER ABOVE IT ────────────────────────────────
+   * Every branch below reaches for `callerI18n` only once it has decided to refuse, which
+   * is what makes this free: the success path — every guarded action that actually runs —
+   * makes no extra call at all. Resolving `t` at the top of `caller()` would put a
+   * `people.locale` read in front of every server action in the product to translate a
+   * sentence almost none of them ever return.
+   *
+   * `resolveLocale` is `cache()`d per request, so an action that refuses and then reads it
+   * again for its own message pays once.
+   */
   message: string
 }
 
 export type GuardResult = GuardOk | GuardFail
 
+/**
+ * "Not authorized", in the caller's language.
+ *
+ * A function rather than four inline lookups because four call sites returning one sentence
+ * is how two of them come to say slightly different things — the same argument
+ * `lib/notifications.ts` makes about five copies of one message, and
+ * `lib/chapter-propagation.ts` about one rule with two implementations.
+ *
+ * ── AND IT IS DELIBERATELY VAGUE, IN EVERY LANGUAGE ──────────────────────────────────
+ * It says nothing about WHICH grant is missing, or that the resource exists. A refusal that
+ * names the permission it wanted is a map of the product's permission model handed to
+ * somebody who has just been told they may not see it. Translating it must not make it more
+ * helpful.
+ */
+async function notAuthorized(userId: string): Promise<string> {
+  const { t } = await callerI18n(userId)
+  return t('guard.notAuthorized')
+}
+
 async function resolve(userId: string): Promise<GuardOk> {
-  const [familyCode, personId] = await Promise.all([
+  // THREE READS IN PARALLEL, not two and then one. See `GuardOk.t`: the locale read is the
+  // cheapest of the three and would otherwise be a serial fourth round trip written out at
+  // every call site.
+  const [familyCode, personId, i18n] = await Promise.all([
     getMyFamilyCode(userId),
     getMyPersonId(userId),
+    callerI18n(userId),
   ])
-  return { ok: true, userId, familyCode, personId }
+  return { ok: true, userId, familyCode, personId, t: i18n.t, intl: i18n.intl }
 }
 
 /**
@@ -90,13 +151,17 @@ async function caller(): Promise<{ userId: string } | GuardFail> {
     // Logged, not swallowed: this is the branch that used to be indistinguishable from a
     // signed-out caller, and the whole point of separating it is that it leaves a record.
     console.error(`[guard] could not verify the session: ${error}`)
-    return {
-      ok: false,
-      message: 'Your session could not be verified. Reload the page and try again.',
-    }
+    // THE ONE PLACE `callerI18n(null)` IS RIGHT IN A GUARD, and both of these branches are
+    // it: there is no user to have a stored preference, so the language comes from the
+    // address bar and then the browser's own request. See lib/auth/locale.ts.
+    const { t } = await callerI18n(null)
+    return { ok: false, message: t('guard.sessionUnverified') }
   }
 
-  if (!user) return { ok: false, message: 'You are signed out. Sign in and try again.' }
+  if (!user) {
+    const { t } = await callerI18n(null)
+    return { ok: false, message: t('guard.signedOut') }
+  }
   return { userId: user.id }
 }
 
@@ -113,7 +178,7 @@ export async function requireScope(
   const who = await caller()
   if ('ok' in who) return who
   if (!(await canAny(who.userId, resource, action))) {
-    return { ok: false, message: 'Not authorized' }
+    return { ok: false, message: await notAuthorized(who.userId) }
   }
   return resolve(who.userId)
 }
@@ -143,7 +208,7 @@ export async function requireOwn(
   const who = await caller()
   if ('ok' in who) return who
   if (!(await canOn(who.userId, resource, action, ownerPersonId))) {
-    return { ok: false, message: 'Not authorized' }
+    return { ok: false, message: await notAuthorized(who.userId) }
   }
   return resolve(who.userId)
 }
@@ -170,7 +235,9 @@ export async function requireRead(...resources: string[]): Promise<GuardResult> 
   const who = await caller()
   if ('ok' in who) return who
   const granted = await Promise.all(resources.map(r => can(who.userId, r, 'view')))
-  if (!granted.some(Boolean)) return { ok: false, message: 'Not authorized' }
+  if (!granted.some(Boolean)) {
+    return { ok: false, message: await notAuthorized(who.userId) }
+  }
   return resolve(who.userId)
 }
 
@@ -200,7 +267,8 @@ export async function requireMember(): Promise<GuardResult> {
   const who = await caller()
   if ('ok' in who) return who
   if (!(await isApprovedMember(who.userId))) {
-    return { ok: false, message: 'Your membership is awaiting approval' }
+    const { t } = await callerI18n(who.userId)
+    return { ok: false, message: t('guard.awaitingApproval') }
   }
   return resolve(who.userId)
 }

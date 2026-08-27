@@ -1566,6 +1566,21 @@ export const en: Catalogue = {
     'Forgotten your {app} password? Enter the email address on your family account and we '
     + 'will send you a link to set a new one.',
 
+  // ── THE FIVE REFUSALS EVERY GUARDED ACTION CAN RETURN ───────────────────────────
+  // `lib/auth/guard.ts`. About a hundred server actions open with `requireEdit` or
+  // `requireMember` and return `g.message` verbatim, so these five sentences are by far the
+  // most-read copy in the product that a reader only ever sees when something has gone
+  // wrong — and they were English for everybody.
+  //
+  // `guard.notAuthorized` is deliberately vague and must stay so in every language: it says
+  // nothing about which grant is missing, or that the resource exists. See the note above
+  // `notAuthorized` in that file.
+  'guard.sessionUnverified':
+    'Your session could not be verified. Reload the page and try again.',
+  'guard.signedOut': 'You are signed out. Sign in and try again.',
+  'guard.notAuthorized': 'Not authorized',
+  'guard.awaitingApproval': 'Your membership is awaiting approval',
+
   'auth.signInToYour': 'Sign in to your {app} account',
   'reg.invitedToJoin': 'You have been invited to join',
   'reg.joinOn': 'Join your family on {app}',
@@ -2447,4 +2462,531 @@ export const en: Catalogue = {
   'plan.adds.premium/custom-domain.label': 'A proper address for it, ready to go',
   'plan.adds.premium/custom-domain.detail':
     'No hosting bill, no plugins, and nobody in the family maintaining it.',
+
+  // ── EVERY REFUSAL A SERVER ACTION CAN RETURN ────────────────────────────────────
+  // 395 sentences across 42 modules in `app/actions/`, keyed on 2026-08-27. They were the
+  // largest body of English left in the product after the public site was finished, and the
+  // one a member is most likely to meet: a form's `<FormError>` renders whatever the action
+  // returned, so every one of these was English to every reader at the moment something had
+  // just gone wrong.
+  //
+  // ── THE TRANSLATOR ARRIVES ON THE GUARD, WHICH IS WHY THERE IS NO PLUMBING ──────
+  // `GuardOk.t`, resolved inside the `Promise.all` `resolve()` already awaits — so an action
+  // reads `g.t('act.…')` with no extra round trip and no extra line. See that field's own
+  // note: the alternative was `const { t } = await callerI18n(g.userId)` written out at a
+  // hundred call sites, each adding a third read of `people` for the same user.
+  //
+  // ── THE KEY IS DERIVED FROM THE ENGLISH AND IS NOT A DESCRIPTION ────────────────
+  // `act.chooseChapter`, `act.gatheringNotFound`. Mechanical, so 702 call sites could be
+  // swept rather than hand-edited, and stable, so a re-run produces the same names. Where
+  // two different sentences slug to one name the later ones carry a numeric suffix — which
+  // is ugly and is better than a hand-picked name nobody can regenerate.
+  //
+  // ── A REFUSAL SAYS WHAT TO DO, IN EVERY LANGUAGE ────────────────────────────────
+  // Most of these are instructions rather than errors — "Choose a chapter", "Give the album
+  // a name" — and the translations keep that voice. `usted` and `vous` throughout, as
+  // everywhere else in these catalogues. The three "not found" families stay terse and
+  // uninformative on purpose: `guard.notAuthorized`'s argument applies to them too.
+  'act.budgetCannotNegative': 'A budget cannot be negative',
+  'act.budgetLineCannotNegative': 'A budget line cannot be negative',
+  'act.budgetLineMustWholeNumber': 'A budget line must be a whole number of cents, and not negative',
+  'act.budgetMustWholeNumberCents': 'A budget must be a whole number of cents, and not negative',
+  'act.donationNeedsGoalWorkToward': 'A donation needs a goal to work toward',
+  'act.duesScheduleRequired': 'A dues schedule is required',
+  'act.gatheringNeedsTitle': 'A gathering needs a title',
+  'act.publishedElectionCannotEditedReturn': 
+    'A published election cannot be edited. Return it to draft first — which '
+    + 'is only possible while nobody has been nominated and no vote has been '
+    + 'cast.',
+  'act.resetLinkBeenRequestedMember': 
+    'A reset link has been requested for that member. They will receive it if '
+    + 'their address is reachable.',
+  'act.stepNeedsLabel': 'A step needs a label',
+  'act.suggestedBudgetMustWholeNumber': 'A suggested budget must be a whole number of cents, and not negative',
+  'act.templateCannotIncludeItself': 'A template cannot include itself',
+  'act.templateNeedsName': 'A template needs a name',
+  'act.templateNameAlreadyExists': 'A template with that name already exists.',
+  'act.addMobileNumberFirst': 'Add a mobile number first',
+  'act.addLeastOnePositionBefore': 
+    'Add at least one position before publishing — a ballot with no offices '
+    + 'on it has nothing to vote for.',
+  'act.addTheirDateBirthWhat': 'Add their date of birth. It is what decides when they start owing dues.',
+  'act.administratorsGeneralBuiltCannotDeleted': 
+    'Administrators and General are built in and cannot be deleted. Edit what '
+    + 'they grant instead.',
+  'act.albumNotFound': 'Album not found',
+  'act.announcementNotFound': 'Announcement not found',
+  'act.archivedMustYesNo': 'Archived must be yes or no',
+  'act.automaticPaymentsAlreadySetUp': 'Automatic payments are already set up for this due.',
+  'act.automaticPaymentsBeenStoppedEvery': 'Automatic payments have been stopped. Every payment already made is kept.',
+  'act.chapterNotFound': 'Chapter not found',
+  'act.chapterSavedButTheirChildren': 
+    'Chapter saved, but their children under 18 with no account of their own '
+    + 'could not be moved with them. Try again, or set each chapter '
+    + 'individually.',
+  'act.checkClosed': 'Check-in closed',
+  'act.checkDeleted': 'Check-in deleted',
+  'act.checkNotFound': 'Check-in not found',
+  'act.chooseApproveSendBack': 'Choose Approve or Send back',
+  'act.chooseJpegPngWebpImage': 'Choose a JPEG, PNG or WebP image',
+  'act.chooseJpegPngWebpGif': 'Choose a JPEG, PNG, WebP or GIF image',
+  'act.chooseChapter': 'Choose a chapter',
+  'act.chooseDateMeeting': 'Choose a date for the meeting',
+  'act.chooseFile': 'Choose a file',
+  'act.choosePhotoUpload': 'Choose a photo to upload',
+  'act.chooseRegion': 'Choose a region',
+  'act.chooseTimezone': 'Choose a timezone',
+  'act.chooseLeastOneDuePay': 'Choose at least one due to pay.',
+  'act.chooseLeastOneRelativeAsk': 'Choose at least one relative to ask',
+  'act.chooseSomebodyFromYourFamily': 'Choose somebody from your family',
+  'act.chooseDateGatheringStarts': 'Choose the date the gathering starts',
+  'act.chooseFundBudgetDrawn': 'Choose the fund this budget is drawn on',
+  'act.chooseTwoDifferentFunds': 'Choose two different funds',
+  'act.chooseWhatKindAccessGive': 'Choose what kind of access to give them',
+  'act.chooseWhatKindAccessGrant': 'Choose what kind of access to grant',
+  'act.chooseWhatStepAsks': 'Choose what the step asks for',
+  'act.chooseWhetherPayMonthlyAdvance': 'Choose whether to pay monthly or in advance.',
+  'act.chooseWhetherYouSafe': 'Choose whether you are safe',
+  'act.chooseWhichChapterGoing': 'Choose which chapter this is going to',
+  'act.chooseWhichFirstPaymentMake': 'Choose which first payment to make.',
+  'act.chooseWhichRegionGoing': 'Choose which region this is going to',
+  'act.chooseWhoTakingMinutes': 'Choose who is taking the minutes',
+  'act.chooseWhoMayScheduleFrom': 'Choose who may schedule from this template',
+  'act.chooseWhoGoing': 'Choose who this is going to',
+  'act.chooseWhoAsk': 'Choose who to ask',
+  'act.contributorNotFoundFamily': 'Contributor not found in this family',
+  'act.couldNotAcceptInvitationPlease': 'Could not accept that invitation. Please try again.',
+  'act.couldNotAddStepTry': 'Could not add that step. Try again.',
+  'act.couldNotApplyTemplatePlease': 'Could not apply that template. Please try again.',
+  'act.couldNotBuildRosterSo': 'Could not build the roster, so nothing has been sent',
+  'act.couldNotCancelInvitation': 'Could not cancel that invitation.',
+  'act.couldNotChangeMemberPlease': 'Could not change that member. Please try again.',
+  'act.couldNotChangeLanguagePlease': 'Could not change the language. Please try again.',
+  'act.couldNotChangePlanPlease': 'Could not change the plan. Please try again.',
+  'act.couldNotChangeTimezonePlease': 'Could not change the timezone. Please try again.',
+  'act.couldNotChangeTheirAccess': 'Could not change their access just now. Try again.',
+  'act.couldNotCheckRecurringPayments': 'Could not check for recurring payments. Please try again.',
+  'act.couldNotCheckCodePlease': 'Could not check that code. Please try again.',
+  'act.couldNotCheckPersonS': 'Could not check that person’s membership',
+  'act.couldNotCheckOwnerList': 'Could not check the owner list just now. Try again.',
+  'act.couldNotCheckWhatWork': 'Could not check what work has been answered on this gathering',
+  'act.couldNotCheckWhetherAny': 
+    'Could not check whether any gathering was built from this template, so '
+    + 'nothing was deleted. Try again.',
+  'act.couldNotCheckWhoAdult': 'Could not check who is an adult just now. Nothing was saved.',
+  'act.couldNotCheckYourText': 'Could not check your text-message consent. Please try again.',
+  'act.couldNotClaimNextBatch': 'Could not claim the next batch',
+  'act.couldNotCloseCheck': 'Could not close the check-in',
+  'act.couldNotConfirmCodePlease': 'Could not confirm that code. Please try again.',
+  'act.couldNotConfirmNumber': 'Could not confirm that number',
+  'act.couldNotCreateFamilyPlease': 'Could not create that family. Please try again.',
+  'act.couldNotCreateInvitationPlease': 'Could not create that invitation. Please try again.',
+  'act.couldNotCreateTemplate': 'Could not create the template.',
+  'act.couldNotDeleteCheck': 'Could not delete the check-in',
+  'act.couldNotDeleteTemplate': 'Could not delete the template.',
+  'act.couldNotDisconnectPleaseTry': 'Could not disconnect. Please try again.',
+  'act.couldNotDismissAnnouncement': 'Could not dismiss that announcement.',
+  'act.couldNotFindYourCurrent': 'Could not find your current profile record.',
+  'act.couldNotGenerateUniqueFamily': 'Could not generate a unique family code. Please try again.',
+  'act.couldNotGrantAccessJust': 'Could not grant access just now. Try again.',
+  'act.couldNotJoinFamilyPlease': 'Could not join that family. Please try again.',
+  'act.couldNotLookUpCode': 'Could not look up that code. Please try again.',
+  'act.couldNotMoveStepTry': 'Could not move that step. Try again.',
+  'act.couldNotOpenStripeOnboarding': 'Could not open Stripe onboarding. Please try again.',
+  'act.couldNotOpenBillingPortal': 'Could not open the billing portal. Please try again.',
+  'act.couldNotPinAnnouncement': 'Could not pin that announcement.',
+  'act.couldNotQueueThoseAsks': 'Could not queue those asks again',
+  'act.couldNotRaiseCheck': 'Could not raise the check-in',
+  'act.couldNotReachStripePlease': 'Could not reach Stripe. Please try again.',
+  'act.couldNotReachAccountService': 'Could not reach the account service just now. Try again.',
+  'act.couldNotReadConnection': 'Could not read that connection',
+  'act.couldNotReadGathering': 'Could not read that gathering',
+  'act.couldNotReadRecord': 'Could not read that record',
+  'act.couldNotReadStaffMember': 'Could not read that staff member just now. Try again.',
+  'act.couldNotReadStepTry': 'Could not read that step. Try again.',
+  'act.couldNotReadTask': 'Could not read that task',
+  'act.couldNotReadTemplateTry': 'Could not read that template. Try again.',
+  'act.couldNotReadAlbumNothing': 'Could not read the album. Nothing was deleted.',
+  'act.couldNotReadCurrentPlan': 'Could not read the current plan from Stripe. Please try again.',
+  'act.couldNotReadFamilyRoster': 
+    'Could not read the family roster just now, so nothing has been sent. Try '
+    + 'again.',
+  'act.couldNotReadRelationshipTypes': 'Could not read the relationship types',
+  'act.couldNotReadSubmission': 'Could not read the submission',
+  'act.couldNotReadTasksFrom': 'Could not read the tasks from this template',
+  'act.couldNotReadTemplateCopy': 'Could not read the template to copy.',
+  'act.couldNotReadTemplates': 'Could not read the templates',
+  'act.couldNotReadGatheringS': 'Could not read this gathering’s templates',
+  'act.couldNotRecordDecisionPlease': 'Could not record that decision. Please try again.',
+  'act.couldNotRecordChangePlease': 'Could not record the change. Please try again.',
+  'act.couldNotRecordDecision': 'Could not record the decision',
+  'act.couldNotRecordYourAnswer': 'Could not record your answer',
+  'act.couldNotRecordYourAnswer2': 'Could not record your answer — try again',
+  'act.couldNotRecordYourChoice': 'Could not record your choice. Please try again.',
+  'act.couldNotRemoveNumber': 'Could not remove that number',
+  'act.couldNotRemoveFamilyPlease': 'Could not remove the family. Please try again.',
+  'act.couldNotRemoveTheirAccess': 'Could not remove their access just now. Try again.',
+  'act.couldNotRenameFamilyPlease': 'Could not rename the family. Please try again.',
+  'act.couldNotRenameTemplate': 'Could not rename the template.',
+  'act.couldNotResendInvitation': 'Could not resend that invitation.',
+  'act.couldNotResolveAddressUnambiguously': 
+    'Could not resolve that address unambiguously — type it exactly and try '
+    + 'again.',
+  'act.couldNotRestoreFamilyPlease': 'Could not restore that family. Please try again.',
+  'act.couldNotSave': 'Could not save that',
+  'act.couldNotSaveNumber': 'Could not save that number',
+  'act.couldNotSaveSegmentJust': 'Could not save that segment just now. Try again.',
+  'act.couldNotSavePleaseTry': 'Could not save that. Please try again.',
+  'act.couldNotSavePermission': 'Could not save the permission.',
+  'act.couldNotSaveWhatStripe': 'Could not save what Stripe told us. Please try again.',
+  'act.couldNotSendCodeJust': 'Could not send a code just now',
+  'act.couldNotSendCodeJust2': 'Could not send a code just now. Please try again.',
+  'act.couldNotSendJustNow': 'Could not send that just now. Please try again.',
+  'act.couldNotSetUpAutomatic': 'Could not set up automatic payments. Please try again.',
+  'act.couldNotStartSettingUp': 'Could not start setting up payments. Please try again.',
+  'act.couldNotStartPaymentPlease': 'Could not start the payment. Please try again.',
+  'act.couldNotStartSetupPlease': 'Could not start the setup. Please try again.',
+  'act.couldNotStopAutomaticPayments': 'Could not stop the automatic payments. Please try again.',
+  'act.couldNotStopPlanPlease': 'Could not stop the plan. Please try again.',
+  'act.couldNotUpdatePleaseTry': 'Could not update that. Please try again.',
+  'act.couldNotUpdateYourFamily': 'Could not update your family selection. Please try again.',
+  'act.destinationFundNotFound': 'Destination fund not found',
+  'act.documentNotFound': 'Document not found',
+  'act.donationsAlreadyOptionalThereNothing': 'Donations are already optional — there is nothing to opt out of.',
+  'act.donationsGivenFromDonationsPane': 'Donations are given from the Donations pane, not paid as dues.',
+  'act.duesNeedAmount': 'Dues need an amount',
+  'act.duesScheduleNotFound': 'Dues schedule not found',
+  'act.electionNotFound': 'Election not found',
+  'act.enterBudgetAmount': 'Enter a budget amount',
+  'act.enterFamilyCode': 'Enter a family code',
+  'act.enterFamilyCode2': 'Enter a family code.',
+  'act.enterFamilyName': 'Enter a family name',
+  'act.enterFirstLastName': 'Enter a first and last name',
+  'act.enterAmount': 'Enter an amount',
+  'act.enterAmountGreaterThanZero': 'Enter an amount greater than zero',
+  'act.enterAmountGive': 'Enter an amount to give.',
+  'act.enterAmountPay': 'Enter an amount to pay.',
+  'act.enterEmailAddress': 'Enter an email address',
+  'act.enterEmailAddressAccountGrant': 'Enter the email address of the account to grant',
+  'act.enterFirstLastNamePerson': 'Enter the first and last name of the person you are inviting',
+  'act.enterSixDigitsFromText': 'Enter the six digits from the text message.',
+  'act.everyoneAudienceFamilyTreeWithout': 
+    'Everyone in that audience is on the family tree without an email '
+    + 'address, so there is nobody to send to.',
+  'act.failedCreateFamilyRecordPlease': 'Failed to create family record. Please try again.',
+  'act.failedLinkYourAccountPlease': 'Failed to link your account. Please try again.',
+  'act.failedPrepareAccountLinkPlease': 'Failed to prepare account link. Please try again.',
+  'act.familyCodeRequired': 'Family code is required',
+  'act.familyCodeNotFoundCheck': 'Family code not found. Check with your family and try again.',
+  'act.fileMustUnder2Mb': 'File must be under 2 MB',
+  'act.fundNotFound': 'Fund not found',
+  'act.gatheringNotFound': 'Gathering not found',
+  'act.gatheringTemplateNotFound': 'Gathering or template not found',
+  'act.giveStartTimeWellLeave': 'Give a start time as well, or leave the end time empty',
+  'act.giveAlbumName': 'Give the album a name',
+  'act.giveArticleTitle': 'Give the article a title',
+  'act.giveDocumentName': 'Give the document a name',
+  'act.giveElectionTitle': 'Give the election a title.',
+  'act.giveEntryTitle': 'Give the entry a title.',
+  'act.giveMeetingTitle': 'Give the meeting a title',
+  'act.giveMessageSubject': 'Give the message a subject',
+  'act.giveTopicTitle': 'Give the topic a title',
+  'act.giveThemFirstLastName': 'Give them a first and last name before inviting them',
+  'act.invitationNotFound': 'Invitation not found',
+  'act.meetingNotFound': 'Meeting not found',
+  'act.memberNotFound': 'Member not found',
+  'act.milestoneNotFound': 'Milestone not found',
+  'act.mobileNumberRemoved': 'Mobile number removed.',
+  'act.moveStepUpDown': 'Move a step up or down',
+  'act.multiFamilySupportNotEnabled': 
+    'Multi-family support is not enabled on the database yet. Apply migration '
+    + '20260617000000_multi_family_membership.sql.',
+  'act.noFamilyAssociatedAccount': 'No family associated with account',
+  'act.noFamilyAssociatedYourAccount': 'No family associated with your account.',
+  'act.noFamilyCodeAssociatedAccount': 'No family code associated with account',
+  'act.noFamilySelected': 'No family selected',
+  'act.noFamilySelected2': 'No family selected.',
+  'act.noFileProvided': 'No file provided',
+  'act.noFilesChosen': 'No files were chosen',
+  'act.noVoteBeenCalledTopic': 'No vote has been called on that topic.',
+  'act.noVoteBeenCalledTopic2': 'No vote has been called on this topic yet.',
+  'act.nobodyFamilyMatchesAudienceSo': 
+    'Nobody in the family matches that audience, so nothing has been sent. '
+    + 'Check the region or chapter you chose.',
+  'act.nobodyFamilyMatchesAudienceSo2': 'Nobody in the family matches that audience, so there is nothing to send.',
+  'act.notMemberFamily': 'Not a member of this family',
+  'act.notAuthenticated': 'Not authenticated',
+  'act.notAuthenticated2': 'Not authenticated.',
+  'act.notAuthorized': 'Not authorized',
+  'act.notFound': 'Not found',
+  'act.noteNotFound': 'Note not found',
+  'act.nothingChange': 'Nothing to change',
+  'act.numberConfirmed': 'Number confirmed.',
+  'act.oneThoseAttendeesNotFamily': 'One of those attendees is not in this family',
+  'act.oneThosePeopleNotFamily': 'One of those people is not in this family',
+  'act.oneThosePeopleNotFamily2': 'One of those people is not in this family.',
+  'act.onlinePaymentsNotSetUp': 'Online payments are not set up on this deployment yet.',
+  'act.onlinePaymentsNotSetUp2': 'Online payments are not set up yet.',
+  'act.onlyTemplateStepCanInclude': 'Only a template step can include another template',
+  'act.onlyPeopleAttendeeListCan': 'Only people on the attendee list can vote in this meeting.',
+  'act.onlySecretaryMeetingCanWrite': 'Only the secretary of this meeting can write its minutes.',
+  'act.paymentNotFound': 'Payment not found',
+  'act.paymentsBeenRecordedAgainstDue': 
+    'Payments have been recorded against this due, so its start date, amount, '
+    + 'frequency, starting age, bloodline setting and who owes it can no longer '
+    + 'change. You can still change the end date.',
+  'act.personNotYourFamily': 'Person is not in your family.',
+  'act.personNotFound': 'Person not found',
+  'act.personNotFound2': 'Person not found.',
+  'act.photoNotFound': 'Photo not found',
+  'act.pickHowOftenYouWant': 
+    'Pick how often you want to pay this due first — automatic payments '
+    + 'follow the cadence you choose.',
+  'act.pickTemplateStepIncludes': 'Pick the template this step includes',
+  'act.profileNotFound': 'Profile not found',
+  'act.profileNotFound2': 'Profile not found.',
+  'act.profilePicturesPartStandardPlan': 'Profile pictures are part of the Standard plan. This family is on Free.',
+  'act.recipientNotFoundFamily': 'Recipient not found in this family',
+  'act.recordCheckNumberReferenceContribution': 'Record a check number or reference for the contribution',
+  'act.recordCheckNumberReferenceDisbursement': 'Record a check number or reference for the disbursement',
+  'act.recordCheckNumberReferencePayment': 'Record a check number or reference for the payment',
+  'act.recordGenderOtherPersonFirst': 
+    'Record a gender for the other person first, so we can name this from '
+    + 'their side too.',
+  'act.recordHowContributionGiven': 'Record how the contribution was given',
+  'act.recordHowPaymentMade': 'Record how the payment was made',
+  'act.recordWhoContributionCameFrom': 'Record who the contribution came from',
+  'act.recordWhyMoneyBeingMoved': 'Record why the money is being moved',
+  'act.recurringPaymentsDuesOnly': 'Recurring payments are for dues only.',
+  'act.regionNotFound': 'Region not found',
+  'act.relationshipNotFound': 'Relationship not found',
+  'act.requiredMustYesNo': 'Required must be yes or no',
+  'act.savedYourFamilyMaySend': 'Saved. Your family may send you check-ins by text.',
+  'act.sayWhatHappeningSoRelatives': 'Say what is happening, so relatives know what they are being asked about',
+  'act.sayWhatNeedsChangeSending': 
+    'Say what needs to change — sending a task back without notes leaves '
+    + 'nothing to act on',
+  'act.sayWhichTimezoneTimeSo': 'Say which timezone the time is in, so relatives elsewhere can read it',
+  'act.sayWhyPersonNoEmail': 'Say why this person has no email address',
+  'act.sayWhyPersonNeedsStaff': 'Say why this person needs staff access. The list is an audit record.',
+  'act.scheduleNotFound': 'Schedule not found',
+  'act.segmentNotFound': 'Segment not found',
+  'act.signAcceptInvitation': 'Sign in to accept this invitation.',
+  'act.someMembersStillBeingCharged': 
+    'Some members are still being charged automatically and we could not stop '
+    + 'it. Nothing has been disconnected — please try again.',
+  'act.somebodyCannotTheirOwnRelative': 'Somebody cannot be their own relative',
+  'act.somebodyYouRemovingAlreadyVoted': 
+    'Somebody you are removing has already voted. A vote cannot be withdrawn, '
+    + 'so they have to stay on the list.',
+  'act.staffMemberNotFound': 'Staff member not found',
+  'act.stepNotFound': 'Step not found',
+  'act.stripeUpdatedButWeCould': 
+    'Stripe was updated but we could not record it. Please contact support '
+    + 'before trying again.',
+  'act.stripeUpdatedButWeCould2': 
+    'Stripe was updated but we could not record the change. Please contact '
+    + 'support before trying again.',
+  'act.taskNotFound': 'Task not found',
+  'act.templateNameRequired': 'Template name is required.',
+  'act.templateNotFound': 'Template not found',
+  'act.templateNotFoundYourFamily': 'Template not found in your family.',
+  'act.templateNotFound2': 'Template not found.',
+  'act.bylawNoFileAttached': 'That bylaw has no file attached.',
+  'act.channelNotAvailableNotificationYet': 'That channel is not available for this notification yet.',
+  'act.checkAlreadyClosed': 'That check-in was already closed',
+  'act.codeNotRight': 'That code is not right.',
+  'act.couldNotPreparedNothingBeen': 'That could not be prepared. Nothing has been sent.',
+  'act.couldNotReadJustNow': 'That could not be read just now.',
+  'act.couldNotRemovedJustNow': 'That could not be removed just now.',
+  'act.couldNotWithdrawnNominationsMay': 
+    'That could not be withdrawn. Nominations may have closed, or the person '
+    + 'may have accepted since this page loaded — an accepted nomination stays '
+    + 'on the ballot, and the way off it is for them to decline.',
+  'act.doesNotLookLikeMobile': 
+    'That does not look like a mobile number. Include the area code — for '
+    + 'example 512-555-0134.',
+  'act.driveNotOneYourFamily': 'That drive is not one of your family’s.',
+  'act.dueDateNotRealDate': 'That due date is not a real date',
+  'act.dueNotOneYours': 'That due is not one of yours.',
+  'act.endDateNotRealDate': 'That end date is not a real date',
+  'act.entryCouldNotChangedOnly': 
+    'That entry could not be changed. Only the person who recorded it can, '
+    + 'and only while they still hold the office.',
+  'act.entryCouldNotRemovedOnly': 
+    'That entry could not be removed. Only the person who recorded it can, '
+    + 'and only while they still hold the office.',
+  'act.entryRefusedJournalOnlyWritable': 
+    'That entry was refused. A journal is only writable by whoever holds the '
+    + 'office — reload the page to see which ones are yours.',
+  'act.familyNameTooLong100': 'That family name is too long (100 characters maximum).',
+  'act.fileCouldNotOpenedMay': 'That file could not be opened. It may have been removed.',
+  'act.invitationAlreadyBeenAccepted': 'That invitation has already been accepted.',
+  'act.invitationNoLongerValidAsk': 'That invitation is no longer valid. Ask for a new one.',
+  'act.invitationCancelledSendNewOne': 'That invitation was cancelled. Send a new one instead.',
+  'act.notChannelWeSend': 'That is not a channel we send on.',
+  'act.notDate': 'That is not a date',
+  'act.notDateSegmentCanHappen': 'That is not a date this segment can happen on',
+  'act.notGatheringStatus': 'That is not a gathering status',
+  'act.notLanguageWeSpeakYet': 'That is not a language we speak yet',
+  'act.notNotificationWeSend': 'That is not a notification we send.',
+  'act.notPlanCanBought': 'That is not a plan that can be bought.',
+  'act.notPlan': 'That is not a plan.',
+  'act.notRelationshipKind': 'That is not a relationship kind',
+  'act.notRelationshipTreeRecords': 'That is not a relationship this tree records',
+  'act.notTimeWeCanRead': 'That is not a time we can read',
+  'act.notTimezoneWeRecognise': 'That is not a timezone we recognise',
+  'act.notVote': 'That is not a vote.',
+  'act.nominationNotBallot': 'That nomination is not on this ballot.',
+  'act.nominationRefusedNominationsMayClosed': 
+    'That nomination was refused — nominations may have closed, or this '
+    + 'election may not be for your part of the family. Reload the page to see '
+    + 'where it stands.',
+  'act.nominationWithdrawnWhileYouLooking': 'That nomination was withdrawn while you were looking at it. Try again.',
+  'act.noteCouldNotChangedOnly': 
+    'That note could not be changed. Only the person who wrote it can, and '
+    + 'only while they still hold the office.',
+  'act.noteCouldNotRemovedOnly': 
+    'That note could not be removed. Only the person who wrote it can, and '
+    + 'only while they still hold the office.',
+  'act.noteRefusedJournalOnlyWritable': 
+    'That note was refused. A journal is only writable by whoever holds the '
+    + 'office — reload the page to see which ones are yours.',
+  'act.numberChangedWhileCodeFlight': 
+    'That number changed while the code was in flight. Send a new code and '
+    + 'try again.',
+  'act.numberAlreadyConfirmed': 'That number is already confirmed',
+  'act.paymentAlreadyBeenReversed': 'That payment has already been reversed.',
+  'act.personAlreadyAccountLinked': 'That person already has an account linked.',
+  'act.personNotFinishedJoiningFamily': 'That person has not finished joining the family yet.',
+  'act.personNotCandidatePosition': 'That person is not a candidate for that position.',
+  'act.personNotPartFamilyElection': 'That person is not in the part of the family this election is for.',
+  'act.personNotFamily': 'That person is not in this family',
+  'act.personNotFamily2': 'That person is not in this family.',
+  'act.personNotPartConnection': 'That person is not part of this connection',
+  'act.personSMembershipNotBeen': 'That person’s membership has not been approved yet',
+  'act.photoMustUnder10Mb': 'That photo must be under 10 MB',
+  'act.positionNotBallot': 'That position is not on this ballot.',
+  'act.relationshipTypeNotSetUp': 'That relationship type is not set up',
+  'act.rowItselfReversal': 'That row is itself a reversal.',
+  'act.secretaryNotFamily': 'That secretary is not in this family',
+  'act.sendCouldNotContinuedJust': 'That send could not be continued just now.',
+  'act.templateNotPartGathering': 'That template is not part of this gathering',
+  'act.templateNotFound3': 'That template was not found',
+  'act.voteAlreadyClosedDeleteTopic': 
+    'That vote has already closed. Delete the topic and ask again if it needs '
+    + 'a second round.',
+  'act.voteClosed': 'That vote has closed.',
+  'act.wouldChangeHowTheyRelated': 'That would change how they are related, not just what it is called',
+  'act.endDateCannotPast': 'The end date cannot be in the past.',
+  'act.endTimeAfterStartTime': 'The end time has to be after the start time',
+  'act.fileMustUnder25Mb': 'The file must be under 25 MB.',
+  'act.gatheringCannotEndBeforeStarts': 'The gathering cannot end before it starts',
+  'act.messageTooLongKeepUnder': 'The message is too long — keep it under 20,000 characters.',
+  'act.paymentsBeenStoppedStripeBut': 
+    'The payments have been stopped at Stripe but we could not update your '
+    + 'record. Please refresh.',
+  'act.restoreReturnedNoResultPlease': 'The restore returned no result. Please try again.',
+  'act.sameDueListedTwice': 'The same due is listed twice.',
+  'act.sendProgressedButCouldNot': 'The send progressed but could not be read.',
+  'act.subjectTooLongKeepUnder': 'The subject is too long — keep it under 200 characters.',
+  'act.templateCopyNotFoundYour': 'The template to copy was not found in your family.',
+  'act.thereNoAutomaticPaymentsSet': 'There are no automatic payments set up for this due.',
+  'act.thereNothingSetUpDue': 'There is nothing to set up on this due.',
+  'act.thereNoPlanWaitingSet': 'There was no plan waiting to be set up.',
+  'act.theyAlreadyAccount': 'They already have an account.',
+  'act.theyAccountManageTheirOwn': 'They have an account and manage their own profile.',
+  'act.accountNoEmailAddressSend': 'This account has no email address to send a code to.',
+  'act.checkBeenClosedSoNo': 'This check-in has been closed, so no more asks will go out',
+  'act.checkBeenClosedIfYou': 
+    'This check-in has been closed. If you still need help, contact your '
+    + 'family directly.',
+  'act.donationReceivedFundsSoIts': 'This donation has received funds, so its start date can no longer change.',
+  'act.electionNotYourPartFamily': 'This election is not for your part of the family.',
+  'act.familyAlreadyPaysMonthlyUse': 
+    'This family already pays monthly. Use Change plan instead of starting a '
+    + 'second subscription.',
+  'act.familyNoMonthlyPlanStop': 'This family has no monthly plan to stop.',
+  'act.familyNoPaymentHistoryYet': 'This family has no payment history yet.',
+  'act.familyNoSettingsRecordChange': 'This family has no settings record to change.',
+  'act.familyNotConnectedAccountYet': 'This family has not connected an account yet.',
+  'act.familyNotConnectedAccount': 'This family has not connected an account.',
+  'act.familyAlreadyRemovedNoSettings': 'This family is already removed, or has no settings record to remove.',
+  'act.familyNotSetUpTake': 'This family is not set up to take card payments yet.',
+  'act.familyPaidPlanChangeFrom': 
+    'This family is on a paid plan. Change it from the Billing section of '
+    + 'Settings, so the payment follows the plan.',
+  'act.familyPaysMonthlyCancelMonthly': 
+    'This family pays monthly. Cancel the monthly plan first, then pay in '
+    + 'advance from the next period.',
+  'act.featureNotCurrentlyAvailable': 'This feature is not currently available.',
+  'act.gatheringBeenCancelledSoIts': 
+    'This gathering has been cancelled, so its tasks are no longer being '
+    + 'collected. Ask an organizer if that is not right.',
+  'act.invitationCreatedBeforeWeStarted': 
+    'This invitation was created before we started recording names. Cancel it '
+    + 'and send a new one instead.',
+  'act.lastOwnerMakeSomebodyElse': 
+    'This is the last owner. Make somebody else an owner first, or nobody '
+    + 'will be able to grant staff access.',
+  'act.meetingClosed': 'This meeting is closed.',
+  'act.meetingClosedReopenChangeMinutes': 'This meeting is closed. Reopen it to change the minutes.',
+  'act.sendNotFinishedStopFirst': 'This send has not finished. Stop it first, then remove it.',
+  'act.taskCannotAnsweredVersion': 'This task cannot be answered in this version',
+  'act.taskAlreadyBeenApprovedApproved': 
+    'This task has already been approved, and an approved answer is final. '
+    + 'Ask an organizer to reopen it if it needs to change.',
+  'act.taskAssignedSomebodyElse': 'This task is assigned to somebody else',
+  'act.titleMessageRequired': 'Title and message are required',
+  'act.tooFewDaysLeftMonth': 
+    'Too few days are left this month to start a monthly plan today. Choose '
+    + 'the option that covers this month and next.',
+  'act.tooManyAttemptsWaitMinute': 'Too many attempts. Wait a minute and try again.',
+  'act.tooManyFamiliesCreatedJust': 'Too many families created just now. Wait a minute and try again.',
+  'act.topicNotFound': 'Topic not found',
+  'act.turnedOffYourFamilyWill': 'Turned off. Your family will not text you.',
+  'act.weCouldNotReadFamily': 'We could not read the family roster just now. Nothing has been sent.',
+  'act.weWillStopAskingYou': 'We will stop asking. You can move to a paid plan whenever you like.',
+  'act.writeSomethingFirst': 'Write something first',
+  'act.writeSomethingFirst2': 'Write something first.',
+  'act.writeSomethingSend': 'Write something to send',
+  'act.youAlreadyAccountAddressSign': 
+    'You already have an account with this address. Sign in and this '
+    + 'invitation will be waiting for you.',
+  'act.youNotMemberFamily': 'You are not a member of that family.',
+  'act.youNotCheck': 'You are not on this check-in',
+  'act.youCannotChangeYourOwn': 'You cannot change your own staff access. Ask another owner to do it.',
+  'act.youDoNotBelongFamily': 'You do not belong to a family yet.',
+  'act.youDoNotPermissionCopy': 
+    'You do not have permission to copy what a template grants. Create a '
+    + 'blank template instead.',
+  'act.youDoNotPermissionManage': 'You do not have permission to manage access.',
+  // ADDED BY HAND. These two live inside a ternary in `requireAccessAdmin`, and the
+  // extractor that swept the other 395 declines an expression that is not a plain literal
+  // or a `+` chain — a conditional message is a judgement about which branch says what,
+  // and guessing at one is how a sweep breaks a sentence.
+  'act.notPermissionDeleteTemplates': 'You do not have permission to delete templates.',
+  'act.notPermissionChangePermissionTemplates':
+    'You do not have permission to change permission templates.',
+  'act.youDoNotPermissionReverse': 'You do not have permission to reverse payments.',
+  'act.youAlreadyNominatedThemPosition': 'You have already nominated them for that position.',
+  'act.youDeclinedDueOptBack': 
+    'You have declined this due. Opt back in before setting up automatic '
+    + 'payments.',
+  'act.youNoMemberRecordFamily': 'You have no member record in this family.',
+  'act.youRepliedStopTextFrom': 
+    'You replied STOP to a text from us, so we cannot switch texts back on '
+    + 'from here. Text START to the number that messaged you.',
+  'act.yourAnswerSavedButTask': 
+    'Your answer was saved but the task could not be moved to review. Try '
+    + 'again.',
+  'act.yourChapterSavedButYour': 
+    'Your chapter was saved, but your children under 18 with no account of '
+    + 'their own could not be moved with you. Ask an administrator to set their '
+    + 'chapter on Members & Access.',
+  'act.yourCurrentRecordAlreadyFamily': 
+    'Your current record already has family connections. Please contact an '
+    + 'admin to merge.',
+  'act.yourEmailAddressAlreadyConfirmed': 'Your email address is already confirmed.',
+  'act.yourMembershipAwaitingApproval': 'Your membership is awaiting approval.',
 }

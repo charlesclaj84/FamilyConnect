@@ -91,8 +91,9 @@ import {
 async function requireTreeEditor() {
   const g = await requireMember()
   if (!g.ok) return g
+  const { t } = g
   if (!(await canAny(g.userId, 'community/family-tree', 'edit'))) {
-    return { ok: false as const, message: 'Not authorized' }
+    return { ok: false as const, message: t('act.notAuthorized') }
   }
   return g
 }
@@ -490,17 +491,18 @@ export type AddRelativeResult =
 export async function addRelative(input: AddRelativeInput): Promise<AddRelativeResult> {
   const g = await requireTreeEditor()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'No family selected' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.noFamilySelected') }
 
   const type = (input.relationshipType ?? '').trim()
   if (!isTreeRelationshipType(type)) {
-    return { success: false, message: 'That is not a relationship this tree records' }
+    return { success: false, message: t('act.notRelationshipTreeRecords') }
   }
 
   // §4: the anchor arrives from the client and is about to be written onto a row whose
   // family_code satisfies every policy. Confirm it into THIS family first.
   if (!(await belongsToFamily('people', input.anchorPersonId, g.familyCode))) {
-    return { success: false, message: 'Person not found' }
+    return { success: false, message: t('act.personNotFound') }
   }
 
   const admin = createAdminClient()
@@ -515,9 +517,9 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
     .from('relationship_types').select('id').eq('name', type).maybeSingle()
   if (typeError) {
     console.error('[family-tree] relationship_types lookup failed for ' + type + ': ' + typeError.message)
-    return { success: false, message: 'Could not read the relationship types' }
+    return { success: false, message: t('act.couldNotReadRelationshipTypes') }
   }
-  if (!typeRow) return { success: false, message: 'That relationship type is not set up' }
+  if (!typeRow) return { success: false, message: t('act.relationshipTypeNotSetUp') }
 
   let personId: string
   let invited = false
@@ -526,21 +528,21 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
 
   if (input.mode === 'existing') {
     const target = (input.existingPersonId ?? '').trim()
-    if (!target) return { success: false, message: 'Choose somebody from your family' }
+    if (!target) return { success: false, message: t('act.chooseSomebodyFromYourFamily') }
     if (target === input.anchorPersonId) {
-      return { success: false, message: 'Somebody cannot be their own relative' }
+      return { success: false, message: t('act.somebodyCannotTheirOwnRelative') }
     }
     // §4 again, on the OTHER id. This is the check `upsertSpouse` and `upsertAncestor`
     // were each missing: without it, one family's member can be linked into another's tree.
     if (!(await belongsToFamily('people', target, g.familyCode))) {
-      return { success: false, message: 'Person not found' }
+      return { success: false, message: t('act.personNotFound') }
     }
     personId = target
   } else {
     const firstName = (input.firstName ?? '').trim()
     const lastName = (input.lastName ?? '').trim()
     if (!firstName || !lastName) {
-      return { success: false, message: 'Enter a first and last name' }
+      return { success: false, message: t('act.enterFirstLastName') }
     }
 
     // Validated rather than trusted, and normalized to null: this is a public endpoint,
@@ -556,7 +558,7 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
       // escape hatch from "every relative gets invited", and an escape hatch with no
       // friction becomes the default route.
       if (!reason) {
-        return { success: false, message: 'Say why this person has no email address' }
+        return { success: false, message: t('act.sayWhyPersonNoEmail') }
       }
       // A CHILD RECORDED HERE OWES A BIRTHDAY — see `dateOfBirth` on the input for the
       // whole argument. Short version: dues start at an age, an unknown age reads as an
@@ -565,7 +567,7 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
       if (relationshipMeta(type)?.relation === 'child' && !dateOfBirth) {
         return {
           success: false,
-          message: 'Add their date of birth. It is what decides when they start owing dues.',
+          message: t('act.addTheirDateBirthWhat'),
         }
       }
       generatedEmail = placeholderEmail(g.familyCode, firstName, lastName, crypto.randomUUID())
@@ -582,7 +584,7 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
       personId = created.id
     } else {
       const email = (input.email ?? '').trim().toLowerCase()
-      if (!email) return { success: false, message: 'Enter an email address' }
+      if (!email) return { success: false, message: t('act.enterEmailAddress') }
 
       const created = await createPerson(g.familyCode, g.userId, {
         first_name: firstName,
@@ -850,11 +852,12 @@ export async function editPersonRecord(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireTreeEditor()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'No family selected' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.noFamilySelected') }
 
   // §4: the id arrives from the client and decides which row is rewritten.
   if (!(await belongsToFamily('people', personId, g.familyCode))) {
-    return { success: false, message: 'Person not found' }
+    return { success: false, message: t('act.personNotFound') }
   }
 
   const admin = createAdminClient()
@@ -870,11 +873,11 @@ export async function editPersonRecord(
   // "nobody owns this row" and letting the write through.
   if (readError) {
     console.error('[family-tree] could not read ' + personId + ': ' + readError.message)
-    return { success: false, message: 'Could not read that record' }
+    return { success: false, message: t('act.couldNotReadRecord') }
   }
-  if (!row) return { success: false, message: 'Person not found' }
+  if (!row) return { success: false, message: t('act.personNotFound') }
   if (row.user_id) {
-    return { success: false, message: 'They have an account and manage their own profile.' }
+    return { success: false, message: t('act.theyAccountManageTheirOwn') }
   }
 
   const patch = pickProfileColumns(fields)
@@ -921,13 +924,14 @@ export async function invitePersonRecord(
 ): Promise<{ success: boolean; message?: string; emailed?: boolean }> {
   const g = await requireTreeEditor()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'No family selected' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.noFamilySelected') }
 
   const address = (email ?? '').trim().toLowerCase()
-  if (!address) return { success: false, message: 'Enter an email address' }
+  if (!address) return { success: false, message: t('act.enterEmailAddress') }
 
   if (!(await belongsToFamily('people', personId, g.familyCode))) {
-    return { success: false, message: 'Person not found' }
+    return { success: false, message: t('act.personNotFound') }
   }
 
   const admin = createAdminClient()
@@ -940,15 +944,15 @@ export async function invitePersonRecord(
 
   if (readError) {
     console.error('[family-tree] could not read ' + personId + ': ' + readError.message)
-    return { success: false, message: 'Could not read that record' }
+    return { success: false, message: t('act.couldNotReadRecord') }
   }
-  if (!row) return { success: false, message: 'Person not found' }
-  if (row.user_id) return { success: false, message: 'They already have an account.' }
+  if (!row) return { success: false, message: t('act.personNotFound') }
+  if (row.user_id) return { success: false, message: t('act.theyAlreadyAccount') }
 
   const firstName = (row.first_name as string | null) ?? ''
   const lastName = (row.last_name as string | null) ?? ''
   if (!firstName.trim() || !lastName.trim()) {
-    return { success: false, message: 'Give them a first and last name before inviting them' }
+    return { success: false, message: t('act.giveThemFirstLastName') }
   }
 
   const sent = await inviteMember(
@@ -996,11 +1000,12 @@ export async function setRelationshipKind(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireTreeEditor()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'No family selected' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.noFamilySelected') }
 
   // Validated here because this is a public endpoint and the CHECK constraint's message
   // is not one to show somebody.
-  if (!isLinkKind(kind)) return { success: false, message: 'That is not a relationship kind' }
+  if (!isLinkKind(kind)) return { success: false, message: t('act.notRelationshipKind') }
 
   const admin = createAdminClient()
   const { data: row, error: readError } = await admin
@@ -1012,10 +1017,10 @@ export async function setRelationshipKind(
   if (readError) {
     console.error('[family-tree] could not read relationship ' + relationshipId
       + ': ' + readError.message)
-    return { success: false, message: 'Could not read that connection' }
+    return { success: false, message: t('act.couldNotReadConnection') }
   }
   if (!row || row.family_code !== g.familyCode) {
-    return { success: false, message: 'Relationship not found' }
+    return { success: false, message: t('act.relationshipNotFound') }
   }
 
   const { error } = await admin
@@ -1081,11 +1086,12 @@ export async function setRelationshipType(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireTreeEditor()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'No family selected' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.noFamilySelected') }
 
   const type = (typeName ?? '').trim()
   if (!isTreeRelationshipType(type)) {
-    return { success: false, message: 'That is not a relationship this tree records' }
+    return { success: false, message: t('act.notRelationshipTreeRecords') }
   }
 
   const admin = createAdminClient()
@@ -1098,16 +1104,16 @@ export async function setRelationshipType(
   if (readError) {
     console.error('[family-tree] could not read relationship ' + relationshipId
       + ': ' + readError.message)
-    return { success: false, message: 'Could not read that connection' }
+    return { success: false, message: t('act.couldNotReadConnection') }
   }
   if (!row || row.family_code !== g.familyCode) {
-    return { success: false, message: 'Relationship not found' }
+    return { success: false, message: t('act.relationshipNotFound') }
   }
 
   const { data: types, error: typesError } = await admin
     .from('relationship_types').select('id, name')
   if (typesError || !types) {
-    return { success: false, message: 'Could not read the relationship types' }
+    return { success: false, message: t('act.couldNotReadRelationshipTypes') }
   }
   const idByName = new Map((types as { id: string; name: string }[]).map(t => [t.name, t.id]))
   const nameById = new Map((types as { id: string; name: string }[]).map(t => [t.id, t.name]))
@@ -1117,7 +1123,7 @@ export async function setRelationshipType(
   const before = relationFor(nameById.get(row.relationship_type_id) ?? '')
   const after = relationFor(type)
   if (!before || !after || before !== after) {
-    return { success: false, message: 'That would change how they are related, not just what it is called' }
+    return { success: false, message: t('act.wouldChangeHowTheyRelated') }
   }
 
   // WHOSE WORD IS IT. `typeName` names `subjectPersonId`; the stored row names
@@ -1135,16 +1141,16 @@ export async function setRelationshipType(
     if (!turned) {
       return {
         success: false,
-        message: 'Record a gender for the other person first, so we can name this from their side too.',
+        message: t('act.recordGenderOtherPersonFirst'),
       }
     }
     storedType = turned
   } else if (subjectPersonId !== row.related_person_id) {
-    return { success: false, message: 'That person is not part of this connection' }
+    return { success: false, message: t('act.personNotPartConnection') }
   }
 
   const targetId = idByName.get(storedType)
-  if (!targetId) return { success: false, message: 'That relationship type is not set up' }
+  if (!targetId) return { success: false, message: t('act.relationshipTypeNotSetUp') }
 
   const { error } = await admin
     .from('person_relationships')
@@ -1217,13 +1223,14 @@ export async function setBloodlineAnchor(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireEdit('admin/settings')
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'No family selected' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.noFamilySelected') }
 
   // §4: the id decides what every member sees on the tree, and the database guard
   // (`families_guard_bloodline_anchor`) is the second layer rather than the only one —
   // it raises, and a raised exception is a worse message than this one.
   if (personId && !(await belongsToFamily('people', personId, g.familyCode))) {
-    return { success: false, message: 'Person not found' }
+    return { success: false, message: t('act.personNotFound') }
   }
 
   const admin = createAdminClient()
@@ -1257,7 +1264,8 @@ export async function removeRelationship(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireTreeEditor()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'No family selected' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.noFamilySelected') }
 
   const admin = createAdminClient()
   const { data: row } = await admin
@@ -1267,7 +1275,7 @@ export async function removeRelationship(
     .maybeSingle()
 
   if (!row || row.family_code !== g.familyCode) {
-    return { success: false, message: 'Relationship not found' }
+    return { success: false, message: t('act.relationshipNotFound') }
   }
 
   // Both directions, because the pair is one fact. Deleting only the stored row would

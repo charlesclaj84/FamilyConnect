@@ -189,21 +189,22 @@ export async function setMyNotificationPref(input: {
 }): Promise<ActionResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode || !g.personId) return { success: false, message: 'Profile not found.' }
+  const { t } = g
+  if (!g.familyCode || !g.personId) return { success: false, message: t('act.profileNotFound2') }
 
   const key = typeof input?.notificationKey === 'string' ? input.notificationKey : ''
   const channel = typeof input?.channel === 'string' ? input.channel : ''
   const optedIn = input?.optedIn === true
 
   if (!NOTIFICATIONS.some(n => n.key === key)) {
-    return { success: false, message: 'That is not a notification we send.' }
+    return { success: false, message: t('act.notNotificationWeSend') }
   }
   if (!(CHANNELS as readonly string[]).includes(channel)) {
-    return { success: false, message: 'That is not a channel we send on.' }
+    return { success: false, message: t('act.notChannelWeSend') }
   }
   const fallback = channelDefault(key, channel as NotificationChannel)
   if (fallback === 'unavailable') {
-    return { success: false, message: 'That channel is not available for this notification yet.' }
+    return { success: false, message: t('act.channelNotAvailableNotificationYet') }
   }
 
   const admin = createAdminClient()
@@ -218,7 +219,7 @@ export async function setMyNotificationPref(input: {
       .eq('family_code', g.familyCode).eq('person_id', g.personId)
     if (readError) {
       console.error(`[notification-prefs] could not read consent for ${g.personId}: ${readError.message}`)
-      return { success: false, message: 'Could not check your text-message consent. Please try again.' }
+      return { success: false, message: t('act.couldNotCheckYourText') }
     }
     const status = consentStatus((events ?? []).map(e => ({
       event: e.event as never,
@@ -229,8 +230,7 @@ export async function setMyNotificationPref(input: {
     if (optedIn && status === 'stopped') {
       return {
         success: false,
-        message: 'You replied STOP to a text from us, so we cannot switch texts back on from '
-          + 'here. Text START to the number that messaged you.',
+        message: t('act.youRepliedStopTextFrom'),
       }
     }
 
@@ -249,7 +249,7 @@ export async function setMyNotificationPref(input: {
       })
       if (error) {
         console.error(`[notification-prefs] could not record consent for ${g.personId}: ${error.message}`)
-        return { success: false, message: 'Could not record your choice. Please try again.' }
+        return { success: false, message: t('act.couldNotRecordYourChoice') }
       }
     }
 
@@ -303,7 +303,7 @@ export async function setMyNotificationPref(input: {
 
   if (error) {
     console.error(`[notification-prefs] could not save ${key}/${channel} for ${g.personId}: ${error.message}`)
-    return { success: false, message: 'Could not save that. Please try again.' }
+    return { success: false, message: t('act.couldNotSavePleaseTry') }
   }
 
   revalidatePath('/personal-info')

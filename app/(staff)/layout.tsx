@@ -99,7 +99,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   // position, so no unused-import lint fired on it. A mutation left in place looks like
   // ordinary code; the only defence is putting it back in the same session it was made.
   const staff = await requireStaff()
-  const { locale } = await callerI18n(null)
+  const { locale } = await callerI18n(staff.userId)
 
   return (
     // `ConfirmProvider` is mounted HERE because this group inherits none of the member

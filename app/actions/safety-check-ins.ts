@@ -790,21 +790,22 @@ export async function raiseCheckIn(input: {
 }): Promise<ActionResult & { checkInId?: string; addressed?: number; unreachable?: number }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   // §2: `canAny`, not `can`. Waking the whole family is family-wide operation with no coherent
   // "own" version, and the row a member would own — a check-in they raised — is the abuse case.
   if (!(await canAny(g.userId, 'community/safety-check-ins', 'create'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   const title = (input?.title ?? '').trim().slice(0, TITLE_LIMIT)
   if (!title) {
-    return { success: false, message: 'Say what is happening, so relatives know what they are being asked about' }
+    return { success: false, message: t('act.sayWhatHappeningSoRelatives') }
   }
   const detail = (input?.detail ?? '').trim().slice(0, DETAIL_LIMIT) || null
 
   const scope = normalizeScope(input?.scope)
-  if (!scope) return { success: false, message: 'Choose who to ask' }
+  if (!scope) return { success: false, message: t('act.chooseWhoAsk') }
 
   const areaId = (input?.areaId ?? '') || null
   let regionId: string | null = null
@@ -814,15 +815,15 @@ export async function raiseCheckIn(input: {
   // raise a check-in in BRAVO naming ALPHA's chapter: the row's own `family_code` is BRAVO's, so
   // every policy is satisfied, and the id it carries points across the boundary.
   if (scope === 'region') {
-    if (!areaId) return { success: false, message: 'Choose a region' }
+    if (!areaId) return { success: false, message: t('act.chooseRegion') }
     if (!(await belongsToFamily('regions', areaId, g.familyCode))) {
-      return { success: false, message: 'Region not found' }
+      return { success: false, message: t('act.regionNotFound') }
     }
     regionId = areaId
   } else if (scope === 'chapter') {
-    if (!areaId) return { success: false, message: 'Choose a chapter' }
+    if (!areaId) return { success: false, message: t('act.chooseChapter') }
     if (!(await belongsToFamily('chapters', areaId, g.familyCode))) {
-      return { success: false, message: 'Chapter not found' }
+      return { success: false, message: t('act.chapterNotFound') }
     }
     chapterId = areaId
   }
@@ -834,7 +835,7 @@ export async function raiseCheckIn(input: {
     // report it as everybody.
     return {
       success: false,
-      message: 'Could not read the family roster just now, so nothing has been sent. Try again.',
+      message: t('act.couldNotReadFamilyRoster'),
     }
   }
 
@@ -847,7 +848,7 @@ export async function raiseCheckIn(input: {
     ? input.personIds.filter((x): x is string => typeof x === 'string' && !!x)
     : []
   if (scope === 'named' && requested.length === 0) {
-    return { success: false, message: 'Choose at least one relative to ask' }
+    return { success: false, message: t('act.chooseLeastOneRelativeAsk') }
   }
 
   const audience: CheckInAudience = {
@@ -862,8 +863,7 @@ export async function raiseCheckIn(input: {
     // most often they picked a region nobody has been filed under.
     return {
       success: false,
-      message: 'Nobody in the family matches that audience, so nothing has been sent. '
-        + 'Check the region or chapter you chose.',
+      message: t('act.nobodyFamilyMatchesAudienceSo'),
     }
   }
 
@@ -901,7 +901,7 @@ export async function raiseCheckIn(input: {
 
   if (createError || !created) {
     console.error(`[safety-check-ins] raise failed in ${g.familyCode}: ${createError?.message}`)
-    return { success: false, message: 'Could not raise the check-in' }
+    return { success: false, message: t('act.couldNotRaiseCheck') }
   }
   const checkInId = (created as { id: string }).id
 
@@ -926,7 +926,7 @@ export async function raiseCheckIn(input: {
     )
     await admin.from('safety_check_ins').delete()
       .eq('id', checkInId).eq('family_code', g.familyCode)
-    return { success: false, message: 'Could not build the roster, so nothing has been sent' }
+    return { success: false, message: t('act.couldNotBuildRosterSo') }
   }
 
   // THE BELL, FOR EVERYBODY ADDRESSED. It reaches only somebody with the app open — which is
@@ -995,10 +995,11 @@ export interface AskBatchResult {
 export async function sendCheckInAsks(checkInId: string): Promise<AskBatchResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   if (!(await canAny(g.userId, 'community/safety-check-ins', 'create'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
-  if (!checkInId) return { success: false, message: 'Check-in not found' }
+  if (!checkInId) return { success: false, message: t('act.checkNotFound') }
 
   const admin = createAdminClient()
 
@@ -1006,7 +1007,7 @@ export async function sendCheckInAsks(checkInId: string): Promise<AskBatchResult
   // subject of anything — and the claim function asserts the same thing again underneath,
   // because §2b rule 3 says to write it as if it were reachable.
   if (!(await belongsToFamily('safety_check_ins', checkInId, g.familyCode))) {
-    return { success: false, message: 'Check-in not found' }
+    return { success: false, message: t('act.checkNotFound') }
   }
 
   const { data: parent, error: parentError } = await admin
@@ -1017,14 +1018,14 @@ export async function sendCheckInAsks(checkInId: string): Promise<AskBatchResult
     .maybeSingle()
   if (parentError || !parent) {
     console.error(`[safety-check-ins] ask read failed for ${checkInId}: ${parentError?.message}`)
-    return { success: false, message: 'Check-in not found' }
+    return { success: false, message: t('act.checkNotFound') }
   }
   const row = parent as {
     id: string; title: string; detail: string | null
     status: string; reply_to: string | null; raised_by: string | null
   }
   if (row.status !== 'open') {
-    return { success: false, message: 'This check-in has been closed, so no more asks will go out' }
+    return { success: false, message: t('act.checkBeenClosedSoNo') }
   }
 
   const { data: claimed, error: claimError } = await admin.rpc('claim_safety_check_in_asks', {
@@ -1034,7 +1035,7 @@ export async function sendCheckInAsks(checkInId: string): Promise<AskBatchResult
   })
   if (claimError) {
     console.error(`[safety-check-ins] claim failed for ${checkInId}: ${claimError.message}`)
-    return { success: false, message: 'Could not claim the next batch' }
+    return { success: false, message: t('act.couldNotClaimNextBatch') }
   }
   const batch = (claimed ?? []) as { id: string; person_id: string; email: string | null }[]
   if (batch.length === 0) return { success: true, attempted: 0, sent: 0, failed: 0, more: false }
@@ -1150,12 +1151,13 @@ async function familyNameOf(familyCode: string): Promise<string> {
 export async function retryCheckInAsks(checkInId: string): Promise<ActionResult & { requeued?: number }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   if (!(await canAny(g.userId, 'community/safety-check-ins', 'create'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
-  if (!checkInId) return { success: false, message: 'Check-in not found' }
+  if (!checkInId) return { success: false, message: t('act.checkNotFound') }
   if (!(await belongsToFamily('safety_check_ins', checkInId, g.familyCode))) {
-    return { success: false, message: 'Check-in not found' }
+    return { success: false, message: t('act.checkNotFound') }
   }
 
   const { data, error } = await createAdminClient()
@@ -1168,7 +1170,7 @@ export async function retryCheckInAsks(checkInId: string): Promise<ActionResult 
 
   if (error) {
     console.error(`[safety-check-ins] requeue failed for ${checkInId}: ${error.message}`)
-    return { success: false, message: 'Could not queue those asks again' }
+    return { success: false, message: t('act.couldNotQueueThoseAsks') }
   }
 
   revalidatePath('/community/safety-check-ins')
@@ -1217,14 +1219,15 @@ export async function answerCheckIn(input: {
 }): Promise<ActionResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   // `getMyPersonId` answers '' for a caller it cannot resolve, and '' is not a uuid — unchecked
   // it reaches the database as `invalid input syntax for type uuid: ""` and surfaces that to a
   // member as the whole of the error message.
-  if (!g.personId) return { success: false, message: 'Profile not found' }
-  if (!input?.checkInId) return { success: false, message: 'Check-in not found' }
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
+  if (!input?.checkInId) return { success: false, message: t('act.checkNotFound') }
 
   if (input.state !== 'safe' && input.state !== 'needs_help') {
-    return { success: false, message: 'Choose whether you are safe' }
+    return { success: false, message: t('act.chooseWhetherYouSafe') }
   }
 
   // CLIPPED, NOT REFUSED. Somebody typing an answer during an emergency must not have it thrown
@@ -1253,10 +1256,10 @@ export async function answerCheckIn(input: {
     console.error(
       `[safety-check-ins] answer read failed for ${input.checkInId}: ${readError.message}`,
     )
-    return { success: false, message: 'Could not record your answer' }
+    return { success: false, message: t('act.couldNotRecordYourAnswer') }
   }
   if (!mine) {
-    return { success: false, message: 'You are not on this check-in' }
+    return { success: false, message: t('act.youNotCheck') }
   }
 
   const { data: parent } = await admin
@@ -1269,7 +1272,7 @@ export async function answerCheckIn(input: {
   if (status !== 'open') {
     return {
       success: false,
-      message: 'This check-in has been closed. If you still need help, contact your family directly.',
+      message: t('act.checkBeenClosedIfYou'),
     }
   }
 
@@ -1291,7 +1294,7 @@ export async function answerCheckIn(input: {
     console.error(
       `[safety-check-ins] answer write failed for ${input.checkInId}: ${writeError.message}`,
     )
-    return { success: false, message: 'Could not record your answer' }
+    return { success: false, message: t('act.couldNotRecordYourAnswer') }
   }
   // §8b. A write that matched nothing is a FAILED write, and reporting success over it would tell
   // somebody their family had been told they are safe when nothing was recorded. There is no
@@ -1299,7 +1302,7 @@ export async function answerCheckIn(input: {
   // means the row moved or vanished between the two statements — rare, and not something to
   // report as done.
   if ((written ?? []).length === 0) {
-    return { success: false, message: 'Could not record your answer — try again' }
+    return { success: false, message: t('act.couldNotRecordYourAnswer2') }
   }
 
   revalidatePath('/community/safety-check-ins')
@@ -1330,12 +1333,13 @@ export async function answerCheckIn(input: {
 export async function closeCheckIn(checkInId: string): Promise<ActionResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   if (!(await canAny(g.userId, 'community/safety-check-ins', 'create'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
-  if (!checkInId) return { success: false, message: 'Check-in not found' }
+  if (!checkInId) return { success: false, message: t('act.checkNotFound') }
   if (!(await belongsToFamily('safety_check_ins', checkInId, g.familyCode))) {
-    return { success: false, message: 'Check-in not found' }
+    return { success: false, message: t('act.checkNotFound') }
   }
 
   const admin = createAdminClient()
@@ -1354,13 +1358,13 @@ export async function closeCheckIn(checkInId: string): Promise<ActionResult> {
 
   if (error) {
     console.error(`[safety-check-ins] close failed for ${checkInId}: ${error.message}`)
-    return { success: false, message: 'Could not close the check-in' }
+    return { success: false, message: t('act.couldNotCloseCheck') }
   }
   // §8b: nothing matched, so nothing was closed. Almost always because it was already closed —
   // two organizers pressing the button — which is worth saying rather than reporting a success
   // that implies this call did it.
   if ((data ?? []).length === 0) {
-    return { success: false, message: 'That check-in was already closed' }
+    return { success: false, message: t('act.checkAlreadyClosed') }
   }
 
   // Queued asks are deliberately left as `pending` rather than swept to `cancelled`. Nothing will
@@ -1369,7 +1373,7 @@ export async function closeCheckIn(checkInId: string): Promise<ActionResult> {
   // the sort of thing somebody reviewing afterwards needs to be able to see.
   revalidatePath('/community/safety-check-ins')
   revalidatePath('/dashboard')
-  return { success: true, message: 'Check-in closed' }
+  return { success: true, message: t('act.checkClosed') }
 }
 
 /**
@@ -1386,12 +1390,13 @@ export async function closeCheckIn(checkInId: string): Promise<ActionResult> {
 export async function deleteCheckIn(checkInId: string): Promise<ActionResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   if (!(await canAny(g.userId, 'community/safety-check-ins', 'delete'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
-  if (!checkInId) return { success: false, message: 'Check-in not found' }
+  if (!checkInId) return { success: false, message: t('act.checkNotFound') }
   if (!(await belongsToFamily('safety_check_ins', checkInId, g.familyCode))) {
-    return { success: false, message: 'Check-in not found' }
+    return { success: false, message: t('act.checkNotFound') }
   }
 
   const { data, error } = await createAdminClient()
@@ -1403,13 +1408,13 @@ export async function deleteCheckIn(checkInId: string): Promise<ActionResult> {
 
   if (error) {
     console.error(`[safety-check-ins] delete failed for ${checkInId}: ${error.message}`)
-    return { success: false, message: 'Could not delete the check-in' }
+    return { success: false, message: t('act.couldNotDeleteCheck') }
   }
   if ((data ?? []).length === 0) {
-    return { success: false, message: 'Check-in not found' }
+    return { success: false, message: t('act.checkNotFound') }
   }
 
   revalidatePath('/community/safety-check-ins')
   revalidatePath('/dashboard')
-  return { success: true, message: 'Check-in deleted' }
+  return { success: true, message: t('act.checkDeleted') }
 }

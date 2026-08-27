@@ -12,6 +12,7 @@ import { resolveFamilyZone } from '@/lib/auth/zone'
 import { todayIn } from '@/lib/tz'
 import { upcomingBirthdays, type UpcomingBirthday } from '@/lib/birthdays'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Family announcements.
@@ -544,8 +545,9 @@ export async function createAnnouncement(
 ): Promise<{ success: boolean; id?: string; message?: string }> {
   const admin = createAdminClient()
   const { user } = await currentUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
-  if (!input.title.trim() || !input.body.trim()) return { success: false, message: 'Title and message are required' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
+  if (!input.title.trim() || !input.body.trim()) return { success: false, message: t('act.titleMessageRequired') }
 
   const familyCode = await getMyFamilyCode(user.id)
   const { data: myPerson } = await admin.from('people').select('id')
@@ -571,7 +573,7 @@ export async function createAnnouncement(
   // addressed to no one — a foreign id filed inside this family's records either way.
   if (scope === 'chapter' && input.chapter_id
       && !(await belongsToFamily('chapters', input.chapter_id, familyCode))) {
-    return { success: false, message: 'Chapter not found' }
+    return { success: false, message: t('act.chapterNotFound') }
   }
 
   // Service-role insert so non-admin members can post (RLS limits inserts to admins).
@@ -600,13 +602,18 @@ export async function deleteAnnouncement(
   // The row is read first, family-scoped, so the ownership decision is made against
   // what the database holds rather than anything the caller sent. An author may
   // delete their own announcement (scope 'own'); deleting someone else's needs 'any'.
+  const { user } = await currentUser()
+  // The translator BEFORE the row read, because the "not found" below runs
+  // before the guard: `requireOwn` needs the row's owner, so the row has to
+  // be read first. `currentUser()` is cached and the guard calls it anyway.
+  const { t } = await callerI18n(user?.id ?? null)
   const { data: row } = await admin
     .from('announcements').select('author_id, family_code').eq('id', id).maybeSingle()
-  if (!row) return { success: false, message: 'Announcement not found' }
+  if (!row) return { success: false, message: t('act.announcementNotFound') }
 
   const g = await requireOwn('community/announcements', 'delete', row.author_id)
   if (!g.ok) return { success: false, message: g.message }
-  if (row.family_code !== g.familyCode) return { success: false, message: 'Announcement not found' }
+  if (row.family_code !== g.familyCode) return { success: false, message: t('act.announcementNotFound') }
 
   const { error } = await admin.from('announcements').delete().eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
@@ -653,9 +660,10 @@ export async function unpinAnnouncementForMe(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'Not a member of this family' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.notMemberFamily') }
   if (!(await belongsToFamily('announcements', announcementId, g.familyCode))) {
-    return { success: false, message: 'Announcement not found' }
+    return { success: false, message: t('act.announcementNotFound') }
   }
 
   const supabase = await createClient()
@@ -666,7 +674,7 @@ export async function unpinAnnouncementForMe(
       { onConflict: 'announcement_id,person_id' },
     )
 
-  if (error) return { success: false, message: 'Could not dismiss that announcement.' }
+  if (error) return { success: false, message: t('act.couldNotDismissAnnouncement') }
   // BOTH SURFACES, and the second line is the fix. This revalidated `/dashboard` alone, so a
   // dismissal made on either screen left the OTHER one showing the announcement still pinned
   // until something else happened to revalidate it. Recent Updates and the board render the
@@ -682,7 +690,8 @@ export async function repinAnnouncementForMe(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'Not a member of this family' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.notMemberFamily') }
 
   // No belongsToFamily here, and it is not an omission: this only ever DELETES a row
   // the policy already restricts to `person_id = auth_person_id()`, so an id from
@@ -695,7 +704,7 @@ export async function repinAnnouncementForMe(
     .eq('announcement_id', announcementId)
     .eq('person_id', g.personId)
 
-  if (error) return { success: false, message: 'Could not pin that announcement.' }
+  if (error) return { success: false, message: t('act.couldNotPinAnnouncement') }
   // Both, for `unpinAnnouncementForMe`'s reason.
   revalidatePath('/dashboard')
   revalidatePath('/community/announcements')

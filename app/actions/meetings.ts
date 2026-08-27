@@ -19,6 +19,7 @@ import {
   type BoardAssignment, type BoardOption, type ChapterOption, type PositionOption,
 } from '@/lib/meeting-boards'
 import { callerI18n } from '@/lib/i18n/server'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Meeting Minutes — `/library/meeting-minutes`.
@@ -322,6 +323,8 @@ export async function mayScheduleMeeting(): Promise<boolean> {
 async function adultCheck(
   personIds: readonly string[],
   familyCode: string,
+  /** The caller's language, for the §8 refusal below. `t` last, per this file's others. */
+  t: T,
 ): Promise<{ ok: true; minorNames: Map<string, string> } | { ok: false; message: string }> {
   if (personIds.length === 0) return { ok: true, minorNames: new Map() }
   const { data, error } = await createAdminClient()
@@ -333,7 +336,7 @@ async function adultCheck(
   // refused read is the failure direction that matters, so a refusal is a refusal.
   if (error) {
     console.error(`[meetings] could not check ages for ${familyCode}: ${error.message}`)
-    return { ok: false, message: 'Could not check who is an adult just now. Nothing was saved.' }
+    return { ok: false, message: t('act.couldNotCheckWhoAdult') }
   }
   // THE FAMILY'S ZONE. "Is this person eighteen?" changes at midnight in SOME zone, and
   // two members must not disagree about whether a relative may take the minutes. The old
@@ -636,14 +639,15 @@ export async function scheduleMeeting(input: {
 }): Promise<{ success: boolean; id?: string; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   if (!(await canAny(g.userId, 'library/meeting-minutes', 'create'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   const title = input.title.trim()
-  if (!title) return { success: false, message: 'Give the meeting a title' }
-  if (!isIsoDate(input.meetsOn)) return { success: false, message: 'Choose a date for the meeting' }
-  if (!input.secretaryId) return { success: false, message: 'Choose who is taking the minutes' }
+  if (!title) return { success: false, message: t('act.giveMeetingTitle') }
+  if (!isIsoDate(input.meetsOn)) return { success: false, message: t('act.chooseDateMeeting') }
+  if (!input.secretaryId) return { success: false, message: t('act.chooseWhoTakingMinutes') }
 
   // ── THE TIMES, AND THE ZONE THEY ARE STATED IN ────────────────────────────────────
   // Three CHECK constraints on `meeting_sessions` say the same three things
@@ -653,18 +657,18 @@ export async function scheduleMeeting(input: {
   const startTime = normaliseTime(input.startTime)
   const endTime = normaliseTime(input.endTime)
   if (input.startTime && !startTime) {
-    return { success: false, message: 'That is not a time we can read' }
+    return { success: false, message: t('act.notTimeWeCanRead') }
   }
   if (input.endTime && !endTime) {
-    return { success: false, message: 'That is not a time we can read' }
+    return { success: false, message: t('act.notTimeWeCanRead') }
   }
   if (endTime && !startTime) {
-    return { success: false, message: 'Give a start time as well, or leave the end time empty' }
+    return { success: false, message: t('act.giveStartTimeWellLeave') }
   }
   // ONE DAY, so no cross-day exemption — unlike a gathering, which may legitimately run
   // overnight. `meets_on` is a single date and an end before its start is always a mistake.
   if (startTime && endTime && endTime <= startTime) {
-    return { success: false, message: 'The end time has to be after the start time' }
+    return { success: false, message: t('act.endTimeAfterStartTime') }
   }
   // A time REQUIRES a zone; a zone with no time is dropped rather than refused, matching the
   // one-directional constraint. See 20260826000003's header for why that asymmetry is right.
@@ -672,15 +676,15 @@ export async function scheduleMeeting(input: {
   if (startTime && !timeZone) {
     return {
       success: false,
-      message: 'Say which timezone the time is in, so relatives elsewhere can read it',
+      message: t('act.sayWhichTimezoneTimeSo'),
     }
   }
   if (timeZone && !isValidZone(timeZone)) {
-    return { success: false, message: 'That is not a timezone we recognise' }
+    return { success: false, message: t('act.notTimezoneWeRecognise') }
   }
 
   if (!(await belongsToFamily('people', input.secretaryId, g.familyCode))) {
-    return { success: false, message: 'That secretary is not in this family' }
+    return { success: false, message: t('act.secretaryNotFamily') }
   }
 
   // ── THE TWO AGE CHECKS, IN ONE READ, BEFORE ANYTHING IS WRITTEN ───────────────────
@@ -688,7 +692,7 @@ export async function scheduleMeeting(input: {
   // list of nine leaves the organizer to work out which — and the two rules have different
   // remedies: a different secretary, or a name taken off the list.
   const additionalIds = [...new Set((input.additionalIds ?? []).filter(Boolean))]
-  const ages = await adultCheck([input.secretaryId, ...additionalIds], g.familyCode)
+  const ages = await adultCheck([input.secretaryId, ...additionalIds], g.familyCode, t)
   if (!ages.ok) return { success: false, message: ages.message }
 
   const minorSecretary = ages.minorNames.get(input.secretaryId)
@@ -736,7 +740,7 @@ export async function scheduleMeeting(input: {
     .filter(Boolean)
   for (const personId of attendeeIds) {
     if (!(await belongsToFamily('people', personId, g.familyCode))) {
-      return { success: false, message: 'One of those attendees is not in this family' }
+      return { success: false, message: t('act.oneThoseAttendeesNotFamily') }
     }
   }
 
@@ -814,6 +818,7 @@ export async function scheduleMeeting(input: {
 async function loadSession(sessionId: string) {
   const g = await requireMember()
   if (!g.ok) return { ok: false as const, message: g.message }
+  const { t } = g
 
   const admin = createAdminClient()
   const { data } = await admin
@@ -823,7 +828,7 @@ async function loadSession(sessionId: string) {
     .eq('family_code', g.familyCode)
     .maybeSingle()
   const found = row(data)
-  if (!found) return { ok: false as const, message: 'Meeting not found' }
+  if (!found) return { ok: false as const, message: t('act.meetingNotFound') }
 
   return {
     ok: true as const,
@@ -841,18 +846,19 @@ export async function updateMeeting(
 ): Promise<{ success: boolean; message?: string }> {
   const s = await loadSession(id)
   if (!s.ok) return { success: false, message: s.message }
+  const { t } = s.g
 
   const mayManage = await canAny(s.g.userId, 'library/meeting-minutes', 'edit')
-  if (!mayManage && !s.isSecretary) return { success: false, message: 'Not authorized' }
+  if (!mayManage && !s.isSecretary) return { success: false, message: t('act.notAuthorized') }
 
   const patch: Record<string, string> = {}
   if (input.title !== undefined) {
     const title = input.title.trim()
-    if (!title) return { success: false, message: 'Give the meeting a title' }
+    if (!title) return { success: false, message: t('act.giveMeetingTitle') }
     patch.title = title
   }
   if (input.meetsOn !== undefined) {
-    if (!isIsoDate(input.meetsOn)) return { success: false, message: 'That is not a date' }
+    if (!isIsoDate(input.meetsOn)) return { success: false, message: t('act.notDate') }
     patch.meets_on = input.meetsOn
   }
   if (Object.keys(patch).length === 0) return { success: true }
@@ -881,9 +887,10 @@ export async function setMeetingClosed(
 ): Promise<{ success: boolean; message?: string }> {
   const s = await loadSession(id)
   if (!s.ok) return { success: false, message: s.message }
+  const { t } = s.g
 
   const mayManage = await canAny(s.g.userId, 'library/meeting-minutes', 'edit')
-  if (!mayManage && !s.isSecretary) return { success: false, message: 'Not authorized' }
+  if (!mayManage && !s.isSecretary) return { success: false, message: t('act.notAuthorized') }
 
   const { error } = await s.admin
     .from('meeting_sessions')
@@ -898,8 +905,9 @@ export async function setMeetingClosed(
 export async function deleteMeeting(id: string): Promise<{ success: boolean; message?: string }> {
   const s = await loadSession(id)
   if (!s.ok) return { success: false, message: s.message }
+  const { t } = s.g
   if (!(await canAny(s.g.userId, 'library/meeting-minutes', 'delete'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   const { error } = await s.admin
@@ -932,17 +940,18 @@ export async function setMeetingAttendees(
 ): Promise<{ success: boolean; message?: string }> {
   const s = await loadSession(id)
   if (!s.ok) return { success: false, message: s.message }
+  const { t } = s.g
 
   const mayManage = await canAny(s.g.userId, 'library/meeting-minutes', 'edit')
-  if (!mayManage && !s.isSecretary) return { success: false, message: 'Not authorized' }
-  if (!s.isOpen) return { success: false, message: 'This meeting is closed.' }
+  if (!mayManage && !s.isSecretary) return { success: false, message: t('act.notAuthorized') }
+  if (!s.isOpen) return { success: false, message: t('act.meetingClosed') }
 
   const wanted = [...new Set(
     [...personIds, s.row.secretary_id as string | null].filter(Boolean) as string[],
   )]
   for (const personId of wanted) {
     if (!(await belongsToFamily('people', personId, s.g.familyCode))) {
-      return { success: false, message: 'One of those people is not in this family' }
+      return { success: false, message: t('act.oneThosePeopleNotFamily') }
     }
   }
 
@@ -960,8 +969,7 @@ export async function setMeetingAttendees(
   if (removingAVoter) {
     return {
       success: false,
-      message: 'Somebody you are removing has already voted. A vote cannot be withdrawn, so '
-        + 'they have to stay on the list.',
+      message: t('act.somebodyYouRemovingAlreadyVoted'),
     }
   }
 
@@ -988,11 +996,12 @@ export async function setMeetingAttendees(
 async function requireSecretaryOfOpenMeeting(sessionId: string) {
   const s = await loadSession(sessionId)
   if (!s.ok) return s
+  const { t } = s.g
   if (!s.isSecretary) {
-    return { ok: false as const, message: 'Only the secretary of this meeting can write its minutes.' }
+    return { ok: false as const, message: t('act.onlySecretaryMeetingCanWrite') }
   }
   if (!s.isOpen) {
-    return { ok: false as const, message: 'This meeting is closed. Reopen it to change the minutes.' }
+    return { ok: false as const, message: t('act.meetingClosedReopenChangeMinutes') }
   }
   return s
 }
@@ -1003,9 +1012,10 @@ export async function addMeetingTopic(
 ): Promise<{ success: boolean; id?: string; message?: string }> {
   const s = await requireSecretaryOfOpenMeeting(sessionId)
   if (!s.ok) return { success: false, message: s.message }
+  const { t } = s.g
 
   const trimmed = title.trim()
-  if (!trimmed) return { success: false, message: 'Give the topic a title' }
+  if (!trimmed) return { success: false, message: t('act.giveTopicTitle') }
 
   // NEXT IN THE ROOM'S OWN ORDER. Read family-scoped and per session, so two meetings cannot
   // interleave — the same reason `createCustomRole`'s unscoped `MAX(sort_order)` was a bug.
@@ -1042,6 +1052,7 @@ export async function addMeetingTopic(
 async function loadTopic(topicId: string) {
   const g = await requireMember()
   if (!g.ok) return { ok: false as const, message: g.message }
+  const { t } = g
 
   const admin = createAdminClient()
   const { data } = await admin
@@ -1051,7 +1062,7 @@ async function loadTopic(topicId: string) {
     .eq('family_code', g.familyCode)
     .maybeSingle()
   const topic = row(data)
-  if (!topic) return { ok: false as const, message: 'Topic not found' }
+  if (!topic) return { ok: false as const, message: t('act.topicNotFound') }
 
   return { ok: true as const, topic, sessionId: topic.session_id as string }
 }
@@ -1060,20 +1071,21 @@ export async function updateMeetingTopic(
   topicId: string,
   title: string,
 ): Promise<{ success: boolean; message?: string }> {
-  const t = await loadTopic(topicId)
-  if (!t.ok) return { success: false, message: t.message }
-  const s = await requireSecretaryOfOpenMeeting(t.sessionId)
+  const topic = await loadTopic(topicId)
+  if (!topic.ok) return { success: false, message: topic.message }
+  const s = await requireSecretaryOfOpenMeeting(topic.sessionId)
   if (!s.ok) return { success: false, message: s.message }
+  const { t } = s.g
 
   const trimmed = title.trim()
-  if (!trimmed) return { success: false, message: 'Give the topic a title' }
+  if (!trimmed) return { success: false, message: t('act.giveTopicTitle') }
 
   const { error } = await s.admin
     .from('meeting_topics').update({ title: trimmed })
     .eq('id', topicId).eq('family_code', s.g.familyCode)
   if (error) return { success: false, message: error.message }
 
-  revalidatePath(`/library/meeting-minutes/${t.sessionId}`)
+  revalidatePath(`/library/meeting-minutes/${topic.sessionId}`)
   return { success: true }
 }
 
@@ -1088,16 +1100,16 @@ export async function updateMeetingTopic(
 export async function deleteMeetingTopic(
   topicId: string,
 ): Promise<{ success: boolean; message?: string }> {
-  const t = await loadTopic(topicId)
-  if (!t.ok) return { success: false, message: t.message }
-  const s = await requireSecretaryOfOpenMeeting(t.sessionId)
+  const topic = await loadTopic(topicId)
+  if (!topic.ok) return { success: false, message: topic.message }
+  const s = await requireSecretaryOfOpenMeeting(topic.sessionId)
   if (!s.ok) return { success: false, message: s.message }
 
   const { error } = await s.admin
     .from('meeting_topics').delete().eq('id', topicId).eq('family_code', s.g.familyCode)
   if (error) return { success: false, message: error.message }
 
-  revalidatePath(`/library/meeting-minutes/${t.sessionId}`)
+  revalidatePath(`/library/meeting-minutes/${topic.sessionId}`)
   return { success: true }
 }
 
@@ -1105,13 +1117,14 @@ export async function addMeetingNote(
   topicId: string,
   body: string,
 ): Promise<{ success: boolean; message?: string }> {
-  const t = await loadTopic(topicId)
-  if (!t.ok) return { success: false, message: t.message }
-  const s = await requireSecretaryOfOpenMeeting(t.sessionId)
+  const topic = await loadTopic(topicId)
+  if (!topic.ok) return { success: false, message: topic.message }
+  const s = await requireSecretaryOfOpenMeeting(topic.sessionId)
   if (!s.ok) return { success: false, message: s.message }
+  const { t } = s.g
 
   const trimmed = body.trim()
-  if (!trimmed) return { success: false, message: 'Write something first' }
+  if (!trimmed) return { success: false, message: t('act.writeSomethingFirst') }
 
   const { error } = await s.admin.from('meeting_topic_notes').insert({
     family_code: s.g.familyCode,
@@ -1124,7 +1137,7 @@ export async function addMeetingNote(
   })
   if (error) return { success: false, message: error.message }
 
-  revalidatePath(`/library/meeting-minutes/${t.sessionId}`)
+  revalidatePath(`/library/meeting-minutes/${topic.sessionId}`)
   return { success: true }
 }
 
@@ -1134,6 +1147,7 @@ export async function updateMeetingNote(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const admin = createAdminClient()
   const { data: noteRow } = await admin
@@ -1142,14 +1156,14 @@ export async function updateMeetingNote(
     .eq('id', noteId).eq('family_code', g.familyCode)
     .maybeSingle()
   const note = row(noteRow)
-  if (!note) return { success: false, message: 'Note not found' }
+  if (!note) return { success: false, message: t('act.noteNotFound') }
 
   const sessionId = (note.meeting_topics as { session_id: string }).session_id
   const s = await requireSecretaryOfOpenMeeting(sessionId)
   if (!s.ok) return { success: false, message: s.message }
 
   const trimmed = body.trim()
-  if (!trimmed) return { success: false, message: 'Write something first' }
+  if (!trimmed) return { success: false, message: t('act.writeSomethingFirst') }
 
   const { error } = await s.admin
     .from('meeting_topic_notes').update({ body: trimmed })
@@ -1165,6 +1179,7 @@ export async function deleteMeetingNote(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const admin = createAdminClient()
   const { data: noteRow } = await admin
@@ -1173,7 +1188,7 @@ export async function deleteMeetingNote(
     .eq('id', noteId).eq('family_code', g.familyCode)
     .maybeSingle()
   const note = row(noteRow)
-  if (!note) return { success: false, message: 'Note not found' }
+  if (!note) return { success: false, message: t('act.noteNotFound') }
 
   const sessionId = (note.meeting_topics as { session_id: string }).session_id
   const s = await requireSecretaryOfOpenMeeting(sessionId)
@@ -1206,24 +1221,25 @@ export async function setTopicVoting(
   topicId: string,
   open: boolean,
 ): Promise<{ success: boolean; message?: string }> {
-  const t = await loadTopic(topicId)
-  if (!t.ok) return { success: false, message: t.message }
-  const s = await requireSecretaryOfOpenMeeting(t.sessionId)
+  const topic = await loadTopic(topicId)
+  if (!topic.ok) return { success: false, message: topic.message }
+  const s = await requireSecretaryOfOpenMeeting(topic.sessionId)
   if (!s.ok) return { success: false, message: s.message }
+  const { t } = s.g
 
-  const openedAt = t.topic.voting_opened_at as string | null
-  const closedAt = t.topic.voting_closed_at as string | null
+  const openedAt = topic.topic.voting_opened_at as string | null
+  const closedAt = topic.topic.voting_closed_at as string | null
 
   if (open) {
     if (closedAt) {
       return {
         success: false,
-        message: 'That vote has already closed. Delete the topic and ask again if it needs a second round.',
+        message: t('act.voteAlreadyClosedDeleteTopic'),
       }
     }
     if (openedAt) return { success: true }
   } else if (!openedAt) {
-    return { success: false, message: 'No vote has been called on that topic.' }
+    return { success: false, message: t('act.noVoteBeenCalledTopic') }
   } else if (closedAt) {
     return { success: true }
   }
@@ -1236,7 +1252,7 @@ export async function setTopicVoting(
     .from('meeting_topics').update(patch).eq('id', topicId).eq('family_code', s.g.familyCode)
   if (error) return { success: false, message: error.message }
 
-  revalidatePath(`/library/meeting-minutes/${t.sessionId}`)
+  revalidatePath(`/library/meeting-minutes/${topic.sessionId}`)
   return { success: true }
 }
 
@@ -1261,32 +1277,33 @@ export async function castMeetingVote(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'You have no member record in this family.' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.youNoMemberRecordFamily') }
   if (!(CHOICES as readonly string[]).includes(choice)) {
-    return { success: false, message: 'That is not a vote.' }
+    return { success: false, message: t('act.notVote') }
   }
 
-  const t = await loadTopic(topicId)
-  if (!t.ok) return { success: false, message: t.message }
+  const topic = await loadTopic(topicId)
+  if (!topic.ok) return { success: false, message: topic.message }
 
-  const s = await loadSession(t.sessionId)
+  const s = await loadSession(topic.sessionId)
   if (!s.ok) return { success: false, message: s.message }
-  if (!s.isOpen) return { success: false, message: 'This meeting is closed.' }
+  if (!s.isOpen) return { success: false, message: t('act.meetingClosed') }
 
-  if (!t.topic.voting_opened_at) {
-    return { success: false, message: 'No vote has been called on this topic yet.' }
+  if (!topic.topic.voting_opened_at) {
+    return { success: false, message: t('act.noVoteBeenCalledTopic2') }
   }
-  if (t.topic.voting_closed_at) {
-    return { success: false, message: 'That vote has closed.' }
+  if (topic.topic.voting_closed_at) {
+    return { success: false, message: t('act.voteClosed') }
   }
 
   const { data: attendingRow } = await s.admin
     .from('meeting_attendees')
     .select('person_id')
-    .eq('session_id', t.sessionId).eq('person_id', g.personId).eq('family_code', g.familyCode)
+    .eq('session_id', topic.sessionId).eq('person_id', g.personId).eq('family_code', g.familyCode)
     .maybeSingle()
   if (!row(attendingRow)) {
-    return { success: false, message: 'Only people on the attendee list can vote in this meeting.' }
+    return { success: false, message: t('act.onlyPeopleAttendeeListCan') }
   }
 
   const { error } = await s.admin.from('meeting_votes').insert({
@@ -1304,6 +1321,6 @@ export async function castMeetingVote(
     }
   }
 
-  revalidatePath(`/library/meeting-minutes/${t.sessionId}`)
+  revalidatePath(`/library/meeting-minutes/${topic.sessionId}`)
   return { success: true }
 }
