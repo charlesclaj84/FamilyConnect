@@ -10,20 +10,32 @@ import { FamilySizeSlider, type SizedPlan } from '@/components/marketing/FamilyS
 import { PageHero, SectionHeading, MoreLink } from '@/components/marketing/sections'
 import { CtaBand } from '@/components/marketing/CtaBand'
 import { marketingPageGraph } from '@/lib/structured-data'
+import { localizedHref } from '@/lib/i18n/route-locale'
+import { marketingAlternates, marketingI18n } from '@/lib/marketing/locale'
+// The shell catalogue, for the tier taglines only. `/features` carries the full note.
+import { tFor } from '@/lib/i18n/catalogues'
+import { type T } from '@/lib/i18n/t'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
-import { TIER_PRICE, formatPlanPrice, type TierPrice } from '@/lib/plans'
-import { TIERS, TIER_LABEL } from '@/lib/tiers'
-import { APP_NAME } from '@/lib/brand'
+import { TIER_PRICE, formatPlanPrice } from '@/lib/plans'
+import { TIERS, TIER_LABEL, tierTagline, type FamilyTier } from '@/lib/tiers'
 import { MetaViewContent } from '@/components/meta/MetaViewContent'
 
-const PAGE_TITLE = 'Pricing — Free to Start, No Card Required'
-const PAGE_DESCRIPTION =
-  `Create your family, invite your relatives and run your first reunion on ${APP_NAME} for free. No credit card, no trial clock, no per-member fee.`
-
-export const metadata: Metadata = {
-  title: PAGE_TITLE,
-  description: PAGE_DESCRIPTION,
-  alternates: { canonical: '/pricing' },
+/**
+ * ── `generateMetadata`, AND THE PRICE FAQ IS BUILT FROM `t` TOO ─────────────────────
+ * Per-language title, description and `hreflang` set, for the reason /how-it-works records at
+ * length. The interesting half on this page is the `FAQPage` node: it quotes real figures, and
+ * an English answer under a Spanish card would be the mismatch this file is most careful about.
+ * So `faq(t)` builds it, and `paidPlanPriceAnswer(t)` still DERIVES its sentences from
+ * `TIER_PRICE` rather than having them typed — that argument is unchanged and is the reason the
+ * saving clause vanished on its own when the annual rate did.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const { t, locale } = await marketingI18n()
+  return {
+    title: t('mkt.price.metaTitle'),
+    description: t('mkt.price.metaDescription'),
+    alternates: marketingAlternates('/pricing', locale),
+  }
 }
 
 /**
@@ -159,7 +171,7 @@ type Plan = MarketingPlan
  * holds and is worth restating for whoever reinstates an annual price: no sentence about a
  * number is typed beside the number.
  */
-function planPrice(tier: 'standard' | 'plus' | 'premium'): Plan['price'] {
+function planPrice(tier: 'standard' | 'plus' | 'premium', t: T, intl: string): Plan['price'] {
   // THE FLAG IS READ HERE NOW, and this is the only place it is read — it used to be
   // tested at the render site, in a `priced` expression beside each card. Moving it
   // into the derivation is what survived the ladder becoming a component: a client
@@ -170,12 +182,14 @@ function planPrice(tier: 'standard' | 'plus' | 'premium'): Plan['price'] {
   if (!PRICING_IS_ANNOUNCED) return null
   const price = TIER_PRICE[tier]
   if (!price) return null
-  return { amount: formatPlanPrice(price.monthlyCents), period: '/month' }
+  return { amount: formatPlanPrice(price.monthlyCents, intl), period: t('mkt.price.perMonth') }
 }
 
-const STANDARD_PRICE: Plan['price'] = planPrice('standard')
-const PLUS_PRICE: Plan['price'] = planPrice('plus')
-const PREMIUM_PRICE: Plan['price'] = planPrice('premium')
+// ── THE THREE HOISTED PRICE CONSTANTS ARE GONE ─────────────────────────────────────
+// They existed because `PLANS[]` was a module-level literal and each card needed a figure in
+// it. The cards carry a `tier` now and `plans()` calls `planPrice(tier)` per card, so three
+// constants that each wrapped one call have nothing left to save. `planPrice` above is where
+// the derivation lives and is unchanged.
 
 /**
  * The price FAQ's answer, built from the same figures the cards render.
@@ -189,7 +203,7 @@ const PREMIUM_PRICE: Plan['price'] = planPrice('premium')
  * answer that quoted two of three prices and read as complete — which is the same class of
  * failure as a hand-copied figure, arriving through a hand-copied LIST instead.
  */
-function paidPlanPriceAnswer(): string {
+function paidPlanPriceAnswer(t: T, intl: string): string {
   // Every tier that HAS a price, in plan order, derived from `TIERS` so a tier added in the
   // middle is quoted here without an edit. Free drops out by having no price rather than by
   // being named — see `TIER_PRICE`, where `null` means "no price" and not "a price of zero".
@@ -198,12 +212,18 @@ function paidPlanPriceAnswer(): string {
     return price ? [{ tier, price }] : []
   })
 
-  if (paid.length === 0) {
-    return 'None has been announced yet. Create a free account and you will hear first.'
-  }
+  if (paid.length === 0) return t('mkt.price.noneAnnounced')
 
-  const rate = (p: TierPrice) => `${formatPlanPrice(p.monthlyCents)} a month`
-  const sentences = paid.map(({ tier, price }) => `${TIER_LABEL[tier]} is ${rate(price)}.`)
+  // ── THE SENTENCE PATTERN IS A KEY, NOT A TEMPLATE ────────────────────────────────
+  // `${TIER_LABEL[tier]} is ${amount} a month.` is English word order with an English
+  // preposition, and neither survives: Spanish wants *El plan Plus cuesta 5 $ al mes.* and
+  // French *Le forfait Plus coûte 5 $ par mois.* So the whole sentence is one entry with two
+  // placeholders, and the FIGURE still comes from `formatPlanPrice` — the derivation this
+  // function exists for is untouched.
+  const sentences = paid.map(({ tier, price }) => t('mkt.price.rateSentence', {
+    tier: TIER_LABEL[tier],
+    amount: formatPlanPrice(price.monthlyCents, intl),
+  }))
 
 
   // ── ONE RATE, SO THERE IS NO SAVING SENTENCE ANY MORE ──────────────────────────────
@@ -213,10 +233,7 @@ function paidPlanPriceAnswer(): string {
   // derive from and is gone rather than commented out. The `month to month` phrase below is
   // what replaces it, and it is doing a job: a single figure with no period stated invites the
   // reader to assume a contract, which is the opposite of what is on offer.
-  return `${sentences.join(' ')} No annual plan and no contract — month to month, for the ` +
-    'whole family however big it is. ' +
-    'None of them is on sale yet — there is no billing in the product, so every paid card says ' +
-    'Coming soon. Create a free account and you will hear when they open.'
+  return `${sentences.join(' ')} ${t('mkt.price.rateFooter')}`
 }
 
 /**
@@ -258,77 +275,65 @@ function paidPlanPriceAnswer(): string {
  * been misled, and that is a refund and a review. Naming the limit on the card that has it is
  * also what makes the tier above obviously worth paying for.
  */
-const PLANS: readonly Plan[] = [
+/**
+ * ── WHAT A CARD STILL STATES, AND WHAT IT READS ────────────────────────────────────
+ * `name`, `tagline` and `price` all LEFT this table when the public site learned Spanish and
+ * French, and only the middle one was about language:
+ *
+ *   `tier`         replaces `name`. The label is `TIER_LABEL[tier]` and always was — the four
+ *                  strings here were a hand-typed copy of it, and `PlanLadder`'s own
+ *                  `planSignupHref` joins the two on that equality.
+ *   `tagline`      is `tierTagline(shellT, tier)`. The four sentences here were VERBATIM copies
+ *                  of `TIER_TAGLINE`, which `lib/tiers.ts` exists to prevent — so the drift that
+ *                  file guards against had already happened, silently, in this array.
+ *   `price`        is `planPrice(tier)`, which this file already had and called four times to
+ *                  build three constants and one literal.
+ *
+ * So the card now carries only what is genuinely ITS decision: which tier, which glyph, which
+ * accent, whether it is featured, and the ORDERED list of claim ids. That ranking is the thing
+ * the long note above is about and is the one part no derivation can supply.
+ */
+const PLAN_SHAPES: readonly {
+  tier: FamilyTier
+  inheritsFrom: string | null
+  icon: MarketingPlan['icon']
+  accent: MarketingPlan['accent']
+  /** The claim ids this tier adds, RANKED. See the note above — this order is a decision. */
+  adds: readonly string[]
+  available: boolean
+  featured: boolean
+}[] = [
   {
-    name: 'Free',
-    tagline: 'Get your whole family in one place. All of them.',
-    price: { amount: '$0', period: 'forever' },
+    tier: 'free',
     inheritsFrom: null,
     icon: 'check',
     accent: 'affirm',
     adds: [
-      {
-        claim: 'free/every-relative-free',
-        label: 'Every single relative, at no charge',
-        detail: 'Unlimited members. No per-person fee, so nobody gets left out to keep a bill down.',
-      },
-      {
-        // "DIRECT LINEAGE" WAS HERE UNTIL 2026-08-19, THEN THE FAMILY TREE FOR ONE DAY, and now
+      'free/every-relative-free',
+              // "DIRECT LINEAGE" WAS HERE UNTIL 2026-08-19, THEN THE FAMILY TREE FOR ONE DAY, and now
         // neither: the tree moved to Standard when that plan was inserted. What Free keeps is
         // the DIRECTORY, and splitting them apart was the point — "never lose track of who is
         // who" was doing two jobs at once, and they are two different questions. Who is in this
         // family and how do I reach them is the directory; how are we related is the tree.
-        claim: 'free/directory',
-        label: 'Everybody in one place, and reachable',
-        detail: 'A directory you can search, with the contact details you actually need.',
-      },
-      {
-        claim: 'free/shared-calendar',
-        label: 'Put the reunion on a shared calendar',
-        detail: 'The date, the place and the details, on one page the whole family can see.',
-      },
-      {
-        claim: 'free/announcements',
-        label: 'News that reaches the whole family',
-        detail: 'Announcements pinned to everyone’s dashboard instead of buried in a group text.',
-      },
-      {
-        claim: 'free/chat',
-        label: 'Keep talking between gatherings',
-        detail: 'Family-wide chat and private messages.',
-      },
+      'free/directory',
+      'free/shared-calendar',
+      'free/announcements',
+      'free/chat',
       // ── THREE ADDED 2026-08-22 ────────────────────────────────────────────────────
       // `npm run marketing:check` found eleven live screens named nowhere on the feature
       // catalogue, and three of them were FREE — so this card was underselling the tier that
       // has to do the persuading. It cannot check this list (a bullet is prose about a
       // benefit and corresponds to no route; see the note above `PLANS[]`), which is exactly
       // why the omission survived here after the catalogue was fixed.
-      {
-        claim: 'free/one-account-many-families',
-        label: 'One account, however many families',
-        detail:
-          'Married into a second family, or keeping both your parents’ sides? Switch between them without a second login — everything on screen changes at once.',
-      },
-      {
-        claim: 'free/nothing-scrolls-away',
-        label: 'Nothing is lost when it scrolls away',
-        detail:
-          'Every announcement, and everything sent to you, searchable long after it left the dashboard.',
-      },
-      {
-        claim: 'free/manual',
-        label: 'A manual your relatives will actually use',
-        detail:
-          'Every screen explained by name, with a question mark in the corner that opens the page for wherever they are standing.',
-      },
+      'free/one-account-many-families',
+      'free/nothing-scrolls-away',
+      'free/manual',
     ],
     available: true,
     featured: false,
   },
   {
-    name: 'Standard',
-    tagline: 'Run the family: the tree, the money and who is doing what.',
-    price: STANDARD_PRICE,
+    tier: 'standard',
     inheritsFrom: 'Free',
     icon: 'sparkles',
     accent: 'primary',
@@ -344,36 +349,12 @@ const PLANS: readonly Plan[] = [
     // project. The tree is second because it is what people come to a family product FOR, and
     // the duties are third because they are the part nobody knew they wanted.
     adds: [
-      {
-        claim: 'standard/ledger',
-        label: 'A real ledger for the money you collect',
-        detail: 'Dues plans, a contribution ledger and funds — recorded instead of remembered. Cash on this plan.',
-      },
-      {
-        claim: 'standard/family-tree',
-        label: 'The family tree, traced back',
-        detail: 'How everyone is related, generation by generation, with blood and marriage told apart.',
-      },
-      {
-        claim: 'standard/duties',
-        label: 'Everybody knows their duties',
-        detail: 'A gathering built from a checklist, every step handed to a named relative, and a ruling on what comes back.',
-      },
-      {
-        claim: 'standard/gathering-budget',
-        label: 'Plan what the gathering costs',
-        detail: 'A budget drawn on one of your funds, and what each task has claimed against it.',
-      },
-      {
-        claim: 'standard/separation-of-duties',
-        label: 'Separation of duties',
-        detail: 'Per-feature permissions, so recording dues is not the same as paying money out.',
-      },
-      {
-        claim: 'standard/profile-pictures',
-        label: 'A face against every name',
-        detail: 'Profile pictures, on the directory, the tree and everywhere a member is listed.',
-      },
+      'standard/ledger',
+      'standard/family-tree',
+      'standard/duties',
+      'standard/gathering-budget',
+      'standard/separation-of-duties',
+      'standard/profile-pictures',
     ],
     available: true,
     // THE FEATURED CARD MOVED HERE FROM PLUS on 2026-08-19, and the rule is unchanged: exactly
@@ -384,9 +365,7 @@ const PLANS: readonly Plan[] = [
     featured: true,
   },
   {
-    name: 'Plus',
-    tagline: 'For families collecting real payments and answering to a board.',
-    price: PLUS_PRICE,
+    tier: 'plus',
     inheritsFrom: 'Standard',
     icon: 'zap',
     accent: 'warm',
@@ -396,11 +375,7 @@ const PLANS: readonly Plan[] = [
     // study it. The benefit line does the selling and the detail names the mechanism in as
     // few words as will carry it. The full story lives on /features, which is the page for it.
     adds: [
-      {
-        claim: 'plus/card-payments',
-        label: 'Get paid the way your family actually pays',
-        detail: 'Card, debit, PayPal, Apple Pay, Google Pay and Cash App, with funds and a full ledger behind them.',
-      },
+      'plus/card-payments',
       // THIS BULLET SOLD RSVPs, MEAL TOTALS AND DAY-OF CHECK-IN until 2026-08-19, and all
       // three went with the Events product. It is replaced by Dues Projections, which is a
       // real Plus route (`lib/features.ts`) rather than a promise waiting on a build.
@@ -408,16 +383,8 @@ const PLANS: readonly Plan[] = [
       // `lib/plans.ts` carries the SAME change and is a separate copy on purpose — see the
       // note above `PLANS[]`: one bullet spans several routes and several routes are sold in
       // no bullet at all, so the two lists are kept in step by hand and neither is derived.
-      {
-        claim: 'plus/dues-projections',
-        label: 'Know what is still owed, before you have to ask',
-        detail: 'Every relative who owes this year, what has come in, and who has still to pay.',
-      },
-      {
-        claim: 'plus/pnl',
-        label: 'A profit and loss for your treasurer',
-        detail: 'The statement the board asks for, straight from the ledger — plus transfers between your funds, with both sides on the record.',
-      },
+      'plus/dues-projections',
+      'plus/pnl',
       // ── THE DETAIL HERE WAS FALSE UNTIL 2026-08-22 ────────────────────────────────
       // It sold "the family's size OVER TIME", and nothing in this product has ever recorded
       // a membership figure over time — `/reporting/membership` is a snapshot by region,
@@ -425,83 +392,41 @@ const PLANS: readonly Plan[] = [
       // this copy of it was left standing, which is the hand-maintained drift the note above
       // `PLANS[]` warns about, caught in the direction that matters most: a claim a buyer
       // could check.
-      {
-        claim: 'plus/membership-report',
-        label: 'The numbers leadership keeps asking for',
-        detail: 'Dues collected against outstanding, and your membership by region, chapter and how far each relative got through joining.',
-      },
+      'plus/membership-report',
       // ADDED 2026-08-22. Four reports shipped that have nothing to do with money, and this
       // card's whole reporting story was the treasury — so a buyer could not tell that the
       // product answers "did the reunion work get done" or "which offices are empty" at all.
-      {
-        claim: 'plus/activity-reports',
-        label: 'Reports on more than the money',
-        detail: 'Whether the reunion work came back, election turnout, how often you meet, and which offices are standing empty.',
-      },
-      {
-        claim: 'plus/elections',
-        label: 'Elect your officers properly',
-        detail: 'Nominate, accept or decline, then vote — the whole family, one region or one chapter.',
-      },
+      'plus/activity-reports',
+      'plus/elections',
       // BROADENED 2026-08-22. "Minutes" undersold what shipped: a meeting names one secretary,
       // its room is picked by BODY rather than by ticking names, and a recorded vote cannot be
       // edited by anybody afterwards. That last part is the reason a family would keep minutes
       // here rather than in a document, so it is the part worth saying.
-      {
-        claim: 'plus/library',
-        label: 'The paperwork, and the structure to match',
-        detail: 'Searchable bylaws, and minutes that record how the room voted — plus regions and chapters with their own leadership.',
-      },
+      'plus/library',
       // ADDED 2026-08-22 — sold nowhere at all before, on any surface.
-      {
-        claim: 'plus/officer-notes',
-        label: 'Every office keeps its own notebook',
-        detail: 'Working notes that stay with the role rather than the person, readable only by whoever holds it.',
-      },
+      'plus/officer-notes',
       // PROFILE PICTURES WERE THE EIGHTH BULLET HERE and moved to Standard on 2026-08-19.
       // `lib/plans.ts` carries the same move in the in-product copy, by hand and on purpose —
       // see the note above `PLANS[]`. A bullet left on two cards sells one capability twice.
-      {
-        claim: 'plus/gallery',
-        label: 'Every photograph, findable',
-        detail: 'Collections per gathering, with tagging.',
-      },
+      'plus/gallery',
     ],
     available: true,
     featured: false,
   },
   {
-    name: 'Premium',
-    tagline: 'In every relative’s pocket, and out in the world.',
-    price: PREMIUM_PRICE,
+    tier: 'premium',
     inheritsFrom: 'Plus',
     icon: 'crown',
     accent: 'legacy',
     adds: [
-      {
-        claim: 'premium/dues-reminders',
-        label: 'Stop chasing relatives for their dues',
-        detail: 'Reminders go out as each installment falls due, and stop the moment it is paid.',
-      },
+      'premium/dues-reminders',
       // "FOR EVENTS, ANNOUNCEMENTS AND MESSAGES" UNTIL 2026-08-22, and one of those three had
       // not existed since the Events product was deleted on 2026-08-19. It is the subjects the
       // bell actually fires on now — which is also the honest scope for whoever builds push,
       // since a design that inherited the old list would be building for a table that is gone.
-      {
-        claim: 'premium/notifications',
-        label: 'News that arrives, instead of waiting to be found',
-        detail: 'Notifications on the phone and in the browser for announcements, messages, and the tasks you have been given.',
-      },
-      {
-        claim: 'premium/mobile-apps',
-        label: 'The family in everybody’s pocket',
-        detail: 'Apps for iPhone and Android, signed in to the same family account.',
-      },
-      {
-        claim: 'premium/email-distributions',
-        label: 'Email the whole family without building a list',
-        detail: 'Distributions that draw straight from your membership, so nobody is missed and nobody is on it twice.',
-      },
+      'premium/notifications',
+      'premium/mobile-apps',
+      'premium/email-distributions',
       // ── ADDED 2026-08-23 WITH THE TIER MOVE, and the copy is bounded on purpose ────────
       // `/community/safety-check-ins` shipped Free and moved to Premium because the channel it is
       // meant to run on is SMS, which costs money on every send. So a bullet was owed: a PAID
@@ -516,21 +441,9 @@ const PLANS: readonly Plan[] = [
       // WHEN SMS LANDS this bullet is where it gets said, and the `claim` id does not change —
       // the id is what `marketing:check` holds the two lists to, and re-pricing or re-wording is
       // not re-claiming.
-      {
-        claim: 'premium/safety-check-ins',
-        label: 'Check that everyone is safe, in one tap each',
-        detail: 'When a storm or a fire hits, ask the relatives in that region — or a list you pick yourself — whether they are safe. They answer with one tap, and you watch a roster fill in: who is safe, who needs help, and who has not answered yet.',
-      },
-      {
-        claim: 'premium/family-website',
-        label: 'Your family’s own website, keeping itself current',
-        detail: 'It builds itself from your next gathering, your newest photographs and your latest announcement. Every other family site is abandoned by March because somebody has to update it. This one nobody has to.',
-      },
-      {
-        claim: 'premium/custom-domain',
-        label: 'A proper address for it, ready to go',
-        detail: 'No hosting bill, no plugins, and no relative who "knows computers" maintaining it.',
-      },
+      'premium/safety-check-ins',
+      'premium/family-website',
+      'premium/custom-domain',
     ],
     available: false,
     featured: false,
@@ -549,8 +462,61 @@ const PLANS: readonly Plan[] = [
  * exactly the kind of thing a later edit does without noticing. A name test would be worse
  * still: it is one rename away from rendering nothing at the top of the page.
  */
-const FREE_PLAN: Plan = PLANS.find(p => p.price === null || p.price.period === 'forever')!
-const PAID_PLANS: readonly Plan[] = PLANS.filter(p => p !== FREE_PLAN)
+/**
+ * The four cards, in the reader's language.
+ *
+ * ── TWO TRANSLATORS, AND THE SPLIT IS THE BUNDLE BOUNDARY ──────────────────────────
+ * `t` is the MARKETING one and supplies the bullets — `mkt.claim.<id>.label` and `.detail`,
+ * this page's own separately-worded list. `shellT` supplies the tagline, because
+ * `tier.tagline.<tier>` lives in the shell catalogue for the signed-in surfaces that print it
+ * and a key can only live in one bundle. `/features` does exactly the same for the same reason,
+ * and its import carries the full note.
+ *
+ * Neither reaches a browser: this page is a server component and `PlanLadder` receives the
+ * finished strings as a prop.
+ */
+function plans(t: T, shellT: T, intl: string): readonly Plan[] {
+  return PLAN_SHAPES.map(shape => ({
+    ...shape,
+    name: TIER_LABEL[shape.tier],
+    tagline: tierTagline(shellT, shape.tier),
+    price: shape.tier === 'free'
+      // Free carries a hand-written `$0 / forever` rather than coming from `TIER_PRICE`, and
+      // `MarketingPlan.price` explains why at length: Free has no price rather than a price of
+      // zero. The PERIOD is load-bearing — it is what `FREE_PLAN` below identifies Free by — so
+      // it is keyed rather than left in English.
+      ? { amount: t('mkt.price.freeAmount'), period: t('mkt.price.freePeriod') }
+      : planPrice(shape.tier, t, intl),
+    adds: shape.adds.map(claim => ({
+      claim,
+      label: t(`mkt.claim.${claim}.label`),
+      detail: t(`mkt.claim.${claim}.detail`),
+    })),
+  }))
+}
+
+/**
+ * Free, found rather than named.
+ *
+ * ── IT IDENTIFIES FREE BY ITS `tier` NOW, NOT BY ITS PERIOD STRING ─────────────────
+ * It used to match `p.price.period === 'forever'`, which is a comparison against a piece of
+ * ENGLISH COPY — and that copy is now a catalogue entry, so the match would have failed on every
+ * Spanish and French page and this page would have rendered with no Free plan at all. Nothing
+ * would have thrown: `find` answers `undefined`, and the `!` was already telling TypeScript to
+ * trust it.
+ *
+ * Matching on the tier is what it always meant. This is the general shape of the trap and it is
+ * worth naming: **any comparison against a rendered string is a comparison that translation
+ * breaks**, and it breaks silently, in the language nobody on the team is reading.
+ */
+const FREE_TIER: FamilyTier = 'free'
+function freePlan(all: readonly Plan[]): Plan {
+  return all.find(x => x.tier === FREE_TIER)!
+}
+
+function paidPlans(all: readonly Plan[]): readonly Plan[] {
+  return all.filter(x => x.tier !== FREE_TIER)
+}
 
 /**
  * What the per-relative band divides.
@@ -562,76 +528,67 @@ const PAID_PLANS: readonly Plan[] = PLANS.filter(p => p !== FREE_PLAN)
  * this file spends a page arguing should only ever have one, and it is the copy
  * nobody would think to check when a rate moves.
  *
- * THE TIER IS RESOLVED FROM THE PLAN'S NAME, lower-cased, against `TIER_PRICE` —
- * which is a join on a label and would normally be a smell. It is admissible here
- * for one reason and it is asserted rather than assumed: `TIER_LABEL` in
- * `lib/tiers.ts` is where those names come from, so a rename that broke the join
- * would have to be a rename of the plan NAME on the card away from the tier's own
- * label, which is a thing this page must not do anyway. An unmatched name drops the
- * row rather than rendering a zero — a plan quoted at nothing per relative is a
- * different offer from the one on the cards.
+ * THE JOIN ON THE LABEL IS GONE, AND IT WAS THE SECOND STRING COMPARISON ON THIS
+ * PAGE THAT TRANSLATION WOULD HAVE BROKEN. It resolved the tier by matching
+ * `TIER_LABEL[t] === plan.name` — a comparison against a rendered string — and the
+ * old comment argued at length that it was admissible because a rename would have to
+ * be a rename away from the tier's own label. That reasoning was sound and it did not
+ * survive the plan carrying its own `tier`: the field is right there, so the join is
+ * simply unnecessary, and an unnecessary comparison against copy is one nobody has to
+ * defend. (The other one was `FREE_PLAN` matching `period === 'forever'` — see its
+ * note, where the general shape of the trap is written down.)
  *
  * FREE IS IN IT, and that is the point rather than padding: the band's argument is
  * that the bill does not move with the family, and the row that never moves at all
  * is the one that makes the other three read as a ladder rather than as a bill.
  */
-const SIZED_PLANS: readonly SizedPlan[] = PLANS.flatMap(plan => {
-  if (!plan.price) return []
-  const tier = TIERS.find(t => TIER_LABEL[t] === plan.name)
-  if (!tier) return []
-  return [{ name: plan.name, monthlyCents: TIER_PRICE[tier]?.monthlyCents ?? null, amount: plan.price.amount }]
-})
+function sizedPlans(all: readonly Plan[]): readonly SizedPlan[] {
+  return all.flatMap(plan => {
+    if (!plan.price) return []
+    return [{
+      name: plan.name,
+      monthlyCents: TIER_PRICE[plan.tier]?.monthlyCents ?? null,
+      amount: plan.price.amount,
+    }]
+  })
+}
 
-const FAQ = [
-  {
-    question: `Is ${APP_NAME} really free?`,
-    answer:
-      'Yes, and not as a trial. Unlimited family members, the member directory, family chat, announcements and your gatherings on a shared family calendar cost nothing, with no card required and no expiry date. What is paid for is running the family rather than having one — the family tree, the dues ledger and handing out the work are Standard, and the price of that is on the card above, for the whole family however big it is.',
-  },
-  {
-    question: 'Is there a limit on how many family members we can add?',
-    answer:
-      'No, on any tier including Free. The product is built for a family with a hundred or more adults in it — that is the ordinary case rather than the exception — and there is never a per-member charge. A price that grows with your family is a price that keeps relatives out, which defeats the point.',
-  },
-  {
-    question: 'Where does Free stop and Standard begin?',
-    answer:
-      'Free gets your whole family into one place: a directory everyone can search, family-wide and private chat, announcements on everybody’s dashboard, and your gatherings on a shared calendar with the date, the place and the details. Standard is for running the family — the family tree traced back through the generations, a real dues and donations ledger, gatherings planned properly with a checklist and every step handed to a named relative, per-feature permissions, and a photograph against every name.',
-  },
-  {
-    question: 'What does Plus add on top of Standard?',
-    answer:
-      'The organization around the family. Taking card, debit, PayPal, Apple Pay, Google Pay and Cash App payments instead of cash only; seeing what every relative still owes for the year; officer elections; photo collections with tagging; documents; regions and chapters with their own leadership; a profit and loss statement and leadership reports.',
-  },
-  {
-    question: 'Can we only record cash payments on Standard?',
-    answer:
-      'Yes. Standard includes dues plans, funds and a contribution ledger, and you record cash payments into it — which is what most families are doing in a notebook today. Accepting card, debit, PayPal, Apple Pay, Google Pay and Cash App payments, with automatic routing into your funds behind them, is part of Plus.',
-  },
-  {
-    question: 'Will the free features we use today start costing money?',
-    answer:
-      'No. What is listed under Free on this page stays free — every relative, the directory, chat, announcements and the shared calendar — and there is no per-member charge on any plan. The paid tiers are capability added on top, not a toll on what your family already relies on.',
-  },
-  {
-    question: 'What will the paid plans cost?',
-    // ANSWERED FROM `TIER_PRICE`, not typed — and from `TIERS`, so the answer names every
-    // paid plan rather than the two somebody happened to type. An FAQPage node whose answer
-    // contradicts the card three inches above it is the mismatch this whole file is careful
-    // about, and a hand-written "$10 a month" here is one price change away from being that.
-    // The saving sentence was derived too, which is why it vanished on its own the day the
-    // annual rate did instead of surviving as a claim about a price that no longer exists.
-    answer: paidPlanPriceAnswer(),
-  },
-  {
-    question: 'Do you sell our family’s data?',
-    answer:
-      'No. There is no advertising in the product and family data is never shared or sold, on any tier. One family cannot see another’s data at all — that separation is enforced by the database on every query rather than by a setting.',
-  },
-] as const
+/**
+ * ── EIGHT QUESTIONS, AND THE SEVENTH IS STILL DERIVED ──────────────────────────────
+ * ANSWERED FROM `TIER_PRICE`, not typed — and from `TIERS`, so the answer names every
+ * paid plan rather than the two somebody happened to type. An FAQPage node whose answer
+ * contradicts the card three inches above it is the mismatch this whole file is careful
+ * about, and a hand-written "$10 a month" here is one price change away from being that.
+ * The saving sentence was derived too, which is why it vanished on its own the day the
+ * annual rate did instead of surviving as a claim about a price that no longer exists.
+ *
+ * The other seven are catalogue entries. The `FAQPage` node is built from the same `t` the
+ * page renders from, so a crawler and a reader are never handed different documents — which
+ * is the mismatch this file is most careful about, and English JSON-LD over Spanish prose is
+ * its most literal form.
+ */
+const FAQ_COUNT = 8
+const PRICE_ANSWER_INDEX = 6
 
+function faq(t: T, intl: string): readonly { question: string; answer: string }[] {
+  return Array.from({ length: FAQ_COUNT }, (_, i) => ({
+    question: t(`mkt.price.faq${i}.q`),
+    answer: i === PRICE_ANSWER_INDEX
+      ? paidPlanPriceAnswer(t, intl)
+      : t(`mkt.price.faq${i}.a`),
+  }))
+}
 
-export default function PricingPage() {
+export default async function PricingPage() {
+  const { t, locale, intl } = await marketingI18n()
+  // The shell translator, for the tier taglines only — see `plans()` and `/features`.
+  const shellT = tFor(locale)
+  const PLANS = plans(t, shellT, intl)
+  const FREE_PLAN = freePlan(PLANS)
+  const PAID_PLANS = paidPlans(PLANS)
+  const SIZED_PLANS = sizedPlans(PLANS)
+  const FAQ = faq(t, intl)
+
   return (
     <>
       {/* The highest-intent page on the public site, and the one retargeting audience
@@ -643,8 +600,8 @@ export default function PricingPage() {
       <StructuredData
         graph={marketingPageGraph({
           path: '/pricing',
-          name: PAGE_TITLE,
-          description: PAGE_DESCRIPTION,
+          name: t('mkt.price.graphName'),
+          description: t('mkt.price.metaDescription'),
           faq: FAQ,
           // The one page entitled to state the tier offers in markup, because it is the one
           // page that displays all three of them. Both rates per tier, and `PreOrder` on the
@@ -654,18 +611,13 @@ export default function PricingPage() {
       />
 
       <PageHero
-        eyebrow="Pricing"
-        title={<>Free. Not free-for-thirty-days.</>}
-        lede={
-          <>
-            No trial clock, no credit card, and no charge per relative. Bring the whole
-            family — that is the point of the product.
-          </>
-        }
+        eyebrow={t('mkt.price.eyebrow')}
+        title={t('mkt.price.title')}
+        lede={t('mkt.price.lede')}
       >
-        <Link href={ACCOUNT_ROUTES.register}>
+        <Link href={localizedHref(ACCOUNT_ROUTES.register, locale)}>
           <Button size="lg" className="w-full bg-brand-legacy px-8 text-base text-brand-on-legacy hover:opacity-90 sm:w-auto">
-            Create Your Free Account
+            {t('mkt.cta.primary')}
           </Button>
         </Link>
       </PageHero>
@@ -678,9 +630,9 @@ export default function PricingPage() {
         <div className="mx-auto max-w-5xl">
           <SectionHeading
             id="plans-heading"
-            eyebrow="Plans"
-            title="Four plans. The free one is not a trial"
-            lede="Get every relative in and talk to each other — free, forever. Pay when you start running the family like an organization."
+            eyebrow={t('mkt.price.plansEyebrow')}
+            title={t('mkt.price.plansTitle')}
+            lede={t('mkt.price.plansLede')}
           />
 
           {/* ── FREE RUNS THE FULL WIDTH ─────────────────────────────────────
@@ -740,13 +692,16 @@ export default function PricingPage() {
                     </p>
                   )}
 
-                  <Link href={ACCOUNT_ROUTES.register} className="mt-5 block">
+                  <Link
+                    href={localizedHref(ACCOUNT_ROUTES.register, locale)}
+                    className="mt-5 block"
+                  >
                     <Button size="lg" className="w-full text-base">
-                      Get Started Free
+                      {t('mkt.getStarted')}
                     </Button>
                   </Link>
                   <p className="mt-3 text-center text-xs text-muted-foreground">
-                    No card. No trial period.
+                    {t('mkt.price.noCard')}
                   </p>
                 </div>
 
@@ -756,7 +711,10 @@ export default function PricingPage() {
                     down the page for no reason. */}
                 <ul className="grid gap-3.5 text-sm sm:grid-cols-2 sm:gap-x-8">
                   {FREE_PLAN.adds.map(item => (
-                    <li key={item.label} className="flex gap-3">
+                    // Keyed on the CLAIM, not the label: a translated label is a key that
+                    // changes whenever the copy does, and the claim id is what this page
+                    // treats as a bullet's identity everywhere else.
+                    <li key={item.claim} className="flex gap-3">
                       <Check
                         className="mt-0.5 h-4 w-4 shrink-0 text-brand-affirm"
                         aria-hidden="true"
@@ -809,9 +767,9 @@ export default function PricingPage() {
         <div className="relative mx-auto max-w-5xl">
           <SectionHeading
             id="paid-plans-heading"
-            eyebrow="When the family needs more than a place to be"
-            title="Three steps up, each one containing the last"
-            lede="None of them can be bought yet — there is no billing in the product. The prices are set, and they are what you will pay."
+            eyebrow={t('mkt.price.paidEyebrow')}
+            title={t('mkt.price.paidTitle')}
+            lede={t('mkt.price.paidLede')}
             onDark
           />
 
@@ -834,9 +792,9 @@ export default function PricingPage() {
         <div className="mx-auto max-w-5xl">
           <SectionHeading
             id="per-member-heading"
-            eyebrow="However many of you there are"
-            title="The price does not know how big your family is"
-            lede="Most tools charge by the seat, so the first thing you do is decide which relatives are worth paying for. Move the slider and watch nothing happen."
+            eyebrow={t('mkt.price.sizeEyebrow')}
+            title={t('mkt.price.sizeTitle')}
+            lede={t('mkt.price.sizeLede')}
           />
           <Reveal>
             <div className="mt-10">
@@ -864,7 +822,9 @@ export default function PricingPage() {
                 collecting dues, handing out the work — and, higher up, taking card payments,
                 electing officers and answering to a board.
               </p>
-              <MoreLink href="/why-us">See how that compares to the alternatives</MoreLink>
+              <MoreLink href={localizedHref('/why-us', locale)}>
+                {t('mkt.price.compareLink')}
+              </MoreLink>
             </div>
           </Reveal>
         </div>
@@ -873,7 +833,11 @@ export default function PricingPage() {
       {/* ── FAQ ─────────────────────────────────────────────────────────── */}
       <section aria-labelledby="pricing-faq-heading" className="bg-brand-soft/40 px-4 py-16 sm:px-6 sm:py-20">
         <div className="mx-auto max-w-3xl">
-          <SectionHeading id="pricing-faq-heading" eyebrow="Questions" title="Straight answers about money" />
+          <SectionHeading
+            id="pricing-faq-heading"
+            eyebrow={t('mkt.faqEyebrow')}
+            title={t('mkt.price.faqTitle')}
+          />
           <div className="mt-10 space-y-3">
             {FAQ.map((entry, i) => (
               <Reveal key={entry.question} delay={i * 90}>
@@ -895,11 +859,11 @@ export default function PricingPage() {
         </div>
       </section>
 
-      <Testimonials heading="Families who stopped paying for three tools" />
+      <Testimonials heading={t('mkt.price.testimonials')} />
 
       <CtaBand
-        title="It costs nothing to find out"
-        lede="Create your family, share the code, and see whether it replaces the spreadsheet."
+        title={t('mkt.price.ctaTitle')}
+        lede={t('mkt.price.ctaLede')}
       />
     </>
   )

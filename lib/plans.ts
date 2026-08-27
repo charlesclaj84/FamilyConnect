@@ -51,7 +51,7 @@ import { type T } from '@/lib/i18n/t'
  */
 
 import { TIER_RANK, TIERS, tierMeets, type FamilyTier } from '@/lib/tiers'
-import { formatCurrency } from '@/lib/currency-utils'
+import { DEFAULT_MONEY_LOCALE, formatMoney } from '@/lib/currency-utils'
 
 export interface PlanHighlight {
   /**
@@ -248,21 +248,40 @@ export const TIER_PRICE: Record<FamilyTier, TierPrice | null> = {
 }
 
 /**
- * "$10" rather than "$10.00" for a whole number of dollars.
+ * "$10" rather than "$10.00" for a whole number of dollars, in the reader's conventions.
  *
  * A price is scanned, not audited, and the two trailing zeroes are noise at 48px. Anything
- * with cents in it keeps them, so a future $12.50 renders correctly without a second helper —
- * which is the reason this wraps `formatCurrency` instead of replacing it.
+ * with cents in it keeps them, so a future $12.50 renders correctly without a second helper.
  *
- * NO `cents % 100 === 0` GUARD, and its absence is deliberate rather than an omission. The
- * first version had one, and mutation-testing this file found it to be dead code: `$12.50`
- * and `$12.05` do not end in `.00`, so the anchored regex already declines to touch them and
- * the guard could not change an answer. Two expressions of one condition, one of which never
- * decides anything, is a thing a later reader has to work out from scratch — so the regex is
- * left to do the whole job. `lib/plans.test.ts` pins both branches by value.
+ * ── THE `.00` STRIP WAS A REGEX AND IT ONLY EVER WORKED IN ENGLISH ──────────────────
+ * This used to be `formatCurrency(cents).replace(/\.00$/, '')`, with a long note arguing that
+ * a `cents % 100 === 0` guard beside it would be dead code. That argument was correct and it
+ * rested on a premise the note stated out loud: *`formatCurrency` always emits exactly two
+ * decimals*, and `lib/plans.test.ts` pinned it as `/^\$[\d,]+\.\d{2}$/`.
+ *
+ * The premise was about `en-US`. Measured the day the public site learned Spanish and French:
+ *
+ *   en-US   $10.00      → the regex matches      → "$10"
+ *   es-MX   USD 10.00   → matches                → "USD 10"
+ *   fr-FR   10,00 $US   → does NOT match         → "10,00 $US"
+ *
+ * So French price cards were rendering the zero cents the whole mechanism existed to remove,
+ * and nothing failed. The GUARD is what asks the real question — is this a whole number of
+ * dollars — and `Intl` is what answers it in the reader's own punctuation, so the condition
+ * that was dead code against a regex is load-bearing against a formatter.
+ *
+ * ── THE LOCALE IS A SECOND POSITIONAL ARGUMENT, DEFAULTED ──────────────────────────
+ * Same shape as `formatCurrency(value, intl)` and `formatDate(value, intl)` — the whole family
+ * of formatters is threaded identically, which is what `i18n:check`'s PINNED-FORMATTER count
+ * counts. It defaults so a caller with no reader-locale in hand still renders US conventions
+ * rather than throwing; every call site in the tree passes one.
  */
-export function formatPlanPrice(cents: number): string {
-  return formatCurrency(cents).replace(/\.00$/, '')
+export function formatPlanPrice(cents: number, intl: string = DEFAULT_MONEY_LOCALE): string {
+  return formatMoney(cents, {
+    locale: intl,
+    // Whole dollars lose the cents; anything else keeps the currency's own two.
+    ...(cents % 100 === 0 ? { fractionDigits: 0 } : {}),
+  })
 }
 
 /**

@@ -81,6 +81,22 @@ export interface MoneyFormat {
   currency?: string
   /** How the READER reads numbers — a BCP-47 tag, e.g. `es-MX`. Never decides the currency. */
   locale?: string
+  /**
+   * How many fraction digits to show. Defaults to the currency's own, which is what an
+   * amount being AUDITED wants.
+   *
+   * ── IT EXISTS FOR ONE CALLER AND THE REASON IS WORTH STATING ─────────────────────
+   * `formatPlanPrice` wants "$10" rather than "$10.00" on a price card, because a price is
+   * scanned and two trailing zeroes are noise at 48px. That used to be a
+   * `.replace(/\.00$/, '')` on the formatted string — which works for `en-US` and for
+   * nothing else: `fr-FR` produces `10,00 $US`, so the regex matches nothing and the zeroes
+   * survive in exactly the languages nobody on the team is reading.
+   *
+   * Asking `Intl` for zero fraction digits is the same intent expressed where the locale is
+   * known. **Never use it on an amount somebody is reconciling** — a ledger figure with its
+   * cents silently dropped is a wrong number, not a tidier one.
+   */
+  fractionDigits?: number
 }
 
 /**
@@ -95,11 +111,19 @@ export interface MoneyFormat {
  */
 export function formatMoney(
   cents: number | null | undefined,
-  { currency = DEFAULT_CURRENCY, locale = DEFAULT_MONEY_LOCALE }: MoneyFormat = {},
+  {
+    currency = DEFAULT_CURRENCY,
+    locale = DEFAULT_MONEY_LOCALE,
+    fractionDigits,
+  }: MoneyFormat = {},
 ): string {
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,
+    ...(fractionDigits === undefined ? {} : {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    }),
   }).format((cents ?? 0) / 100)
 }
 

@@ -9,7 +9,7 @@ import { FormError } from '@/components/ui/form-message'
 import { dismissSignupPlan, startPlanCheckout } from '@/app/actions/billing'
 import { TIER_PRICE, formatPlanPrice } from '@/lib/plans'
 import { TIER_LABEL, type FamilyTier } from '@/lib/tiers'
-import { useT } from '@/components/layout/LocaleProvider'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 import { InlineText } from '@/components/ui/inline-text'
 
 /**
@@ -61,6 +61,7 @@ export function PlanSetupBanner({ tier }: { tier: FamilyTier }) {
   const router = useRouter()
   const [dismissed, setDismissed] = useState(false)
   const t = useT()
+  const intl = useIntlTag()
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -139,7 +140,7 @@ export function PlanSetupBanner({ tier }: { tier: FamilyTier }) {
           <p className="mt-0.5 text-xs text-brand-on-soft/80">
             You chose {TIER_LABEL[tier]} when you created this family, and nothing has been
             charged — your family is on Free until the first payment goes through
-            {price ? ` (${formatPlanPrice(price.monthlyCents)} a month)` : ''}.
+            {price ? ' ' + t('bill.perMonthParen', { amount: formatPlanPrice(price.monthlyCents, intl) }) : ''}.
           </p>
         </div>
 

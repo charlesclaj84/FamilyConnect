@@ -1511,6 +1511,46 @@ export const en: Catalogue = {
   'bill.stopping': 'Monthly — stopping at the end of this period',
   'bill.monthlyAuto': 'Monthly, automatically',
   'bill.inAdvance': 'Paid in advance — nothing renews it',
+
+  // ── THE WORDS AROUND A PRICE ────────────────────────────────────────────────────
+  // The FIGURE comes from `formatPlanPrice`, which takes the reader's locale. These are
+  // the words beside it, and they were English templates at six call sites: ` a month`,
+  // `/month`, ` (… a month)`. Every one is English word order with an English
+  // preposition — Spanish wants *al mes* and French *par mois*, and neither goes where
+  // the English does in every construction. So the whole phrase is the key.
+  'bill.perMonth': '{amount} a month',
+  'bill.perMonthParen': '({amount} a month)',
+  'bill.rateSentence': '{tier} is {amount} a month, month to month.',
+  // THE COMPACT FORM, for inside a plan card where the long one does not fit. Two keys
+  // rather than one, because "/month" is not an abbreviation of "a month" in every language
+  // — and a card that says `{amount} al mes` in a 90px column wraps where the English does
+  // not. Which form a surface wants is a layout decision the surface makes.
+  'bill.perMonthSlash': '{amount}/month',
+
+  // ── WHAT A FREE FAMILY'S GATHERING IS MISSING ───────────────────────────────────
+  // `components/gatherings/PlanningUpsell.tsx`. The plan NAME is interpolated from
+  // `TIER_LABEL` rather than typed, per that file's own header — a plan name is a
+  // proper noun and is not translated, which is why it is a placeholder here too.
+  'gath.upsell.inlineHave': 'On {plan} a gathering is a date, a place and a description.',
+  'gath.upsell.inlineAdds':
+    'adds checklists, tasks handed out to relatives by name, and a budget drawn on a fund.',
+  'gath.upsell.title': 'Plan this gathering with {plan}',
+  'gath.upsell.lede':
+    'Your gathering is on the calendar and every relative can see when and where it is. '
+    + '{plan} is where it becomes a plan.',
+  'gath.upsell.checklistsLead': 'Checklists you write once.',
+  'gath.upsell.checklistsBody':
+    'A reunion is the Welcome, the Picnic and the Send Off — build each as a template and '
+    + 'schedule from it every year.',
+  'gath.upsell.jobsLead': 'Jobs with names on them.',
+  'gath.upsell.jobsBody':
+    'Every step becomes a task held by one relative, who answers it and gets it approved or '
+    + 'handed back with notes. Nobody has to remember who said they would bring the tables.',
+  'gath.upsell.budgetLead': 'A budget drawn on a fund.',
+  'gath.upsell.budgetBody':
+    'What the gathering may spend, what each part of it claims, and whether that fits what '
+    + 'the family actually has.',
+  'gath.upsell.cta': 'See {plan}',
   'plan.whatIncludes': 'What each plan includes',
   'plan.current': 'Current',
   'plan.currentPlan': 'Current plan',

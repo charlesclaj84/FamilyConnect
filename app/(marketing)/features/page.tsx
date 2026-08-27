@@ -30,6 +30,21 @@ import { DEFAULT_TIER, TIERS, TIER_LABEL, tierTagline, type FamilyTier } from '@
 import { TIER_PRICE, formatPlanPrice } from '@/lib/plans'
 import { localizedHref } from '@/lib/i18n/route-locale'
 import { marketingAlternates, marketingI18n } from '@/lib/marketing/locale'
+// ── THE SHELL CATALOGUE, ON A MARKETING PAGE, AND ONLY FOR THE TIER TAGLINES ────────
+// `tierTagline` reads `tier.tagline.<tier>`, which lives in the SHELL catalogue because the
+// signed-in surfaces need it — `/admin/settings`, `/upgrade` and `/register` all print it, and a
+// key can only live in one bundle (`i18n:check`'s DUPLICATE-KEY). So this page reads the shell
+// `t` for that one lookup and the marketing `t` for everything else.
+//
+// IT COSTS THE BROWSER NOTHING, which is the whole reason it is allowed. This page is a server
+// component, so `lib/i18n/catalogues` is resolved during the render and never shipped — the
+// 1,763 keys it holds do not reach Home's bundle. The rule that would be broken is a CLIENT
+// marketing component importing it; `i18n:check`'s CLIENT-BUNDLE check is what watches for that.
+//
+// The alternative was a second set of `mkt.tier.*.tagline` keys, which is a second wording of
+// one sentence — and these four taglines were already hand-copied into `PLANS[]` on this site
+// once, which is the drift `TIER_TAGLINE` was created to prevent.
+import { tFor } from '@/lib/i18n/catalogues'
 import { type T } from '@/lib/i18n/t'
 import { cn } from '@/lib/utils'
 import { MetaViewContent } from '@/components/meta/MetaViewContent'
@@ -495,7 +510,9 @@ function alsoByTier(t: T) {
  */
 
 export default async function FeaturesPage() {
-  const { t, locale } = await marketingI18n()
+  const { t, locale, intl } = await marketingI18n()
+  // The shell translator, for the tier taglines only. See the note on the import.
+  const shellT = tFor(locale)
   const ALSO_BY_TIER = alsoByTier(t)
   const PILLARS = pillars(t)
 
@@ -717,7 +734,7 @@ export default async function FeaturesPage() {
                               </span>
                             </h3>
                             <p className="mt-0.5 max-w-xl text-sm text-muted-foreground">
-                              {tierTagline(t, tier)}
+                              {tierTagline(shellT, tier)}
                             </p>
                           </div>
                         </div>
@@ -731,12 +748,18 @@ export default async function FeaturesPage() {
                           href="/pricing"
                           className="group/price inline-flex items-center gap-1.5 text-sm font-semibold text-brand-accent hover:text-brand-ink"
                         >
-                          {price ? `${formatPlanPrice(price.monthlyCents)} a month` : 'No charge'}
+                          {price
+                            ? t('mkt.feat.perMonth', {
+                                amount: formatPlanPrice(price.monthlyCents, intl),
+                              })
+                            : t('mkt.feat.noCharge')}
                           <ArrowRight
                             aria-hidden="true"
                             className="h-4 w-4 transition-transform duration-300 group-hover/price:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover/price:translate-x-0"
                           />
-                          <span className="sr-only"> — see what is in the {TIER_LABEL[tier]} plan</span>
+                          <span className="sr-only">
+                            {t('mkt.feat.seePlan', { plan: TIER_LABEL[tier] })}
+                          </span>
                         </Link>
                       </div>
                     </div>

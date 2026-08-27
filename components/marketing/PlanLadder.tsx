@@ -9,7 +9,7 @@ import { ACCENTS, type AccentKey } from '@/components/marketing/tier-accent'
 import { useMarketingLocale, useMarketingT } from '@/components/marketing/MarketingLocale'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import { localizedHref } from '@/lib/i18n/route-locale'
-import { TIERS, TIER_LABEL } from '@/lib/tiers'
+import { TIERS, TIER_LABEL, type FamilyTier } from '@/lib/tiers'
 import { cn } from '@/lib/utils'
 
 /**
@@ -120,6 +120,27 @@ export interface PlanFeature {
 }
 
 export interface MarketingPlan {
+  /**
+   * Which tier this card is.
+   *
+   * ── ADDED WHEN THE PUBLIC SITE LEARNED SPANISH AND FRENCH, AND IT REMOVED THREE
+   *    HAND-COPIED FIELDS FROM `/pricing` ─────────────────────────────────────────
+   * The pricing table used to state `name`, `tagline` and `price` per card. All three were
+   * derivable and two were verbatim duplicates: `name` was `TIER_LABEL[tier]`, and the four
+   * taglines were copies of `TIER_TAGLINE`, which `lib/tiers.ts` exists to prevent.
+   *
+   * It also removed two STRING COMPARISONS that translation would have broken silently —
+   * `plans.find(p => p.price.period === 'forever')` and
+   * `TIERS.find(t => TIER_LABEL[t] === plan.name)`. Both matched against rendered copy, so
+   * both would have failed on every Spanish and French page and neither would have thrown.
+   * `/pricing` carries the note; the general rule is worth having here too, because this is
+   * the type that made both possible: **a comparison against a rendered string is a
+   * comparison translation breaks, in the language nobody on the team is reading.**
+   *
+   * `planSignupHref` still joins on `name` for its `?plan=` value, which is right — that
+   * query string is read by the register form and is not copy.
+   */
+  tier: FamilyTier
   name: string
   tagline: string
   /**

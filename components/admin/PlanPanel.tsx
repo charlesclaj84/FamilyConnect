@@ -454,7 +454,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
               {price && (
                 <p className="mt-1 text-sm">
                   <span className="font-semibold text-brand-ink">
-                    {formatPlanPrice(price.monthlyCents)}
+                    {formatPlanPrice(price.monthlyCents, intl)}
                   </span>
                   {/* ONE RATE. The annual figure and its "(two months free)" clause were
                       withdrawn on 2026-08-19 — see `TIER_PRICE`. "No annual plan" replaces them
@@ -901,7 +901,10 @@ function PlanDetailDialog({ plan, current, onClose }: {
           // there being no way to pay is conditional, because only for Premium is it true.
           const price = TIER_PRICE[plan]
           if (!price) return ''
-          const rate = ` ${TIER_LABEL[plan]} is ${formatPlanPrice(price.monthlyCents)} a month, month to month.`
+          const rate = ' ' + t('bill.rateSentence', {
+            tier: TIER_LABEL[plan],
+            amount: formatPlanPrice(price.monthlyCents, intl),
+          })
           return TIER_IS_SOLD[plan]
             ? `${rate} It is set up in the Billing section of Settings.`
             : `${rate} There is no payment step yet — nothing here is billed.`

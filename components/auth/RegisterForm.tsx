@@ -19,7 +19,7 @@ import { APP_NAME } from '@/lib/brand'
 import { TIER_IS_SOLD, TIER_PRICE, formatPlanPrice } from '@/lib/plans'
 import { TIERS, TIER_LABEL, tierTagline, type FamilyTier } from '@/lib/tiers'
 import { cn } from '@/lib/utils'
-import { useT } from '@/components/layout/LocaleProvider'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 import type { T } from '@/lib/i18n/t'
 
 type Mode = 'join' | 'create'
@@ -103,6 +103,7 @@ export function RegisterForm({
   invitedLastName?: string
 } = {}) {
   const t = useT()
+  const intl = useIntlTag()
   const router = useRouter()
   // A plan can only be bought by the family that is being created, so arriving with one
   // opens on Create. Without this the pricing page's button lands on a family-code field,
@@ -478,7 +479,9 @@ export function RegisterForm({
                             {TIER_LABEL[tier]}
                           </span>
                           <span className="text-xs text-muted-foreground">
-                            {price ? `${formatPlanPrice(price.monthlyCents)}/month` : t('reg.freeForever')}
+                            {price
+                              ? t('bill.perMonthSlash', { amount: formatPlanPrice(price.monthlyCents, intl) })
+                              : t('reg.freeForever')}
                           </span>
                         </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">

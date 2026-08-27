@@ -1,6 +1,9 @@
+'use client'
+
 import Link from 'next/link'
 import { ClipboardList, Sparkles } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 import { cn } from '@/lib/utils'
 import { TIER_LABEL } from '@/lib/tiers'
 import { TIER_PRICE, formatPlanPrice } from '@/lib/plans'
@@ -27,6 +30,22 @@ import { TIER_PRICE, formatPlanPrice } from '@/lib/plans'
  * `admin/gatherings/templates`, `gatherings/my-tasks` and `gatherings/budget` — and
  * `npm run marketing:check` does not walk this file, so that is a person's job.
  *
+ * ── IT IS A CLIENT COMPONENT, AND IT WAS DUAL-USE BEFORE THAT ─────────────────────
+ * Two callers, and until 2026-08-27 they were on opposite sides of the RSC boundary: a
+ * Server Component page (`/gatherings/[id]`) and a client one
+ * (`AdminGatheringDetailClient`). A module with no directive takes the client-ness of
+ * whoever imports it, so this rendered as a server component in one graph and a client
+ * component in the other — which is not a property to rely on. It cannot call `useT()`
+ * in that state, and a `useState` added by a later edit would have broken the server
+ * page silently.
+ *
+ * `'use client'` resolves it and costs the server page nothing: the module was already
+ * in the browser bundle through its other caller, and this is static markup with no
+ * interactivity, so there is no hydration to pay for either. The alternative — `t` and
+ * `intl` as props — works from both sides (server-to-server by reference, client-to-client
+ * as an ordinary closure) and was rejected: it leaves the dual-use ambiguity in place and
+ * puts two props on a card that has no other reason for any.
+ *
  * ── IT IS AN INVITATION, NOT A REFUSAL ────────────────────────────────────────────
  * `--brand-legacy` as a rule with `bg-brand-soft` under `text-brand-on-soft`, the treatment
  * every Dashboard banner uses — and NOT `--brand-withheld`, even though a withheld capability
@@ -44,15 +63,22 @@ export function PlanningUpsell({ variant = 'panel', className }: {
   variant?: 'panel' | 'inline'
   className?: string
 }) {
+  const t = useT()
+  const intl = useIntlTag()
   const price = TIER_PRICE.standard
 
   if (variant === 'inline') {
     return (
       <p className={cn('text-xs text-muted-foreground', className)}>
         <Sparkles className="mr-1 inline h-3 w-3 align-[-0.1em]" aria-hidden="true" />
-        On {TIER_LABEL.free} a gathering is a date, a place and a description.{' '}
+        {/* TWO KEYS WITH THE LINK BETWEEN THEM, not one key with markup in it. The
+            catalogue holds strings and nothing else — a `<Link>` inside a translated value
+            would need a parser, and a translator who moved the anchor would move a route.
+            The plan NAME is the link's whole text, which is why the split lands where it
+            does: Spanish and French both open the clause with the subject too. */}
+        {t('gath.upsell.inlineHave', { plan: TIER_LABEL.free })}{' '}
         <Link href="/upgrade" className="underline">{TIER_LABEL.standard}</Link>{' '}
-        adds checklists, tasks handed out to relatives by name, and a budget drawn on a fund.
+        {t('gath.upsell.inlineAdds')}
       </p>
     )
   }
@@ -70,42 +96,40 @@ export function PlanningUpsell({ variant = 'panel', className }: {
         <div className="min-w-0 flex-1 space-y-3">
           <div>
             <h2 className="text-sm font-medium text-brand-on-soft">
-              Plan this gathering with {TIER_LABEL.standard}
+              {t('gath.upsell.title', { plan: TIER_LABEL.standard })}
             </h2>
             <p className="mt-0.5 text-xs text-brand-on-soft/80">
               {/* WHAT THEY HAVE, FIRST. A family on Free has a working feature, and leading
                   with what is missing would tell them otherwise — the gathering is on the
                   calendar and everybody can see it. */}
-              Your gathering is on the calendar and every relative can see when and where it is.
-              {TIER_LABEL.standard} is where it becomes a plan.
+              {t('gath.upsell.lede', { plan: TIER_LABEL.standard })}
             </p>
           </div>
 
           <ul className="space-y-1.5 text-xs text-brand-on-soft/80">
+            {/* A LEAD AND A BODY PER BULLET, two keys rather than one with `<strong>` in it.
+                Same rule as the inline form above: the catalogue holds no markup. */}
             <li>
-              <strong className="text-brand-on-soft">Checklists you write once.</strong> A
-              reunion is the Welcome, the Picnic and the Send Off — build each as a template and
-              schedule from it every year.
+              <strong className="text-brand-on-soft">{t('gath.upsell.checklistsLead')}</strong>{' '}
+              {t('gath.upsell.checklistsBody')}
             </li>
             <li>
-              <strong className="text-brand-on-soft">Jobs with names on them.</strong> Every step
-              becomes a task held by one relative, who answers it and gets it approved or handed
-              back with notes. Nobody has to remember who said they would bring the tables.
+              <strong className="text-brand-on-soft">{t('gath.upsell.jobsLead')}</strong>{' '}
+              {t('gath.upsell.jobsBody')}
             </li>
             <li>
-              <strong className="text-brand-on-soft">A budget drawn on a fund.</strong> What the
-              gathering may spend, what each part of it claims, and whether that fits what the
-              family actually has.
+              <strong className="text-brand-on-soft">{t('gath.upsell.budgetLead')}</strong>{' '}
+              {t('gath.upsell.budgetBody')}
             </li>
           </ul>
 
           <div className="flex flex-wrap items-center gap-3">
             <Link href="/upgrade" className={cn(buttonVariants({ size: 'sm' }), 'shrink-0')}>
-              See {TIER_LABEL.standard}
+              {t('gath.upsell.cta', { plan: TIER_LABEL.standard })}
             </Link>
             {price && (
               <span className="text-xs text-brand-on-soft/80">
-                {formatPlanPrice(price.monthlyCents)} a month
+                {t('bill.perMonth', { amount: formatPlanPrice(price.monthlyCents, intl) })}
               </span>
             )}
           </div>

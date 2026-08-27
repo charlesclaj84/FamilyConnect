@@ -1529,6 +1529,35 @@ export const fr: Catalogue = {
   'bill.stopping': 'Mensuel — s’arrête à la fin de cette période',
   'bill.monthlyAuto': 'Mensuel, automatiquement',
   'bill.inAdvance': 'Payé à l’avance — rien ne le renouvelle',
+
+  'bill.perMonth': '{amount} par mois',
+  'bill.perMonthParen': '({amount} par mois)',
+  'bill.rateSentence': 'Le forfait {tier} coûte {amount} par mois, sans engagement.',
+  'bill.perMonthSlash': '{amount}/mois',
+
+  'gath.upsell.inlineHave':
+    'Avec le forfait {plan}, un rassemblement est une date, un lieu et une description.',
+  'gath.upsell.inlineAdds':
+    'y ajoute des listes d’étapes, des tâches confiées nommément à vos proches et un budget '
+    + 'prélevé sur une caisse.',
+  'gath.upsell.title': 'Organisez ce rassemblement avec le forfait {plan}',
+  'gath.upsell.lede':
+    'Votre rassemblement est déjà au calendrier et chacun de vos proches voit quand et où il '
+    + 'a lieu. Le forfait {plan}, c’est là qu’il devient un plan.',
+  'gath.upsell.checklistsLead': 'Des listes que vous n’écrivez qu’une fois.',
+  'gath.upsell.checklistsBody':
+    'Une réunion de famille, c’est l’Accueil, le Pique-nique et les Adieux : créez chacun '
+    + 'comme un modèle et programmez-le à partir de là chaque année.',
+  'gath.upsell.jobsLead': 'Des tâches avec un nom dessus.',
+  'gath.upsell.jobsBody':
+    'Chaque étape devient une tâche confiée à un proche, qui y répond et la fait approuver '
+    + 'ou se la voit renvoyer avec des remarques. Personne n’a plus à se rappeler qui avait '
+    + 'dit qu’il apporterait les tables.',
+  'gath.upsell.budgetLead': 'Un budget prélevé sur une caisse.',
+  'gath.upsell.budgetBody':
+    'Ce que le rassemblement peut dépenser, ce que chacune de ses parties réclame, et si '
+    + 'cela tient dans ce que la famille possède réellement.',
+  'gath.upsell.cta': 'Voir le forfait {plan}',
   'plan.whatIncludes': 'Ce que comprend chaque forfait',
   'plan.current': 'Actuel',
   'plan.currentPlan': 'Forfait actuel',

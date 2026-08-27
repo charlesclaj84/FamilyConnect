@@ -1477,6 +1477,35 @@ export const es: Catalogue = {
   'bill.stopping': 'Mensual: se detiene al final de este período',
   'bill.monthlyAuto': 'Mensual, automáticamente',
   'bill.inAdvance': 'Pagado por adelantado: nada lo renueva',
+
+  'bill.perMonth': '{amount} al mes',
+  'bill.perMonthParen': '({amount} al mes)',
+  'bill.rateSentence': 'El plan {tier} cuesta {amount} al mes, mes a mes.',
+  'bill.perMonthSlash': '{amount}/mes',
+
+  'gath.upsell.inlineHave':
+    'Con el plan {plan}, una reunión es una fecha, un lugar y una descripción.',
+  'gath.upsell.inlineAdds':
+    'añade listas de tareas, tareas asignadas a familiares por su nombre y un presupuesto '
+    + 'tomado de un fondo.',
+  'gath.upsell.title': 'Organice esta reunión con el plan {plan}',
+  'gath.upsell.lede':
+    'Su reunión ya está en el calendario y todos sus familiares pueden ver cuándo y dónde '
+    + 'es. Con el plan {plan} se convierte en un plan.',
+  'gath.upsell.checklistsLead': 'Listas que escribe una sola vez.',
+  'gath.upsell.checklistsBody':
+    'Un reencuentro es la Bienvenida, el Picnic y la Despedida: cree cada uno como una '
+    + 'plantilla y prográmelo desde ahí todos los años.',
+  'gath.upsell.jobsLead': 'Tareas con nombre y apellido.',
+  'gath.upsell.jobsBody':
+    'Cada paso se convierte en una tarea a cargo de un familiar, que la responde y recibe '
+    + 'su aprobación o la devolución con comentarios. Nadie tiene que recordar quién dijo '
+    + 'que traería las mesas.',
+  'gath.upsell.budgetLead': 'Un presupuesto tomado de un fondo.',
+  'gath.upsell.budgetBody':
+    'Cuánto puede gastar la reunión, cuánto reclama cada parte de ella y si eso cabe en lo '
+    + 'que la familia realmente tiene.',
+  'gath.upsell.cta': 'Ver el plan {plan}',
   'plan.whatIncludes': 'Qué incluye cada plan',
   'plan.current': 'Actual',
   'plan.currentPlan': 'Plan actual',

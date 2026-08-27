@@ -55,10 +55,12 @@ import type { T } from '@/lib/i18n/t'
  * gain today, the other is what the plan is sold as.
  */
 export function UpgradeScreen({
-  label, blurb, currentTier, requiredTier: required, settingsHref, t,
+  label, blurb, currentTier, requiredTier: required, settingsHref, t, intl,
 }: {
   /** The reader's language, bound. A prop — this is a Server Component. */
   t: T
+  /** The reader's `Intl` tag, for the price. Threaded beside `t` for the same reason. */
+  intl: string
   label: string
   blurb: string
   currentTier: FamilyTier
@@ -177,7 +179,7 @@ export function UpgradeScreen({
         {price && (
           <p className="mt-2 text-xs text-muted-foreground">
             <span className="font-medium text-foreground">
-              {formatPlanPrice(price.monthlyCents)} a month
+              {t('bill.perMonth', { amount: formatPlanPrice(price.monthlyCents, intl) })}
             </span>
             . No annual plan, no contract.
             {!TIER_IS_SOLD[required] && ' Not on sale yet; nothing is billed today.'}

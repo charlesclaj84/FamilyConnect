@@ -53,7 +53,7 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 export default async function UpgradePage({ searchParams }: Props) {
   const { user } = await currentUser()
 
-  const { t } = await callerI18n(user?.id)
+  const { t, intl } = await callerI18n(user?.id)
   if (!user) redirect('/login')
 
   const { from } = await searchParams
@@ -81,6 +81,7 @@ export default async function UpgradePage({ searchParams }: Props) {
   return (
     <UpgradeScreen
       t={t}
+      intl={intl}
       label={label}
       blurb={blurb}
       currentTier={currentTier}

@@ -267,6 +267,9 @@ const KNOWN_DYNAMIC = [
   ['mkt.nav.', 'marketingNavLabel() maps a marketing route: t(`mkt.nav.${href}`). '
     + 'lib/marketing-nav.ts keeps the hrefs; the captions are here.'],
   ['mkt.plan.', 'The plan cards map lib/plans.ts by tier: t(`mkt.plan.${tier}.…`).'],
+  ['mkt.price.faq', 'The eight questions on /pricing: t(`mkt.price.faq${i}.q`). The seventh '
+    + 'ANSWER is deliberately not defined — paidPlanPriceAnswer() derives it from TIER_PRICE, '
+    + 'because a hand-written figure is one price change away from contradicting the card.'],
   ['mkt.also.', '/features builds its catalogue from ALSO_SHAPES: t(`mkt.also.${route}.title`). '
     + 'Keyed on the ROUTE, which that page treats as the identity — see its header.'],
   ['mkt.pillar.', 'pillars() maps three shapes and six bullets each: '
@@ -291,6 +294,31 @@ const KNOWN_DYNAMIC = [
 ]
 
 const isDynamic = key => KNOWN_DYNAMIC.some(([prefix]) => key.startsWith(prefix))
+
+/**
+ * Keys whose CALL SITE passes a placeholder the English does not use, with the reason.
+ *
+ * The English string is normally the declaration of what a key may interpolate — see the check
+ * itself. This is the case it cannot see: a call site handing every language the same facts in
+ * more than one shape, so each can pick the one its conventions want.
+ *
+ * An entry here is a promise that the call site really passes it, which nothing verifies — so
+ * keep the list short, name the call site, and say why one form does not serve all three.
+ */
+const EXTRA_PLACEHOLDERS = {
+  // `perRelative` in components/marketing/FamilySizeSlider.tsx passes BOTH a whole number of
+  // cents and the same figure already run through `formatCurrency`. English takes `{n}¢`,
+  // because "4¢" lands where "$0.04" makes the eye stop and parse — that file argues it at
+  // length and it is the whole job of the figure. The cent SIGN is a US convention, so Spanish
+  // and French take `{amount}` instead.
+  //
+  // The alternative was one placeholder, and both versions of it are worse: `{n}` alone forces
+  // every language into the cent-sign shape, and `{amount}` alone takes the fast-reading form
+  // away from the language the argument was written for. A hand-built decimal in the catalogue
+  // was tried and was the bug that led here — `0,0{n} $` is right for 1–9 cents and renders 45
+  // as `0,045 $`.
+  'mkt.slider.cents': ['amount'],
+}
 
 /**
  * Formatters whose locale is optional, and the ceiling on how many call sites may still default.
@@ -487,7 +515,19 @@ for (const bundle of BUNDLES) {
       continue
     }
 
-    const allowed = new Set(placeholdersIn(source))
+    // ── THE ENGLISH IS THE DECLARATION, WITH ONE STATED EXCEPTION ────────────────────
+    // Inferring the available placeholders from the English string is right almost always:
+    // a translator inventing `{name}` where the source has `{n}` writes a string that
+    // renders the braces to a reader, and there is nothing else to check it against.
+    //
+    // It is wrong where a call site deliberately passes MORE than the English uses, so that
+    // each language can choose its own presentation. `EXTRA_PLACEHOLDERS` is that list, and
+    // it is a list rather than a widened rule for the reason every allowance in these gates
+    // is: the exception has to be argued once, by name, and the count printed on every run.
+    const allowed = new Set([
+      ...placeholdersIn(source),
+      ...(EXTRA_PLACEHOLDERS[key] ?? []),
+    ])
     for (const name of placeholdersIn(value)) {
       if (!allowed.has(name)) {
         findings.push({
@@ -618,6 +658,13 @@ if (pinned > PINNED_CEILING) {
 
 for (const [prefix, why] of KNOWN_DYNAMIC) {
   console.log(`\n  note     ${prefix}*\n           ${why}`)
+}
+
+// The placeholder allowances are PRINTED too, and there is normally one. Same reason the
+// dynamic prefixes are: an exception that scrolls past as a number is an exception nobody
+// re-reads, and this list is the only place the check declines to make its own judgement.
+for (const [key, names] of Object.entries(EXTRA_PLACEHOLDERS)) {
+  console.log(`  extra {}      ${key.padEnd(28)} ${names.map(n => `{${n}}`).join(' ')}`)
 }
 
 // PER BUNDLE, and always printed. A single total would hide the state this is most likely to

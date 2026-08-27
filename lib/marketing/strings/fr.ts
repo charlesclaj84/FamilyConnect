@@ -355,6 +355,11 @@ export const marketingFr: Catalogue = {
   'mkt.feat.screenOne': '1 écran',
   'mkt.feat.screenMany': '{n} écrans',
   'mkt.feat.onTheWay': '{n} à venir',
+  'mkt.feat.perMonth': '{amount} par mois',
+  'mkt.feat.noCharge': 'Sans frais',
+  'mkt.feat.seePlan': ' — voyez ce que contient le forfait {plan}',
+  'mkt.price.perMonth': '/mois',
+
   'mkt.feat.soon0.title': 'Encaissez comme votre famille paie',
   'mkt.feat.soon0.blurb':
     'Carte, débit, PayPal, Apple Pay, Google Pay et Cash App, affectés à vos fonds dès leur '
@@ -735,4 +740,247 @@ export const marketingFr: Catalogue = {
   'mkt.bannerAlt':
     'GENORRA — générations organisées, ressources enregistrées, ascendance archivée. '
     + 'Héritage · Communauté · Legs',
+
+  // ──── THE /pricing PLAN BULLETS — 30 claims, keyed on their own id ──────────────
+  // THIS IS /pricing’s LIST AND IT IS DELIBERATELY NOT `plan.adds.*`. The two are
+  // separately WORDED — one is what a BUYER reads and the other what a MEMBER
+  // reads on /admin/settings — and `lib/plans.ts` argues that at length. What
+  // holds them together is the claim id, which `marketing:check` asserts matches
+  // per tier. So a bullet re-priced here and not there is a finding, in every
+  // language at once, and neither wording is derived from the other.
+  'mkt.claim.free/every-relative-free.label': 'Chaque proche, absolument tous, sans frais',
+  'mkt.claim.free/every-relative-free.detail':
+    'Membres illimités. Aucun frais par personne : personne n’est laissé de côté pour '
+    + 'alléger une facture.',
+  'mkt.claim.free/directory.label': 'Tout le monde en un seul endroit, et joignable',
+  'mkt.claim.free/directory.detail':
+    'Un répertoire dans lequel vous pouvez chercher, avec les coordonnées dont vous avez '
+    + 'réellement besoin.',
+  'mkt.claim.free/shared-calendar.label': 'Mettez le rassemblement sur un calendrier partagé',
+  'mkt.claim.free/shared-calendar.detail':
+    'La date, le lieu et les détails, sur une page que toute la famille peut voir.',
+  'mkt.claim.free/announcements.label': 'Des nouvelles qui atteignent toute la famille',
+  'mkt.claim.free/announcements.detail':
+    'Des annonces épinglées sur le tableau de bord de chacun plutôt qu’enfouies dans un fil '
+    + 'de discussion.',
+  'mkt.claim.free/chat.label': 'Continuez à vous parler entre les rassemblements',
+  'mkt.claim.free/chat.detail': 'Chat pour toute la famille et messages privés.',
+  'mkt.claim.free/one-account-many-families.label':
+    'Un compte, quel que soit le nombre de familles',
+  'mkt.claim.free/one-account-many-families.detail':
+    'Entré par mariage dans une seconde famille, ou vous tenez les deux côtés de vos '
+    + 'parents ? Passez de l’un à l’autre sans seconde connexion — tout à l’écran change d’un '
+    + 'coup.',
+  'mkt.claim.free/nothing-scrolls-away.label': 'Rien n’est perdu quand cela disparaît de l’écran',
+  'mkt.claim.free/nothing-scrolls-away.detail':
+    'Chaque annonce, et tout ce qui vous a été envoyé, cherchable longtemps après avoir '
+    + 'quitté le tableau de bord.',
+  'mkt.claim.free/manual.label': 'Un manuel que vos proches utiliseront vraiment',
+  'mkt.claim.free/manual.detail':
+    'Chaque écran expliqué par son nom, avec un point d’interrogation dans le coin qui '
+    + 'ouvre la page de l’endroit où ils se trouvent.',
+  'mkt.claim.standard/ledger.label': 'Un vrai registre pour l’argent que vous encaissez',
+  'mkt.claim.standard/ledger.detail':
+    'Des barèmes de cotisations, un registre d’apports et des fonds — enregistrés plutôt '
+    + 'que mémorisés. Espèces sur ce forfait.',
+  'mkt.claim.standard/family-tree.label': 'L’arbre généalogique, remonté',
+  'mkt.claim.standard/family-tree.detail':
+    'Comment chacun est lié, génération par génération, le sang et le mariage distingués.',
+  'mkt.claim.standard/duties.label': 'Chacun connaît ses tâches',
+  'mkt.claim.standard/duties.detail':
+    'Un rassemblement bâti à partir d’une liste de contrôle, chaque étape confiée à un '
+    + 'proche nommé, et une décision sur ce qui revient.',
+  'mkt.claim.standard/gathering-budget.label': 'Prévoyez ce que le rassemblement coûte',
+  'mkt.claim.standard/gathering-budget.detail':
+    'Un budget tiré de l’un de vos fonds, et ce que chaque tâche a réclamé dessus.',
+  'mkt.claim.standard/separation-of-duties.label': 'Séparation des tâches',
+  'mkt.claim.standard/separation-of-duties.detail':
+    'Des autorisations par fonctionnalité, pour qu’enregistrer des cotisations ne soit pas '
+    + 'la même chose que verser de l’argent.',
+  'mkt.claim.standard/profile-pictures.label': 'Un visage pour chaque nom',
+  'mkt.claim.standard/profile-pictures.detail':
+    'Des photos de profil, dans le répertoire, sur l’arbre et partout où un membre est '
+    + 'listé.',
+  'mkt.claim.plus/card-payments.label': 'Encaissez comme votre famille paie réellement',
+  'mkt.claim.plus/card-payments.detail':
+    'Carte, débit, PayPal, Apple Pay, Google Pay et Cash App, avec des fonds et un registre '
+    + 'complet derrière.',
+  'mkt.claim.plus/dues-projections.label': 'Sachez ce qui reste dû, avant d’avoir à le demander',
+  'mkt.claim.plus/dues-projections.detail':
+    'Chaque proche qui doit cette année, ce qui est entré, et qui doit encore payer.',
+  'mkt.claim.plus/pnl.label': 'Un compte de résultat pour votre trésorier',
+  'mkt.claim.plus/pnl.detail':
+    'L’état que le conseil demande, directement depuis le registre — plus les virements '
+    + 'entre vos fonds, les deux côtés au relevé.',
+  'mkt.claim.plus/membership-report.label': 'Les chiffres que le conseil ne cesse de demander',
+  'mkt.claim.plus/membership-report.detail':
+    'Les cotisations encaissées face aux impayées, et vos adhésions par région, par section '
+    + 'et selon jusqu’où chaque proche est allé dans son inscription.',
+  'mkt.claim.plus/activity-reports.label': 'Des rapports sur autre chose que l’argent',
+  'mkt.claim.plus/activity-reports.detail':
+    'Si le travail du rassemblement est revenu, la participation aux élections, à quelle '
+    + 'fréquence vous vous réunissez, et quelles fonctions sont vacantes.',
+  'mkt.claim.plus/elections.label': 'Élisez vos responsables comme il faut',
+  'mkt.claim.plus/elections.detail':
+    'Nommer, accepter ou refuser, puis voter — toute la famille, une région ou une section.',
+  'mkt.claim.plus/library.label': 'La paperasse, et la structure qui va avec',
+  'mkt.claim.plus/library.detail':
+    'Des statuts cherchables, et des procès-verbaux qui consignent comment la salle a voté '
+    + '— plus des régions et des sections avec leurs propres responsables.',
+  'mkt.claim.plus/officer-notes.label': 'Chaque fonction tient son propre carnet',
+  'mkt.claim.plus/officer-notes.detail':
+    'Des notes de travail qui restent avec la fonction plutôt qu’avec la personne, lisibles '
+    + 'seulement par son titulaire.',
+  'mkt.claim.plus/gallery.label': 'Chaque photographie, trouvable',
+  'mkt.claim.plus/gallery.detail': 'Des collections par rassemblement, avec étiquetage.',
+  'mkt.claim.premium/dues-reminders.label':
+    'Cessez de courir après vos proches pour leurs cotisations',
+  'mkt.claim.premium/dues-reminders.detail':
+    'Les rappels partent à chaque échéance, et s’arrêtent dès qu’elle est payée.',
+  'mkt.claim.premium/notifications.label':
+    'Des nouvelles qui arrivent, au lieu d’attendre qu’on les trouve',
+  'mkt.claim.premium/notifications.detail':
+    'Des notifications sur le téléphone et dans le navigateur pour les annonces, les '
+    + 'messages et les tâches qui vous sont confiées.',
+  'mkt.claim.premium/mobile-apps.label': 'La famille dans la poche de chacun',
+  'mkt.claim.premium/mobile-apps.detail':
+    'Des applications pour iPhone et Android, connectées au même compte familial.',
+  'mkt.claim.premium/email-distributions.label':
+    'Écrivez à toute la famille sans construire de liste',
+  'mkt.claim.premium/email-distributions.detail':
+    'Des envois tirés directement de vos adhésions : personne n’est oublié et personne n’y '
+    + 'est deux fois.',
+  'mkt.claim.premium/safety-check-ins.label':
+    'Vérifiez que tout le monde est en sécurité, d’une pression chacun',
+  'mkt.claim.premium/safety-check-ins.detail':
+    'Quand une tempête ou un incendie frappe, demandez aux proches de cette région — ou à '
+    + 'une liste que vous choisissez — s’ils sont en sécurité. Ils répondent d’une pression, '
+    + 'et vous voyez une liste se remplir : qui est en sécurité, qui a besoin d’aide, et qui '
+    + 'n’a pas encore répondu.',
+  'mkt.claim.premium/family-website.label': 'Le site web de votre famille, qui se tient à jour',
+  'mkt.claim.premium/family-website.detail':
+    'Il se construit à partir de votre prochain rassemblement, de vos photographies les '
+    + 'plus récentes et de votre dernière annonce. Tous les autres sites familiaux sont '
+    + 'abandonnés en mars parce que quelqu’un doit les mettre à jour. Celui-ci, personne n’a '
+    + 'à le faire.',
+  'mkt.claim.premium/custom-domain.label': 'Une vraie adresse pour lui, prête à l’emploi',
+  'mkt.claim.premium/custom-domain.detail':
+    'Aucune facture d’hébergement, aucune extension, et aucun proche « qui s’y connaît en '
+    + 'informatique » à l’entretenir.',
+
+  // ──── PRICING — the chrome, the derived price answer and the FAQ ────────────────
+  'mkt.price.metaTitle': 'Tarifs — commencez gratuitement, sans carte',
+  'mkt.price.metaDescription':
+    'Créez votre famille, invitez vos proches et organisez votre premier rassemblement sur '
+    + 'GENORRA gratuitement. Sans carte de crédit, sans compte à rebours d’essai, sans frais '
+    + 'par membre.',
+  'mkt.price.graphName': 'Tarifs — commencez gratuitement, sans carte',
+  'mkt.price.eyebrow': 'Tarifs',
+  'mkt.price.title': 'Gratuit. Pas gratuit-pendant-trente-jours.',
+  'mkt.price.lede':
+    'Aucun compte à rebours d’essai, aucune carte de crédit, aucun frais par proche. Amenez '
+    + 'toute la famille — c’est tout l’intérêt du produit.',
+  'mkt.price.plansEyebrow': 'Forfaits',
+  'mkt.price.plansTitle': 'Quatre forfaits. Le gratuit n’est pas un essai',
+  'mkt.price.plansLede':
+    'Faites entrer chaque proche et parlez-vous — gratuitement, pour toujours. Payez quand '
+    + 'vous commencez à mener la famille comme une organisation.',
+  'mkt.price.freeAmount': '0 $',
+  'mkt.price.freePeriod': 'pour toujours',
+  'mkt.price.noCard': 'Sans carte. Sans période d’essai.',
+  'mkt.price.paidEyebrow': 'Quand la famille a besoin de plus qu’un endroit où être',
+  'mkt.price.paidTitle': 'Trois marches vers le haut, chacune contenant la précédente',
+  'mkt.price.paidLede':
+    'Aucun d’eux ne peut encore être acheté — il n’y a pas de facturation dans le produit. '
+    + 'Les prix sont fixés, et ce sont ceux que vous paierez.',
+  'mkt.price.sizeEyebrow': 'Quel que soit votre nombre',
+  'mkt.price.sizeTitle': 'Le prix ne sait pas quelle taille votre famille a',
+  'mkt.price.sizeLede':
+    'La plupart des outils facturent au siège : la première chose que vous faites est donc '
+    + 'de décider pour quels proches il vaut la peine de payer. Déplacez le curseur et '
+    + 'regardez : rien ne se passe.',
+  'mkt.price.compareLink': 'Voyez comment cela se compare aux solutions de rechange',
+  // See the Spanish note: the sentence is copy, the figure is derived.
+  'mkt.price.rateSentence': 'Le forfait {tier} coûte {amount} par mois.',
+  'mkt.price.rateFooter':
+    'Aucun forfait annuel et aucun contrat — de mois en mois, pour toute la famille quelle '
+    + 'que soit sa taille. Aucun d’eux n’est encore en vente — il n’y a pas de facturation '
+    + 'dans le produit, donc chaque carte payante indique Bientôt disponible. Créez un compte '
+    + 'gratuit et vous serez prévenu de leur ouverture.',
+  'mkt.price.noneAnnounced':
+    'Aucun n’a encore été annoncé. Créez un compte gratuit et vous serez prévenu en '
+    + 'premier.',
+  'mkt.price.faqTitle': 'Des réponses claires sur l’argent',
+  'mkt.price.faq0.q': 'GENORRA est-il vraiment gratuit ?',
+  'mkt.price.faq0.a':
+    'Oui, et pas comme un essai. Des membres illimités, le répertoire des membres, le chat '
+    + 'de la famille, les annonces et vos rassemblements sur un calendrier familial partagé '
+    + 'ne coûtent rien, sans carte requise et sans date d’expiration. Ce qui est payé, c’est '
+    + 'de MENER la famille plutôt que d’en avoir une — l’arbre généalogique, le registre des '
+    + 'cotisations et la répartition du travail relèvent de Standard, et le prix figure sur '
+    + 'la carte ci-dessus, pour toute la famille quelle que soit sa taille.',
+  'mkt.price.faq1.q': 'Y a-t-il une limite au nombre de membres que nous pouvons ajouter ?',
+  'mkt.price.faq1.a':
+    'Non, sur aucun palier, Gratuit compris. Le produit est conçu pour une famille de cent '
+    + 'adultes ou plus — c’est le cas ordinaire et non l’exception — et il n’y a jamais de '
+    + 'frais par membre. Un prix qui grandit avec votre famille est un prix qui laisse des '
+    + 'proches dehors, ce qui va contre tout l’intérêt.',
+  'mkt.price.faq2.q': 'Où s’arrête Gratuit et où commence Standard ?',
+  'mkt.price.faq2.a':
+    'Gratuit fait entrer toute votre famille en un seul endroit : un répertoire où chacun '
+    + 'peut chercher, un chat pour toute la famille et privé, des annonces sur le tableau de '
+    + 'bord de chacun, et vos rassemblements sur un calendrier partagé avec la date, le lieu '
+    + 'et les détails. Standard sert à MENER la famille — l’arbre généalogique remonté à '
+    + 'travers les générations, un vrai registre de cotisations et de dons, des '
+    + 'rassemblements organisés comme il faut avec une liste de contrôle et chaque étape '
+    + 'confiée à un proche nommé, des autorisations par fonctionnalité, et une photographie '
+    + 'pour chaque nom.',
+  'mkt.price.faq3.q': 'Qu’ajoute Plus par-dessus Standard ?',
+  'mkt.price.faq3.a':
+    'L’organisation autour de la famille. Accepter les paiements par carte, débit, PayPal, '
+    + 'Apple Pay, Google Pay et Cash App au lieu des espèces seules ; voir ce que chaque '
+    + 'proche doit encore pour l’année ; les élections des fonctions ; des collections de '
+    + 'photos avec étiquetage ; des documents ; des régions et sections avec leurs propres '
+    + 'responsables ; un compte de résultat et des rapports pour le conseil.',
+  'mkt.price.faq4.q': 'Sur Standard, ne pouvons-nous enregistrer que des paiements en espèces ?',
+  'mkt.price.faq4.a':
+    'Oui. Standard comprend des barèmes de cotisations, des fonds et un registre d’apports, '
+    + 'et vous y enregistrez les paiements en espèces — ce que la plupart des familles font '
+    + 'aujourd’hui dans un carnet. Accepter les paiements par carte, débit, PayPal, Apple '
+    + 'Pay, Google Pay et Cash App, avec une affectation automatique dans vos fonds derrière, '
+    + 'fait partie de Plus.',
+  'mkt.price.faq5.q':
+    'Les fonctionnalités gratuites que nous utilisons aujourd’hui vont-elles devenir '
+    + 'payantes ?',
+  'mkt.price.faq5.a':
+    'Non. Ce qui figure sous Gratuit sur cette page reste gratuit — chaque proche, le '
+    + 'répertoire, le chat, les annonces et le calendrier partagé — et il n’y a de frais par '
+    + 'membre sur aucun forfait. Les paliers payants sont de la capacité ajoutée par-dessus, '
+    + 'non un péage sur ce dont votre famille dépend déjà.',
+  'mkt.price.faq6.q': 'Combien coûteront les forfaits payants ?',
+  'mkt.price.faq7.q': 'Vendez-vous les données de notre famille ?',
+  'mkt.price.faq7.a':
+    'Non. Il n’y a aucune publicité dans le produit et les données familiales ne sont '
+    + 'jamais partagées ni vendues, sur aucun palier. Une famille ne peut pas voir les '
+    + 'données d’une autre du tout — cette séparation est imposée par la base de données à '
+    + 'chaque requête plutôt que par un réglage.',
+  'mkt.price.testimonials': 'Des familles qui ont cessé de payer pour trois outils',
+  'mkt.price.ctaTitle': 'Le découvrir ne coûte rien',
+  'mkt.price.ctaLede':
+    'Créez votre famille, partagez le code, et voyez si cela remplace le tableur.',
+
+  // ──── THE FAMILY-SIZE SLIDER — the demonstration that the price does not move ────
+  'mkt.slider.relatives': 'proches',
+  'mkt.slider.relativesOrMore': 'proches ou plus',
+  'mkt.slider.dragLabel': 'Faites-le glisser jusqu’à la taille de votre famille',
+  'mkt.slider.valueText': '{n} proches',
+  'mkt.slider.yourBill': 'Votre facture, à {n} proches',
+  'mkt.slider.each': '{amount} chacun',
+  'mkt.slider.nothing': 'rien',
+  'mkt.slider.underCent': 'moins de 0,01 $',
+  'mkt.slider.cents': '{amount}',
+  'mkt.slider.foot':
+    'Déplacez-le aussi loin que vous voulez. Les chiffres de gauche ne changent jamais — il '
+    + 'n’y a de frais par membre sur aucun forfait, donc le cousin que vous avez presque '
+    + 'oublié ne coûte rien à ajouter.',
 }
