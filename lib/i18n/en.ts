@@ -2184,4 +2184,106 @@ export const en: Catalogue = {
   'inc.rangeBoth': '{from} – {to}',
   'inc.rangeFrom': 'from {from}',
   'inc.rangeUntil': 'until {to}',
+
+  // ──── THE FOUR PLAN TAGLINES — read by /admin/settings, /upgrade and /register ────
+  'tier.tagline.free': 'Get your whole family in one place. All of them.',
+  'tier.tagline.standard': 'Run the family: the tree, the money and who is doing what.',
+  'tier.tagline.plus': 'For families collecting real payments and answering to a board.',
+  'tier.tagline.premium': 'In every relative’s pocket, and out in the world.',
+
+  // ──── THE UPGRADE SCREEN’S SENTENCES ────────────────────────────────────────────
+  'upg.forFamilies': '{tier} is for families who need more: {tagline}',
+  'upg.alsoOn': 'Also on {tier}',
+  'upg.whatIncludes': 'What {tier} includes',
+
+  // ──── THE IN-PRODUCT PLAN LIST — 30 claims, keyed on their own id ───────────────
+  'plan.adds.free/every-relative-free.label': 'Every relative, at no charge',
+  'plan.adds.free/every-relative-free.detail': 'Unlimited members, with no per-person fee.',
+  'plan.adds.free/directory.label': 'A directory of the whole family',
+  'plan.adds.free/directory.detail': 'Who is who, and how to reach them.',
+  'plan.adds.free/shared-calendar.label': 'The gathering on a shared calendar',
+  'plan.adds.free/shared-calendar.detail':
+    'The date, the place and the details, on one page everybody can see.',
+  'plan.adds.free/announcements.label': 'Announcements the whole family sees',
+  'plan.adds.free/announcements.detail':
+    'Family news on everyone’s dashboard instead of buried in a group text.',
+  'plan.adds.free/chat.label': 'Chat, family-wide and private',
+  'plan.adds.free/chat.detail': 'Keep talking between gatherings.',
+  'plan.adds.free/one-account-many-families.label': 'One account, however many families',
+  'plan.adds.free/one-account-many-families.detail':
+    'Belong to both sides, and switch between them without a second login.',
+  'plan.adds.free/nothing-scrolls-away.label': 'Nothing is lost when it scrolls away',
+  'plan.adds.free/nothing-scrolls-away.detail':
+    'Every announcement, and everything sent to you, searchable long afterwards.',
+  'plan.adds.free/manual.label': 'A manual your relatives will actually use',
+  'plan.adds.free/manual.detail':
+    'Every screen explained by name, reachable from the corner of the screen they are on.',
+  'plan.adds.standard/family-tree.label': 'The family tree, traced back',
+  'plan.adds.standard/family-tree.detail':
+    'How everyone is related, generation by generation, with blood and marriage told apart.',
+  'plan.adds.standard/ledger.label': 'A real ledger for the money you collect',
+  'plan.adds.standard/ledger.detail':
+    'Dues plans and a contribution ledger for cash, recorded instead of remembered.',
+  'plan.adds.standard/gathering-budget.label': 'Plan the gathering, not just the date',
+  'plan.adds.standard/gathering-budget.detail':
+    'Checklists a gathering is built from, and a budget drawn on one of your funds.',
+  'plan.adds.standard/duties.label': 'Everybody knows their duties',
+  'plan.adds.standard/duties.detail':
+    'Every step handed to a named relative, with what came back and whether it was '
+    + 'accepted.',
+  'plan.adds.standard/separation-of-duties.label': 'Separation of duties',
+  'plan.adds.standard/separation-of-duties.detail':
+    'Per-feature permissions, so recording dues is not the same as paying money out.',
+  'plan.adds.standard/profile-pictures.label': 'A face against every name',
+  'plan.adds.standard/profile-pictures.detail':
+    'Profile pictures, on the directory, the tree and everywhere a member is listed.',
+  'plan.adds.plus/card-payments.label': 'Take payment the way your family pays',
+  'plan.adds.plus/card-payments.detail':
+    'Card, debit, PayPal, Apple Pay, Google Pay and Cash App, with funds behind them.',
+  'plan.adds.plus/dues-projections.label': 'Know what is still owed, before you have to ask',
+  'plan.adds.plus/dues-projections.detail':
+    'Every relative who owes this year, what has come in, and who has still to pay.',
+  'plan.adds.plus/pnl.label': 'A profit and loss for your treasurer',
+  'plan.adds.plus/pnl.detail':
+    'The statement the board asks for, plus transfers between your funds.',
+  'plan.adds.plus/membership-report.label': 'The numbers leadership asks for',
+  'plan.adds.plus/membership-report.detail':
+    'Dues collected against outstanding, and your membership by region and chapter.',
+  'plan.adds.plus/activity-reports.label': 'Reports on more than the money',
+  'plan.adds.plus/activity-reports.detail':
+    'Reunion work returned, election turnout, meetings held, and the offices nobody holds.',
+  'plan.adds.plus/elections.label': 'Elect your officers properly',
+  'plan.adds.plus/elections.detail':
+    'Nominate, accept or decline, then vote — family-wide, or one region or chapter.',
+  'plan.adds.plus/library.label': 'The paperwork, and the structure to match',
+  'plan.adds.plus/library.detail':
+    'Searchable bylaws, minutes that record how the room voted, and regions and chapters '
+    + 'with their own leadership.',
+  'plan.adds.plus/officer-notes.label': 'Every office keeps its own notebook',
+  'plan.adds.plus/officer-notes.detail':
+    'Notes that stay with the role rather than the person, read only by whoever holds it.',
+  'plan.adds.plus/gallery.label': 'Photographs, findable',
+  'plan.adds.plus/gallery.detail': 'Collections per gathering, with tagging.',
+  'plan.adds.premium/dues-reminders.label': 'Stop chasing relatives for their dues',
+  'plan.adds.premium/dues-reminders.detail':
+    'Reminders go out as each installment falls due, and stop when it is paid.',
+  'plan.adds.premium/notifications.label': 'News that arrives rather than waiting to be found',
+  'plan.adds.premium/notifications.detail':
+    'Notifications on the phone and in the browser, for announcements, messages and the '
+    + 'tasks you have been given.',
+  'plan.adds.premium/mobile-apps.label': 'The family in everybody’s pocket',
+  'plan.adds.premium/mobile-apps.detail':
+    'Apps for iPhone and Android, on the same family account.',
+  'plan.adds.premium/email-distributions.label': 'Email the whole family without building a list',
+  'plan.adds.premium/email-distributions.detail':
+    'Distributions drawn straight from your membership.',
+  'plan.adds.premium/safety-check-ins.label': 'Check that everyone is safe, in one tap each',
+  'plan.adds.premium/safety-check-ins.detail':
+    'Ask the relatives in one area whether they are safe, and see who has not answered.',
+  'plan.adds.premium/family-website.label': 'Your family’s own website, keeping itself current',
+  'plan.adds.premium/family-website.detail':
+    'It builds itself from your next gathering, newest photographs and latest announcement.',
+  'plan.adds.premium/custom-domain.label': 'A proper address for it, ready to go',
+  'plan.adds.premium/custom-domain.detail':
+    'No hosting bill, no plugins, and nobody in the family maintaining it.',
 }

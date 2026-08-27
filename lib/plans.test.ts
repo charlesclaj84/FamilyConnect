@@ -1,10 +1,24 @@
 import { describe, expect, it } from 'vitest'
 import {
-  PLAN_ADDS, PLAN_ORDER, TIER_IS_SOLD, TIER_PRICE,
+  planAdds, PLAN_ORDER, TIER_IS_SOLD, TIER_PRICE,
   formatPlanPrice, planAddsBetween, planChange,
 } from '@/lib/plans'
 import { TIERS, type FamilyTier } from '@/lib/tiers'
 import { formatCurrency } from '@/lib/currency-utils'
+import { tFor } from '@/lib/i18n/catalogues'
+
+/**
+ * ── THE PLAN LIST TAKES A TRANSLATOR NOW, AND THAT KEPT THESE TESTS PURE ────────────
+ * `PLAN_ADDS` was a `Record` of English; it is `planAdds(t, tier)`. A translator is a function
+ * of a locale over two plain objects — no request, no session, no database — so every assertion
+ * below still runs with no fixture, which is what keeps them in `npm test` rather than in
+ * `tests/rls` (AGENTS.md §7b).
+ *
+ * `tFor('en')` rather than a stub, deliberately: it exercises the real catalogue, so a claim
+ * whose `plan.adds.<claim>.label` key is missing shows up as a key name in a length assertion
+ * rather than passing over a stub that answers anything.
+ */
+const t = tFor('en')
 
 /**
  * The plan arithmetic, under `npm test` — which has been a `verify.yml` step since
@@ -46,7 +60,7 @@ import { formatCurrency } from '@/lib/currency-utils'
  *
  *   * `TIER_PRICE.standard` → `{ monthlyCents: 2_000 }` (dearer than Plus)     2 failed
  *   * `TIER_PRICE.standard` → null                                            2 failed
- *   * `PLAN_ADDS.standard` → `[]`                                             1 failed
+ *   * `planAdds(t, 'standard')` → `[]`                                             1 failed
  *   * `yearlyCents: 18_000` put back on Plus                                  2 failed
  *
  * The last one is the one to keep in mind: it is not a hypothetical mutation, it is the edit
@@ -195,7 +209,7 @@ describe('TIER_IS_SOLD', () => {
 describe('planAddsBetween', () => {
   it('walks the rungs rather than reading one tier', () => {
     // Free → Premium skips TWO rungs since Standard was inserted, which is what makes this
-    // worth asserting: reading `PLAN_ADDS.premium` alone names Premium's benefits and silently
+    // worth asserting: reading `planAdds(t, 'premium')` alone names Premium's benefits and silently
     // omits everything on Standard and Plus that arrives with them.
     //
     // SUMMED FROM `TIERS` RATHER THAN FROM THE THREE TIERS BY NAME, and that is the whole
@@ -203,12 +217,14 @@ describe('planAddsBetween', () => {
     // and went on passing as a statement about three tiers while the function correctly walked
     // four. A test that names the rungs cannot notice a new rung — it just gets the wrong
     // total and reports the FUNCTION as broken, which is the most expensive kind of failure.
-    const total = TIERS.reduce((n, t) => n + PLAN_ADDS[t].length, 0)
-    expect(planAddsBetween(undefined, 'premium')).toHaveLength(total)
-    expect(planAddsBetween('free', 'premium')).toHaveLength(total - PLAN_ADDS.free.length)
+    // `tier` rather than `t`: the translator is `t` in this file now, and a shadowing
+    // parameter here would have quietly passed the tier as the translator.
+    const total = TIERS.reduce((n, tier) => n + planAdds(t, tier).length, 0)
+    expect(planAddsBetween(t, undefined, 'premium')).toHaveLength(total)
+    expect(planAddsBetween(t, 'free', 'premium')).toHaveLength(total - planAdds(t, 'free').length)
     // And one rung really is skipped over: Free → Plus must include Standard's list.
-    expect(planAddsBetween('free', 'plus')).toHaveLength(
-      PLAN_ADDS.standard.length + PLAN_ADDS.plus.length,
+    expect(planAddsBetween(t, 'free', 'plus')).toHaveLength(
+      planAdds(t, 'standard').length + planAdds(t, 'plus').length,
     )
   })
 
@@ -218,24 +234,24 @@ describe('planAddsBetween', () => {
     // catches a tier added to `TIERS` with no `PLAN_ADDS` entry written for it: the Record
     // type demands the key, and `[]` satisfies it.
     for (const tier of TIERS) {
-      expect(PLAN_ADDS[tier].length, `${tier} adds nothing`).toBeGreaterThan(0)
+      expect(planAdds(t, tier).length, `${tier} adds nothing`).toBeGreaterThan(0)
     }
   })
 
   it('is empty when there is nothing above the floor', () => {
-    expect(planAddsBetween('premium', 'premium')).toEqual([])
-    expect(planAddsBetween('premium', 'free')).toEqual([])
+    expect(planAddsBetween(t, 'premium', 'premium')).toEqual([])
+    expect(planAddsBetween(t, 'premium', 'free')).toEqual([])
   })
 
   it('takes undefined as "from the bottom", which is how Free asks for its own stack', () => {
-    expect(planAddsBetween(undefined, 'free')).toEqual(PLAN_ADDS.free)
+    expect(planAddsBetween(t, undefined, 'free')).toEqual(planAdds(t, 'free'))
   })
 })
 
 describe('planChange', () => {
   it('answers an upgrade and a downgrade with the same two lists', () => {
-    const up = planChange('free', 'premium')
-    const down = planChange('premium', 'free')
+    const up = planChange(t, 'free', 'premium')
+    const down = planChange(t, 'premium', 'free')
     expect(up.up).toBe(true)
     expect(down.up).toBe(false)
     // Symmetric on purpose: the caller reads `up` to decide whether `changing` is gains or
@@ -246,12 +262,12 @@ describe('planChange', () => {
 
   it('moves nothing when the plan does not change', () => {
     for (const tier of TIERS as FamilyTier[]) {
-      expect(planChange(tier, tier).changing).toEqual([])
+      expect(planChange(t, tier, tier).changing).toEqual([])
     }
   })
 
   it('keeps everything the LOWER tier carries, on the way down as well as up', () => {
     // The reassuring half of a downgrade rather than a footnote to it.
-    expect(planChange('premium', 'plus').keeping).toEqual(planAddsBetween(undefined, 'plus'))
+    expect(planChange(t, 'premium', 'plus').keeping).toEqual(planAddsBetween(t, undefined, 'plus'))
   })
 })

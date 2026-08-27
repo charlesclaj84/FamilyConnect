@@ -260,6 +260,10 @@ const KNOWN_DYNAMIC = [
   ['pos.cat.', 'positionCategoryLabel() maps a family_roles.category.'],
   ['pos.scope.', 'positionScopeLabel() maps a user_roles.scope.'],
   ['set.pane.', 'settingsPaneLabel() maps a SettingsPane id.'],
+  ['tier.tagline.', 'tierTagline() maps a FamilyTier: t(`tier.tagline.${tier}`).'],
+  ['plan.adds.', 'planAdds() maps lib/plans.ts’s claim ids: t(`plan.adds.${claim}.label`). '
+    + 'Keyed on the CLAIM, which marketing:check already walks per tier — so that gate and '
+    + 'this one agree about one set of ids.'],
   ['mkt.nav.', 'marketingNavLabel() maps a marketing route: t(`mkt.nav.${href}`). '
     + 'lib/marketing-nav.ts keeps the hrefs; the captions are here.'],
   ['mkt.plan.', 'The plan cards map lib/plans.ts by tier: t(`mkt.plan.${tier}.…`).'],

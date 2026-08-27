@@ -2232,4 +2232,125 @@ export const fr: Catalogue = {
   'inc.rangeBoth': '{from} – {to}',
   'inc.rangeFrom': 'à partir du {from}',
   'inc.rangeUntil': 'jusqu’au {to}',
+
+  // ──── THE FOUR PLAN TAGLINES — read by /admin/settings, /upgrade and /register ────
+  'tier.tagline.free': 'Réunissez toute votre famille en un seul endroit. Toute.',
+  'tier.tagline.standard': 'Menez la famille : l’arbre, l’argent et qui fait quoi.',
+  'tier.tagline.plus':
+    'Pour les familles qui encaissent de vrais paiements et répondent à un conseil.',
+  'tier.tagline.premium': 'Dans la poche de chaque proche, et dehors dans le monde.',
+
+  // ──── THE UPGRADE SCREEN’S SENTENCES ────────────────────────────────────────────
+  // See the Spanish note: the tagline is interpolated whole, never lowercased.
+  'upg.forFamilies': 'Le forfait {tier} est pour les familles qui ont besoin de plus : {tagline}',
+  'upg.alsoOn': 'Également sur {tier}',
+  'upg.whatIncludes': 'Ce que {tier} comprend',
+
+  // ──── THE IN-PRODUCT PLAN LIST — 30 claims, keyed on their own id ───────────────
+  'plan.adds.free/every-relative-free.label': 'Chaque proche, sans frais',
+  'plan.adds.free/every-relative-free.detail': 'Membres illimités, sans frais par personne.',
+  'plan.adds.free/directory.label': 'Un répertoire de toute la famille',
+  'plan.adds.free/directory.detail': 'Qui est qui, et comment le joindre.',
+  'plan.adds.free/shared-calendar.label': 'Le rassemblement sur un calendrier partagé',
+  'plan.adds.free/shared-calendar.detail':
+    'La date, le lieu et les détails, sur une page que tout le monde peut voir.',
+  'plan.adds.free/announcements.label': 'Des annonces que toute la famille voit',
+  'plan.adds.free/announcements.detail':
+    'Les nouvelles de la famille sur le tableau de bord de chacun plutôt qu’enfouies dans '
+    + 'un fil de discussion.',
+  'plan.adds.free/chat.label': 'Chat, pour toute la famille et privé',
+  'plan.adds.free/chat.detail': 'Continuez à vous parler entre les rassemblements.',
+  'plan.adds.free/one-account-many-families.label':
+    'Un compte, quel que soit le nombre de familles',
+  'plan.adds.free/one-account-many-families.detail':
+    'Appartenez aux deux côtés, et passez de l’un à l’autre sans seconde connexion.',
+  'plan.adds.free/nothing-scrolls-away.label': 'Rien n’est perdu quand cela disparaît de l’écran',
+  'plan.adds.free/nothing-scrolls-away.detail':
+    'Chaque annonce, et tout ce qui vous a été envoyé, cherchable longtemps après.',
+  'plan.adds.free/manual.label': 'Un manuel que vos proches utiliseront vraiment',
+  'plan.adds.free/manual.detail':
+    'Chaque écran expliqué par son nom, accessible depuis le coin de l’écran où ils se '
+    + 'trouvent.',
+  'plan.adds.standard/family-tree.label': 'L’arbre généalogique, remonté',
+  'plan.adds.standard/family-tree.detail':
+    'Comment chacun est lié, génération par génération, le sang et le mariage distingués.',
+  'plan.adds.standard/ledger.label': 'Un vrai registre pour l’argent que vous encaissez',
+  'plan.adds.standard/ledger.detail':
+    'Des barèmes de cotisations et un registre d’apports pour les espèces, enregistrés '
+    + 'plutôt que mémorisés.',
+  'plan.adds.standard/gathering-budget.label': 'Organisez le rassemblement, pas seulement la date',
+  'plan.adds.standard/gathering-budget.detail':
+    'Des listes de contrôle dont un rassemblement est bâti, et un budget tiré de l’un de '
+    + 'vos fonds.',
+  'plan.adds.standard/duties.label': 'Chacun connaît ses tâches',
+  'plan.adds.standard/duties.detail':
+    'Chaque étape confiée à un proche nommé, avec ce qui est revenu et si cela a été '
+    + 'accepté.',
+  'plan.adds.standard/separation-of-duties.label': 'Séparation des tâches',
+  'plan.adds.standard/separation-of-duties.detail':
+    'Des autorisations par fonctionnalité, pour qu’enregistrer des cotisations ne soit pas '
+    + 'la même chose que verser de l’argent.',
+  'plan.adds.standard/profile-pictures.label': 'Un visage pour chaque nom',
+  'plan.adds.standard/profile-pictures.detail':
+    'Des photos de profil, dans le répertoire, sur l’arbre et partout où un membre est '
+    + 'listé.',
+  'plan.adds.plus/card-payments.label': 'Encaissez comme votre famille paie',
+  'plan.adds.plus/card-payments.detail':
+    'Carte, débit, PayPal, Apple Pay, Google Pay et Cash App, avec des fonds derrière.',
+  'plan.adds.plus/dues-projections.label': 'Sachez ce qui reste dû, avant d’avoir à le demander',
+  'plan.adds.plus/dues-projections.detail':
+    'Chaque proche qui doit cette année, ce qui est entré, et qui doit encore payer.',
+  'plan.adds.plus/pnl.label': 'Un compte de résultat pour votre trésorier',
+  'plan.adds.plus/pnl.detail': 'L’état que le conseil demande, plus les virements entre vos fonds.',
+  'plan.adds.plus/membership-report.label': 'Les chiffres que le conseil demande',
+  'plan.adds.plus/membership-report.detail':
+    'Les cotisations encaissées face aux impayées, et vos adhésions par région et par '
+    + 'section.',
+  'plan.adds.plus/activity-reports.label': 'Des rapports sur autre chose que l’argent',
+  'plan.adds.plus/activity-reports.detail':
+    'Le travail du rassemblement revenu, la participation aux élections, les réunions '
+    + 'tenues, et les fonctions que personne n’occupe.',
+  'plan.adds.plus/elections.label': 'Élisez vos responsables comme il faut',
+  'plan.adds.plus/elections.detail':
+    'Nommer, accepter ou refuser, puis voter — dans toute la famille, ou dans une région ou '
+    + 'une section.',
+  'plan.adds.plus/library.label': 'La paperasse, et la structure qui va avec',
+  'plan.adds.plus/library.detail':
+    'Des statuts cherchables, des procès-verbaux qui consignent comment la salle a voté, et '
+    + 'des régions et sections avec leurs propres responsables.',
+  'plan.adds.plus/officer-notes.label': 'Chaque fonction tient son propre carnet',
+  'plan.adds.plus/officer-notes.detail':
+    'Des notes qui restent avec la fonction plutôt qu’avec la personne, lues seulement par '
+    + 'son titulaire.',
+  'plan.adds.plus/gallery.label': 'Des photographies, trouvables',
+  'plan.adds.plus/gallery.detail': 'Des collections par rassemblement, avec étiquetage.',
+  'plan.adds.premium/dues-reminders.label':
+    'Cessez de courir après vos proches pour leurs cotisations',
+  'plan.adds.premium/dues-reminders.detail':
+    'Les rappels partent à chaque échéance, et s’arrêtent quand elle est payée.',
+  'plan.adds.premium/notifications.label':
+    'Des nouvelles qui arrivent au lieu d’attendre qu’on les trouve',
+  'plan.adds.premium/notifications.detail':
+    'Des notifications sur le téléphone et dans le navigateur, pour les annonces, les '
+    + 'messages et les tâches qui vous sont confiées.',
+  'plan.adds.premium/mobile-apps.label': 'La famille dans la poche de chacun',
+  'plan.adds.premium/mobile-apps.detail':
+    'Des applications pour iPhone et Android, sur le même compte familial.',
+  'plan.adds.premium/email-distributions.label':
+    'Écrivez à toute la famille sans construire de liste',
+  'plan.adds.premium/email-distributions.detail': 'Des envois tirés directement de vos adhésions.',
+  'plan.adds.premium/safety-check-ins.label':
+    'Vérifiez que tout le monde est en sécurité, d’une pression chacun',
+  'plan.adds.premium/safety-check-ins.detail':
+    'Demandez aux proches d’un secteur s’ils sont en sécurité, et voyez qui n’a pas '
+    + 'répondu.',
+  'plan.adds.premium/family-website.label':
+    'Le site web de votre famille, qui se tient à jour tout seul',
+  'plan.adds.premium/family-website.detail':
+    'Il se construit à partir de votre prochain rassemblement, de vos photographies les '
+    + 'plus récentes et de votre dernière annonce.',
+  'plan.adds.premium/custom-domain.label': 'Une vraie adresse pour lui, prête à l’emploi',
+  'plan.adds.premium/custom-domain.detail':
+    'Aucune facture d’hébergement, aucune extension, et personne dans la famille à '
+    + 'l’entretenir.',
 }

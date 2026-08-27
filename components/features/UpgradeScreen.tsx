@@ -3,9 +3,9 @@ import { Lock, ArrowRight, Check, Crown } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { FEATURES } from '@/lib/features'
 import {
-  PLAN_ADDS, TIER_IS_SOLD, TIER_PRICE, formatPlanPrice,
+  planAdds, TIER_IS_SOLD, TIER_PRICE, formatPlanPrice,
 } from '@/lib/plans'
-import { TIER_LABEL, TIER_TAGLINE, tierMeets, type FamilyTier } from '@/lib/tiers'
+import { TIER_LABEL, tierTagline, tierMeets, type FamilyTier } from '@/lib/tiers'
 import type { T } from '@/lib/i18n/t'
 
 /**
@@ -42,7 +42,7 @@ import type { T } from '@/lib/i18n/t'
  * That link took a signed-in member out of the Dashboard and onto Home, where the answer
  * to "what is on this plan?" is wrapped in a hero, a testimonial carousel and a button
  * offering to create the account they are already using. The answer is now on this screen:
- * `PLAN_ADDS` from `lib/plans.ts` says what the plan includes, in the product's own words.
+ * `planAdds` from `lib/plans.ts` says what the plan includes, in the product's own words.
  *
  * `settingsHref` is the one way OUT of here, and it is null for most people on purpose —
  * see the prop.
@@ -51,7 +51,7 @@ import type { T } from '@/lib/i18n/t'
  * The "also on this plan" rows come from the registry, filtered to what is both live and
  * on the required tier — so a feature that ships, or one that moves between tiers, is
  * described correctly here without anybody remembering this file exists. That is a
- * different list from `PLAN_ADDS` and both belong: one is the ROUTES this family would
+ * different list from `planAdds` and both belong: one is the ROUTES this family would
  * gain today, the other is what the plan is sold as.
  */
 export function UpgradeScreen({
@@ -103,13 +103,26 @@ export function UpgradeScreen({
       <p className="mb-2 text-sm text-muted-foreground">{blurb}</p>
       <p className="mb-8 text-sm text-muted-foreground">
         {t('upg.familyIsOn')} <span className="font-medium text-foreground">{TIER_LABEL[currentTier]}</span>.
-        {' '}{TIER_LABEL[required]} is for families who need more: {TIER_TAGLINE[required].toLowerCase()}
+        {' '}
+        {/* ── `.toLowerCase()` IS GONE, AND THAT IS THE POINT ────────────────────────
+            The tagline was lowercased so it would read as a clause mid-sentence. That is an
+            English typographic move and it does not travel: a Spanish or French tagline can
+            open on a proper noun, and lowercasing it there produces *genorra* or a lowered
+            place name in the middle of a sentence nobody can correct from here.
+
+            So the whole sentence is one catalogue entry with the tagline interpolated, and
+            each language writes the join it needs — including, if it wants, a colon and a
+            capital. */}
+        {t('upg.forFamilies', {
+          tier: TIER_LABEL[required],
+          tagline: tierTagline(t, required),
+        })}
       </p>
 
       {alsoIncluded.length > 0 && (
         <div className="mb-6 rounded-2xl border bg-card px-4 py-5 text-left shadow-[var(--shadow-card)]">
           <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Also on {TIER_LABEL[required]}
+            {t('upg.alsoOn', { tier: TIER_LABEL[required] })}
           </p>
           <ul className="flex flex-col gap-1">
             {alsoIncluded.map(feature => (
@@ -134,10 +147,10 @@ export function UpgradeScreen({
           leaves the product to read it. */}
       <div className="mb-8 rounded-2xl border bg-card px-4 py-5 text-left shadow-[var(--shadow-card)]">
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          What {TIER_LABEL[required]} includes
+          {t('upg.whatIncludes', { tier: TIER_LABEL[required] })}
         </p>
         <ul className="flex flex-col gap-2.5">
-          {PLAN_ADDS[required].map(item => (
+          {planAdds(t, required).map(item => (
             <li key={item.label} className="flex items-start gap-2 text-sm">
               <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-affirm" aria-hidden="true" />
               <span>

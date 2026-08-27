@@ -51,7 +51,7 @@
  *   4. no stale allowance — every `SOLD_ELSEWHERE` key is a live route, and none of them is
  *      also on the catalogue. Both directions, for `audit_global_lookups.sql`'s reason: a
  *      one-way assertion cannot see the half where the list itself has gone out of date.
- *   5. THE TWO PLAN LISTS SELL THE SAME THINGS — `PLANS[]` on `/pricing` and `PLAN_ADDS` in
+ *   5. THE TWO PLAN LISTS SELL THE SAME THINGS — `PLANS[]` on `/pricing` and `PLAN_ADD_CLAIMS` in
  *      `lib/plans.ts`, compared per tier by the `claim` id each bullet carries, never by its
  *      words. See the block above the check; it is the one mechanical question inside the
  *      pricing cards, and it was worth adding a field to make askable.
@@ -91,18 +91,18 @@
  * AND FOUR MORE FOR CHECK 5, added with it on 2026-08-22. Each reports every problem it
  * genuinely is rather than collapsing to one line, which is the same answer mutation 2 gives:
  *
- *   7. `premium/custom-domain` renamed in `PLAN_ADDS` only  -> plan claims, TWICE — sold on
- *      /pricing and unmentioned in-product, AND in PLAN_ADDS and on no card. Two findings for
+ *   7. `premium/custom-domain` renamed in `PLAN_ADD_CLAIMS` only  -> plan claims, TWICE — sold on
+ *      /pricing and unmentioned in-product, AND in PLAN_ADD_CLAIMS and on no card. Two findings for
  *      one edit, because from the two lists' point of view that is two disagreements
  *   8. `standard/ledger` -> `plus/ledger` on its pricing
  *      card, i.e. a bullet re-priced in one file only       -> plan claims, THREE times: the
  *      prefix does not match the card it sits on, and both set comparisons then miss
  *   9. a second `free/chat` bullet, replacing `free/manual`  -> plan claims — the duplicate,
  *      named, plus the claim it displaced
- *  10. `standard/ledger` -> `plus/ledger` in `PLAN_ADDS`,
+ *  10. `standard/ledger` -> `plus/ledger` in `PLAN_ADD_CLAIMS`,
  *      i.e. mutation 8 from the other side                  -> plan claims, three times again.
  *      Both sides of the prefix rule are checked because only one of them is protected by a
- *      type: `PLAN_ADDS` is keyed by tier and the pricing table is a flat array, and neither
+ *      type: `PLAN_ADD_CLAIMS` is keyed by tier and the pricing table is a flat array, and neither
  *      key nor position makes the prefix inside the bullet agree with either
  */
 import { readFileSync } from 'node:fs'
@@ -142,11 +142,11 @@ export async function resolve(specifier, context, next) {
 register(`data:text/javascript,${encodeURIComponent(HOOK)}`)
 
 const { FEATURES } = await import(pathToFileURL(join(ROOT, 'lib', 'features.ts')).href)
-// `PLAN_ADDS` and the tier vocabulary, for check 5. `lib/plans.ts` is pure by design — data,
+// `PLAN_ADD_CLAIMS` and the tier vocabulary, for check 5. `lib/plans.ts` is pure by design — data,
 // no React, no database, no `server-only` — which is exactly what makes it importable here;
 // the pricing page it is checked against is a React server component and has to be read as
 // text, the same limitation this file already accepts for the two catalogue surfaces.
-const { PLAN_ADDS } = await import(pathToFileURL(join(ROOT, 'lib', 'plans.ts')).href)
+const { PLAN_ADD_CLAIMS } = await import(pathToFileURL(join(ROOT, 'lib', 'plans.ts')).href)
 const { TIERS, TIER_LABEL } = await import(pathToFileURL(join(ROOT, 'lib', 'tiers.ts')).href)
 
 // ---------------------------------------------------------------- the surfaces
@@ -276,7 +276,7 @@ for (const route of Object.keys(SOLD_ELSEWHERE)) {
 //
 // ── WHAT THIS DOES AND DOES NOT CLAIM ───────────────────────────────────────────────────
 // It does NOT derive either list from the other, and it does not compare a single word of
-// copy. `PLANS[]` on `/pricing` is what a BUYER reads and `PLAN_ADDS` in `lib/plans.ts` is
+// copy. `PLANS[]` on `/pricing` is what a BUYER reads and the in-product list in `lib/plans.ts` is
 // what a MEMBER reads on `/admin/settings` and `/upgrade`; the two say the same things in
 // different words on purpose, and both files argue at length why generating either from the
 // other would mean inventing a correspondence that does not exist. That argument is sound and
@@ -353,23 +353,23 @@ for (const [cardName, claims] of cardClaims) {
 const dupes = list => list.filter((c, i) => list.indexOf(c) !== i)
 for (const tier of TIERS) {
   const sold = cardClaims.get(TIER_LABEL[tier]) ?? []
-  const told = (PLAN_ADDS[tier] ?? []).map(h => h.claim)
+  const told = [...(PLAN_ADD_CLAIMS[tier] ?? [])]
 
-  for (const [where, list] of [[`${PRICING_FILE} PLANS[]`, sold], ['lib/plans.ts PLAN_ADDS', told]]) {
+  for (const [where, list] of [[`${PRICING_FILE} PLANS[]`, sold], ['lib/plans.ts PLAN_ADD_CLAIMS', told]]) {
     for (const claim of new Set(dupes(list))) {
       fail('plan claims', `${where} lists the claim '${claim}' twice under ${tier}. That card `
         + `says one thing twice, and both copies drift.`)
     }
   }
 
-  // 5c, the other side. `PLAN_ADDS` is a Record keyed by tier, so its filing is enforced by
+  // 5c, the other side. `PLAN_ADD_CLAIMS` is a Record keyed by tier, so its filing is enforced by
   // the type — but the PREFIX is a string and nothing makes it agree with the key it sits
   // under. Left unchecked, a bullet moved between tiers in this file with its old prefix
   // intact would report as two clean set differences and read as two unrelated edits.
   for (const claim of told) {
     if (claim.startsWith(`${tier}/`)) continue
     fail('plan claims',
-      `lib/plans.ts PLAN_ADDS.${tier} carries the claim '${claim}', whose prefix names a `
+      `lib/plans.ts PLAN_ADD_CLAIMS.${tier} carries the claim '${claim}', whose prefix names a `
         + `different tier. The prefix is what makes a re-pricing visible; keep it with the key.`)
   }
 
@@ -404,7 +404,7 @@ console.log(
     `(free ${byTier('free')}, standard ${byTier('standard')}, plus ${byTier('plus')}, ` +
     `premium ${byTier('premium')}), ${cards.length} catalogue cards, ` +
     `${Object.keys(SOLD_ELSEWHERE).length} stated allowances, ` +
-    `${claimCount} pricing claims against ${TIERS.reduce((n, t) => n + PLAN_ADDS[t].length, 0)} ` +
+    `${claimCount} pricing claims against ${TIERS.reduce((n, t) => n + PLAN_ADD_CLAIMS[t].length, 0)} ` +
     `in-product ones.`,
 )
 

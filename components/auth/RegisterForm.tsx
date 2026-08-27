@@ -17,7 +17,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { FieldError, FormError } from '@/components/ui/form-message'
 import { APP_NAME } from '@/lib/brand'
 import { TIER_IS_SOLD, TIER_PRICE, formatPlanPrice } from '@/lib/plans'
-import { TIERS, TIER_LABEL, TIER_TAGLINE, type FamilyTier } from '@/lib/tiers'
+import { TIERS, TIER_LABEL, tierTagline, type FamilyTier } from '@/lib/tiers'
 import { cn } from '@/lib/utils'
 import { useT } from '@/components/layout/LocaleProvider'
 import type { T } from '@/lib/i18n/t'
@@ -482,7 +482,7 @@ export function RegisterForm({
                           </span>
                         </span>
                         <span className="mt-0.5 block text-xs text-muted-foreground">
-                          {TIER_TAGLINE[tier]}
+                          {tierTagline(t, tier)}
                         </span>
                       </span>
                     </label>

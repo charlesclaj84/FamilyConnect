@@ -26,7 +26,7 @@ import { TIER_ACCENT } from '@/components/marketing/tier-accent'
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import { isFeatureFuture, getFeature } from '@/lib/features'
-import { DEFAULT_TIER, TIERS, TIER_LABEL, TIER_TAGLINE, type FamilyTier } from '@/lib/tiers'
+import { DEFAULT_TIER, TIERS, TIER_LABEL, tierTagline, type FamilyTier } from '@/lib/tiers'
 import { TIER_PRICE, formatPlanPrice } from '@/lib/plans'
 import { localizedHref } from '@/lib/i18n/route-locale'
 import { marketingAlternates, marketingI18n } from '@/lib/marketing/locale'
@@ -678,7 +678,7 @@ export default async function FeaturesPage() {
                         As a filled panel in the tier's own hue it is a landmark you
                         can find by scrolling, and it has room for what a 10px pill
                         never could — the tier's one-line pitch and its price.
-                        `TIER_TAGLINE` and `TIER_PRICE` are both read rather than
+                        `tierTagline` and `TIER_PRICE` are both read rather than
                         typed; a price in prose is still a price, and `lib/plans.ts`
                         is the one place any of them is written down.
 
@@ -717,7 +717,7 @@ export default async function FeaturesPage() {
                               </span>
                             </h3>
                             <p className="mt-0.5 max-w-xl text-sm text-muted-foreground">
-                              {TIER_TAGLINE[tier]}
+                              {tierTagline(t, tier)}
                             </p>
                           </div>
                         </div>

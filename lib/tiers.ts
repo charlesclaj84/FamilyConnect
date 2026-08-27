@@ -1,3 +1,5 @@
+import { type T } from '@/lib/i18n/t'
+
 /**
  * What a family is paying for, and what that entitles them to reach.
  *
@@ -88,11 +90,8 @@ export const TIER_LABEL: Record<FamilyTier, string> = {
 }
 
 /** One line per plan, lifted from the taglines on `/pricing` so the two cannot drift. */
-export const TIER_TAGLINE: Record<FamilyTier, string> = {
-  free: 'Get your whole family in one place. All of them.',
-  standard: 'Run the family: the tree, the money and who is doing what.',
-  plus: 'For families collecting real payments and answering to a board.',
-  premium: 'In every relative’s pocket, and out in the world.',
+export function tierTagline(t: T, tier: FamilyTier): string {
+  return t(`tier.tagline.${tier}`)
 }
 
 /** True when a value is one of the four. Narrows, so callers need no cast. */

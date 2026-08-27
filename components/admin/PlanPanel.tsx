@@ -20,7 +20,7 @@ import {
   type PlanChange, type PlanHighlight,
 } from '@/lib/plans'
 import {
-  TIER_LABEL, TIER_RANK, TIER_TAGLINE, tierMeets, tiersIncludedIn, type FamilyTier,
+  TIER_LABEL, TIER_RANK, tierTagline, tierMeets, tiersIncludedIn, type FamilyTier,
 } from '@/lib/tiers'
 import { cn } from '@/lib/utils'
 import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
@@ -238,7 +238,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
 
   async function choose(next: FamilyTier) {
     if (next === current) return
-    const change = planChange(current, next)
+    const change = planChange(t, current, next)
     const up = change.up
     // ── UPGRADES LEAVE HERE, AND THIS IS THE GUARD THAT KEEPS THEM OUT ────────────────
     // `setFamilyTier` refuses every move UP — `families.tier` is what every gate in the
@@ -434,7 +434,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
 
               {/* THE ONE-LINE SUMMARY, and it is the same sentence `/pricing` leads that
                   plan's card with — `TIER_TAGLINE` exists so the two cannot drift. */}
-              <p className="mt-1 text-sm text-muted-foreground">{TIER_TAGLINE[plan]}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{tierTagline(t, plan)}</p>
 
               {/* THE PRICE, since 2026-08-17, and it is the same number `/pricing` shows —
                   `TIER_PRICE` in lib/plans.ts is the one place it is written down, for the
@@ -840,6 +840,7 @@ function PlanDetailDialog({ plan, current, onClose }: {
   onClose: () => void
 }) {
   const t = useT()
+  const intl = useIntlTag()
   const included = tierMeets(current, plan)
 
   // WHERE THE TWO COLUMNS MEET — see the note above, this line is the whole of it. A plan
@@ -854,21 +855,26 @@ function PlanDetailDialog({ plan, current, onClose }: {
     ? PLAN_ORDER[PLAN_ORDER.indexOf(plan) - 1]
     : current
 
-  const gains = planAddsBetween(splitAt, plan)
-  const held = splitAt ? planAddsBetween(undefined, splitAt) : []
+  const gains = planAddsBetween(t, splitAt, plan)
+  const held = splitAt ? planAddsBetween(t, undefined, splitAt) : []
 
   // Dearest first, so the heading reads down the way the plans do: "from Plus and Free".
-  const heldNames = (splitAt ? tiersIncludedIn(splitAt) : []).reverse().map(t => TIER_LABEL[t])
-  const heldFrom = heldNames.length > 1
-    ? `${heldNames.slice(0, -1).join(', ')} and ${heldNames[heldNames.length - 1]}`
-    : heldNames[0]
+  //
+  // THE JOIN IS `Intl.ListFormat` NOW, not a hand-written " and ". Spanish needs *y* — and
+  // *e* before a word beginning with an i sound — while French needs *et*, and neither
+  // punctuates a three-item list the way English does. One platform call answers all three,
+  // and it is the same argument `weekdayNames()` makes about not hand-writing a table the
+  // browser already has.
+  const heldNames = (splitAt ? tiersIncludedIn(splitAt) : []).reverse().map(x => TIER_LABEL[x])
+  const heldFrom = new Intl.ListFormat(intl, { style: 'long', type: 'conjunction' })
+    .format(heldNames)
 
   return (
     <Dialog
       open
       onClose={onClose}
       title={`${TIER_LABEL[plan]} — what you get`}
-      description={TIER_TAGLINE[plan]}
+      description={tierTagline(t, plan)}
       // The same measure the confirmation takes, for the same reason: two columns of
       // benefits with a sentence of mechanism under each cannot be read at `lg`.
       className="sm:max-w-2xl"
