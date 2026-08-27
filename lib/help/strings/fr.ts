@@ -1487,4 +1487,853 @@ export const helpFr: Catalogue = {
     + 'bouton pour cela nulle part dans le produit, et c’est délibéré : une famille qui '
     + 'pourrait annuler son propre retrait n’aurait pas été retirée. S’il s’agissait d’une '
     + 'erreur, écrivez au soutien technique pour le demander.',
+  // ──── PART 7 — Money (Summary, Payment history, Transactions, P&L Summary) ────
+  'help.part.money.title': 'Argent',
+  'help.part.money.blurb':
+    'Ce que vous devez, ce que la famille a encaissé, et comment tout cela est configuré.',
+  'help.summary.title': 'Résumé',
+  'help.summary.summary':
+    'Votre situation en un coup d’œil — ce que vous devez, ce que vous avez payé, quelles '
+    + 'campagnes sont ouvertes, et ce que la famille détient.',
+  'help.summary.what-it-is.heading': 'Un condensé, non un écran à part entière',
+  'help.summary.what-it-is.b0':
+    '[Résumé](/accounting/summary) affiche l’essentiel de chacune des quatre choses qui le '
+    + 'suivent et nomme où trouver le reste. Rien ne vit ici seulement — chaque chiffre a un '
+    + 'écran derrière lui, atteint depuis le lien à côté de son titre ou depuis la section '
+    + '**Comptabilité** du menu latéral.',
+  'help.summary.what-it-is.b1.i0.term': 'Situation du compte / Prochaines échéances',
+  'help.summary.what-it-is.b1.i0.text':
+    'Ce que vous devez et à combien se monte le prochain paiement. En entier sur '
+    + '[Cotisations](/accounting/dues-and-donations).',
+  'help.summary.what-it-is.b1.i1.term': 'Payé cette année',
+  'help.summary.what-it-is.b1.i1.text':
+    'Votre total pour l’année, ventilé par barème. En entier sur [Historique de '
+    + 'paiement](/reporting/payment-history).',
+  'help.summary.what-it-is.b1.i2.term': 'Campagnes de dons ouvertes',
+  'help.summary.what-it-is.b1.i2.text':
+    'Les campagnes encore en cours. Les campagnes closes sont comptées ici et listées sur '
+    + '[Dons](/accounting/dues-and-donations?pane=donations).',
+  'help.summary.what-it-is.b1.i3.term': 'Fonds de la famille',
+  'help.summary.what-it-is.b1.i3.text':
+    'Chaque fonds que la famille entretient et ce que chacun détient. Celui-ci n’a pas '
+    + 'd’écran à part.',
+  'help.summary.what-you-see.heading': 'Pourquoi une section peut manquer',
+  'help.summary.what-you-see.b0':
+    'Chacune des quatre s’accorde séparément, et Résumé n’affiche que celles que vous '
+    + 'détenez. Une section que vous ne pouvez pas voir est une section que votre famille ne '
+    + 'vous a pas donnée — voyez [Qui peut faire quoi](/help/who-can-do-what). Si vous n’en '
+    + 'détenez aucune, la page le dit plutôt que de vous montrer des titres vides.',
+  'help.summary.what-you-see.b1':
+    'Quoi qu’il vous ait été accordé, les chiffres d’argent présentés ici sont les vôtres. '
+    + 'Rien sur cette page ne montre les cotisations, les paiements ou les dons d’un autre '
+    + 'membre. Fonds de la famille est l’exception par nature plutôt que par confidentialité '
+    + ': le solde d’un fonds appartient à toute la famille, et il ne nomme personne.',
+  'help.payment-history.title': 'Historique de paiement',
+  'help.payment-history.summary':
+    'Tout ce qui est enregistré à votre nom, avec sa date, son montant, son mode et son '
+    + 'état.',
+  'help.payment-history.the-list.heading': 'La liste',
+  'help.payment-history.the-list.b0':
+    '[Historique de paiement](/reporting/payment-history) est chaque paiement que la '
+    + 'famille a enregistré à votre nom — cotisations et dons dans une seule liste, chaque '
+    + 'ligne étiquetée selon ce qu’elle était. N’importe quel titre de colonne trie, et le '
+    + 'champ **Filtrer** restreint par barème, mode ou état.',
+  'help.payment-history.the-list.b1':
+    'Il se trouve sous **Rapports** dans le menu latéral. '
+    + '[Transactions](/accounting/transactions) est son équivalent pour toute la famille et a '
+    + 'été déplacé sous **Comptabilité** en août 2026, à côté des écrans dont il porte les '
+    + 'lignes. Les deux sont l’argent relu — celui-ci est le vôtre, celui-là est celui de la '
+    + 'famille — tandis que [Comptabilité](/admin/accounting) est là où tout se configure au '
+    + 'départ.',
+  'help.payment-history.the-list.b2':
+    'Cliquer sur une ligne ouvre l’écriture complète : le numéro de chèque ou la référence, '
+    + 'les notes éventuelles, et la date de saisie — qui n’est pas la date du paiement, et '
+    + 'qui explique généralement pourquoi quelque chose vient tout juste d’apparaître.',
+  'help.payment-history.reversals.heading': 'Corrections',
+  'help.payment-history.reversals.b0':
+    'Un paiement saisi de travers n’est ni modifié ni supprimé. Une écriture correctrice '
+    + 'est passée contre lui avec un montant négatif, et les deux restent dans la liste : le '
+    + 'relevé s’explique ainsi de lui-même plutôt que de changer en silence.',
+  'help.payment-history.reversals.b1':
+    '**Exonéré** signifie que la famille a annulé ce qui était dû et non que de l’argent a '
+    + 'bougé. Le montant s’affiche tout de même, car il vient en déduction de votre solde, et '
+    + 'un solde qui baisse sans aucun chiffre nulle part pour y répondre est un solde que '
+    + 'vous ne pouvez pas vérifier.',
+  'help.transactions.title': 'Transactions',
+  'help.transactions.summary':
+    'Les cinq registres de la famille — l’argent qui entre, l’argent qui sort, et l’argent '
+    + 'qui circule entre les fonds.',
+  'help.transactions.ledgers.heading': 'Les cinq registres',
+  'help.transactions.ledgers.b0':
+    '[Transactions](/accounting/transactions) se trouve sous **Comptabilité** dans le menu '
+    + 'latéral, sous **Cotisations et dons**. [Historique de '
+    + 'paiement](/reporting/payment-history) est celui sous **Rapports** — le relevé complet '
+    + 'de la famille plutôt que le vôtre. C’est un menu de cinq onglets, un par type '
+    + 'd’écriture.',
+  'help.transactions.ledgers.b1.i0.term': 'Cotisations',
+  'help.transactions.ledgers.b1.i0.text': 'Cotisations payées par les membres.',
+  'help.transactions.ledgers.b1.i1.term': 'Dons',
+  'help.transactions.ledgers.b1.i1.text': 'Dons versés à une campagne.',
+  'help.transactions.ledgers.b1.i2.term': 'Apports',
+  'help.transactions.ledgers.b1.i2.text':
+    'Argent arrivant dans un fonds — affecté là automatiquement, ou enregistré à la main.',
+  'help.transactions.ledgers.b1.i3.term': 'Décaissements',
+  'help.transactions.ledgers.b1.i3.text': 'Argent versé depuis un fonds.',
+  'help.transactions.ledgers.b1.i4.term': 'Virements',
+  'help.transactions.ledgers.b1.i4.text':
+    'Argent déplacé d’un fonds à un autre. Le total est nul à l’échelle de la famille ; ce '
+    + 'qui change est quelle poche le détient.',
+  'help.transactions.ledgers.b2':
+    'Chaque onglet s’accorde séparément : une famille peut donc laisser quelqu’un '
+    + 'enregistrer des cotisations sans le laisser verser d’argent. Un onglet que vous ne '
+    + 'pouvez pas voir est un onglet qu’on ne vous a pas donné.',
+  'help.transactions.recording.heading': 'Enregistrer quelque chose',
+  'help.transactions.recording.b0':
+    'Chaque registre a son propre bouton en haut à droite — **Nouveau paiement de '
+    + 'cotisation**, **Nouveau paiement de don**, **Nouvel apport**, **Nouveau '
+    + 'décaissement**, **Nouveau virement** — qui ouvre un formulaire pour ce type d’écriture '
+    + ': qui, combien, pour quoi, et comment cela a été payé. La personne et le fonds '
+    + 'viennent de sélecteurs plutôt que de texte libre : rien n’atterrit donc au nom de '
+    + 'quelqu’un qui n’existe pas.',
+  'help.transactions.recording.b1':
+    'Enregistrer est une autorisation à part sur chaque registre — pouvoir voir un registre '
+    + 'ne vous permet pas d’y ajouter.',
+  'help.transactions.reversals.heading': 'Corriger un paiement',
+  'help.transactions.reversals.b0':
+    'Un paiement enregistré n’est ni modifié ni supprimé — **Contrepasser** sur sa ligne '
+    + 'passe une écriture correctrice contre lui, et l’original est marqué comme contrepassé. '
+    + 'Les deux écritures restent, de sorte que l’historique s’explique de lui-même.',
+  'help.transactions.reversals.b1':
+    'Contrepasser est une autorisation à part, délibérément distincte de l’enregistrement.',
+  'help.p-and-l-summary.title': 'Compte de résultat',
+  'help.p-and-l-summary.summary':
+    'Ce que la famille a encaissé, ce qu’elle a versé, et ce que chaque fonds détient.',
+  'help.p-and-l-summary.what-it-is.heading': 'À quoi il répond',
+  'help.p-and-l-summary.what-it-is.b0':
+    'L’état de la famille, sur une page : tout ce qui est entré, tout ce qui est sorti, et '
+    + 'l’écart entre les deux. [Transactions](/accounting/transactions) est le registre '
+    + 'écriture par écriture dont ceci est un résumé, et [Projection des '
+    + 'cotisations](/reporting/dues-projections) est ce qui reste dû — cet écran ne porte que '
+    + 'sur l’argent qui a réellement bougé.',
+  'help.p-and-l-summary.what-it-is.b1':
+    '**Chaque chiffre couvre toute l’existence de la famille.** Il n’y a aucune plage de '
+    + 'dates à fixer : la page compte chaque écriture que la famille a jamais enregistrée, '
+    + 'depuis la première. La ligne en haut de la page le dit, et cela vaut la peine d’être '
+    + 'lu avant qu’un chiffre n’entre dans un rapport.',
+  'help.p-and-l-summary.what-it-is.b2':
+    'Cet écran s’appelait **Finances familiales** jusqu’en août 2026. Rien n’a changé sauf '
+    + 'le nom et sa place dans le menu latéral — il est sous **Rapports** maintenant, avec '
+    + 'les autres écrans qui relisent l’argent.',
+  'help.p-and-l-summary.three-lines.heading': 'Les trois chiffres du haut',
+  'help.p-and-l-summary.three-lines.b0.i0.term': 'Produits',
+  'help.p-and-l-summary.three-lines.b0.i0.text':
+    'Tout ce qui a été encaissé. Cotisations et dons ensemble — tous deux sont des '
+    + 'paiements enregistrés au nom d’un membre — plus les apports versés directement dans un '
+    + 'fonds. Les deux sont ventilés sous le chiffre.',
+  'help.p-and-l-summary.three-lines.b0.i1.term': 'Charges',
+  'help.p-and-l-summary.three-lines.b0.i1.text':
+    'Argent décaissé d’un fonds. C’est le seul type de sortie que ce produit enregistre : '
+    + 'c’est donc la totalité de ce qui a été dépensé.',
+  'help.p-and-l-summary.three-lines.b0.i2.term': 'Excédent net',
+  'help.p-and-l-summary.three-lines.b0.i2.text':
+    'Produits moins charges. Il affiche **Déficit net** et passe au rouge lorsqu’il est '
+    + 'sorti plus qu’il n’est entré.',
+  'help.p-and-l-summary.three-lines.b1':
+    'Une contrepassation se corrige d’elle-même ici. Contrepasser un paiement dans '
+    + '[Transactions](/accounting/transactions) passe une écriture opposée, et le paiement '
+    + 'comme sa contrepassation sont comptés — les produits reviennent donc là où ils '
+    + 'appartiennent plutôt que de compter la correction deux fois.',
+  'help.p-and-l-summary.unrouted.heading': 'Encaissé, pas encore affecté à un fonds',
+  'help.p-and-l-summary.unrouted.b0':
+    'Les cotisations arrivent comme un paiement puis sont **affectées** à un ou plusieurs '
+    + 'fonds selon les règles définies dans [Comptabilité](/admin/accounting). Là où aucune '
+    + 'règle ne couvre un barème, l’argent est encaissé et ne se trouve dans aucun fonds — et '
+    + 'cette ligne dit combien.',
+  'help.p-and-l-summary.unrouted.b1':
+    'Ce n’est pas une erreur et ce n’est pas montré comme telle. L’argent n’est pas affecté '
+    + 'jusqu’à ce que quelqu’un l’affecte, et une famille qui fonctionne avec une seule poche '
+    + 'et aucune affectation fonctionne parfaitement. C’est là pour qu’une famille qui '
+    + '*voulait* affecter quelque chose puisse voir qu’elle ne l’a pas fait.',
+  'help.p-and-l-summary.unrouted.b2':
+    'Le chiffre peut afficher **Affecté au-delà des produits de cotisations**, ce qui est '
+    + 'la même ligne à l’envers : un administrateur peut apporter directement dans un fonds, '
+    + 'donc il peut être entré dans les fonds plus que les cotisations n’ont jamais rapporté.',
+  'help.p-and-l-summary.funds.heading':
+    'Les soldes des fonds, et pourquoi ils ne totalisent pas le chiffre net',
+  'help.p-and-l-summary.funds.b0':
+    '**Soldes des fonds aujourd’hui** est ce que chaque fonds détient à l’instant. '
+    + '**Excédent net** est les produits moins les charges sur toute l’histoire de la '
+    + 'famille. Ce sont deux sortes de nombres différentes et l’on n’attend pas qu’elles '
+    + 'concordent.',
+  'help.p-and-l-summary.funds.b1':
+    'Trois choses ordinaires les séparent : des cotisations qui n’ont jamais été affectées '
+    + 'à un fonds, des apports versés directement dans l’un, et des virements entre fonds. '
+    + 'Aucune n’est un défaut, et la page le dit plutôt que de laisser quelqu’un rapprocher '
+    + 'les deux et conclure que l’une est fausse.',
+  'help.p-and-l-summary.funds.b2':
+    '**Produits affectés aux fonds**, entre les deux, montre où l’argent affecté est allé, '
+    + 'fonds par fonds ; ouvrir une ligne le ventile selon sa provenance.',
+  // ──── PART 7 — Money (Dues & Donations) ───────────────────────────────────────
+  'help.my-dues.title': 'Cotisations et dons',
+  'help.my-dues.summary':
+    'Chaque barème auquel vous êtes soumis et ce que le prochain paiement doit être, et '
+    + 'chaque campagne que votre famille mène.',
+  'help.my-dues.what-it-is.heading': 'Deux panneaux, un écran',
+  'help.my-dues.what-it-is.b0':
+    '[Cotisations et dons](/accounting/dues-and-donations) répond à une question dans deux '
+    + 'directions : ce que votre famille vous demande, et ce à quoi elle vous invite à '
+    + 'contribuer. **Cotisations** est chaque barème auquel vous êtes soumis ; **Dons** est '
+    + 'chaque campagne que la famille mène. Appuyez sur l’un ou l’autre dans le menu du haut.',
+  'help.my-dues.what-it-is.b1':
+    'C’étaient deux écrans distincts jusqu’au 20-08-2026. Un lien ou un signet vers l’un ou '
+    + 'l’autre retrouve toujours l’argent de la famille — partez de '
+    + '[Résumé](/accounting/summary), qui commence par les deux.',
+  'help.my-dues.what-it-is.b2':
+    'Aucun des deux panneaux ne montre jamais les cotisations ou les dons de quelqu’un '
+    + 'd’autre, quoi qu’il vous ait été accordé. Chaque chiffre de l’écran est soit un total '
+    + 'familial, soit le vôtre. Ce que la famille dans son ensemble a payé est une autre '
+    + 'question, posée sur [Transactions](/accounting/transactions).',
+  'help.my-dues.schedules.heading': 'Vos barèmes',
+  'help.my-dues.schedules.b0':
+    'Le panneau **Cotisations** énumère chaque barème auquel vous êtes soumis, en deux '
+    + 'tableaux : **Cotisations obligatoires**, que tous ceux qui y sont soumis doivent, et '
+    + '**Cotisations facultatives**, qu’il vous revient d’assumer ou de refuser. Chaque ligne '
+    + 'dit ce que le barème coûte par an, ce que le prochain paiement doit être, quand il '
+    + 'tombe, et ce qu’il reste. Les deux cartes du haut sont celles par lesquelles '
+    + '[Résumé](/accounting/summary) commence.',
+  'help.my-dues.schedules.b1':
+    'Vous ne voyez qu’un tableau où vous avez un barème. Une famille qui n’a aucune '
+    + 'cotisation facultative affiche un seul tableau et aucun titre vide — un tableau '
+    + '**Cotisations facultatives** absent signifie donc qu’il n’y en a aucune pour vous, non '
+    + 'que quelque chose n’a pas pu se charger.',
+  'help.my-dues.schedules.b2':
+    '**Chaque barème auquel vous êtes soumis reste listé, y compris ceux que vous avez '
+    + 'soldés.** Une cotisation payée en entier indique **Payée** et affiche un solde nul '
+    + 'plutôt que de disparaître — les tableaux disent à quoi vous êtes soumis, et ce que '
+    + 'vous devez encore est la carte **À payer maintenant** en dessous.',
+  'help.my-dues.schedules.b3':
+    'Une ligne ombrée et marquée **En retard** est une ligne que le calendrier a déjà '
+    + 'demandée et que l’argent n’a pas couverte. C’est un repère plutôt qu’un avertissement '
+    + ': être en retard n’est pas une erreur, et le prochain paiement porte simplement le '
+    + 'rattrapage.',
+  'help.my-dues.schedules.b4':
+    'Deux autres repères apparaissent à côté du nom d’un barème. **Refusée** est une '
+    + 'cotisation facultative dont vous vous êtes retiré. **Pas encore due** est une '
+    + 'cotisation qui commence à un âge que vous n’avez pas atteint — voyez [Cotisations qui '
+    + 'commencent à un âge](#age).',
+  'help.my-dues.next-payment.heading': 'Votre prochain paiement',
+  'help.my-dues.next-payment.b0': 'Deux chiffres sont côte à côte et ne sont pas la même chose.',
+  'help.my-dues.next-payment.b1.i0.term': 'Échéance',
+  'help.my-dues.next-payment.b1.i0.text': 'Ce qu’un paiement coûte une fois que vous êtes à jour.',
+  'help.my-dues.next-payment.b1.i1.term': 'Prochain dû',
+  'help.my-dues.next-payment.b1.i1.text':
+    'Ce que le prochain paiement doit être, ce qui inclut tout ce que le calendrier a déjà '
+    + 'demandé et que l’argent n’a pas couvert.',
+  'help.my-dues.next-payment.b2':
+    'Passer au mensuel à la moitié de l’année sur un barème de 600 $ rend donc le prochain '
+    + 'paiement important et tous les suivants ordinaires — le rattrapage est pris une fois '
+    + 'et vous êtes de nouveau à jour. Le rattrapage est signalé, et c’est un repère plutôt '
+    + 'qu’un avertissement : être en retard n’est pas une erreur.',
+  'help.my-dues.cadence.heading': 'Changer la fréquence à laquelle vous payez',
+  'help.my-dues.cadence.b0':
+    'Chaque barème a une fréquence de paiement que vous définissez pour vous-même — '
+    + 'hebdomadaire, mensuelle, trimestrielle, annuelle, ou en une fois. Le total annuel ne '
+    + 'change pas ; la fréquence le divise. Celle que vous avez est imprimée sous le montant '
+    + 'sur la ligne.',
+  'help.my-dues.cadence.b1':
+    'Pour la changer, ouvrez le menu de la ligne — le bouton à l’extrémité droite — et '
+    + 'appuyez sur **Changer la fréquence de paiement**. La boîte de dialogue chiffre les '
+    + 'cinq avant que vous n’en choisissiez une : ce que chaque échéance coûte, et, là où un '
+    + 'changement vous laisserait rattraper, ce que le tout prochain paiement serait.',
+  'help.my-dues.cadence.b2':
+    'C’est à vous de le définir et cela ne demande l’autorisation de personne. Personne '
+    + 'd’autre ne peut le définir pour vous.',
+  'help.my-dues.pay-online.heading': 'Payer par carte',
+  'help.my-dues.pay-online.b0':
+    'Une fois que votre famille a connecté un processeur de cartes, chaque cotisation que '
+    + 'vous devez encore porte un bouton **Payer** sur sa ligne. Il s’ouvre avec le montant '
+    + 'dû à l’instant déjà renseigné — modifiez-le si vous voulez payer davantage ou solder '
+    + 'la cotisation entièrement — et vous mène à la page de Stripe elle-même pour saisir '
+    + 'votre carte.',
+  'help.my-dues.pay-online.b1':
+    'Le paiement s’inscrit dans les registres de la famille dès qu’il est réglé. Il n’y a '
+    + 'rien qu’un trésorier ait à saisir ensuite, et cela apparaît dans votre propre '
+    + 'historique de paiement à côté de tout ce qui a été enregistré à la main.',
+  'help.my-dues.pay-online.b2':
+    '**Mettre en place des paiements automatiques**, dans le menu de la ligne, démarre un '
+    + 'paiement par carte permanent pour cette cotisation à la fréquence que vous avez déjà '
+    + 'choisie. Il suit cette fréquence plutôt que de redemander : [changer votre '
+    + 'fréquence](#cadence) est donc la façon de changer ce qui est prélevé. Chaque '
+    + 'cotisation est distincte — en mettre une en place ne dit rien des autres. Une '
+    + 'cotisation que vous avez mise en place indique **Automatique** sur sa ligne, avec ce '
+    + 'qui est prélevé et à quelle fréquence.',
+  'help.my-dues.pay-online.b3':
+    'Les paiements automatiques ne concernent que les cotisations. Une campagne de dons est '
+    + 'un don, et accepter de donner une fois n’est pas accepter de donner chaque mois — les '
+    + 'campagnes se reçoivent donc une à la fois depuis le panneau **Dons**.',
+  'help.my-dues.pay-online.b4':
+    '**Arrêter les paiements automatiques**, dans le même menu, y met fin aussitôt, et tout '
+    + 'ce qui a déjà été payé reste à votre dossier. Il n’y a rien à annuler ailleurs.',
+  'help.my-dues.pay-online.b5':
+    'L’absence de tout bouton **Payer** signifie que votre famille n’a pas encore connecté '
+    + 'de processeur, ou que Stripe vérifie encore le compte. Demandez à qui tient la '
+    + 'comptabilité de votre famille — c’est la section **Encaissement** de '
+    + '[Comptabilité](/admin/accounting) — et payez entre-temps par les moyens que votre '
+    + 'famille utilise déjà.',
+  'help.my-dues.due-now.heading': 'Tout payer d’un coup',
+  'help.my-dues.due-now.b0':
+    '**À payer maintenant**, sous les deux tableaux, énumère chaque cotisation ayant '
+    + 'quelque chose à payer et à combien chacune se monte, puis le total. C’est ce que vous '
+    + 'paieriez pour être entièrement à jour aujourd’hui, rattrapages compris — et une ligne '
+    + 'qui en porte un le dit en dessous d’elle-même.',
+  'help.my-dues.due-now.b1':
+    '**Payer … par carte** prend le tout en un seul paiement par carte. La page de Stripe '
+    + 'le détaille, une ligne par cotisation, de sorte que vous voyez à quoi chaque part du '
+    + 'total correspond avant de vous engager — et cela arrive dans les registres de la '
+    + 'famille réparti de la même façon, une écriture par barème.',
+  'help.my-dues.due-now.b2':
+    'La boîte de dialogue énumère chaque cotisation avec son propre montant : vous pouvez '
+    + 'donc en modifier n’importe laquelle avant de payer. Mettez-en une à zéro pour '
+    + 'l’exclure de ce paiement ; elle reste exactement où elle était.',
+  'help.my-dues.due-now.b3':
+    'Si votre famille n’a pas connecté de processeur de cartes, **À payer maintenant** '
+    + 'additionne tout de même — il le dit simplement au lieu de proposer un bouton. Le '
+    + 'chiffre est le même à remettre par chèque.',
+  'help.my-dues.age.heading': 'Cotisations qui commencent à un âge',
+  'help.my-dues.age.b0':
+    'Une famille peut décider qu’une cotisation commence lorsqu’un membre atteint un âge '
+    + 'donné. Jusque-là elle reste au bas de votre liste, marquée **Pas encore due**, avec la '
+    + 'date de son début et rien à payer.',
+  'help.my-dues.age.b1':
+    'L’année où vous atteignez l’âge est facturée au mois, et le mois de votre anniversaire '
+    + 'est gratuit : une cotisation annuelle de 120 $ et un dix-huitième anniversaire en '
+    + 'juillet font 50 $ cette année-là, puis 120 $ chaque année ensuite. La ligne le dit — '
+    + '**50 $ cette année · 120 $/an ensuite**.',
+  'help.my-dues.age.b2':
+    'Quelqu’un dont la date de naissance n’est pas enregistrée doit la cotisation en '
+    + 'entier, car le produit ne devine pas un âge. Si une de vos cotisations devrait être '
+    + 'réduite et ne l’est pas, vérifiez votre date de naissance sur [Mon '
+    + 'profil](/personal-info).',
+  'help.my-dues.bloodline-dues.heading': 'Cotisations que seule la lignée doit',
+  'help.my-dues.bloodline-dues.b0':
+    'Une famille peut restreindre une cotisation aux membres descendant de sa lignée — un '
+    + 'fonds funéraire pour la lignée, une concession au cimetière. Si une cotisation de '
+    + 'votre famille fonctionne ainsi et que vous êtes entré dans la famille par mariage, '
+    + 'elle n’est pas la vôtre et n’apparaît pas du tout sur cet écran.',
+  'help.my-dues.bloodline-dues.b1':
+    'C’est délibéré plutôt qu’un oubli : une cotisation que vous ne devrez jamais, listée '
+    + 'comme quelque chose que vous ne payez pas, serait une note permanente sur la façon '
+    + 'dont vous êtes entré dans la famille, sur votre propre écran. Ce que vous devez est ce '
+    + 'qui est ici.',
+  'help.my-dues.chapter-dues.heading': 'Cotisations d’une région ou d’une section',
+  'help.my-dues.chapter-dues.b0':
+    'Une famille peut rattacher une cotisation à une région ou à une section — une salle '
+    + 'que la section du Texas loue, une bourse que la région de l’Est finance. Si une '
+    + 'cotisation de votre famille appartient à une partie de la famille où vous n’êtes pas, '
+    + 'elle n’est pas la vôtre et n’apparaît pas sur cet écran, pour la même raison qu’une '
+    + 'cotisation réservée à la lignée n’apparaît pas.',
+  'help.my-dues.chapter-dues.b1':
+    'Votre section est sur [Mon profil](/personal-info), et c’est vous qui la définissez. '
+    + '**Si vous n’en avez choisi aucune vous êtes sous National** : vous devez chaque '
+    + 'cotisation de toute la famille et aucune cotisation régionale ou de section. Donc si '
+    + 'vous attendiez la cotisation d’une section ici et qu’elle n’y est pas, la première '
+    + 'chose à vérifier est que votre profil dise dans quelle section vous êtes.',
+  'help.my-dues.opt-out.heading': 'Se retirer',
+  'help.my-dues.opt-out.b0':
+    '**Se retirer**, dans le menu d’une ligne du tableau **Cotisations facultatives**, dit '
+    + 'que le barème ne vous concerne pas — un fonds dont vous ne faites pas partie, une '
+    + 'section à laquelle vous n’appartenez pas. Il vous demande de confirmer, et **Se '
+    + 'réinscrire** dans le même menu l’annule. Seule une cotisation facultative le propose ; '
+    + 'rien dans le tableau **Cotisations obligatoires** ne peut être refusé.',
+  'help.my-dues.opt-out.b1':
+    'Se retirer n’est pas la même chose qu’avoir payé. Cela retire le barème de votre solde '
+    + 'pour l’avenir ; cela n’efface pas ce qui était déjà dû.',
+  'help.my-dues.drives.heading': 'Ce qu’une campagne affiche',
+  'help.my-dues.drives.b0':
+    'Le panneau **Dons** de [Cotisations et '
+    + 'dons](/accounting/dues-and-donations?pane=donations) énumère chaque campagne que la '
+    + 'famille a menée, chacune avec une barre montrant sa progression. Sous la barre : ce '
+    + 'qui a été recueilli, quel était l’objectif, et — seulement si vous y avez donné — '
+    + 'quelle part venait de vous.',
+  'help.my-dues.drives.b1':
+    'Une campagne qui a dépassé son objectif continue au lieu de s’arrêter à 100 % : la '
+    + 'barre se remet à l’échelle et l’excédent est montré comme son propre segment, car une '
+    + 'campagne qui a doublé sa cible ne devrait pas ressembler à une campagne arrivée de '
+    + 'justesse.',
+  'help.my-dues.drives.b2':
+    'Une campagne sans objectif fixé n’a pas de barre à tracer : elle affiche donc le total '
+    + 'courant.',
+  'help.my-dues.closed.heading': 'Campagnes closes',
+  'help.my-dues.closed.b0':
+    'Une campagne dont la date de fin est passée est marquée **Close** et atténuée, et elle '
+    + 'reste sur cette page. [Résumé](/accounting/summary) n’énumère que les campagnes '
+    + 'ouvertes et compte le reste — un condensé porte sur ce qu’il faut faire ensuite, et '
+    + 'cette page est le relevé complet.',
+  'help.my-dues.giving.heading': 'Donner à une campagne',
+  'help.my-dues.giving.b0':
+    '**Donner**, sur une campagne ouverte, vous mène à la page de Stripe elle-même pour '
+    + 'saisir votre carte. Saisissez ce que vous voulez donner — il n’y a pas de montant fixé '
+    + 'ni de maximum, et la campagne vous dit ce qui atteindrait son objectif si elle en a '
+    + 'un. Cela s’inscrit dans les registres de la famille dès que c’est réglé, et apparaît '
+    + 'dans votre [historique de paiement](/reporting/payment-history) à côté de tout ce qui '
+    + 'a été enregistré à la main.',
+  'help.my-dues.giving.b1':
+    'On donne à une campagne à la fois et jamais de façon récurrente, et c’est la '
+    + 'différence avec le paiement des cotisations. Accepter de donner une fois n’est pas '
+    + 'accepter de donner chaque mois, et donner à une campagne ne dit rien des autres.',
+  'help.my-dues.giving.b2':
+    'Un don va en entier dans le fonds **Dons** de votre famille. Il n’est pas réparti '
+    + 'entre les fonds comme l’est un paiement de cotisation — voyez '
+    + '[Fonds](/help/accounting#funds).',
+  'help.my-dues.giving.b3':
+    'Une campagne qui a atteint son objectif continue d’accepter des dons, et une campagne '
+    + '**Close** n’en accepte aucun. Une campagne close n’affiche aucun bouton **Donner** car '
+    + 'son total ne peut plus bouger.',
+  'help.my-dues.giving.b4':
+    'L’absence de bouton **Donner** sur toute campagne signifie que votre famille n’a pas '
+    + 'encore connecté de processeur de cartes. Remettez votre don à qui tient les registres '
+    + 'et il apparaîtra ici dès qu’il l’aura enregistré.',
+  'help.my-dues.giving.b5':
+    'Rien sur cette page ne dit qui a donné quoi. Chaque chiffre est soit un total '
+    + 'familial, soit le vôtre.',
+  // ──── PART 7 — Money (Dues Projections) ───────────────────────────────────────
+  'help.dues-projections.title': 'Projection des cotisations',
+  'help.dues-projections.summary':
+    'Ce que la famille devrait encaisser cette année, ce qui est entré, et qui doit encore.',
+  'help.dues-projections.what-it-is.heading': 'À quoi il répond',
+  'help.dues-projections.what-it-is.b0':
+    '[Transactions](/accounting/transactions) est ce qui est entré. Ceci est ce qui devrait '
+    + ': chaque barème de cotisations actif, multiplié sur les membres qui le doivent, face à '
+    + 'ce qui a réellement été encaissé.',
+  'help.dues-projections.what-it-is.b1':
+    'Rien sur cet écran ne change quoi que ce soit. Enregistrer un paiement ou en exonérer '
+    + 'un se fait sur [Transactions](/accounting/transactions) ; changer ce qu’une cotisation '
+    + 'coûte se fait dans [Comptabilité](/admin/accounting).',
+  'help.dues-projections.what-it-is.b2':
+    '**Un proche décédé n’est pas compté.** Inscrire une **Date du décès** sur le profil de '
+    + 'quelqu’un le retire entièrement de cet écran — il ne doit rien, donc ni le total dû à '
+    + 'la famille ni la liste de qui doit encore payer ne l’incluent. Les paiements qu’il a '
+    + 'faits par le passé comptent toujours dans ce qui a été encaissé.',
+  'help.dues-projections.figures.heading': 'Les quatre chiffres',
+  'help.dues-projections.figures.b0.i0.term': 'Prévu cette année',
+  'help.dues-projections.figures.b0.i0.text':
+    'Ce que les membres comptés ici doivent pour les périodes en cours de leurs barèmes. '
+    + 'Tout le reste de l’écran est une fraction de ce chiffre.',
+  'help.dues-projections.figures.b0.i1.term': 'Encaissé',
+  'help.dues-projections.figures.b0.i1.text':
+    'De l’argent réellement arrivé. Une contrepassation se compense d’elle-même : un '
+    + 'paiement corrigé laisse donc le chiffre là où il appartient.',
+  'help.dues-projections.figures.b0.i2.term': 'Exonéré',
+  'help.dues-projections.figures.b0.i2.text':
+    'Remis. Cela solde la cotisation et vient en déduction de ce qui reste dû — et ce n’est '
+    + 'jamais compté comme de l’argent, car il n’en est arrivé aucun.',
+  'help.dues-projections.figures.b0.i3.term': 'Reste à encaisser',
+  'help.dues-projections.figures.b0.i3.text':
+    'Le prévu, moins ce qui a été soldé d’une manière ou d’une autre. Le chiffre pour '
+    + 'lequel l’écran existe.',
+  'help.dues-projections.figures.b1':
+    'Un cinquième n’apparaît que lorsqu’il y en a : de l’argent **en attente de '
+    + 'règlement**, c’est-à-dire un paiement entamé et pas encore confirmé. Il n’est pas '
+    + 'compté comme encaissé et n’a pas été déduit de ce qui est dû.',
+  'help.dues-projections.year.heading': 'Quelle année',
+  'help.dues-projections.year.b0':
+    'Celle de chaque barème. Une cotisation ancrée au 1er avril et un prélèvement ancré au '
+    + '1er janvier ont réellement deux années en cours : chaque ligne indique donc la période '
+    + 'sur laquelle elle a été mesurée, et le total familial est leur somme.',
+  'help.dues-projections.year.b1':
+    'C’est pourquoi les totaux ici concordent avec ce que chaque membre voit sur son propre '
+    + 'écran [Cotisations](/accounting/dues-and-donations). Une seule année civile aurait été '
+    + 'plus nette et aurait été en désaccord avec le solde de chaque membre.',
+  'help.dues-projections.who-is-counted.heading': 'Qui est compté',
+  'help.dues-projections.who-is-counted.b0':
+    'Toutes les personnes que la famille a approuvées — la même liste que le [Répertoire '
+    + 'des membres](/community/directory) affiche. Quelqu’un inscrit sur l’[arbre '
+    + 'généalogique](/community/family-tree) qui ne s’est jamais connecté doit ses '
+    + 'cotisations exactement autant que n’importe qui d’autre : il est donc compté. Les '
+    + 'laisser de côté n’a jamais réduit la dette — cela a fait que cet écran en rapportait '
+    + 'une plus petite.',
+  'help.dues-projections.who-is-counted.b1':
+    'La colonne **État** répond à une question différente de celle de l’argent : y a-t-il '
+    + 'quelqu’un à qui envoyer une facture.',
+  'help.dues-projections.who-is-counted.b2.i0.term': 'Actif',
+  'help.dues-projections.who-is-counted.b2.i0.text':
+    'Il a un compte, et la cotisation apparaît sur son propre écran '
+    + '[Cotisations](/accounting/dues-and-donations).',
+  'help.dues-projections.who-is-counted.b2.i1.term': 'Invité',
+  'help.dues-projections.who-is-counted.b2.i1.text':
+    'Pas encore de compte, et une invitation est toujours en cours. La famille a demandé, '
+    + 'et la balle est dans son camp.',
+  'help.dues-projections.who-is-counted.b2.i2.term': 'Invitation à faire',
+  'help.dues-projections.who-is-counted.b2.i2.text':
+    'Inscrit dans la famille et jamais invité à se joindre. C’est le seul des trois sur '
+    + 'lequel vous pouvez agir — invitez-le depuis l’[arbre '
+    + 'généalogique](/community/family-tree).',
+  'help.dues-projections.who-is-counted.b3':
+    'Une invitation **expirée** se lit comme Invitation à faire plutôt que comme Invité. Un '
+    + 'lien expiré ne peut pas être accepté : la famille doit donc redemander, et dire autre '
+    + 'chose rapporterait un travail comme accompli.',
+  'help.dues-projections.who-is-counted.b4':
+    '**Reste à encaisser** indique en dessous quelle part de lui-même est due par des '
+    + 'personnes sans compte. Cela fait partie du total et n’en est jamais une déduction : '
+    + 'l’argent est dû à la famille qu’il y ait ou non une boîte à laquelle envoyer la '
+    + 'facture.',
+  'help.dues-projections.who-is-counted.b5':
+    'Cinq choses réduisent ce que quelqu’un doit, et toutes les cinq sont respectées : une '
+    + 'cotisation qui commence à un âge, une cotisation que seule la lignée doit, une '
+    + 'cotisation d’une région ou d’une section, une cotisation facultative qu’il a refusée, '
+    + 'et tout ce que la famille a exonéré.',
+  'help.dues-projections.who-is-counted.b6':
+    'Quiconque n’a pas de date de naissance enregistrée doit une cotisation limitée par '
+    + 'l’âge en entier, car un âge n’est jamais deviné. Si un chiffre paraît trop élevé, '
+    + 'c’est la première chose à vérifier.',
+  'help.dues-projections.who-is-counted.b7':
+    'Quelqu’un qui attend encore une approbation **n’est pas** compté. Il n’a pas encore '
+    + 'rejoint la famille : rien n’est dû par lui.',
+  'help.dues-projections.standings.heading': 'Où en est chaque membre',
+  'help.dues-projections.standings.b0':
+    'Le tableau des membres commence par les personnes à relancer. Une ligne rapporte la '
+    + 'situation la **moins** soldée que ce membre présente sur un barème quelconque : '
+    + 'quelqu’un à jour sur trois cotisations et devant une quatrième est donc listé comme '
+    + 'devant.',
+  'help.dues-projections.standings.b1.i0.term': 'Rien de payé',
+  'help.dues-projections.standings.b1.i0.text': 'Doit le montant entier de cette période.',
+  'help.dues-projections.standings.b1.i1.term': 'Partiellement payé',
+  'help.dues-projections.standings.b1.i1.text': 'Quelque chose est entré, pas la totalité.',
+  'help.dues-projections.standings.b1.i2.term': 'Soldé',
+  'help.dues-projections.standings.b1.i2.text': 'Payé en entier, ou remis.',
+  'help.dues-projections.standings.b1.i3.term': 'Refusé',
+  'help.dues-projections.standings.b1.i3.text': 'S’est retiré d’une cotisation facultative.',
+  'help.dues-projections.standings.b1.i4.term': 'Pas encore due',
+  'help.dues-projections.standings.b1.i4.text':
+    'En dessous de l’âge auquel cette cotisation commence. Ce n’est pas la même chose que '
+    + 'soldé — il n’a rien payé et ne doit rien.',
+  'help.dues-projections.standings.b1.i5.term': 'Pas la sienne',
+  'help.dues-projections.standings.b1.i5.text':
+    'La cotisation est réservée à la lignée et ce membre en est hors. Contrairement à « Pas '
+    + 'encore due », elle ne deviendra jamais la sienne.',
+  'help.dues-projections.standings.b1.i6.term': 'Ailleurs',
+  'help.dues-projections.standings.b1.i6.text':
+    'La cotisation est d’une région ou d’une section et cette personne est dans une autre — '
+    + 'ou dans aucune, ce qui la place sous National. Contrairement à « Pas la sienne », '
+    + 'celle-ci change s’il change de section.',
+  'help.dues-projections.standings.b2':
+    '**Situation** et **État** sont deux colonnes distinctes, et la ligne qui vaut la peine '
+    + 'd’être regardée est celle qui est à la fois Rien de payé et Invitation à faire. La '
+    + 'situation porte sur l’argent ; l’état porte sur le fait qu’il y ait quelqu’un à qui le '
+    + 'demander.',
+  'help.dues-projections.standings.b3':
+    'Une cotisation réservée à la lignée dans une famille qui n’a pas nommé sa lignée n’est '
+    + 'due par personne, et sa ligne le dit plutôt que d’afficher un 0,00 $ prévu sans '
+    + 'explication.',
+  'help.dues-projections.standings.b4':
+    '**Seulement ceux qui doivent** restreint le tableau, et le champ de filtre cherche '
+    + 'dans n’importe quelle partie de n’importe quel nom.',
+  // ──── PART 7 — Money (Membership, Accounting) ─────────────────────────────────
+  'help.membership.title': 'Adhésions',
+  'help.membership.summary':
+    'Les membres par région et par section, qui a terminé de se joindre, et adultes contre '
+    + 'mineurs.',
+  'help.membership.what-it-is.heading': 'À quoi il répond',
+  'help.membership.what-it-is.b0':
+    'De quoi la famille est composée aujourd’hui. Le [Répertoire des '
+    + 'membres](/community/directory) énumère vos proches un par un ; ceci les compte — où '
+    + 'ils sont, combien ont terminé de se joindre, et combien sont des enfants.',
+  'help.membership.what-it-is.b1':
+    'Rien ici n’est conservé. Chaque chiffre est calculé au chargement de la page : c’est '
+    + 'donc toujours la réponse du jour, et il n’y a aucun historique auquel se comparer.',
+  'help.membership.what-it-is.b2':
+    '**Qui est compté :** chaque membre que la famille a approuvé, et personne d’autre. '
+    + 'Quelqu’un qui attend encore dans [Approbations en attente](/admin/members) ne s’est '
+    + 'pas encore joint, et un proche enregistré comme décédé n’est pas compté non plus. Un '
+    + 'proche qui ne s’est jamais connecté *est* compté — il fait partie de la famille qu’il '
+    + 'ait un compte ou non, ce qui est la même règle que [Projection des '
+    + 'cotisations](/reporting/dues-projections) utilise : les deux écrans sont donc toujours '
+    + 'd’accord sur la taille de la famille.',
+  'help.membership.drilling-in.heading': 'Appuyer sur une ligne pour voir qui y est',
+  'help.membership.drilling-in.b0':
+    '**Chaque ligne à côté de chaque graphique s’ouvre.** Appuyez sur l’une et elle énumère '
+    + 'les personnes qu’elle a comptées, avec un champ de filtre dès qu’il y en a plus d’une '
+    + 'poignée. Cela comprend les lignes que le graphique a repliées dans **Autres** et '
+    + 'celles qui sont à zéro, car le tableau à côté d’un graphique énumère toujours chaque '
+    + 'segment.',
+  'help.membership.drilling-in.b1':
+    'C’est la LIGNE plutôt que la part de l’anneau : un anneau dessine cinq parts et replie '
+    + 'le reste, donc la ligne est la seule chose qui puisse ouvrir chacune d’elles. C’est '
+    + 'aussi un vrai bouton : on peut l’atteindre au tabulateur et l’actionner au clavier.',
+  'help.membership.drilling-in.b2':
+    '**Les noms sont demandés au moment où vous appuyez, et pas avant.** Les graphiques '
+    + 'eux-mêmes portent des décomptes et des noms de lieux et aucun nom de personne, et '
+    + 'c’est pourquoi ce rapport n’est pas un écran réservé aux administrateurs. Ouvrir une '
+    + 'ligne demande ce seul groupe.',
+  'help.membership.drilling-in.b3':
+    'Il vous faut le [Répertoire des membres](/community/directory) en plus de ce rapport '
+    + 'pour voir qui est dans un groupe. Une famille qui a restreint le Répertoire a décidé '
+    + 'qui peut lire les noms de ses membres, et un graphique ne contourne pas cela — si vous '
+    + 'détenez l’un et pas l’autre, les chiffres s’ouvrent et les noms non.',
+  'help.membership.putting-it-right.heading': 'Corriger ce qu’un graphique signale',
+  'help.membership.putting-it-right.b0':
+    '**Trois des quatre graphiques proposent chacun une correction, sur la ligne qui en a '
+    + 'besoin.** Chacune est la même action que l’écran qui la détient utilise : chaque règle '
+    + 'que cet écran applique vaut donc ici aussi.',
+  'help.membership.putting-it-right.b1.i0.term': 'Sans section, et National',
+  'help.membership.putting-it-right.b1.i0.text':
+    'Définissez la section de cette personne. Sa région suit — il n’y a pas de région '
+    + 'distincte à définir, car une région est une propriété de la section. Ses fils et '
+    + 'filles de moins de dix-huit ans sans compte propre se déplacent avec elle, exactement '
+    + 'comme sur [Mon profil](/personal-info).',
+  'help.membership.putting-it-right.b1.i1.term': 'Invitation à faire, et Invité',
+  'help.membership.putting-it-right.b1.i1.text':
+    'Envoyez-lui une invitation. Cela demande une vraie adresse courriel, car un proche '
+    + 'sans compte en détient une provisoire qui ne peut pas recevoir de courrier. Appuyer '
+    + 'sur une ligne Invité envoie une nouvelle invitation, ce qui est ce que relancer une '
+    + 'invitation sans réponse veut dire.',
+  'help.membership.putting-it-right.b1.i2.term': 'Date de naissance non enregistrée',
+  'help.membership.putting-it-right.b1.i2.text':
+    'Enregistrez sa date de naissance. Adulte ou mineur est calculé à partir d’elle chaque '
+    + 'fois que le rapport se charge ; rien sur son âge n’est conservé.',
+  'help.membership.putting-it-right.b2':
+    '**Seules ces lignes proposent quelque chose**, et c’est délibéré : quelqu’un déjà dans '
+    + 'la section d’Austin n’est pas un problème que le graphique signale, et **Actif** ne '
+    + 'peut pas être invité puisqu’il peut déjà se connecter. Une ligne sans rien à corriger '
+    + 's’ouvre tout de même et énumère tout de même.',
+  'help.membership.putting-it-right.b3':
+    '**Une personne à la fois.** Il n’y a pas de bouton « classer toutes celles-ci à Austin '
+    + '», car chacune de ces actions est une affirmation sur une personne — dans quelle '
+    + 'section elle est réellement, quand elle est réellement née, s’il faut lui demander de '
+    + 'se joindre — et définir une section déplace ses jeunes enfants avec elle.',
+  'help.membership.putting-it-right.b4':
+    'Les deux corrections sont deux autorisations. Définir une section et enregistrer une '
+    + 'date de naissance demandent l’autorisation de modifier les membres ; envoyer une '
+    + 'invitation demande l’autorisation de modifier l’arbre généalogique. Si une ligne '
+    + 'énumère des personnes et ne propose aucune commande, le panneau dit laquelle des deux '
+    + 'ne vous a pas été donnée.',
+  'help.membership.places.heading': 'Par région et par section',
+  'help.membership.places.b0':
+    'Deux ventilations, l’une au-dessus de l’autre dans la structure de la famille. **Au '
+    + 'niveau national**, en haut, c’est toute la famille — ce chiffre est ce dont chaque '
+    + 'pourcentage de la page est une part.',
+  'help.membership.places.b1':
+    '**National** apparaît aussi comme une part de la ventilation par régions, et cela y '
+    + 'signifie la même chose : l’absence de région. Quelqu’un dans aucune section, et '
+    + 'quelqu’un dont la section n’a pas été placée dans une région, sont tous deux sous '
+    + 'National. **Sans section** est la part correspondante dans la ventilation par '
+    + 'sections.',
+  'help.membership.places.b2':
+    '**Chaque section que la famille a créée est listée, y compris celles que personne n’a '
+    + 'rejointes.** Une section à zéro est généralement la ligne à regarder — soit personne '
+    + 'n’y a encore été placé, soit elle n’est plus nécessaire. Les régions et les sections '
+    + 'se mettent en place sous [Membres](/admin/members), sur son onglet **Organisation**.',
+  'help.membership.places.b3':
+    'Lorsqu’il y a plus de lieux que le graphique ne peut montrer clairement, il dessine '
+    + 'les cinq plus grands et replie le reste dans **Autres**, en disant combien cela '
+    + 'représente. Le tableau à côté du graphique les énumère toujours tous.',
+  'help.membership.invitations.heading': 'Qui a terminé de se joindre',
+  'help.membership.invitations.b0':
+    'Les trois mêmes états que rapporte [Projection des '
+    + 'cotisations](/reporting/dues-projections), comptés plutôt que listés.',
+  'help.membership.invitations.b1.i0.term': 'Actif',
+  'help.membership.invitations.b1.i0.text': 'Il a un compte et peut se connecter.',
+  'help.membership.invitations.b1.i1.term': 'Invité',
+  'help.membership.invitations.b1.i1.text':
+    'Pas encore de compte, et une invitation est ouverte et sans réponse. La famille a '
+    + 'demandé ; la balle est dans son camp.',
+  'help.membership.invitations.b1.i2.term': 'Invitation à faire',
+  'help.membership.invitations.b1.i2.text':
+    'Inscrit dans la famille et jamais invité à se joindre. C’est le seul sur lequel vous '
+    + 'pouvez agir — appuyez sur la ligne et invitez-le depuis là, ou depuis l’[arbre '
+    + 'généalogique](/community/family-tree).',
+  'help.membership.invitations.b2':
+    '**Peuvent se connecter**, en haut de la page, est le chiffre des Actifs sous un autre '
+    + 'nom, et **Jamais invités**, à côté, n’apparaît que lorsqu’il y a quelqu’un dans le '
+    + 'troisième groupe. À eux deux ils disent quelle part de la famille peut réellement être '
+    + 'atteinte — c’est le chiffre à regarder avant d’envoyer quoi que ce soit à tout le '
+    + 'monde.',
+  'help.membership.invitations.b3':
+    'Une invitation **expirée** compte comme Invitation à faire et non comme Invité. Un '
+    + 'lien expiré ne peut pas être accepté : la famille doit donc redemander.',
+  'help.membership.ages.heading': 'Adultes et mineurs',
+  'help.membership.ages.b0':
+    'Calculé à partir de la date de naissance de chaque membre, chaque fois que la page se '
+    + 'charge — c’est donc juste le matin d’un anniversaire et cela ne demande rien à tenir à '
+    + 'jour.',
+  'help.membership.ages.b1':
+    '**Date de naissance non enregistrée** est sa propre part, et elle n’est repliée dans '
+    + 'aucune des deux autres. La plupart des arbres généalogiques comptent bien des proches '
+    + 'sans date de naissance enregistrée, et les compter comme adultes rapporterait une '
+    + 'précision que les registres n’ont pas.',
+  'help.membership.ages.b2':
+    'Cette part vaut la peine d’être surveillée si la famille a une cotisation qui commence '
+    + 'à un âge : un membre sans date de naissance la doit en entier, car un âge n’est jamais '
+    + 'deviné.',
+  'help.accounting.title': 'Comptabilité',
+  'help.accounting.summary':
+    'Mettre en place les barèmes de cotisations, les campagnes de dons, les fonds, '
+    + 'l’affectation et les jalons.',
+  'help.accounting.what-it-is.heading': 'La configuration, non le travail du jour',
+  'help.accounting.what-it-is.b0':
+    '[Comptabilité](/admin/accounting) est là où l’argent se *configure*. Enregistrer un '
+    + 'paiement réel se fait sur [Transactions](/accounting/transactions), sous '
+    + '**Comptabilité** dans le menu latéral. Chaque section ici est sa propre autorisation : '
+    + 'tenir le barème de cotisations et verser de l’argent sont donc des travaux différents.',
+  'help.accounting.what-it-is.b1':
+    'Le menu en haut de la page contient **Cotisations**, **Dons**, **Fonds**, '
+    + '**Affectation**, **Jalons**, **Encaissement** et **Coordonnées bancaires**. Chacun '
+    + 's’accorde séparément : vous voyez donc ceux qui vous ont été donnés et aucun autre — '
+    + 'un menu à trois éléments n’est pas un défaut. Les boutons **Nouvelle cotisation** et '
+    + '**Nouveau don** se trouvent à côté du menu sur leurs propres pages, et n’apparaissent '
+    + 'que là où vous pouvez ajouter à cette liste.',
+  'help.accounting.what-it-is.b2':
+    '**Ce sont toujours deux autorisations distinctes, et partager un panneau n’y a rien '
+    + 'changé.** Une famille qui laisse quelqu’un tenir le barème de cotisations mais pas '
+    + 'mener les campagnes de dons accorde l’une et pas l’autre, et cette personne voit une '
+    + 'liste, un bouton, et un élément de menu nommé d’après la moitié qu’elle détient. C’est '
+    + 'un seul écran parce que les deux se lisent ensemble, non parce qu’ils sont un seul '
+    + 'travail — voyez [Qui peut faire quoi](/help/who-can-do-what#one-template).',
+  'help.accounting.dues.heading': 'Cotisations',
+  'help.accounting.dues.b0':
+    'Un barème de cotisations est ce qu’un membre doit sur une année : un nom, un montant, '
+    + 'à quelle fréquence il est facturé à l’origine, et dans quel fonds il atterrit. Les '
+    + 'membres choisissent ensuite leur propre fréquence à l’intérieur.',
+  'help.accounting.dues.b1':
+    'La date de début importe. Elle ancre l’échelle des dates d’échéance, et le formulaire '
+    + 'préremplit aujourd’hui — ce qui convient, et mérite un instant de réflexion si vous '
+    + 'saisissez le barème de l’an dernier.',
+  'help.accounting.dues.b2':
+    '**Les membres commencent à payer à l’âge de** est la façon dont une famille dit que '
+    + 'les enfants ne paient pas. Laissez-le vide et tout le monde doit la cotisation quel '
+    + 'que soit son âge. Mettez 18 et un membre ne doit rien jusqu’à ses 18 ans, puis les '
+    + 'mois de cette année-là suivant son anniversaire, puis le montant entier chaque année '
+    + 'ensuite — une cotisation de 120 $ et un anniversaire en juillet font 50 $ cette '
+    + 'année-là. La ligne l’affiche comme **À partir de 18 ans**.',
+  'help.accounting.dues.b3':
+    'Un membre sans date de naissance enregistrée doit la cotisation en entier, car le '
+    + 'produit ne devine pas un âge. Ajouter un enfant à l’[arbre '
+    + 'généalogique](/community/family-tree) sans adresse courriel demande une date de '
+    + 'naissance pour exactement cette raison.',
+  'help.accounting.dues.b4':
+    '**Lignée seulement** restreint une cotisation aux membres descendant de la lignée de '
+    + 'la famille. Quiconque est entré par mariage, et tout proche par alliance, adopté ou '
+    + 'placé, ne doit rien et ne la voit pas du tout sur son propre écran Cotisations — une '
+    + 'cotisation qui n’est jamais la sienne n’est pas listée comme quelque chose qu’il ne '
+    + 'paie pas.',
+  'help.accounting.dues.b5':
+    'La commande est indisponible tant que votre famille n’a pas dit de quel ancêtre sa '
+    + 'lignée descend, car sans cela il n’y a pas de lignée et la cotisation ne serait due '
+    + 'par personne. Définissez d’abord **La lignée descend de** sur l’[arbre '
+    + 'généalogique](/community/family-tree). Qui est dans la lignée est calculé depuis '
+    + 'l’arbre chaque fois : corriger un lien — ou déplacer ce réglage — change donc qui doit '
+    + 'la cotisation.',
+  'help.accounting.dues.b6':
+    '**Dû par** dit quelle partie de la famille la doit : National — toute la famille — ou '
+    + 'une région, ou une section. Cela n’apparaît qu’une fois que votre famille a une région '
+    + 'ou une section à choisir ; jusque-là chaque cotisation est Nationale, ce qui est ce '
+    + 'que National veut dire. Un membre sans section est sous National et ne doit rien de '
+    + 'restreint : une cotisation de section ne facture donc que les personnes qui ont dit '
+    + 'être dans cette section. Voyez [régions et sections](/help/regions-and-chapters#dues).',
+  'help.accounting.dues.b7':
+    'Un barème contre lequel des paiements ont été faits ne peut pas simplement être '
+    + 'supprimé, et son montant, sa fréquence, sa date de début, son âge de début, son '
+    + 'réglage de lignée et **Dû par** sont alors figés — chaque paiement déjà enregistré a '
+    + 'été fait selon ces termes. Changer qui doit une cotisation reformulerait si les gens '
+    + 'la devaient pour des périodes déjà facturées, et c’est pourquoi cela figure sur cette '
+    + 'liste. La page vous dit quand un barème est en usage. La date de fin peut encore '
+    + 'changer.',
+  'help.accounting.donations.heading': 'Dons',
+  'help.accounting.donations.b0':
+    'Une campagne de dons est une cible à laquelle la famille contribue. Elle peut nommer '
+    + 'pour qui elle est, et c’est ce qui lui donne un visage — « ceci est pour les frais '
+    + 'médicaux de Martha » plutôt que « Fonds général ».',
+  'help.accounting.funds.heading': 'Fonds',
+  'help.accounting.funds.b0':
+    'Les fonds sont les poches où l’argent se trouve. Chacun a un solde, ce qui est entré, '
+    + 'et ce qui est sorti.',
+  'help.accounting.funds.b1':
+    'Le formulaire de nouveau fonds demande un **Solde minimal**, et c’est le seul nombre '
+    + 'qui fasse réellement quelque chose : un paiement entrant remplit chaque fonds jusqu’à '
+    + 'son minimum, dans l’ordre défini sous **Affectation**, avant que rien en dessous n’en '
+    + 'reçoive une part. C’est la façon dont une famille dit « celui-ci n’est pas à dépenser '
+    + '». Laissez-le vide pour un fonds sans plancher, et modifiez-le ensuite sur le panneau '
+    + 'Affectation, où il se trouve à côté de l’ordre de remplissage des fonds.',
+  'help.accounting.routing.heading': 'Affectation',
+  'help.accounting.routing.b0':
+    'L’affectation décide comment un paiement entrant est réparti entre les fonds — 70 % au '
+    + 'Général, 30 % aux Bourses, et ainsi de suite. Définissez-la une fois et chaque '
+    + 'paiement enregistré ensuite la suit, au lieu que quelqu’un le divise à la main chaque '
+    + 'fois.',
+  'help.accounting.routing.b1':
+    '**Le fonds Dons intégré peut aussi prendre une part.** Il est sur la liste comme '
+    + 'n’importe quel autre fonds : une famille qui veut qu’une part de ses cotisations aille '
+    + 'à la poche générale peut donc le dire. Il vient dernier en priorité, ce qui importe '
+    + 'quand rien n’a été défini — la part va au fonds en haut de la liste, et Dons n’est '
+    + 'jamais en haut sauf s’il est le seul fonds que votre famille possède.',
+  'help.accounting.routing.b2':
+    'Un don est différent et ne suit pas ce tableau. Un don va en entier dans le fonds '
+    + 'Dons, ce à quoi ce fonds sert ; l’affectation porte sur les COTISATIONS.',
+  'help.accounting.milestones.heading': 'Jalons',
+  'help.accounting.milestones.b0':
+    'Ce que la famille verse pour une occasion — une remise de diplôme, un mariage, un '
+    + 'décès — et de quel fonds cela provient. Le chiffrer d’avance est ce qui transforme « '
+    + 'on donne généralement quelque chose » en un montant sur lequel le trésorier peut agir.',
+  'help.accounting.processing.heading': 'Encaissement',
+  'help.accounting.processing.b0':
+    '**Encaissement** est là où votre famille connecte son propre compte Stripe, pour que '
+    + 'les proches puissent payer leurs cotisations par carte au lieu d’écrire un chèque. '
+    + 'Appuyez sur **Connecter un compte Stripe** et Stripe recueille tout ce dont il a '
+    + 'besoin sur ses propres pages ; à votre retour, ce panneau dit si les paiements par '
+    + 'carte sont activés.',
+  'help.accounting.processing.b1':
+    '**Le compte appartient à votre famille, non à GENORRA.** L’argent va directement à la '
+    + 'banque de votre famille, les frais de traitement de Stripe sortent du côté de votre '
+    + 'famille, et votre famille conserve son propre tableau de bord Stripe, son propre '
+    + 'calendrier de versements et ses propres remboursements. GENORRA ne prend aucune part '
+    + 'de ce que votre famille encaisse.',
+  'help.accounting.processing.b2':
+    '**On ne vous demandera jamais une clé Stripe, et vous ne devriez en donner aucune à '
+    + 'personne.** GENORRA ne conserve que l’identifiant de votre compte — assez pour vous '
+    + 'envoyer un paiement, et inutile à quiconque seul. Si un écran vous demande de coller '
+    + 'une clé commençant par `sk_`, ce n’est pas ce produit.',
+  'help.accounting.processing.b3':
+    'Un paiement par carte s’inscrit dans les registres de la famille dès qu’il est réglé '
+    + 'et se répartit entre vos fonds selon le même tableau d’**Affectation** qu’un paiement '
+    + 'saisi à la main. Personne n’a à le saisir ensuite, et il apparaît dans '
+    + '[Transactions](/accounting/transactions) à côté de tout le reste.',
+  'help.accounting.processing.b4':
+    '**Vérifier auprès de Stripe** demande à Stripe l’état actuel du compte, ce qui vaut la '
+    + 'peine si vous venez de terminer quelque chose de leur côté. Jusqu’à ce qu’il indique '
+    + 'que les paiements par carte sont activés, les membres ne voient aucune section **Payer '
+    + 'en ligne** — mieux vaut cela qu’un bouton qui échoue une fois que quelqu’un a décidé '
+    + 'de payer.',
+  'help.accounting.processing.b5':
+    '**Se déconnecter arrête aussi chaque paiement automatique des membres, et ceux-là ne '
+    + 'peuvent pas être relancés.** Se reconnecter ramène le même compte Stripe avec son '
+    + 'historique et ses coordonnées bancaires exactement comme ils étaient — mais chaque '
+    + 'proche qui payait automatiquement doit remettre son paiement en place, car '
+    + 'l’arrangement a été annulé chez Stripe plutôt que suspendu. Le panneau dit combien de '
+    + 'personnes cela représente avant que vous ne confirmiez. Rien de ce qui est déjà '
+    + 'enregistré n’est retiré, et le compte Stripe de votre famille lui-même n’est pas '
+    + 'touché — ceci arrête seulement son usage par GENORRA.',
+  'help.accounting.processing.b6':
+    '**C’est pour cela que se déconnecter demande deux choses.** D’abord votre mot de passe '
+    + 'de connexion, pour que cela ne puisse arriver par accident ni du fait de quelqu’un '
+    + 'assis devant un écran déverrouillé. Ensuite un code à six chiffres envoyé à l’adresse '
+    + 'avec laquelle vous vous connectez — pas à une adresse que vous saisissez, et pas à '
+    + 'quelqu’un d’autre. Le code dure quinze minutes, fonctionne une fois, et s’annule de '
+    + 'lui-même après cinq tentatives erronées. C’est la même barrière que [retirer une '
+    + 'famille](/help/family-settings#removal), et elle est là pour la même raison : la '
+    + 'partie que vous pouvez annuler en cache une que vous ne pouvez pas.',
+  'help.accounting.processing.b7':
+    'Si votre famille s’est déconnectée, le panneau le dit et le bouton indique '
+    + '**Reconnecter Stripe** plutôt que **Connecter un compte Stripe** — car c’est '
+    + 'réellement le même compte qui revient, non un nouveau qui se crée.',
+  'help.accounting.not-yet.heading': 'Coordonnées bancaires',
+  'help.accounting.not-yet.b0':
+    'La section existe dans le menu et n’est pas encore raccordée. C’est là que vivront les '
+    + 'coordonnées bancaires de la famille elle-même — le compte où les cotisations sont '
+    + 'déposées, et depuis lequel les décaissements sont versés. Rien n’y est conservé '
+    + 'aujourd’hui.',
+  'help.accounting.not-yet.b1':
+    'Connecter un processeur de cartes sous **Encaissement** n’a pas besoin de ceci, et ne '
+    + 'le remplit pas : Stripe conserve les coordonnées bancaires que vous lui donnez, et '
+    + 'cette section sert à noter les numéros qu’un trésorier devrait sinon aller chercher '
+    + 'pour un chèque ou un virement.',
 }
