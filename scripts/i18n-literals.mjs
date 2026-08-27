@@ -84,7 +84,7 @@ const ROOT = process.cwd()
  * is the work queue, and the per-file list this script prints is ranked by size so the next
  * batch is the top of it.
  */
-const CEILING = 325
+const CEILING = 323
 
 /** Directories swept. `lib/` is deliberately absent — see the header. */
 const ROOTS = ['app', 'components']
@@ -119,7 +119,15 @@ const PROPER_NOUNS = new Set([
  * Prefer this over widening a regex — a regex change is invisible and this is a list.
  */
 const NOT_COPY = new Map([
-  // (empty on the day this was written — the shapes below were tight enough)
+  // A COMPARATOR AND A REDUCER, both caught because a JSX-text scan cannot tell a `>` that
+  // closes a tag from one that is a greater-than sign in an arrow function's body. Both
+  // start with a capital and contain a lower-case word, which is the whole test. Listed
+  // here rather than answered with a wider regex, per the header: a list is diffable and a
+  // regex change is invisible.
+  ["ROLE_RANK[a.role] - ROLE_RANK[b.role] || a.email.localeCompare(b.email, 'en') || (a.userId",
+    'app/actions/staff/access.ts — a sort comparator, inside a `=>` body'],
+  ['Math.max(m, bar.lane + 1), most), 0, ) return (',
+    'components/calendar/MonthCalendar.tsx — the lane reducer, same shape'],
 ])
 
 function tsxFiles(dir, out = []) {
@@ -202,7 +210,11 @@ function stripComments(src) {
 
 /** Does this run of words read as something a person was meant to read? */
 function isProse(text) {
-  const trimmed = text.trim()
+  // WHITESPACE NORMALIZED BEFORE THE TWO LOOKUPS, because a JSX text node is wrapped across
+  // lines by whatever the formatter did and the lists below are written as one line. Without
+  // this, an entry in `NOT_COPY` silently matches nothing — measured, and it is the sort of
+  // no-op that reads as the list being ignored.
+  const trimmed = text.trim().replace(/\s+/g, ' ')
   if (trimmed.length < 4) return false
   if (PROPER_NOUNS.has(trimmed)) return false
   if (NOT_COPY.has(trimmed)) return false
@@ -276,6 +288,16 @@ for (const f of findings) {
   byFile.get(f.file).push(f)
 }
 const ranked = [...byFile.entries()].sort((a, b) => b[1].length - a[1].length)
+
+// `--list` prints every finding as `file:line  shape  text`, one per line, for piping into
+// a work queue. The default report is ranked and truncated, which is right for a gate and
+// useless for actually working through the backlog.
+if (process.argv.includes('--list')) {
+  for (const f of findings) {
+    console.log(`${f.file}:${f.line}	${f.shape}	${f.text}`)
+  }
+  process.exit(0)
+}
 
 console.log()
 console.log('  UNKEYED COPY — strings a reader reads that no catalogue holds.')
