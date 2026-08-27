@@ -7,24 +7,26 @@ import { StructuredData } from '@/components/marketing/StructuredData'
 import { PageHero, SectionHeading, MoreLink } from '@/components/marketing/sections'
 import { CtaBand } from '@/components/marketing/CtaBand'
 import { marketingPageGraph } from '@/lib/structured-data'
-import {
-  APP_NAME, APP_TAGLINE, APP_LEAD, APP_PUBLISHER,
-  BRAND_MARK_SRC, APP_LOGO_ALT,
-} from '@/lib/brand'
+import { APP_PUBLISHER, BRAND_MARK_SRC, APP_LOGO_ALT } from '@/lib/brand'
+import { localizedHref } from '@/lib/i18n/route-locale'
+import { marketingAlternates, marketingI18n } from '@/lib/marketing/locale'
+import { type T } from '@/lib/i18n/t'
 import { MetaViewContent } from '@/components/meta/MetaViewContent'
 
-const PAGE_TITLE = `About ${APP_NAME} — Built for Whole Families`
-// 139 characters. The draft opened with APP_TAGLINE, which is 67 on its own and pushed the
-// whole thing to 166 — past the ~155 desktop budget, so the part that says what the page
-// is about was the part being cut. The tagline still leads the page itself, where there is
-// room for it.
-const PAGE_DESCRIPTION =
-  `Why ${APP_NAME} exists, what it refuses to do with your family's data, and who is behind it. Built for whole families, never sold to advertisers.`
-
-export const metadata: Metadata = {
-  title: `About Us — Why ${APP_NAME} Exists`,
-  description: PAGE_DESCRIPTION,
-  alternates: { canonical: '/about' },
+/**
+ * ── `generateMetadata`, AND THE ~155-CHARACTER BUDGET STILL BINDS PER LANGUAGE ───────
+ * The comment this replaced recorded a draft that ran to 166 and was being cut at the point
+ * where it said what the page is about. Spanish and French both run longer than English for the
+ * same thought, so the catalogue entries are written to the budget rather than translated past
+ * it — see the note beside them.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const { t, locale } = await marketingI18n()
+  return {
+    title: t('mkt.about.metaTitle'),
+    description: t('mkt.about.metaDescription'),
+    alternates: marketingAlternates('/about', locale),
+  }
 }
 
 /**
@@ -49,63 +51,84 @@ export const metadata: Metadata = {
  * data, and product commitments that are enforced in code rather than asserted in copy.
  */
 
-const PRINCIPLES: readonly {
-  icon: LucideIcon
-  title: string
-  detail: string
-  tone: string
-  chip: string
-}[] = [
-  {
-    icon: EyeOff,
-    title: 'We do not sell your family',
-    detail:
-      'We do not make money from your relatives’ addresses or your children’s names. Your family is not inventory. No advertising, no data brokerage, nothing sold on to anybody. We earn from families who choose to pay for more, and from nothing else.',
-    tone: 'text-brand-accent',
-    chip: 'bg-brand-accent/12',
-  },
-  {
-    icon: ShieldCheck,
-    title: 'Separation is enforced, not promised',
-    detail:
-      'One family cannot see another’s data, and that is applied by the database on every query rather than by application code remembering to ask. Every action that reads or writes family data carries a test that attacks it from another family and must fail.',
-    tone: 'text-brand-ink',
-    chip: 'bg-brand-legacy/20',
-  },
-  {
-    icon: Users,
-    title: 'Built for the size families actually are',
-    detail:
-      'A hundred and twenty adults in one extended family is an ordinary family here, not an edge case. Every screen that lists members is designed for that — because holding a whole extended family is the entire premise, and a tool that degrades at forty people has missed it.',
-    tone: 'text-brand-affirm',
-    chip: 'bg-brand-affirm/15',
-  },
-  {
-    icon: Sparkles,
-    title: 'We say when something is not ready',
-    detail:
-      'Features still in development are labelled as such, here and inside the product. A roadmap item presented as shipped is the fastest way to lose a family’s trust, and we would rather be slower than be caught.',
-    tone: 'text-brand-accent',
-    chip: 'bg-brand-accent/12',
-  },
+/**
+ * The four commitments, in the reader's language. Icons and colour tokens stay.
+ *
+ * "Not a values statement. Each of these is something you can check." is the section's own lede,
+ * and it is the constraint on the translation: each of the four names a mechanism, so the words
+ * are the product's own in that language rather than a general sentiment.
+ */
+const PRINCIPLE_SHAPES: readonly { icon: LucideIcon; tone: string; chip: string }[] = [
+  { icon: EyeOff, tone: 'text-brand-accent', chip: 'bg-brand-accent/12' },
+  { icon: ShieldCheck, tone: 'text-brand-ink', chip: 'bg-brand-legacy/20' },
+  { icon: Users, tone: 'text-brand-affirm', chip: 'bg-brand-affirm/15' },
+  { icon: Sparkles, tone: 'text-brand-accent', chip: 'bg-brand-accent/12' },
 ]
 
-export default function AboutPage() {
+function principles(t: T) {
+  return PRINCIPLE_SHAPES.map((shape, i) => ({
+    ...shape,
+    title: t(`mkt.about.principle${i}.title`),
+    detail: t(`mkt.about.principle${i}.detail`),
+  }))
+}
+
+/**
+ * The founder's letter, paragraph by paragraph.
+ *
+ * ── THE ENGLISH IS THE OWNER'S WORDS. THE OTHER TWO ARE A RENDERING OF THEM ─────────
+ * This file's header says the letter was supplied on 2026-08-12 and set verbatim, and that still
+ * describes the English exactly — `mkt.about.letter*` in `lib/marketing/strings/en.ts` is the
+ * text as given, moved and not edited.
+ *
+ * The Spanish and French are NOT the owner's words and the catalogue says so where they live. A
+ * translated first-person letter is a normal thing for a marketing site to have, and it is worth
+ * being precise about what it is: somebody's account of their own family, rendered into another
+ * language by somebody else. If the owner ever supplies their own Spanish, it replaces the
+ * translation rather than being reconciled with it.
+ *
+ * ── WHICH PARAGRAPHS ARE EMPHASISED IS PART OF THE LETTER, NOT OF THE STYLING ───────
+ * `strong` marks the six one-line beats — "We could not find it." "So we built it." The file's
+ * old comment argues at length that these are PAUSES and must not be merged into their
+ * neighbours; keeping the flag in the data rather than in the JSX is what carries that across
+ * three languages, because a translator who joined two of them would otherwise silently lose the
+ * emphasis as well as the beat.
+ */
+const LETTER_STRONG = new Set([1, 4, 7, 9, 10])
+const LETTER_PARAGRAPHS = 12
+
+function letter(t: T): readonly { text: string; strong: boolean }[] {
+  return Array.from({ length: LETTER_PARAGRAPHS }, (_, i) => ({
+    text: t(`mkt.about.letter${i}`),
+    strong: LETTER_STRONG.has(i),
+  }))
+}
+
+export default async function AboutPage() {
+  const { t, locale } = await marketingI18n()
+  const PRINCIPLES = principles(t)
+  const LETTER = letter(t)
+
   return (
     <>
       <MetaViewContent content="about" />
       <StructuredData
         graph={marketingPageGraph({
           path: '/about',
-          name: PAGE_TITLE,
-          description: PAGE_DESCRIPTION,
+          name: t('mkt.about.graphName'),
+          description: t('mkt.about.metaDescription'),
         })}
       />
 
+      {/* `APP_LEAD` and `APP_TAGLINE` were rendered here directly. Both are English prose in
+          `lib/brand.ts` — the lead line and the acronym expansion — and both are keyed now for
+          the reason `FeatureShowcase` records about `APP_PROMISE`: a brand constant is a
+          finished English sentence, and a translator needs the finished sentence rather than a
+          constant to interpolate. The product name is still never typed into a component. */}
       <PageHero
-        eyebrow="About us"
-        title={<>{APP_LEAD}</>}
-        lede={<>{APP_TAGLINE}</>}
+        eyebrow={t('mkt.about.eyebrow')}
+        title={t('mkt.about.title')}
+        lede={t('mkt.about.lede')}
       />
 
       {/* ── The mission ──────────────────────────────────────────────────── */}
@@ -128,7 +151,7 @@ export default function AboutPage() {
                 <span className="h-px flex-1 bg-brand-legacy/30" />
               </div>
               <h2 id="mission-heading" className="mt-6 text-3xl sm:text-4xl">
-                Why we built it
+                {t('mkt.about.missionTitle')}
               </h2>
 
             </div>
@@ -151,73 +174,19 @@ export default function AboutPage() {
                 paragraph because each is a pause, and joining them into one tidy sentence
                 would remove the reason they work. */}
             <div className="mt-8 space-y-5 text-left text-lg leading-relaxed text-muted-foreground">
-              <p>
-                For years, our family did what so many families do. We planned reunions
-                through group messages, tracked dues in spreadsheets, kept addresses in
-                different places, passed photographs from person to person, and relied on a
-                handful of people to remember how everyone was connected.
-              </p>
-
-              <p className="font-medium text-foreground">And our family is not small.</p>
-
-              <p>
-                We have six living generations and more than four hundred family members.
-                Every year brought the same questions: Who has paid their dues? Who is
-                coming to the reunion? Whose birthday did we just miss? Where is that old
-                family picture? And, every once in a while, who exactly is this cousin and
-                how are we related?
-              </p>
-
-              <p>Somehow, the answers usually lived with one or two people.</p>
-
-              <p className="font-medium text-foreground">That was the part that stayed with me.</p>
-
-              <p>
-                I was raised to understand that family is something you keep on purpose. You
-                learn the names. You show up. You preserve the stories and traditions. You
-                write things down so the generations coming behind you know who came before
-                them, where they came from, and whose hands helped build what they have
-                today.
-              </p>
-
-              <p>
-                But too much of that history, and too much of the work required to keep a
-                family connected, was living in someone’s memory.
-              </p>
-
-              <p className="font-medium text-foreground">
-                And memories should be part of the legacy, not the storage system for it.
-              </p>
-
-              <p>
-                We went looking for something that could help us organize our family, stay
-                connected across generations, manage the practical things, and preserve the
-                history at the same time.
-              </p>
-
-              <p className="font-medium text-foreground">We could not find it.</p>
-
-              <p className="font-medium text-foreground">So we built it.</p>
-
-              <p>
-                {APP_NAME} started with our own family because we needed a better way to
-                carry what our elders had given us forward. A place for the reunion and the
-                dues, yes. But also for the names, the relationships, the photographs, the
-                stories, the traditions, and the pieces of our family that deserve to
-                survive long after any one of us is gone.
-              </p>
-
-              <p>
-                Because keeping a family connected should never depend on one person holding
-                everything together.
-              </p>
+              {LETTER.map((para, i) => (
+                <p key={i} className={para.strong ? 'font-medium text-foreground' : undefined}>
+                  {para.text}
+                </p>
+              ))}
 
               {/* The closing line was bold in the owner's draft, and it earns it: it is the
                   sentence the whole letter has been walking toward. Given its own rule and
                   the display serif so it lands as a conclusion rather than as one more
-                  emphasised paragraph among five. */}
+                  emphasised paragraph among five. It is outside the map for that reason —
+                  it is a different KIND of thing, not a twelfth beat. */}
               <p className="border-t pt-5 font-heading text-2xl font-semibold text-brand-ink">
-                That is why we built {APP_NAME}.
+                {t('mkt.about.letterClose')}
               </p>
             </div>
           </Reveal>
@@ -229,13 +198,13 @@ export default function AboutPage() {
         <div className="mx-auto max-w-5xl">
           <SectionHeading
             id="principles-heading"
-            eyebrow="What we will and will not do"
-            title="Four commitments, kept in code"
-            lede="Not a values statement. Each of these is something you can check."
+            eyebrow={t('mkt.about.principlesEyebrow')}
+            title={t('mkt.about.principlesTitle')}
+            lede={t('mkt.about.principlesLede')}
           />
           <div className="mt-12 grid gap-6 sm:grid-cols-2">
             {PRINCIPLES.map((principle, i) => (
-              <Reveal key={principle.title} delay={(i % 2) * 150} className="h-full">
+              <Reveal key={i} delay={(i % 2) * 150} className="h-full">
                 <div className="h-full rounded-2xl border bg-card p-6 shadow-[var(--shadow-card)]">
                   <div className={`mb-4 inline-flex rounded-xl p-2.5 ${principle.chip}`}>
                     <principle.icon className={`h-6 w-6 ${principle.tone}`} aria-hidden="true" />
@@ -261,16 +230,23 @@ export default function AboutPage() {
         <div className="mx-auto max-w-3xl">
           <Reveal>
             <div className="rounded-2xl border bg-card p-6 text-center shadow-[var(--shadow-card)] sm:p-8">
-              <h2 id="publisher-heading" className="text-2xl">Who is behind {APP_NAME}</h2>
+              <h2 id="publisher-heading" className="text-2xl">
+                {t('mkt.about.publisherTitle')}
+              </h2>
+              {/* `APP_PUBLISHER` stays a constant and is INTERPOLATED rather than keyed: it is
+                  a legal entity's name, which is the one thing on this page that must read
+                  identically in every language, and the footer and the `Organization` graph
+                  read the same constant. The sentence around it is the copy. */}
               <p className="mt-3 leading-relaxed text-muted-foreground">
-                {APP_NAME} is built and published by {APP_PUBLISHER}. It is a product with a
-                single purpose rather than a side feature of something larger — which is why
-                every screen assumes relatives, generations and branches instead of
-                customers, teams and accounts.
+                {t('mkt.about.publisherLede', { publisher: APP_PUBLISHER })}
               </p>
               <div className="mt-5 flex flex-wrap justify-center gap-x-6 gap-y-3">
-                <MoreLink href="/features">What it does</MoreLink>
-                <MoreLink href="/why-us">Why families switch</MoreLink>
+                <MoreLink href={localizedHref('/features', locale)}>
+                  {t('mkt.about.whatItDoes')}
+                </MoreLink>
+                <MoreLink href={localizedHref('/why-us', locale)}>
+                  {t('mkt.about.whySwitch')}
+                </MoreLink>
               </div>
             </div>
           </Reveal>
@@ -278,8 +254,8 @@ export default function AboutPage() {
       </section>
 
       <CtaBand
-        title="One place, for every generation"
-        lede="Create your free account and bring the whole family in."
+        title={t('mkt.about.ctaTitle')}
+        lede={t('mkt.about.ctaLede')}
       />
     </>
   )

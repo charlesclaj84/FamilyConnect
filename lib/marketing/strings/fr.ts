@@ -494,4 +494,209 @@ export const marketingFr: Catalogue = {
     + 'créée.',
   'mkt.ladder.notYet': 'Pas encore disponible',
   'mkt.ladder.hearFirst': 'Créez un compte gratuit et vous en serez informé en premier.',
+
+  // ──── WHY US ────────────────────────────────────────────────────────────────────
+  // Same budget as the Spanish, same trim. See that note.
+  'mkt.why.metaTitle': 'Pourquoi les familles nous choisissent',
+  'mkt.why.metaDescription':
+    'Un fil de discussion perd le plan, un tableur perd l’argent, un groupe sur les réseaux '
+    + 'perd la confidentialité. Voyez pourquoi les familles passent à GENORRA.',
+  'mkt.why.graphName':
+    'Pourquoi les familles nous choisissent face aux fils de discussion et aux tableurs',
+  'mkt.why.eyebrow': 'Pourquoi nous choisir',
+  'mkt.why.title': 'Votre famille mérite mieux qu’un fil de discussion et un tableur',
+  'mkt.why.lede':
+    'Vous faites déjà tout ce travail. Vous le faites simplement dans quatre outils qui ne '
+    + 'se parlent pas, en perdant quelque chose dans chaque interstice.',
+  'mkt.why.heroPrimary': 'Migrez votre famille gratuitement',
+  'mkt.why.heroSecondary': 'Voyez ce que vous obtenez',
+  'mkt.why.altEyebrow': 'Soyons honnêtes',
+  'mkt.why.altTitle': 'Ce qui fait tourner votre famille en ce moment',
+  'mkt.why.altLede': 'Si l’un d’eux fait le travail, vous savez déjà où il casse.',
+  'mkt.why.alt0.what': 'Le fil de discussion de la famille',
+  'mkt.why.alt0.problem':
+    'Quatre-vingt-dix messages plus bas, quatre personnes ont dit oui, deux ont dit « '
+    + 'peut-être », et une a redemandé quelle était la date. Rien de tout cela n’est un '
+    + 'relevé.',
+  'mkt.why.alt0.cost':
+    'Personne ne peut dire qui a accepté de faire quoi, alors les trois mêmes personnes '
+    + 'font tout.',
+  'mkt.why.alt1.what': 'Un tableur',
+  'mkt.why.alt1.problem':
+    'Une seule personne le possède, une seule le comprend, et il vit sur son portable. Les '
+    + 'cotisations payées en espèces sont mémorisées plutôt qu’enregistrées.',
+  'mkt.why.alt1.cost':
+    'Quand cette personne s’en va, l’histoire financière de la famille s’en va avec elle.',
+  'mkt.why.alt2.what': 'Un groupe sur les réseaux sociaux',
+  'mkt.why.alt2.problem':
+    'Les photographies, les adresses et les prénoms des enfants de votre famille se '
+    + 'trouvent sur une plateforme dont le métier est la publicité, mêlés à la politique de '
+    + 'tout le monde.',
+  'mkt.why.alt2.cost':
+    'Vous ne pouvez pas réserver la trésorerie au trésorier, car il n’y a pas de '
+    + 'trésorerie.',
+  'mkt.why.alt3.what': 'Un outil d’événements générique',
+  'mkt.why.alt3.problem':
+    'Conçu pour des inconnus achetant des billets pour un seul événement. Il n’a aucune '
+    + 'idée de qui est lié à qui, et il oublie votre famille le lendemain.',
+  'mkt.why.alt3.cost': 'Des frais par billet sur vos propres proches, et rien qui reste ensuite.',
+  'mkt.why.reasonsEyebrow': 'La différence',
+  'mkt.why.reasonsTitle': 'Six raisons pour lesquelles les familles migrent et restent',
+  'mkt.why.reasonsLede':
+    'Chacune d’elles est vérifiable dans le produit le jour même de votre inscription.',
+  'mkt.why.reason0.title': 'C’est un seul endroit, pas cinq',
+  'mkt.why.reason0.detail':
+    'Le rassemblement, les cotisations, le répertoire, les photographies et l’arbre '
+    + 'généalogique sont le même compte : la personne à qui vous confiez un travail est déjà '
+    + 'sur l’arbre et le paiement sait déjà à quel fonds il appartient. Rien n’est exporté '
+    + 'puis réimporté.',
+  'mkt.why.reason1.title': 'Conçu pour cent cinquante proches, pas pour une équipe de huit',
+  'mkt.why.reason1.detail':
+    'Chaque liste qui nomme des membres de la famille est conçue pour une famille de cette '
+    + 'taille : une recherche qui correspond au prénom, au nom et au surnom, qui gère les '
+    + 'accents et les apostrophes, et qui distingue deux Martha Allen. La plupart des outils '
+    + 'sont conçus pour une petite équipe et se défont discrètement à l’échelle.',
+  'mkt.why.reason2.title': 'Une famille ne peut pas voir une autre. Imposé, non configuré',
+  'mkt.why.reason2.detail':
+    'La séparation entre familles est appliquée par la base de données à chaque requête, et '
+    + 'chaque action qui touche aux données familiales porte un test qui essaie d’entrer '
+    + 'depuis une autre famille et qui doit échouer. Ce n’est pas une case que quelqu’un peut '
+    + 'laisser décochée.',
+  'mkt.why.reason3.title': 'Une trésorerie qu’un trésorier acceptera',
+  'mkt.why.reason3.detail':
+    'Des barèmes de cotisations payables par échéances, des fonds avec de vrais registres, '
+    + 'une affectation automatique pour que chaque dollar atterrisse où il appartient, et un '
+    + 'compte de résultat que vous pouvez remettre au conseil. Pas un bouton de paiement et '
+    + 'un espoir.',
+  'mkt.why.reason4.title':
+    'Des autorisations par travail, pas un seul interrupteur d’administrateur',
+  // *séparation des tâches*, matching `lib/plans.ts`.
+  'mkt.why.reason4.detail':
+    'Enregistrer des cotisations sans pouvoir verser d’argent. Voir le répertoire sans voir '
+    + 'les comptes. Approuver de nouveaux membres sans toucher à la trésorerie. Une '
+    + 'séparation des tâches élémentaire, qu’un seul drapeau grossier « administrateur » ne '
+    + 'peut pas exprimer.',
+  'mkt.why.reason5.title': 'C’est pour les familles, et seulement les familles',
+  'mkt.why.reason5.detail':
+    'Ce n’est pas un CRM habillé en famille. Chaque écran présuppose des proches, des '
+    + 'générations, des branches et la personne qui organise ce rassemblement depuis vingt '
+    + 'ans — car c’est la seule chose pour laquelle il est conçu.',
+  'mkt.why.switchTitle': 'Et migrer vous coûte une soirée',
+  'mkt.why.switchLede':
+    'Il n’y a pas de projet de migration, car vous ne migrez rien. Vous créez la famille, '
+    + 'partagez un code court, et vos proches s’inscrivent d’eux-mêmes — c’est la partie qui '
+    + 'vous prendrait sinon un week-end de saisie. Vous approuvez qui en fait partie. Le '
+    + 'rassemblement est annoncé. C’est tout.',
+  'mkt.why.switchSteps': 'Voyez les cinq étapes',
+  'mkt.why.switchCost': 'Et ce que cela coûte',
+  'mkt.why.testimonials': 'Des familles qui ne reviendront pas en arrière',
+  'mkt.why.testimonialsLede':
+    'Demandez-nous une référence avant de faire migrer votre famille — nous préférons que '
+    + 'vous parliez à quelqu’un plutôt que de nous croire sur parole.',
+  'mkt.why.ctaTitle': 'Donnez à votre famille un seul endroit',
+  'mkt.why.ctaLede':
+    'Gratuit pour commencer, sans carte, et vos proches font l’essentiel de l’installation '
+    + 'eux-mêmes.',
+  'mkt.why.ctaPrimary': 'Faites migrer votre famille gratuitement',
+
+  // ──── ABOUT ─────────────────────────────────────────────────────────────────────
+  'mkt.about.metaTitle': 'À propos — pourquoi GENORRA existe',
+  'mkt.about.metaDescription':
+    'Pourquoi GENORRA existe, ce qu’il refuse de faire avec les données de votre famille, '
+    + 'et qui est derrière. Conçu pour des familles entières, jamais vendu à des annonceurs.',
+  'mkt.about.graphName': 'À propos de GENORRA — conçu pour des familles entières',
+  'mkt.about.eyebrow': 'À propos',
+  'mkt.about.title': 'Où chaque génération a sa place.',
+  'mkt.about.lede': 'Générations organisées, ressources enregistrées, ascendance archivée',
+  'mkt.about.missionTitle': 'Pourquoi nous l’avons construit',
+  // THE ENGLISH ABOVE IS THE OWNER’S OWN WORDS, supplied 2026-08-12 and set verbatim.
+  // What follows is a RENDERING of them and is not the owner’s French. That is a
+  // normal thing for a marketing site to have and worth being precise about: it is
+  // somebody’s account of their own family, put into another language by somebody
+  // else. If the owner ever supplies their own, it REPLACES this rather than being
+  // reconciled with it.
+  // 
+  // The six one-line beats — *Nous ne l’avons pas trouvé.* *Alors nous l’avons construit.* — are
+  // kept as their own paragraphs and must stay that way. `LETTER_STRONG` in the page
+  // marks them, and the file’s own comment argues that each is a PAUSE: joining two
+  // of them into a tidier sentence would remove the reason they work, and would
+  // silently take the emphasis with it.
+  'mkt.about.letter0':
+    'Pendant des années, notre famille a fait ce que tant de familles font. Nous '
+    + 'organisions les retrouvailles par messages de groupe, suivions les cotisations dans '
+    + 'des tableurs, gardions les adresses à différents endroits, nous passions les '
+    + 'photographies de main en main, et nous comptions sur une poignée de personnes pour se '
+    + 'rappeler comment chacun était lié.',
+  'mkt.about.letter1': 'Et notre famille n’est pas petite.',
+  'mkt.about.letter2':
+    'Nous avons six générations vivantes et plus de quatre cents membres. Chaque année '
+    + 'amenait les mêmes questions : Qui a payé ses cotisations ? Qui vient aux retrouvailles '
+    + '? Quel anniversaire venons-nous de manquer ? Où est cette vieille photo de famille ? '
+    + 'Et, de temps à autre, qui est exactement ce cousin et comment sommes-nous liés ?',
+  'mkt.about.letter3':
+    'D’une manière ou d’une autre, les réponses vivaient d’ordinaire chez une ou deux '
+    + 'personnes.',
+  'mkt.about.letter4': 'C’est la partie qui m’est restée.',
+  'mkt.about.letter5':
+    'On m’a élevé en me faisant comprendre que la famille est quelque chose que l’on garde '
+    + 'volontairement. On apprend les noms. On se présente. On conserve les histoires et les '
+    + 'traditions. On écrit les choses pour que les générations qui viennent derrière sachent '
+    + 'qui les a précédées, d’où elles venaient, et quelles mains ont aidé à bâtir ce '
+    + 'qu’elles ont aujourd’hui.',
+  'mkt.about.letter6':
+    'Mais une trop grande part de cette histoire, et une trop grande part du travail '
+    + 'nécessaire pour garder une famille reliée, vivait dans la mémoire de quelqu’un.',
+  'mkt.about.letter7':
+    'Et les souvenirs devraient faire partie du legs, non en être le système de stockage.',
+  'mkt.about.letter8':
+    'Nous nous sommes mis à chercher quelque chose qui pourrait nous aider à organiser '
+    + 'notre famille, à rester reliés d’une génération à l’autre, à gérer les choses '
+    + 'pratiques et à conserver l’histoire en même temps.',
+  'mkt.about.letter9': 'Nous ne l’avons pas trouvé.',
+  'mkt.about.letter10': 'Alors nous l’avons construit.',
+  'mkt.about.letter11':
+    'GENORRA a commencé avec notre propre famille parce qu’il nous fallait une meilleure '
+    + 'façon de porter plus loin ce que nos anciens nous avaient donné. Un endroit pour les '
+    + 'retrouvailles et les cotisations, oui. Mais aussi pour les noms, les liens, les '
+    + 'photographies, les histoires, les traditions, et les morceaux de notre famille qui '
+    + 'méritent de survivre longtemps après que l’un de nous sera parti.',
+  'mkt.about.letterClose': 'Voilà pourquoi nous avons construit GENORRA.',
+  'mkt.about.principlesEyebrow': 'Ce que nous ferons et ne ferons pas',
+  'mkt.about.principlesTitle': 'Quatre engagements, tenus dans le code',
+  'mkt.about.principlesLede':
+    'Ce n’est pas une déclaration de valeurs. Chacun d’eux est vérifiable.',
+  'mkt.about.principle0.title': 'Nous ne vendons pas votre famille',
+  'mkt.about.principle0.detail':
+    'Nous ne gagnons pas d’argent sur les adresses de vos proches ni sur les prénoms de vos '
+    + 'enfants. Votre famille n’est pas un stock. Aucune publicité, aucun courtage de '
+    + 'données, rien de revendu à personne. Nous gagnons auprès des familles qui choisissent '
+    + 'de payer davantage, et de rien d’autre.',
+  'mkt.about.principle1.title': 'La séparation est imposée, non promise',
+  'mkt.about.principle1.detail':
+    'Une famille ne peut pas voir les données d’une autre, et cela est appliqué par la base '
+    + 'de données à chaque requête plutôt que par du code applicatif qui se souvient de '
+    + 'demander. Chaque action qui lit ou écrit des données familiales porte un test qui '
+    + 'l’attaque depuis une autre famille et qui doit échouer.',
+  'mkt.about.principle2.title': 'Conçu pour la taille que les familles ont réellement',
+  'mkt.about.principle2.detail':
+    'Cent vingt adultes dans une seule famille élargie est une famille ordinaire ici, non '
+    + 'un cas limite. Chaque écran qui liste des membres est conçu pour cela — car contenir '
+    + 'une famille élargie entière est toute la prémisse, et un outil qui se dégrade à '
+    + 'quarante personnes l’a manquée.',
+  'mkt.about.principle3.title': 'Nous disons quand quelque chose n’est pas prêt',
+  'mkt.about.principle3.detail':
+    'Les fonctionnalités encore en développement sont étiquetées comme telles, ici et dans '
+    + 'le produit. Un élément de feuille de route présenté comme livré est la façon la plus '
+    + 'rapide de perdre la confiance d’une famille, et nous préférons être plus lents que '
+    + 'd’être pris.',
+  'mkt.about.publisherTitle': 'Qui est derrière GENORRA',
+  'mkt.about.publisherLede':
+    'GENORRA est construit et publié par {publisher}. C’est un produit à but unique plutôt '
+    + 'qu’une fonctionnalité annexe de quelque chose de plus vaste — et c’est pourquoi chaque '
+    + 'écran présuppose des proches, des générations et des branches plutôt que des clients, '
+    + 'des équipes et des comptes.',
+  'mkt.about.whatItDoes': 'Ce qu’il fait',
+  'mkt.about.whySwitch': 'Pourquoi les familles migrent',
+  'mkt.about.ctaTitle': 'Un seul endroit, pour chaque génération',
+  'mkt.about.ctaLede': 'Créez votre compte gratuit et faites entrer toute la famille.',
 }

@@ -271,6 +271,12 @@ const KNOWN_DYNAMIC = [
     + 'to key on — that is what makes each of them a promise rather than a screen.'],
   ['mkt.living.src', 'LivingSitePreview maps its three inputs: t(`mkt.living.src${i}.label`).'],
   ['mkt.hiw.step', 'The five steps on /how-it-works: t(`mkt.hiw.step${i}.title`).'],
+  ['mkt.why.alt', 'The four categories on /why-us: t(`mkt.why.alt${i}.what`). CATEGORIES and '
+    + 'never named products — that page argues why at length, and it binds a translator too.'],
+  ['mkt.why.reason', 'The six reasons on /why-us: t(`mkt.why.reason${i}.title`).'],
+  ['mkt.about.principle', 'The four commitments on /about: t(`mkt.about.principle${i}.title`).'],
+  ['mkt.about.letter', 'The founder’s letter, paragraph by paragraph: t(`mkt.about.letter${i}`). '
+    + 'The English is the owner’s own words; the two translations say so where they live.'],
   ['mkt.hiw.faq', 'The FAQ on /how-it-works, which is also the FAQPage node: '
     + 't(`mkt.hiw.faq${i}.q`). The graph is built from the same `t` the body renders from.'],
   ['mkt.claim.', 'Every plan bullet is keyed on its own `claim` id, which marketing:check '

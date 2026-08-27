@@ -438,4 +438,172 @@ export const marketingEn: Catalogue = {
     'Create your account first — you choose how to pay once your family exists.',
   'mkt.ladder.notYet': 'Not yet available',
   'mkt.ladder.hearFirst': 'Create a free account and you will hear about it first.',
+
+  // ──── WHY US ────────────────────────────────────────────────────────────────────
+  'mkt.why.metaTitle': 'Why Families Choose Us Over Spreadsheets',
+  'mkt.why.metaDescription':
+    'A group text loses the plan, a spreadsheet loses the money, a social group loses the '
+    + 'privacy. See why families switch to GENORRA.',
+  'mkt.why.graphName': 'Why Families Choose Us Over Group Chats and Spreadsheets',
+  'mkt.why.eyebrow': 'Why choose us',
+  'mkt.why.title': 'Your family deserves better than a group text and a spreadsheet',
+  'mkt.why.lede':
+    'You are already doing all of this work. You are just doing it in four tools that do '
+    + 'not talk to each other, and losing something in every gap.',
+  'mkt.why.heroPrimary': 'Switch Your Family Free',
+  'mkt.why.heroSecondary': 'See what you get',
+  'mkt.why.altEyebrow': 'Be honest',
+  'mkt.why.altTitle': 'What is running your family right now',
+  'mkt.why.altLede': 'If one of these is doing the job, you already know where it breaks.',
+  'mkt.why.alt0.what': 'The family group text',
+  'mkt.why.alt0.problem':
+    'Ninety messages deep, four people said yes, two said "maybe", and one asked what the '
+    + 'date was again. Nothing is a record.',
+  'mkt.why.alt0.cost':
+    'Nobody can say who agreed to do what, so the same three people do all of it.',
+  'mkt.why.alt1.what': 'A spreadsheet',
+  'mkt.why.alt1.problem':
+    'One person owns it, one person understands it, and it lives on their laptop. Dues paid '
+    + 'in cash get remembered rather than recorded.',
+  'mkt.why.alt1.cost':
+    'When that person steps down, the family’s financial history steps down with them.',
+  'mkt.why.alt2.what': 'A social media group',
+  'mkt.why.alt2.problem':
+    'Your family’s photographs, addresses and children’s names sit on a platform whose '
+    + 'business is advertising, mixed in with everyone’s politics.',
+  'mkt.why.alt2.cost':
+    'You cannot restrict the treasury to the treasurer, because there is no treasury.',
+  'mkt.why.alt3.what': 'A generic event tool',
+  'mkt.why.alt3.problem':
+    'Built for strangers buying tickets to one event. It has no idea who is related to '
+    + 'whom, and it forgets your family the day after.',
+  'mkt.why.alt3.cost': 'Per-ticket fees on your own relatives, and nothing left behind afterwards.',
+  'mkt.why.reasonsEyebrow': 'The difference',
+  'mkt.why.reasonsTitle': 'Six reasons families move and stay',
+  'mkt.why.reasonsLede':
+    'Every one of these is checkable inside the product on the day you sign up.',
+  'mkt.why.reason0.title': 'It is one place, not five',
+  'mkt.why.reason0.detail':
+    'The reunion, the dues, the directory, the photographs and the family tree are the same '
+    + 'account, so the person you hand a job to is already on the tree and the payment '
+    + 'already knows which fund it belongs to. Nothing is exported and re-imported.',
+  'mkt.why.reason1.title': 'Built for a hundred and fifty relatives, not a team of eight',
+  'mkt.why.reason1.detail':
+    'Every list that names family members is designed for a family that size: search that '
+    + 'matches first name, last name and nickname, handles accents and apostrophes, and tells '
+    + 'two Martha Allens apart. Most tools are built for a small team and quietly fall apart '
+    + 'at scale.',
+  'mkt.why.reason2.title': 'One family cannot see another. Enforced, not configured',
+  'mkt.why.reason2.detail':
+    'Family separation is applied by the database on every single query, and every action '
+    + 'that touches family data carries a test that tries to break in from another family and '
+    + 'must fail. It is not a checkbox somebody can leave unticked.',
+  'mkt.why.reason3.title': 'A treasury a treasurer will accept',
+  'mkt.why.reason3.detail':
+    'Dues plans payable in installments, funds with real ledgers, automatic routing so each '
+    + 'dollar lands where it belongs, and a profit and loss you can hand to the board. Not a '
+    + 'payment button and a hope.',
+  'mkt.why.reason4.title': 'Permissions per job, not one admin switch',
+  'mkt.why.reason4.detail':
+    'Record dues without being able to pay money out. See the directory without seeing the '
+    + 'accounts. Approve new members without touching the treasury. Basic separation of '
+    + 'duties, which one blunt "admin" flag cannot express.',
+  'mkt.why.reason5.title': 'It is for families, and only families',
+  'mkt.why.reason5.detail':
+    'Not a CRM with a family skin on it. Every screen assumes relatives, generations, '
+    + 'branches and the person who has been organising this reunion for twenty years — '
+    + 'because that is the only thing it is built to do.',
+  'mkt.why.switchTitle': 'And switching costs you an evening',
+  'mkt.why.switchLede':
+    'There is no migration project, because you are not migrating anything. You create the '
+    + 'family, share one short code, and your relatives sign themselves up — which is the '
+    + 'part that would otherwise take you a weekend of typing. You approve who belongs. The '
+    + 'reunion goes up. That is it.',
+  'mkt.why.switchSteps': 'See the five steps',
+  'mkt.why.switchCost': 'And what it costs',
+  'mkt.why.testimonials': 'Families who are not going back',
+  'mkt.why.testimonialsLede':
+    'Ask us for a reference before you move your family — we would rather you talked to one '
+    + 'than took our word for it.',
+  'mkt.why.ctaTitle': 'Give your family one place',
+  'mkt.why.ctaLede': 'Free to start, no card, and your relatives do most of the setup themselves.',
+  'mkt.why.ctaPrimary': 'Move Your Family Free',
+
+  // ──── ABOUT ─────────────────────────────────────────────────────────────────────
+  'mkt.about.metaTitle': 'About Us — Why GENORRA Exists',
+  'mkt.about.metaDescription':
+    'Why GENORRA exists, what it refuses to do with your family’s data, and who is behind '
+    + 'it. Built for whole families, never sold to advertisers.',
+  'mkt.about.graphName': 'About GENORRA — Built for Whole Families',
+  'mkt.about.eyebrow': 'About us',
+  'mkt.about.title': 'Where every generation belongs.',
+  'mkt.about.lede': 'Generations Organized, Resources Recorded, Ancestry Archived',
+  'mkt.about.missionTitle': 'Why we built it',
+  'mkt.about.letter0':
+    'For years, our family did what so many families do. We planned reunions through group '
+    + 'messages, tracked dues in spreadsheets, kept addresses in different places, passed '
+    + 'photographs from person to person, and relied on a handful of people to remember how '
+    + 'everyone was connected.',
+  'mkt.about.letter1': 'And our family is not small.',
+  'mkt.about.letter2':
+    'We have six living generations and more than four hundred family members. Every year '
+    + 'brought the same questions: Who has paid their dues? Who is coming to the reunion? '
+    + 'Whose birthday did we just miss? Where is that old family picture? And, every once in '
+    + 'a while, who exactly is this cousin and how are we related?',
+  'mkt.about.letter3': 'Somehow, the answers usually lived with one or two people.',
+  'mkt.about.letter4': 'That was the part that stayed with me.',
+  'mkt.about.letter5':
+    'I was raised to understand that family is something you keep on purpose. You learn the '
+    + 'names. You show up. You preserve the stories and traditions. You write things down so '
+    + 'the generations coming behind you know who came before them, where they came from, and '
+    + 'whose hands helped build what they have today.',
+  'mkt.about.letter6':
+    'But too much of that history, and too much of the work required to keep a family '
+    + 'connected, was living in someone’s memory.',
+  'mkt.about.letter7': 'And memories should be part of the legacy, not the storage system for it.',
+  'mkt.about.letter8':
+    'We went looking for something that could help us organize our family, stay connected '
+    + 'across generations, manage the practical things, and preserve the history at the same '
+    + 'time.',
+  'mkt.about.letter9': 'We could not find it.',
+  'mkt.about.letter10': 'So we built it.',
+  'mkt.about.letter11':
+    'GENORRA started with our own family because we needed a better way to carry what our '
+    + 'elders had given us forward. A place for the reunion and the dues, yes. But also for '
+    + 'the names, the relationships, the photographs, the stories, the traditions, and the '
+    + 'pieces of our family that deserve to survive long after any one of us is gone.',
+  'mkt.about.letterClose': 'That is why we built GENORRA.',
+  'mkt.about.principlesEyebrow': 'What we will and will not do',
+  'mkt.about.principlesTitle': 'Four commitments, kept in code',
+  'mkt.about.principlesLede': 'Not a values statement. Each of these is something you can check.',
+  'mkt.about.principle0.title': 'We do not sell your family',
+  'mkt.about.principle0.detail':
+    'We do not make money from your relatives’ addresses or your children’s names. Your '
+    + 'family is not inventory. No advertising, no data brokerage, nothing sold on to '
+    + 'anybody. We earn from families who choose to pay for more, and from nothing else.',
+  'mkt.about.principle1.title': 'Separation is enforced, not promised',
+  'mkt.about.principle1.detail':
+    'One family cannot see another’s data, and that is applied by the database on every '
+    + 'query rather than by application code remembering to ask. Every action that reads or '
+    + 'writes family data carries a test that attacks it from another family and must fail.',
+  'mkt.about.principle2.title': 'Built for the size families actually are',
+  'mkt.about.principle2.detail':
+    'A hundred and twenty adults in one extended family is an ordinary family here, not an '
+    + 'edge case. Every screen that lists members is designed for that — because holding a '
+    + 'whole extended family is the entire premise, and a tool that degrades at forty people '
+    + 'has missed it.',
+  'mkt.about.principle3.title': 'We say when something is not ready',
+  'mkt.about.principle3.detail':
+    'Features still in development are labelled as such, here and inside the product. A '
+    + 'roadmap item presented as shipped is the fastest way to lose a family’s trust, and we '
+    + 'would rather be slower than be caught.',
+  'mkt.about.publisherTitle': 'Who is behind GENORRA',
+  'mkt.about.publisherLede':
+    'GENORRA is built and published by {publisher}. It is a product with a single purpose '
+    + 'rather than a side feature of something larger — which is why every screen assumes '
+    + 'relatives, generations and branches instead of customers, teams and accounts.',
+  'mkt.about.whatItDoes': 'What it does',
+  'mkt.about.whySwitch': 'Why families switch',
+  'mkt.about.ctaTitle': 'One place, for every generation',
+  'mkt.about.ctaLede': 'Create your free account and bring the whole family in.',
 }
