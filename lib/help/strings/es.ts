@@ -2243,4 +2243,1006 @@ export const helpEs: Catalogue = {
     'Conectar un procesador de tarjetas en **Cobros** no necesita esto, y no lo rellena: '
     + 'Stripe guarda los datos bancarios que usted le da, y esta sección es para anotar los '
     + 'números que un tesorero tendría que buscar si no para un cheque o una transferencia.',
+  // ──── PART 8 — Community (Chat, Directory, Updates) ───────────────────────────
+  'help.part.community.title': 'La comunidad',
+  'help.part.community.blurb': 'Cómo la familia se habla, se encuentra y decide.',
+  'help.chat.title': 'Chat',
+  'help.chat.summary':
+    'La sala de la familia, los mensajes privados y los grupos que usted mismo crea.',
+  'help.chat.rooms.heading': 'Los tres tipos de sala',
+  'help.chat.rooms.b0.i0.term': 'Familia',
+  'help.chat.rooms.b0.i0.text':
+    'Una sala, con todo el mundo dentro, creada para usted. No se puede abandonar ni '
+    + 'eliminar.',
+  'help.chat.rooms.b0.i1.term': 'Mensajes directos',
+  'help.chat.rooms.b0.i1.text': 'Un hilo privado entre usted y otro integrante.',
+  'help.chat.rooms.b0.i2.term': 'Mensajes de grupo',
+  'help.chat.rooms.b0.i2.text':
+    'Un hilo con nombre y con las personas que usted elija: una comisión organizadora, los '
+    + 'primos que organizan un regalo.',
+  'help.chat.rooms.b1':
+    'Los mensajes llegan en vivo. Un punto al lado de una sala significa que hay algo en '
+    + 'ella que usted no ha leído; abrir la sala lo quita.',
+  'help.chat.dm.heading': 'Empezar un mensaje privado',
+  'help.chat.dm.b0.i0': 'Pulse **Nuevo MD** en la parte superior de la lista de salas.',
+  'help.chat.dm.b0.i1': 'Elija a la persona.',
+  'help.chat.dm.b0.i2': 'Escriba y envíe. Entrar envía, Mayús+Entrar empieza una línea nueva.',
+  'help.chat.dm.b1':
+    'Solo aparecen en la lista los integrantes que tienen cuenta. Alguien registrado en el '
+    + 'árbol familiar sin dirección de correo no tiene dónde recibir un mensaje: vea [Fichas '
+    + 'y cuentas](/help/family-tree#records).',
+  'help.chat.group.heading': 'Empezar un grupo',
+  'help.chat.group.b0.i0': 'Pulse **Nuevo** al lado del encabezado **Mensajes de grupo**.',
+  'help.chat.group.b0.i1': 'Póngale nombre: el nombre es lo que todos los demás verán en su lista.',
+  'help.chat.group.b0.i2': 'Marque a las personas que incluir, y pulse **Crear grupo**.',
+  'help.chat.group.b1':
+    'Quien crea un grupo puede añadir y quitar integrantes después, desde el control de '
+    + 'arriba a la derecha del hilo.',
+  'help.chat.deleting.heading': 'Quitar una conversación',
+  'help.chat.deleting.b0':
+    'Un hilo de mensaje directo se puede eliminar de su lista. La sala de la familia no: es '
+    + 'el único lugar donde siempre se puede alcanzar a toda la familia.',
+  'help.directory.title': 'Directorio',
+  'help.directory.summary': 'Todas las personas de la familia, con búsqueda, y cómo contactarlas.',
+  'help.directory.searching.heading': 'Encontrar a alguien',
+  'help.directory.searching.b0':
+    'El cuadro de filtro coincide con el nombre, el apellido y el nombre preferido, e '
+    + 'ignora los acentos y la puntuación: escribir **jose** encuentra a José, y **oconnor** '
+    + 'encuentra a O’Connor.',
+  'help.directory.columns.heading': 'Qué muestra la lista',
+  'help.directory.columns.b0':
+    'Cuatro columnas: **Nombre**, **Cargo**, **Capítulo**, y el **Grupo** en el que está la '
+    + 'persona, que es la plantilla de permisos que decide lo que puede hacer. **Cargo** es '
+    + 'el puesto de la directiva que ocupa, escrito completo — «tesorero nacional», '
+    + '«presidente del capítulo de Austin» — y una raya para la mayoría de la familia, que no '
+    + 'ocupa ninguno. En qué capítulo está alguien está en la fila; a qué REGIÓN pertenece '
+    + 'ese capítulo está en su cuadro de detalle, porque la región se deduce del capítulo en '
+    + 'vez de ser una respuesta aparte.',
+  'help.directory.columns.b1':
+    'Todo lo demás sobre una persona está detrás de su nombre. **Pulsar un nombre abre su '
+    + 'ficha**: teléfono, correo, ciudad y estado, su capítulo y su región, su nombre '
+    + 'preferido, su grupo, y si ya tiene cuenta. El nombre es un botón de verdad, así que '
+    + 'alcanzarlo con el tabulador y pulsar Entrar abre el mismo panel que un clic.',
+  'help.directory.columns.b2':
+    'Teléfono, correo y ciudad tenían cada uno su propia columna hasta el 19-08-2026 y '
+    + 'ahora están en ese panel. No se quitó nada y no se muestra nada nuevo: los mismos '
+    + 'datos, a una pulsación en vez de a cinco columnas de ancho, que es lo que hace la '
+    + 'lista legible en un teléfono.',
+  'help.directory.columns.b3':
+    'En una pantalla estrecha, Cargo, Capítulo y Grupo se pliegan debajo del nombre en vez '
+    + 'de deslizarse por el lado, así que nada queda nunca aparcado fuera de la vista.',
+  'help.directory.columns.b4':
+    'Las personas registradas en el árbol familiar sin dirección de correo también aparecen '
+    + 'aquí. Un tío abuelo registrado es integrante de la familia; simplemente no tiene '
+    + 'cuenta, y su ficha lo dice.',
+  'help.directory.tree.heading': 'De un nombre al árbol',
+  'help.directory.tree.b0':
+    'El botón **Árbol familiar** lo lleva al árbol, donde puede centrarse en cualquier '
+    + 'persona y ver cómo se conecta. Es la misma pregunta desde el otro lado: el Directorio '
+    + 'responde *quién*, el árbol responde *cómo están relacionados*.',
+  'help.updates.title': 'Novedades',
+  'help.updates.summary':
+    'El archivo de todo lo que la familia ha anunciado y de todo lo que se le ha enviado a '
+    + 'usted, y cómo funciona la búsqueda.',
+  'help.updates.what-it-is.heading': 'Una lista, dos tipos de cosa',
+  'help.updates.what-it-is.b0':
+    'Novedades es el panel **Novedades** de [Anuncios](/community/announcements), y la '
+    + 'versión larga de la tarjeta **Novedades recientes** de su [Panel](/dashboard). Esa '
+    + 'tarjeta muestra las últimas pocas; esto las muestra todas, de la más nueva a la más '
+    + 'antigua, y le permite buscar.',
+  'help.updates.what-it-is.b1':
+    'Tenía su propia fila de menú hasta el 19-08-2026 y ya no la tiene: las noticias de la '
+    + 'familia viven en una sola pantalla. La dirección antigua sigue funcionando y aterriza '
+    + 'en el panel, así que un enlace que alguien haya enviado sigue abriendo la lista '
+    + 'correcta.',
+  'help.updates.what-it-is.b2': 'Aparecen dos tipos de fila:',
+  'help.updates.what-it-is.b3.i0.term': 'Anuncio',
+  'help.updates.what-it-is.b3.i0.text':
+    'Noticias de la familia que alguien publicó en el tablón. Abrirlo va a '
+    + '[Anuncios](/community/announcements), que lleva el texto completo, excepto en el caso '
+    + 'de un aviso sobre una elección, que va a la elección misma, porque el texto entero ya '
+    + 'lo ha leído en la fila.',
+  'help.updates.what-it-is.b3.i1.term': 'Enviado a usted',
+  'help.updates.what-it-is.b3.i1.text':
+    'Algo dirigido a usted personalmente: una tarea, una aprobación, un mensaje que espera. '
+    + 'Son las mismas filas que la campana de la barra superior.',
+  'help.updates.what-it-is.b4':
+    'Nada de aquí es correo de otra persona. Las filas de «enviado a usted» son suyas y '
+    + 'solo suyas, y son la misma lista que muestra la campana.',
+  'help.updates.what-it-is.b5':
+    'Abrir una fila no la marca como leída. De eso se encarga la campana, así que el número '
+    + 'que lleva y esta página no pueden estar nunca en desacuerdo.',
+  'help.updates.searching.heading': 'Buscar',
+  'help.updates.searching.b0':
+    'El único cuadro busca en el título y en el cuerpo de los dos tipos de fila, y busca en '
+    + 'la base de datos y no en la página, así que alcanza todo, por atrás que esté.',
+  'help.updates.searching.b1.i0':
+    'Las palabras pueden ir en cualquier orden. Buscar **bloque hotel** encuentra «el '
+    + 'bloque en el hotel».',
+  'help.updates.searching.b1.i1':
+    'Las terminaciones se gestionan: **habitaciones** encuentra «habitación», **reserva** '
+    + 'encuentra «reservado», y **pago** encuentra «pagos».',
+  'help.updates.searching.b1.i2':
+    'Las palabras irregulares no: **pagando** no encuentra «pagado». Busque la palabra tal '
+    + 'y como se habría escrito.',
+  'help.updates.searching.b1.i3':
+    'Ponga un **-** delante de una palabra para dejar fuera las filas que la contienen: '
+    + '**reunión -cancelada**.',
+  'help.updates.searching.b1.i4':
+    'Una parte de una palabra no coincide: **reuni** no encuentra nada. Escriba la palabra '
+    + 'completa.',
+  'help.updates.searching.b2':
+    'Los acentos se comparan de forma exacta aquí, a diferencia de las búsquedas de nombres '
+    + 'del resto del producto: buscar «jose» no encontrará «José» en esta página.',
+  'help.updates.searching.b3':
+    'Una búsqueda es un enlace. La barra de direcciones lleva lo que buscó, así que puede '
+    + 'enviárselo a alguien o usar el botón de atrás para recorrer varias.',
+  'help.updates.older.heading': 'Ir más atrás',
+  'help.updates.older.b0':
+    '**Mostrar 25 más antiguas** añade otra página al final de la lista, y sigue hasta que '
+    + 'no hay nada más antiguo. Desplazarse hacia atrás acaba deteniéndose, y la página lo '
+    + 'dice cuando lo hace: en ese punto la búsqueda es lo que alcanza el resto, porque mira '
+    + 'todas las filas y no solo las que están en pantalla.',
+  'help.updates.older.b1':
+    'El recuento debajo de la lista siempre dice cuántas filas está viendo, así que una '
+    + 'lista corta nunca es una lista que se detuvo en silencio.',
+  'help.updates.missing.heading': 'Si los anuncios no están en su lista',
+  'help.updates.missing.b0':
+    'La página lo dirá, encima de la lista. Los anuncios son el tablón de la familia y se '
+    + 'otorgan por separado de sus propios mensajes, así que un integrante al que no se le ha '
+    + 'dado el tablón ve solo lo que se le ha enviado: vea [Quién puede hacer '
+    + 'qué](/help/who-can-do-what#missing).',
+  'help.updates.missing.b1':
+    'Este panel también se puede desactivar por completo, y en ese caso Anuncios se abre '
+    + 'sin él. Sus propios mensajes siguen en la campana, y el tablón sigue siendo el panel '
+    + '**General**; este es los dos juntos.',
+  // ──── PART 8 — Community (Announcements, Distributions) ───────────────────────
+  'help.announcements.title': 'Anuncios',
+  'help.announcements.summary':
+    'Noticias de la familia, el archivo de todo lo enviado, qué hace realmente fijar algo, '
+    + 'y quién cumple años pronto.',
+  'help.announcements.reading.heading': 'El tablón',
+  'help.announcements.reading.b0':
+    '[Anuncios](/community/announcements) son tres paneles. **General** es el tablón y es '
+    + 'aquello con lo que abre la pantalla; **Novedades** es el archivo de todo lo que la '
+    + 'familia ha anunciado y todo lo que se le ha enviado a usted, cubierto en '
+    + '[Novedades](/help/updates#what-it-is); **Cumpleaños** es a quién escribir a '
+    + 'continuación, y es la última sección de este capítulo.',
+  'help.announcements.reading.b1':
+    'El tablón es una pila de publicaciones, de la más nueva a la más antigua, cada una '
+    + 'mostrando quién la escribió y cuándo. Las publicaciones fijadas están marcadas y '
+    + 'además van arriba en las Novedades recientes de todo el mundo en el panel.',
+  'help.announcements.reading.b2':
+    'Los tres paneles se otorgan por separado, así que una familia puede repartir la lista '
+    + 'de cumpleaños sin repartir el tablón, o al contrario. Un panel que no está es uno que '
+    + 'no le han dado: vea [Quién puede hacer qué](/help/who-can-do-what#missing).',
+  'help.announcements.posting.heading': 'Publicar',
+  'help.announcements.posting.b0.i0': 'Abra el compositor en la parte superior del tablón.',
+  'help.announcements.posting.b0.i1': 'Póngale un título y un mensaje.',
+  'help.announcements.posting.b0.i2':
+    'Elija el destinatario: **Toda la familia**, **Región**, o un solo **Capítulo**.',
+  'help.announcements.posting.b0.i3': 'Publique.',
+  'help.announcements.posting.b1':
+    'Las opciones de capítulo y región solo significan algo cuando su familia ha '
+    + 'configurado capítulos. Si no lo ha hecho, todo es para toda la familia.',
+  'help.announcements.pinning.heading': 'Fijar',
+  'help.announcements.pinning.b0':
+    '**Hay una sola chincheta, y pertenece a la familia.** A su lado, en una publicación '
+    + 'que la familia ha fijado, todos los integrantes tienen un ojo, que oculta esa '
+    + 'publicación de la parte superior de sus propias novedades y no cambia nada de lo que '
+    + 've nadie más. Dos símbolos, porque son dos actos distintos.',
+  'help.announcements.pinning.b1.i0.term': 'Fijar para todos (una chincheta)',
+  'help.announcements.pinning.b1.i0.text':
+    'Pone la publicación arriba en las novedades de todos los integrantes. Es un acto para '
+    + 'toda la familia, y un permiso aparte de publicar: una familia puede dejar que todos '
+    + 'publiquen y dejar que una sola persona fije. Se le puede poner un vencimiento, que es '
+    + 'la forma correcta de fijar «la reunión es en tres semanas»: se quita a sí misma. La '
+    + 'chincheta está rellena y del color de acento mientras está activa.',
+  'help.announcements.pinning.b1.i1.term':
+    'Ocultar esto de la parte superior de mis novedades (un ojo)',
+  'help.announcements.pinning.b1.i1.text':
+    'Su propia copia, y todos los integrantes la tienen. Aparece solo en una publicación '
+    + 'que la familia ha fijado: no hay nada que ocultar de la parte superior de sus '
+    + 'novedades hasta que la familia ha puesto algo ahí.',
+  'help.announcements.pinning.b2':
+    'Si puede hacer las dos cosas, tenga cuidado con cuál pulsa: quitar la fijación para '
+    + 'todos saca la publicación de la parte superior de las novedades de toda la familia, '
+    + 'mientras que el ojo no cambia nada de lo que ve nadie más.',
+  'help.announcements.dismissing.heading':
+    'Ocultar una publicación fijada de sus propias novedades',
+  'help.announcements.dismissing.b0':
+    'Pulsar el ojo la quita de la parte superior de *sus* novedades y de nada más. Sigue '
+    + 'fijada para todos los demás, y sigue en este tablón: el tablón es el registro, el '
+    + 'panel es el recordatorio.',
+  'help.announcements.dismissing.b1':
+    'No oculta la publicación. Sale del bloque fijado y vuelve a la lista por orden de '
+    + 'fecha, así que siempre puede encontrarla de nuevo; y la publicación lo dice debajo en '
+    + 'cualquier caso: **Fijada para la familia: va arriba en sus novedades**, o **Fijada '
+    + 'para la familia: usted la ha ocultado de la parte superior de sus novedades.**',
+  'help.announcements.dismissing.b2':
+    '**Las dos pantallas están de acuerdo.** Ocúltela aquí o en el panel y la otra lo '
+    + 'sigue, porque las dos leen la misma respuesta: la fijación de la familia reducida por '
+    + 'su propia ocultación. Eso no era cierto antes del 21-08-2026: este tablón mostraba la '
+    + 'fijación de la familia y el panel mostraba la suya, así que una publicación que usted '
+    + 'había ocultado seguía arriba en una y no en la otra.',
+  'help.announcements.deleting.heading': 'Eliminar',
+  'help.announcements.deleting.b0':
+    'Eliminar quita la publicación para todo el mundo. Según lo que su familia haya '
+    + 'otorgado, puede que pueda eliminar solo sus propias publicaciones, las de cualquiera, '
+    + 'o ninguna.',
+  'help.announcements.birthdays.heading': 'Cumpleaños',
+  'help.announcements.birthdays.b0':
+    'El panel **Cumpleaños** son todos los familiares con un cumpleaños en los próximos 60 '
+    + 'días, del más cercano al más lejano. Es una lista para actuar y no un registro: **no '
+    + 'se envía nada automáticamente**, y escribir la felicitación sigue siendo el trabajo de '
+    + 'alguien, y por eso está a un clic del compositor.',
+  'help.announcements.birthdays.b1.i0.term': 'Nombre',
+  'help.announcements.birthdays.b1.i0.text':
+    'De quién se trata. **Buscar por nombre** reduce la lista, ignorando los acentos y la '
+    + 'puntuación como hace el Directorio: escribir «jose» encuentra a José.',
+  'help.announcements.birthdays.b1.i1.term': 'Fecha',
+  'help.announcements.birthdays.b1.i1.text': 'El día en que cae esta vez.',
+  'help.announcements.birthdays.b1.i2.term': 'Día',
+  'help.announcements.birthdays.b1.i2.text':
+    'El día de la semana. Está ahí porque una tarjeta se echa al correo y una llamada se '
+    + 'hace pensando en un fin de semana y no en el día 14.',
+  'help.announcements.birthdays.b1.i3.term': 'Cuenta atrás',
+  'help.announcements.birthdays.b1.i3.text':
+    '**Hoy**, **Mañana**, o a cuántos días está. Hoy está marcado, porque es la única fila '
+    + 'por la que existe la lista y como texto plano se lee igual que cualquier otra.',
+  'help.announcements.birthdays.b1.i4.term': 'Cumple',
+  'help.announcements.birthdays.b1.i4.text': 'La edad que alcanza ese día.',
+  'help.announcements.birthdays.b2':
+    'Todas las personas que la familia ha aprobado están en ella tengan cuenta o no, así '
+    + 'que un tío abuelo registrado en el [árbol familiar](/community/family-tree) tiene un '
+    + 'cumpleaños como cualquier otra persona. Alguien registrado como fallecido no está en '
+    + 'ella, y tampoco nadie cuyo perfil no tenga fecha de nacimiento: un cumpleaños del que '
+    + 'nadie le ha hablado al producto no es uno que vaya a adivinar. La línea debajo de la '
+    + 'tabla dice cuántas filas hay, y cuántas de ellas está ocultando una búsqueda.',
+  'help.announcements.birthdays.b3':
+    'Se omite una edad — una raya, y una línea debajo de la tabla diciéndolo — cuando el '
+    + 'año registrado es uno del que el producto no se fía, lo que hoy significa un año que '
+    + 'todavía no ha ocurrido: 1962 escrito como 2062. El día y el mes siguen mostrándose, '
+    + 'porque un desliz de cuatro dígitos es un desliz en el año. Corrija **Fecha de '
+    + 'nacimiento** en el [perfil](/personal-info) de esa persona y la edad aparece.',
+  'help.announcements.birthdays.b4':
+    'Alguien nacido el 29 de febrero se enumera el 28 de febrero en un año sin día '
+    + 'bisiesto, así que nunca desaparece de la lista tres años seguidos. La edad sigue '
+    + 'contándose en años completos, así que no se salta ninguno.',
+  'help.announcements.birthdays.b5':
+    'Nada de este panel se puede editar y nada de él se guarda. Todas las fechas se leen de '
+    + '**Fecha de nacimiento** en el perfil de la propia persona cada vez que se abre el '
+    + 'panel, así que ese es el único lugar donde corregir una.',
+  'help.distributions.title': 'Envíos',
+  'help.distributions.summary':
+    'Enviar un correo a todas las personas de la familia a la vez, sin ninguna lista que '
+    + 'mantener al día.',
+  'help.distributions.what-it-is.heading': 'Qué es',
+  'help.distributions.what-it-is.b0':
+    'Un envío es un correo enviado a todas las personas de la familia, o a todas las de una '
+    + 'región o un capítulo. Usted escribe un asunto y un mensaje, elige a quién va, y pulsa '
+    + 'enviar.',
+  'help.distributions.what-it-is.b1':
+    'La diferencia entre esto y [Anuncios](/community/announcements) es dónde aterriza el '
+    + 'mensaje. Un anuncio espera en el panel de todo el mundo hasta que miran; un envío '
+    + 'llega a su bandeja de entrada. Use un anuncio para noticias de la familia, y un envío '
+    + 'para algo que tiene que leerse esta semana.',
+  'help.distributions.what-it-is.b2':
+    'No hay ninguna lista que construir y nada que mantener al día. Las personas que lo '
+    + 'reciben se leen de la membresía cada vez que usted envía, así que un familiar que se '
+    + 'unió ayer está en ella y uno que nunca estuvo en la familia nunca lo está.',
+  'help.distributions.what-it-is.b3':
+    'No hay borrador. Un envío sale en cuanto usted lo envía, y no se puede deshacer, así '
+    + 'que léalo entero antes de pulsar el botón.',
+  'help.distributions.who-gets-it.heading': 'Elegir quién lo recibe',
+  'help.distributions.who-gets-it.b0':
+    'La lista **A quién va** ofrece a todas las personas de la familia, después cada una de '
+    + 'sus regiones, y después cada uno de sus capítulos. Todas las opciones llevan el número '
+    + 'de familiares a los que alcanzan, así que puede comprobar el destinatario contra lo '
+    + 'que quería antes de que se envíe nada.',
+  'help.distributions.who-gets-it.b1':
+    'Una región alcanza a los familiares de los capítulos de esa región, y a nadie más. '
+    + 'Esto no es lo mismo que un anuncio regional, que todos ven: el correo no se puede '
+    + 'recuperar, así que aquí un destinatario significa exactamente lo que dice.',
+  'help.distributions.who-gets-it.b2.i0':
+    'Un familiar que no está en ningún capítulo no está en ninguna región, así que un envío '
+    + 'regional no le llega. Sí le llega «Todas las personas de la familia».',
+  'help.distributions.who-gets-it.b2.i1':
+    'Solo se envía correo a integrantes aprobados. Alguien que todavía espera ser admitido '
+    + 'no está en ningún envío.',
+  'help.distributions.who-gets-it.b2.i2':
+    'Nadie recibe dos copias. Cuando una pareja comparte una dirección de correo, el '
+    + 'mensaje va una vez, y el segundo familiar se enumera como que comparte una dirección.',
+  'help.distributions.who-gets-it.b3':
+    'La línea debajo del selector dice a cuántas personas se enviará de hecho, que puede '
+    + 'ser menos que el número entre paréntesis: vea más abajo.',
+  'help.distributions.no-email-address.heading': 'Familiares sin dirección de correo',
+  'help.distributions.no-email-address.b0':
+    'Alguien registrado en el [Árbol familiar](/community/family-tree) que nunca ha tenido '
+    + 'cuenta no tiene dirección de correo propia. GENORRA le da una dirección provisional '
+    + 'para que la ficha funcione, y esa dirección no va a ninguna parte.',
+  'help.distributions.no-email-address.b1':
+    'Esos familiares se cuentan en el destinatario y nunca reciben correo. Tanto el '
+    + 'selector como el informe de entrega dicen cuántos hay, con las palabras **Sin '
+    + 'dirección de correo registrada**, que no es un fallo de entrega y no es nada que haya '
+    + 'que reclamar. Si quiere incluirlos, invítelos desde el árbol familiar, o pase usted '
+    + 'mismo el mensaje.',
+  'help.distributions.sending.heading': 'Mientras sale',
+  'help.distributions.sending.b0':
+    'Un envío a una familia grande se manda por lotes, así que la pantalla muestra lo que '
+    + 'ha avanzado: **Enviando: 24 de 118 entregados**. Continúa mientras la página esté '
+    + 'abierta.',
+  'help.distributions.sending.b1':
+    'Puede salir de la página. El envío retoma desde donde llegó, y la lista muestra qué '
+    + 'sigue pendiente cuando usted vuelve. Nada se envía dos veces, por muchas veces que se '
+    + 'reabra la página.',
+  'help.distributions.sending.b2':
+    '**Detener** termina un envío en curso. Todo lo que ya se ha enviado ha salido y no se '
+    + 'puede recuperar; el resto no se envía, y el informe dice **Detenido** con las dos '
+    + 'cifras. Cualquiera que pueda enviar puede detener un envío, incluido el de otra '
+    + 'persona.',
+  'help.distributions.what-happened.heading': 'Qué pasó con cada mensaje',
+  'help.distributions.what-happened.b0':
+    'Pulsar el asunto abre el mensaje que se envió y la lista de todas las personas a las '
+    + 'que fue, con una línea por cada una:',
+  'help.distributions.what-happened.b1.i0.term': 'Enviado',
+  'help.distributions.what-happened.b1.i0.text':
+    'El mensaje se entregó al proveedor de correo de esa dirección.',
+  'help.distributions.what-happened.b1.i1.term': 'No se pudo entregar',
+  'help.distributions.what-happened.b1.i1.text':
+    'Algo salió mal. **Intentar de nuevo** los vuelve a poner en la cola y lo intenta otra '
+    + 'vez: un problema temporal suele resolverse.',
+  'help.distributions.what-happened.b1.i2.term': 'Sin dirección de correo registrada',
+  'help.distributions.what-happened.b1.i2.text':
+    'Un familiar del árbol familiar sin dirección. No salió nada mal y no hay nada que '
+    + 'reintentar.',
+  'help.distributions.what-happened.b1.i3.term': 'Comparte una dirección',
+  'help.distributions.what-happened.b1.i3.text':
+    'Otro familiar tiene la misma dirección de correo y recibió el mensaje.',
+  'help.distributions.what-happened.b1.i4.term': 'No enviado: detenido',
+  'help.distributions.what-happened.b1.i4.text': 'El envío se detuvo antes de llegarle.',
+  'help.distributions.what-happened.b2':
+    'La pantalla nunca dice que un mensaje se envió cuando no se envió. Si el informe dice '
+    + '«8 enviados, 2 no se pudieron entregar», eso es lo que pasó, así que vale la pena '
+    + 'mirarlo después de enviar algo que importa.',
+  'help.distributions.what-happened.b3':
+    '«Enviado» significa que el mensaje salió de GENORRA. No puede decirle si alguien lo '
+    + 'abrió, ni si su proveedor de correo lo archivó como no deseado.',
+  'help.distributions.replies.heading': 'Las respuestas, y cómo se ve el mensaje',
+  'help.distributions.replies.b0':
+    'El mensaje llega de parte de GENORRA, con su nombre, y una respuesta va a **su propia '
+    + 'dirección de correo** y no a nosotros. Así que un familiar que responde a un envío le '
+    + 'está escribiendo a usted, que es casi siempre lo que pretende hacer.',
+  'help.distributions.replies.b1':
+    'El mensaje es texto plano. Deje una línea en blanco entre párrafos y llegan como '
+    + 'párrafos; no hay formato, ni adjuntos, ni enlaces añadidos por usted. Para compartir '
+    + 'un documento, póngalo en [Documentos](/library/documents) y diga dónde está.',
+  'help.distributions.replies.b2':
+    'Todos los mensajes dicen al final de qué familia venían y quién los envió, así que '
+    + 'nadie tiene que adivinarlo. No hay enlace para darse de baja: esto es su familia '
+    + 'escribiendo a sus propios integrantes, no una lista de correo.',
+  'help.distributions.who-can.heading': 'Quién puede usarlo',
+  'help.distributions.who-can.b0':
+    'Envíos está desactivado para todo el mundo hasta que un administrador lo otorga, y se '
+    + 'otorga por separado de Anuncios: poder publicar en el tablón no permite a alguien '
+    + 'enviar un correo a toda la familia. Vea [Quién puede hacer '
+    + 'qué](/help/who-can-do-what).',
+  'help.distributions.who-can.b1':
+    'Hay tres permisos separados. **Ver** muestra el registro de lo que se ha enviado. '
+    + '**Crear** es lo que permite a alguien escribir y enviar uno, y detener un envío. '
+    + '**Eliminar** quita el registro de un envío, que es algo más fuerte de poder hacer: es '
+    + 'la única copia de a quién se envió y qué pasó con cada mensaje.',
+  'help.distributions.who-can.b2':
+    'Eliminar el registro no deshace ningún envío. Un envío que no ha terminado hay que '
+    + 'detenerlo primero.',
+  // ──── PART 8 — Community (Safety Check-Ins) ───────────────────────────────────
+  'help.safety-check-ins.title': 'Avisos de seguridad',
+  'help.safety-check-ins.summary':
+    'Preguntar a los familiares de una zona si están a salvo, y ver quién ha respondido.',
+  'help.safety-check-ins.what-it-is.heading': 'Qué es',
+  'help.safety-check-ins.what-it-is.b0':
+    'Una tormenta, un incendio, una inundación. Alguien abre un aviso dirigido a los '
+    + 'familiares que pueden estar afectados, y a cada uno de ellos se le hace una sola '
+    + 'pregunta: ¿está a salvo? Responden con un toque, y quien lo abrió ve llegar las '
+    + 'respuestas.',
+  'help.safety-check-ins.what-it-is.b1':
+    'El sentido de la pantalla son las personas que **no** han respondido. Todo lo demás '
+    + 'que hay en ella existe para hacer esa lista más corta.',
+  'help.safety-check-ins.what-it-is.b2':
+    'Nada en esta pantalla vigila el tiempo. GENORRA no sabe qué está pasando cerca de sus '
+    + 'familiares y nunca lo pretende: un aviso es una persona preguntando, con sus propias '
+    + 'palabras, y dice quién preguntó.',
+  'help.safety-check-ins.raising.heading': 'Abrir uno',
+  'help.safety-check-ins.raising.b0':
+    'Pulse **Abrir un aviso**. Necesita tres cosas, y solo las dos primeras son '
+    + 'obligatorias.',
+  'help.safety-check-ins.raising.b1.i0':
+    'Diga qué está pasando: «Huracán Delia». Esto se convierte en el asunto del correo que '
+    + 'reciben sus familiares, así que ponga algo que reconozcan en una bandeja de entrada '
+    + 'llena.',
+  'help.safety-check-ins.raising.b1.i1':
+    'Añada cualquier otra cosa que valga la pena decirles: a dónde ir, a quién llamar, qué '
+    + 'sabe. Opcional.',
+  'help.safety-check-ins.raising.b1.i2': 'Elija a quién preguntar.',
+  'help.safety-check-ins.raising.b2':
+    'Después pulse **Preguntarles**. No hay paso de confirmación: el cuadro que está encima '
+    + 'del botón ya dice exactamente a cuántos familiares alcanza esto, que es lo que vale la '
+    + 'pena comprobar.',
+  'help.safety-check-ins.who-to-ask.heading': 'Elegir a quién preguntar',
+  'help.safety-check-ins.who-to-ask.b0':
+    'Cuatro tipos de destinatario, y todos muestran a cuántos familiares alcanzan antes de '
+    + 'que usted envíe.',
+  'help.safety-check-ins.who-to-ask.b1.i0.term': 'Todas las personas de la familia',
+  'help.safety-check-ins.who-to-ask.b1.i0.text': 'Todos los integrantes aprobados.',
+  'help.safety-check-ins.who-to-ask.b1.i1.term': 'Una región',
+  'help.safety-check-ins.who-to-ask.b1.i1.text':
+    'Todas las personas de los capítulos que forman esa región.',
+  'help.safety-check-ins.who-to-ask.b1.i2.term': 'Un capítulo',
+  'help.safety-check-ins.who-to-ask.b1.i2.text':
+    'Todas las personas registradas como pertenecientes a ese capítulo.',
+  'help.safety-check-ins.who-to-ask.b1.i3.term': 'Solo los familiares que yo nombre',
+  'help.safety-check-ins.who-to-ask.b1.i3.text':
+    'Una lista que usted elige a mano, con un cuadro de búsqueda. Esta es la que hay que '
+    + 'usar cuando los capítulos de la familia no coinciden con dónde está el problema de '
+    + 'verdad.',
+  'help.safety-check-ins.who-to-ask.b2':
+    'Un familiar que no le ha dicho a la familia en qué capítulo está tampoco está en '
+    + 'ninguna región, así que un aviso regional no le llega. Eso es deliberado: el producto '
+    + 'no adivina dónde vive alguien. Use **Solo los familiares que yo nombre** para '
+    + 'incluirlo.',
+  'help.safety-check-ins.who-to-ask.b3':
+    'Un capítulo es cómo se organizó su familia. Una tormenta no lo sigue, y el familiar '
+    + 'que se mudó el año pasado es justo el que un destinatario organizado deja fuera en '
+    + 'silencio, así que la lista elegida a mano está ahí exactamente para esa persona.',
+  'help.safety-check-ins.answering.heading': 'Responder a uno',
+  'help.safety-check-ins.answering.b0':
+    'Si su familia está preguntando por usted, es lo primero de su [Panel](/dashboard) y lo '
+    + 'primero de esta pantalla. Dos botones: **Estoy a salvo** y **Necesito ayuda**. '
+    + 'Cualquiera de los dos se registra en el momento: no hay nada que confirmar y nada que '
+    + 'escribir.',
+  'help.safety-check-ins.answering.b1':
+    'Después puede añadir una nota — dónde está, qué necesita — y puede cambiar su '
+    + 'respuesta tantas veces como quiera mientras el aviso esté abierto. Decir que necesita '
+    + 'ayuda y luego decir que está a salvo es exactamente para lo que esto sirve.',
+  'help.safety-check-ins.answering.b2':
+    'Responder no necesita ningún permiso, ni ningún plan. Incluso si su familia ha '
+    + 'desactivado esta pantalla para usted, o ha pasado a un plan que ya no la incluye, la '
+    + 'pregunta sigue apareciendo en su Panel y usted sigue pudiendo responderla.',
+  'help.safety-check-ins.the-roster.heading': 'Leer las respuestas',
+  'help.safety-check-ins.the-roster.b0':
+    '**Ver a quién se preguntó** abre la lista. Todas las personas están en uno de cuatro '
+    + 'estados, y la lista se ordena según cuál de ellos necesita atención antes.',
+  'help.safety-check-ins.the-roster.b1.i0.term': 'Necesita ayuda',
+  'help.safety-check-ins.the-roster.b1.i0.text': 'Lo han dicho. Siempre arriba.',
+  'help.safety-check-ins.the-roster.b1.i1.term': 'No alcanzado',
+  'help.safety-check-ins.the-roster.b1.i1.text':
+    'O no tienen dirección de correo registrada, o el correo no llegó. Estos necesitan una '
+    + 'persona, no otro intento.',
+  'help.safety-check-ins.the-roster.b1.i2.term': 'Esperando',
+  'help.safety-check-ins.the-roster.b1.i2.text':
+    'Se les preguntó y todavía no han respondido. Esta es la cifra que hay que llevar a '
+    + 'cero.',
+  'help.safety-check-ins.the-roster.b1.i3.term': 'A salvo',
+  'help.safety-check-ins.the-roster.b1.i3.text': 'Lo han dicho.',
+  'help.safety-check-ins.the-roster.b2':
+    '**No alcanzado** y **Esperando** son deliberadamente distintos. Alguien a quien se '
+    + 'preguntó y no ha dicho nada puede estar simplemente ocupado; alguien sin dirección de '
+    + 'correo registrada nunca llegó a que se le preguntara, y por mucho que se espere eso no '
+    + 'cambiará. La pantalla dice cuál es cuál, y cuántos hay.',
+  'help.safety-check-ins.the-roster.b3':
+    'Cuando un correo falló de verdad — una dirección real que rebotó — **Volver a intentar '
+    + 'los fallidos** vuelve a enviar solo a esos. No toca a los familiares que no tienen '
+    + 'dirección, porque no hay nada a lo que enviar.',
+  'help.safety-check-ins.reaching-people.heading': 'Qué puede prometer esto y qué no',
+  'help.safety-check-ins.reaching-people.b0':
+    'Que esto quede claro, porque aquí importa más que en cualquier otra parte del '
+    + 'producto: **un aviso es un correo y una notificación, y ninguna de las dos cosas es '
+    + 'una garantía.**',
+  'help.safety-check-ins.reaching-people.b1.i0':
+    'El correo va a la dirección del perfil de cada familiar. Si esa dirección es errónea, '
+    + 'está desactualizada, o es una provisional que la familia generó, no se les pregunta, y '
+    + 'la pantalla lo dice en vez de contarlos como silenciosos.',
+  'help.safety-check-ins.reaching-people.b1.i1':
+    'La notificación solo alcanza a alguien que tiene el producto abierto.',
+  'help.safety-check-ins.reaching-people.b1.i2':
+    'Nada de aquí envía un mensaje de texto ni hace sonar un teléfono.',
+  'help.safety-check-ins.reaching-people.b2':
+    'Así que la pantalla nunca dice que se ha preguntado a todo el mundo. Dice a cuántos se '
+    + 'preguntó, a cuántos no se pudo, y por qué; y los familiares a los que nadie pudo '
+    + 'alcanzar se nombran como un trabajo para que lo haga una persona.',
+  'help.safety-check-ins.closing.heading': 'Cerrar uno',
+  'help.safety-check-ins.closing.b0':
+    '**Cerrar el aviso** desmoviliza a la familia. Detiene cualquier pregunta más que fuera '
+    + 'a salir y quita la banda del Panel de todo el mundo.',
+  'help.safety-check-ins.closing.b1':
+    'Cerrar no destruye nada. Todas las respuestas, y todos los familiares a los que nadie '
+    + 'pudo alcanzar, se quedan en el registro exactamente como estaban: un aviso cerrado '
+    + 'sigue siendo el relato de lo que la familia preguntó y de lo que volvió.',
+  'help.safety-check-ins.closing.b2':
+    '**Eliminar** sí lo destruye, y es un permiso aparte por ese motivo. No hay otra copia '
+    + 'de quién respondió.',
+  'help.safety-check-ins.who-can.heading': 'Quién puede hacer qué',
+  'help.safety-check-ins.who-can.b0':
+    'Abrir un aviso despierta a mucha gente a la vez, así que se otorga y no se da por '
+    + 'supuesto. Hay tres permisos separados.',
+  'help.safety-check-ins.who-can.b1.i0.term': 'Ver',
+  'help.safety-check-ins.who-can.b1.i0.text':
+    'Leer los avisos y, en el ajuste más amplio, la lista completa de quién respondió.',
+  'help.safety-check-ins.who-can.b1.i1.term': 'Crear',
+  'help.safety-check-ins.who-can.b1.i1.text':
+    'Abrir un aviso, preguntar al resto de una cola, y cerrar uno. Quien puede dar la '
+    + 'alarma también puede dar el aviso de que todo ha pasado.',
+  'help.safety-check-ins.who-can.b1.i2.term': 'Eliminar',
+  'help.safety-check-ins.who-can.b1.i2.text':
+    'Quitar el registro por completo. Más fuerte que los otros dos, porque destruye el '
+    + 'único relato de quién no fue alcanzado nunca.',
+  'help.safety-check-ins.who-can.b2':
+    'Por defecto un integrante ordinario puede abrir esta pantalla, ver los avisos que él '
+    + 'abrió, y responder a cualquier cosa que se le haya preguntado, pero no la lista de '
+    + 'quién más ha respondido. Esa lista es un conjunto de familiares con su paradero y su '
+    + 'localizabilidad al lado, y se queda con las personas a las que la familia se la ha '
+    + 'dado. Vea [Quién puede hacer qué](/help/who-can-do-what).',
+  // ──── PART 8 — Community (Family Tree) ────────────────────────────────────────
+  'help.family-tree.title': 'Árbol familiar',
+  'help.family-tree.summary':
+    'Un árbol para toda la familia: cómo leerlo, cómo añadirle cosas y cómo corregirlo.',
+  'help.family-tree.how-it-reads.heading': 'Cómo se lee el lienzo',
+  'help.family-tree.how-it-reads.b0':
+    'El árbol dibuja las generaciones alrededor de una persona, la más antigua arriba: sus '
+    + 'antepasados, después esa persona y su cónyuge, después sus descendientes. Cada banda '
+    + 'está etiquetada — **Abuelos**, **Hijos**, **Bisnietos** — y más allá de bisnietos '
+    + 'cuenta, así que cinco generaciones hacia abajo se lee **Tataranietos de 3.er grado** '
+    + 'en vez de una fila de «tatara» que nadie puede sumar. Los hermanos y hermanas se '
+    + 'enumeran debajo en vez de dibujarse en la fila, porque comparten la generación de la '
+    + 'persona enfocada y la llenarían.',
+  'help.family-tree.how-it-reads.b1':
+    '**Hasta dónde llega depende del modo.** Leyendo, tiene tres generaciones arriba y '
+    + 'cinco abajo. Editando se reduce a dos arriba y una abajo — las generaciones a cada '
+    + 'lado de la persona con la que está trabajando — porque cada banda de más es otra fila '
+    + 'de tarjetas **+** para familiares que usted no está añadiendo en ese momento.',
+  'help.family-tree.how-it-reads.b2':
+    'Una generación con muchísimas personas se detiene en veinticuatro tarjetas y dice '
+    + 'cuántas quedan. Nadie se pierde: **Todas las personas de esta familia**, debajo del '
+    + 'lienzo, enumera la lista completa y todos los nombres vuelven a centrar el árbol.',
+  'help.family-tree.how-it-reads.b3':
+    'Se abre en usted. Si entró por matrimonio y no tiene padres ni hijos registrados, se '
+    + 'abre en el familiar al que está unido y lo dice, con un enlace de **Centrar en mí**.',
+  'help.family-tree.how-it-reads.b4':
+    'Cuando alguien tiene más de un matrimonio, cada tarjeta de cónyuge lleva la palabra '
+    + 'que corresponde — **Esposa**, **Exesposa**, **Pareja** — y los hijos de abajo se '
+    + 'separan en un panel por matrimonio, más **Otros hijos** para cualquiera cuyo otro '
+    + 'progenitor no sea ninguno de ellos. La separación viene de las conexiones de '
+    + 'progenitor que los hijos ya llevan; no se adivina nada.',
+  'help.family-tree.moving.heading': 'Moverse',
+  'help.family-tree.moving.b0':
+    'Pulse a cualquier persona para volver a centrar el árbol en ella. Sus abuelos, padres, '
+    + 'cónyuge e hijos se dibujan entonces a su alrededor, y usted sigue desde ahí.',
+  'help.family-tree.moving.b1':
+    'Debajo del lienzo, **Todas las personas de esta familia** enumera la lista completa. '
+    + 'Todos los nombres centran el árbol, así que nadie está nunca a más de un clic. '
+    + '**Todavía no está en el árbol** es una lista distinta: son las personas conectadas con '
+    + 'nadie, que es trabajo por hacer.',
+  'help.family-tree.view-vs-edit.heading': 'Ver y Editar',
+  'help.family-tree.view-vs-edit.b0':
+    'El árbol abre en **Ver**. Pasar a **Editar** activa los botones **+**, el editor de '
+    + 'fichas y los controles de quitar. Todos los integrantes empiezan pudiendo editar, '
+    + 'porque construir el árbol de la familia es algo que la familia hace junta; pero ahora '
+    + 'es un permiso como cualquier otro, así que sus administradores pueden reducirlo desde '
+    + '[Miembros](/admin/members). Si el interruptor de **Editar** no está ahí, es por eso.',
+  'help.family-tree.view-vs-edit.b1':
+    'Pulsar una tarjeta abre el panel donde se gestionan la ficha de esa persona y sus '
+    + 'conexiones. **Ese panel sigue su permiso del Directorio, no el del árbol**: una '
+    + 'familia que ha restringido el [Directorio de integrantes](/community/directory) ha '
+    + 'dicho que la lista no es para todo el mundo, y el panel es donde se lee una ficha de '
+    + 'una persona a la vez. El lienzo en sí sigue dibujando todos los nombres y mostrando '
+    + 'cómo se conecta todo el mundo.',
+  'help.family-tree.view-vs-edit.b2':
+    'Nada en el árbol quita a nadie de la familia. Quitar una conexión quita el *vínculo* '
+    + 'entre dos personas, no a ninguna de las dos.',
+  'help.family-tree.adding.heading': 'Añadir un familiar',
+  'help.family-tree.adding.b0.i0':
+    'Pase a **Editar** y céntrese en la persona a la que está añadiendo.',
+  'help.family-tree.adding.b0.i1':
+    'Pulse el **+** de la relación: **Padre**, **Madre**, **Marido**, **Esposa**, '
+    + '**Pareja**, **Hijo**, **Hija**, **Hermano** o **Hermana**.',
+  'help.family-tree.adding.b0.i2': 'Ponga su nombre.',
+  'help.family-tree.adding.b0.i3': 'Diga si tiene dirección de correo.',
+  'help.family-tree.adding.b1':
+    'Si la tiene, recibe una invitación de verdad y entra en la cola de aprobaciones cuando '
+    + 'la acepta. Si no la tiene, se le pide un motivo breve con sus propias palabras — '
+    + '«falleció en 1998», «demasiado pequeño para tener cuenta», «solo teléfono» — y la '
+    + 'ficha se crea sin ella.',
+  'help.family-tree.adding.b2':
+    '**Añadir un hijo sin correo pide su fecha de nacimiento, y no se guarda sin ella.** '
+    + 'Una familia puede fijar una edad a la que empiezan sus cuotas, y una ficha sin '
+    + 'cumpleaños se trata como adulta en todo el producto, así que un niño introducido sin '
+    + 'ella se facturaría desde el día en que lo añadió. Cualquier otro familiar se puede '
+    + 'registrar con cumpleaños o sin él.',
+  'help.family-tree.adding.b3':
+    'Los abuelos tienen sus propias tarjetas **+** en la fila de arriba, una pareja por '
+    + 'progenitor, nombradas según de quién son: **Añadir el padre de Martha**. Cuelgan de un '
+    + 'progenitor y no de la persona del medio, porque un abuelo es la madre o el padre de '
+    + 'alguien y el árbol no tiene otra forma de decir de qué lado está. Registre primero un '
+    + 'progenitor y aparecen los huecos.',
+  'help.family-tree.adding.b4':
+    'Un matrimonio anterior se registra añadiendo al cónyuge y renombrando después la '
+    + 'conexión como **Exmarido**, **Exesposa** o **Expareja** en el cuadro de gestión. Un ex '
+    + 'se dibuja al lado de la persona exactamente donde va un cónyuge actual, y a propósito: '
+    + 'a menudo es de donde vinieron la mitad de los hijos.',
+  'help.family-tree.adding.b5':
+    'Todas las conexiones se registran desde los dos extremos, así que añadir a su madre '
+    + 'también le da a ella un hijo, que es usted. Cada persona puede llevar más de un '
+    + 'matrimonio; el **+** de un cónyuge sigue disponible después del primero.',
+  'help.family-tree.records.heading': 'Fichas y cuentas',
+  'help.family-tree.records.b0':
+    'Solo hay un tipo de persona en el árbol. Algunas tienen cuenta y otras no, y esa es '
+    + 'toda la diferencia.',
+  'help.family-tree.records.b1.i0.term': 'Solo ficha',
+  'help.family-tree.records.b1.i0.text':
+    'Alguien introducido por un familiar, sin dirección de correo. Una abuela, un niño, un '
+    + 'tío abuelo que falleció en 1998. Cualquier integrante aprobado puede corregir sus '
+    + 'datos.',
+  'help.family-tree.records.b1.i1.term': 'Invitado',
+  'help.family-tree.records.b1.i1.text':
+    'Invitado pero todavía no admitido: está en la cola de aprobaciones.',
+  'help.family-tree.records.b1.i2.term': 'Un integrante',
+  'help.family-tree.records.b1.i2.text':
+    'Tiene cuenta. Solo esa persona puede cambiar su propio nombre y sus datos de contacto, '
+    + 'desde [Mi perfil](/personal-info).',
+  'help.family-tree.records.b2':
+    'Una ficha deja de ser una ficha el día en que alguien la invita, que es el control '
+    + '**Invitar** del editor de fichas. No hay un paso aparte de «convertir en adulto»: un '
+    + 'niño que consigue una dirección de correo simplemente se invita como cualquier otra '
+    + 'persona.',
+  'help.family-tree.blood.heading': 'Sangre, crianza, adopción y acogida',
+  'help.family-tree.blood.b0':
+    'Todas las conexiones llevan una de esas cuatro. Se fija en la *conexión*, no en la '
+    + 'persona, porque el mismo hijo puede ser hijastro de un progenitor e hijo de sangre del '
+    + 'otro.',
+  'help.family-tree.blood.b1':
+    'El producto no puede deducirlo por sí solo y no lo intenta. Un hombre con tres hijos '
+    + 'tiene tres conexiones idénticas; solo una persona sabe cuáles de ellas son suyas de '
+    + 'sangre. Fíjelo cuando añada al familiar, o después en el cuadro de gestión.',
+  'help.family-tree.blood.b2':
+    'El cuadro de gestión enumera **todas** las conexiones que tiene esa persona, desde la '
+    + 'tarjeta de quien sea que lo haya abierto, así que una abuelastra se corrige desde su '
+    + 'propia tarjeta y no pulsando hasta el progenitor al que está unida. Cada una se guarda '
+    + 'a medida que la cambia, y las dos direcciones se mueven juntas: el padrastro de un '
+    + 'hijastro sigue siendo una conexión de crianza leída al revés.',
+  'help.family-tree.blood.b3':
+    'Un matrimonio nunca es de sangre, y elegirlo no se ofrece: el producto registra una '
+    + 'conexión de cónyuge como de crianza y sigue adelante en vez de rechazar un «añadir a '
+    + 'mi esposa» ordinario por un campo que nadie escribió.',
+  'help.family-tree.bloodline.heading': 'El interruptor de Linaje',
+  'help.family-tree.bloodline.b0':
+    '**Toda la familia** muestra a todo el mundo. **Linaje** muestra solo a las personas '
+    + 'que descienden de la línea de la familia, ocultando cónyuges y conexiones de crianza, '
+    + 'adopción y acogida.',
+  'help.family-tree.bloodline.b1':
+    'Es una sola respuesta para toda la familia, no una por espectador: dos integrantes no '
+    + 'pueden estar en desacuerdo sobre quién está en el linaje de la familia. Se calcula '
+    + 'caminando desde una sola persona, y **El linaje desciende de** es donde alguien con el '
+    + 'permiso de Configuración la nombra.',
+  'help.family-tree.bloodline.b2':
+    'La opción por defecto — quien creó la familia — suele ser la elección equivocada. Una '
+    + 'familia empezada por un hijo camina hacia arriba a través de su madre, lo que vuelve a '
+    + 'traer dentro como sangre a la exesposa de su padre. Nombrar en su lugar al antepasado '
+    + 'registrado más antiguo es lo que hace que el interruptor signifique lo que la gente '
+    + 'espera.',
+  'help.family-tree.bloodline.b3':
+    'El árbol lo dice cuando aplica: si la persona de la que desciende el linaje tiene '
+    + 'padres registrados, un aviso debajo del ajuste los nombra, explica que las dos líneas '
+    + 'cuentan como sangre, y ofrece el antepasado registrado más antiguo de cada una como '
+    + 'una elección de un solo clic.',
+  'help.family-tree.bloodline.b4':
+    '**Alguien que aparece como sangre y entró en la familia por matrimonio es un problema '
+    + 'del punto de partida, no de la conexión.** La tentación es abrir su tarjeta y marcar '
+    + 'la conexión de progenitor como de crianza: no lo haga. Si de verdad es la madre de '
+    + 'alguien, esa conexión es de sangre, y registrar otra cosa hace que el árbol se '
+    + 'equivoque sobre ella y sobre todos los familiares de ella que añada después. Mueva en '
+    + 'cambio el ajuste una generación hacia arriba: el recorrido entonces nunca la alcanza, '
+    + 'y sus hijos conservan su gota porque su línea sigue pasando por su padre.',
+  'help.family-tree.fixing.heading': 'Corregir un error',
+  'help.family-tree.fixing.b0.i0':
+    'Relación equivocada: abra el cuadro de gestión de la conexión y cámbiela. De '
+    + '**Marido** a **Exmarido** se hace aquí, y de sangre a crianza también.',
+  'help.family-tree.fixing.b0.i1':
+    'Datos equivocados en una ficha: el control de editar de la tarjeta. Se ofrece solo '
+    + 'para personas sin cuenta propia; un integrante es dueño de su propio nombre y lo '
+    + 'cambia en [Mi perfil](/personal-info).',
+  'help.family-tree.fixing.b0.i2':
+    'Conectado con la persona equivocada: quite la conexión. Las dos personas se quedan en '
+    + 'la familia.',
+  // ──── PART 8 — Community (Elections) ──────────────────────────────────────────
+  'help.elections.title': 'Elecciones',
+  'help.elections.summary':
+    'Cómo una elección corre por sus propias fechas, quién tiene derecho a participar, y '
+    + 'cómo nominar, aceptar y votar.',
+  'help.elections.what-it-is.heading': 'Qué es esta pantalla',
+  'help.elections.what-it-is.b0':
+    'Todas las elecciones que está celebrando su parte de la familia. **Activas** es todo '
+    + 'lo que todavía no ha terminado: una que no ha abierto, una que recibe nominaciones, '
+    + 'una que espera a que abra su papeleta, y una en la que se está votando. **Pasadas** '
+    + 'son las que han cerrado.',
+  'help.elections.what-it-is.b1':
+    'Las elecciones que todavía no se han publicado no se enumeran. Quien organiza escribe '
+    + 'primero una elección como borrador, y un borrador no es una papeleta.',
+  'help.elections.what-it-is.b2':
+    'Abra una para ver sus cargos, sus dos ventanas de fechas, y lo que usted pueda hacer '
+    + 'hoy en ella.',
+  'help.elections.the-dates.heading': 'Las fechas la gobiernan',
+  'help.elections.the-dates.b0':
+    'Una elección tiene dos ventanas, y nadie pulsa nada para moverla de una a otra.',
+  'help.elections.the-dates.b1.i0.term': 'Nominaciones',
+  'help.elections.the-dates.b1.i0.text':
+    'Desde el día en que abren hasta el día en que cierran. Preséntese, o presente a otra '
+    + 'persona.',
+  'help.elections.the-dates.b1.i1.term': 'Votación',
+  'help.elections.the-dates.b1.i1.text':
+    'Desde el día en que abre hasta el día en que cierra. Emita un voto, o cámbielo.',
+  'help.elections.the-dates.b2':
+    '**Los dos extremos cuentan.** Una elección cuyas nominaciones dicen «1 de enero – 5 de '
+    + 'enero» está abierta el día 5, hasta el final del día. Lo mismo vale para la votación, '
+    + 'con una excepción, más abajo.',
+  'help.elections.the-dates.b3':
+    'La votación nunca abre antes de que cierren las nominaciones, así que la lista de '
+    + 'candidatos sobre la que usted vota no puede cambiar por debajo. A menudo hay un hueco '
+    + 'en medio, y la pantalla dice qué está esperando.',
+  'help.elections.the-dates.b4':
+    '**La votación puede abrir el mismo día en que cierran las nominaciones, y entonces ese '
+    + 'día pertenece a la votación.** Las nominaciones corren hasta su fecha de cierre, o '
+    + 'hasta que abre la votación, lo que llegue primero; así que en un día compartido el '
+    + 'formulario de nominación ya está cerrado y la papeleta está activa. Si su familia '
+    + 'quiere todo ese día para las nominaciones, la fecha de cierre va un día antes.',
+  'help.elections.the-dates.b5':
+    'Nada de aquí ocurre a una hora del día. Una ventana abre en su fecha y cierra al final '
+    + 'de su fecha de cierre, y la pantalla muestra las mismas fechas a todo el mundo.',
+  'help.elections.the-dates.b6':
+    '**«El final del día» significa el final del día donde está su familia.** Una elección '
+    + 'registra el huso horario en el que se programó, y tanto las fechas en pantalla como el '
+    + 'momento en que la papeleta se cierra de verdad se leen en ese único huso; así que un '
+    + 'familiar en otra parte del mundo ve la misma fecha de cierre que todos los demás, y la '
+    + 'papeleta sigue abierta hasta la medianoche de su familia y no la de otra persona.',
+  'help.elections.who-votes.heading': 'Para quién es una elección',
+  'help.elections.who-votes.b0':
+    'Una elección pertenece a un nivel de la familia, y la pantalla lo nombra debajo del '
+    + 'título.',
+  'help.elections.who-votes.b1.i0.term': 'Nacional',
+  'help.elections.who-votes.b1.i0.text':
+    'Toda la familia. Todo el mundo puede verla, ser nominado y votar.',
+  'help.elections.who-votes.b1.i1.term': 'Una región',
+  'help.elections.who-votes.b1.i1.text': 'Solo los integrantes cuyo capítulo está en esa región.',
+  'help.elections.who-votes.b1.i2.term': 'Un capítulo',
+  'help.elections.who-votes.b1.i2.text': 'Solo los integrantes de ese capítulo.',
+  'help.elections.who-votes.b2':
+    'Los niveles no se mezclan. Una elección de capítulo es invisible para el resto de la '
+    + 'familia — no se enumera, y su enlace no abre — y solo puede cubrir cargos que la '
+    + 'familia registra a nivel de capítulo. Vea [Regiones y '
+    + 'capítulos](/help/regions-and-chapters) para cómo se divide la familia, y [Cargos de la '
+    + 'directiva](/help/board-positions) para los cargos en sí.',
+  'help.elections.who-votes.b3':
+    '**Si no está en ningún capítulo, está bajo Nacional.** Ve las elecciones nacionales y '
+    + 'participa en ellas, y las elecciones regionales y de capítulo no son suyas. Su '
+    + 'capítulo está en [Mi perfil](/personal-info); un administrador también puede fijarlo '
+    + 'por usted.',
+  'help.elections.nominating.heading': 'Nominar a alguien',
+  'help.elections.nominating.b0':
+    'Mientras las nominaciones están abiertas, la elección enumera todos los cargos de la '
+    + 'papeleta, y debajo de cada uno las personas que se han nominado para él. Cualquier '
+    + 'integrante puede nominar.',
+  'help.elections.nominating.b1.i0':
+    'Encuentre el cargo para el que quiere nominar y pulse **Nominar** al lado.',
+  'help.elections.nominating.b1.i1':
+    'Para presentarse usted, pulse **Presentarme**. Está en la papeleta de inmediato: nadie '
+    + 'tiene que aceptar su propia nominación.',
+  'help.elections.nominating.b1.i2':
+    'Para presentar a otra persona, encuéntrela en **¿A quién está nominando?** y pulse '
+    + '**Nominar**.',
+  'help.elections.nominating.b2':
+    'El cuadro de nombre busca en cualquier parte de cualquier nombre, así que escribir '
+    + '«allen» encuentra a Martha Allen. Enumera solo a las personas para las que es esta '
+    + 'elección, y por eso una elección de capítulo ofrece menos nombres de los que tiene la '
+    + 'familia.',
+  'help.elections.nominating.b3':
+    '**Varios integrantes pueden nominar a la misma persona para el mismo cargo.** Aparece '
+    + 'una sola vez en la lista, y se dice cuántas personas la presentaron: «nominada por '
+    + 'usted y 2 más». Una segunda nominación no es un duplicado; es otro integrante diciendo '
+    + 'que la quiere.',
+  'help.elections.nominating.b4':
+    'Una persona puede ser nominada una vez por cargo por usted, y puede ser nominada para '
+    + 'tantos cargos como quiera.',
+  'help.elections.withdrawing.heading': 'Retirar una nominación',
+  'help.elections.withdrawing.b0':
+    'Una nominación que usted hizo muestra **Quitar mi nombre** al lado, y una que hizo '
+    + 'para sí mismo muestra **Retirarme**. En cualquier caso usted solo está quitando su '
+    + 'propio nombre.',
+  'help.elections.withdrawing.b1':
+    '**Si otros integrantes nominaron a la misma persona, se queda en la papeleta.** Solo '
+    + 'se quita su nombre, y el recuento a su lado baja en uno. Si usted era la única persona '
+    + 'que la nominó, sale de la papeleta por completo: la pantalla dice cuál de las dos '
+    + 'cosas va a pasar antes de que confirme.',
+  'help.elections.withdrawing.b2':
+    'Dos cosas lo impiden, y las dos son sobre no cambiar una papeleta por debajo de las '
+    + 'personas que la están leyendo:',
+  'help.elections.withdrawing.b3.i0.term': 'Ya han aceptado',
+  'help.elections.withdrawing.b3.i0.text':
+    'Una nominación aceptada se queda en la papeleta. La forma de salir de ella es que esa '
+    + 'persona la rechace: vea Aceptar o rechazar más abajo. La excepción es la suya: usted '
+    + 'siempre puede retirarse.',
+  'help.elections.withdrawing.b3.i1.term': 'Las nominaciones han cerrado',
+  'help.elections.withdrawing.b3.i1.text':
+    'Una vez que la ventana ha terminado, nada sale de la papeleta. Rechazar es la única '
+    + 'salida a partir de entonces.',
+  'help.elections.withdrawing.b4':
+    'No puede quitar la nominación de otra persona, ni siquiera si es administrador de la '
+    + 'familia. Una nominación es algo que un integrante dijo, y solo esa persona puede '
+    + 'desdecirlo.',
+  'help.elections.accepting.heading': 'Aceptar o rechazar',
+  'help.elections.accepting.b0':
+    'Si alguien lo nomina, la elección abre con **¡Ha sido nominado!** en la parte '
+    + 'superior, una fila por cargo. **Aceptar** lo pone en la papeleta; **Rechazar** lo saca '
+    + 'de ella.',
+  'help.elections.accepting.b1':
+    'No se puede cambiar después, así que la pantalla le pide confirmación. Solo las '
+    + 'nominaciones que ha aceptado aparecen como candidaturas cuando abre la votación: una '
+    + 'nominación que nadie respondió no está en la papeleta.',
+  'help.elections.accepting.b2':
+    'Todavía puede responder después de que cierren las nominaciones. La ventana gobierna '
+    + 'quién puede ser nominado, no cuánto tiempo tiene usted para responder.',
+  'help.elections.voting.heading': 'Votar',
+  'help.elections.voting.b0':
+    'Mientras la votación está abierta, cada cargo enumera las candidaturas que aceptaron. '
+    + 'Pulse una, confirme, y su voto queda registrado.',
+  'help.elections.voting.b1':
+    'Puede cambiar su voto tantas veces como quiera hasta que la ventana cierre: pulsar '
+    + 'otra candidatura reemplaza su voto anterior en vez de sumarse a él. Un voto por cargo.',
+  'help.elections.voting.b2':
+    '**Su papeleta es suya.** Usted puede ver sus propios votos y nadie más puede, y nada '
+    + 'en ninguna parte muestra a otro integrante a quién votó.',
+  'help.elections.results.heading': 'Resultados',
+  'help.elections.results.b0':
+    'Una vez que la ventana de votación ha cerrado, **Resultados** aparece al pie de la '
+    + 'elección con el recuento de votos de cada candidatura, ordenado por recuento, con '
+    + 'tantas filas como ganadores tiene el cargo.',
+  'help.elections.results.b1':
+    'Nada se publica mientras la votación sigue abierta, y no hay que pulsar nada para '
+    + 'publicarlo: el día después de que cierra la votación, los resultados están ahí.',
+  // ──── PART 8 — Community (Officer Notes) ──────────────────────────────────────
+  'help.journal.title': 'Notas del cargo',
+  'help.journal.summary':
+    'Un cuaderno para cada cargo que mantiene su familia, cómo un tema recoge notas a lo '
+    + 'largo del tiempo, y por qué todo se queda con el cargo y no con usted.',
+  'help.journal.what-it-is.heading': 'Qué es esta pantalla',
+  'help.journal.what-it-is.b0':
+    'Todos los cargos que la familia registra — tesorero, secretario, responsable de '
+    + 'eventos — tienen un cuaderno. Contiene lo que la persona que hace el trabajo necesita '
+    + 'tener escrito: cómo funciona de verdad la conciliación bancaria, en qué local '
+    + 'contestan el teléfono, qué salió mal el año pasado.',
+  'help.journal.what-it-is.b1':
+    'Es **Biblioteca > Notas del cargo** en el menú lateral, al lado de '
+    + '[Actas](/library/meeting-minutes), [Documentos](/library/documents) y '
+    + '[Estatutos](/library/bylaws): las cuatro cosas que la familia escribe y a las que '
+    + 'vuelve. Una familia que registra cargos para sus capítulos y regiones además de a '
+    + 'nivel nacional los encontrará todos aquí.',
+  'help.journal.what-it-is.b2':
+    '**Las notas pertenecen al cargo, no a usted.** Eso es todo. Cuando pasa el trabajo a '
+    + 'otra persona, todo lo que usted escribió sigue ahí para quien lo tome, y todo lo que '
+    + 'escribió la persona anterior estaba ahí para usted.',
+  'help.journal.what-it-is.b3':
+    '**Una entrada es un tema, no una página.** Tiene un título y luego una serie de notas '
+    + 'debajo, de la más antigua a la más nueva, cada una firmada y fechada. Así que «Cómo '
+    + 'funciona la conciliación bancaria» es una entrada a la que se le añade un párrafo cada '
+    + 'vez que hay algo que añadir, en vez de cuatro entradas con nombres parecidos; y el '
+    + 'argumento de por qué se hace así es el hilo completo, no la última versión de él.',
+  'help.journal.what-it-is.b4':
+    'Si no ocupa ningún cargo, la pantalla lo dice y no hay nada que ver. No ha salido nada '
+    + 'mal: las notas del cargo son para quienes ocupan cargos, y los cargos se registran en '
+    + '[Cargos de la directiva](/help/board-positions).',
+  'help.journal.who-can-read-it.heading': 'Quién puede leerlo',
+  'help.journal.who-can-read-it.b0':
+    '**Quien ocupa el cargo hoy, y nadie más.** No otros cargos, no los administradores de '
+    + 'la familia, no la persona que lo ocupó el año pasado.',
+  'help.journal.who-can-read-it.b1':
+    'Eso es inusual en este producto y es deliberado. Son notas de trabajo y no un registro '
+    + 'que la familia guarda, y un cuaderno que todo el mundo pudiera leer es uno que la '
+    + 'gente llevaría en otro sitio.',
+  'help.journal.who-can-read-it.b2':
+    'Si ocupa más de un cargo, cada uno tiene su propio cuaderno y una franja en la parte '
+    + 'superior alterna entre ellos. Nada de uno aparece en otro.',
+  'help.journal.who-can-read-it.b3':
+    '**Cada uno está nombrado completo: el cargo y el lugar.** «Tesorero nacional», '
+    + '«presidente del capítulo de Austin», «secretario de la región del Este»: la misma '
+    + 'expresión que imprimen el [Directorio](/community/directory) y '
+    + '[Miembros](/admin/members) para el mismo cargo, así que nunca está adivinando cuál de '
+    + 'dos cargos de capítulo significa un elemento de la franja.',
+  'help.journal.who-can-read-it.b4':
+    '**Un cuaderno pertenece al CARGO y no al lugar**, y un cargo limitado lo dice en la '
+    + 'pantalla: todas las personas que ocupan «presidente de capítulo» leen las mismas '
+    + 'notas, sea cual sea el capítulo que presiden. Si su familia quiere que un capítulo '
+    + 'tenga notas propias, eso es un cargo aparte por capítulo y no un cargo ocupado en '
+    + 'varios.',
+  'help.journal.who-can-read-it.b5':
+    'Si dos de ustedes ocupan el mismo cargo, los dos están escribiendo en el mismo '
+    + 'cuaderno. Cualquiera de los dos puede añadir una nota a cualquier entrada que haya en '
+    + 'él, que es lo que hace de una entrada una conversación; pero una nota sigue siendo '
+    + 'propiedad de quien la escribió. Vea [cambiar algo](#editing).',
+  'help.journal.who-can-read-it.b6':
+    'Una familia puede desactivar esta pantalla por completo en [Quién puede hacer '
+    + 'qué](/help/who-can-do-what), igual que cualquier otra pantalla. Lo que no puede hacer '
+    + 'es abrir el cuaderno de un cargo a alguien que no lo ocupa.',
+  'help.journal.writing.heading': 'Empezar una entrada, y añadirle cosas',
+  'help.journal.writing.b0.i0': 'Pulse **Nueva entrada**.',
+  'help.journal.writing.b0.i1': 'Póngale un título: eso es lo que muestra la lista.',
+  'help.journal.writing.b0.i2':
+    'Escriba la primera nota si tiene algo que decir ahora. Puede dejarla vacía y volver a '
+    + 'ella.',
+  'help.journal.writing.b0.i3': 'Pulse **Añadir entrada**.',
+  'help.journal.writing.b1':
+    'Después de eso, **Añadir una nota** en la entrada es la forma en que crece. Escriba '
+    + 'tanto o tan poco como quiera; los saltos de línea se conservan, así que una lista '
+    + 'sigue siendo una lista. Las notas aparecen en el orden en que se escribieron, cada una '
+    + 'con un nombre y una fecha, y una que se ha cambiado desde entonces lo dice.',
+  'help.journal.writing.b2':
+    'Las entradas en sí se enumeran de la más nueva a la más antigua, con quién empezó cada '
+    + 'una y cuándo.',
+  'help.journal.writing.b3':
+    'Cualquiera que ocupe el cargo puede añadir una nota a cualquier entrada, incluida una '
+    + 'que empezó otra persona. Eso es deliberado: es la forma en que un sucesor responde a '
+    + 'un predecesor debajo de lo que escribió en vez de empezar una entrada rival.',
+  'help.journal.meetings.heading': 'Notas de reunión',
+  'help.journal.meetings.b0':
+    '**Notas de reunión** es el segundo botón, y crea una entrada de un tipo particular: '
+    + 'una que registra un día, quién estaba en la sala, y qué se dijo.',
+  'help.journal.meetings.b1.i0': 'Pulse **Notas de reunión**.',
+  'help.journal.meetings.b1.i1':
+    'Compruebe el título y el **Día de la reunión**: los dos se rellenan con hoy para '
+    + 'empezar.',
+  'help.journal.meetings.b1.i2':
+    'En **Quiénes asistieron**, busque a cada familiar que estuvo y márquelo. Los nombres '
+    + 'que ha elegido siguen enumerados encima del cuadro de búsqueda, así que una búsqueda '
+    + 'que oculte uno no lo pierde.',
+  'help.journal.meetings.b1.i3': 'Escriba lo que se discutió y se decidió en el cuadro de notas.',
+  'help.journal.meetings.b1.i4': 'Pulse **Añadir entrada**.',
+  'help.journal.meetings.b2':
+    'Una reunión aparece en la lista marcada como **Notas de reunión**, con el día en que '
+    + 'ocurrió y todas las personas que asistieron. Cualquiera que ocupe el cargo puede '
+    + 'añadirle una nota después, igual que a cualquier otra entrada, que es la forma en que '
+    + 'se registra una corrección, o algo que se recuerda más tarde.',
+  'help.journal.meetings.b3':
+    '**Quiénes asistieron solo lo puede cambiar quien registró la reunión.** Una lista de '
+    + 'asistentes es una afirmación sobre una sala y no lleva el nombre de nadie contra ella, '
+    + 'así que no es algo que dos cargos puedan sobrescribirse en silencio entre ellos. Si '
+    + 'usted estuvo y se le dejó fuera, añada una nota diciéndolo: el registro muestra '
+    + 'entonces las dos cosas.',
+  'help.journal.meetings.b4':
+    '**Votar sobre tareas todavía no está construido.** Todas las entradas de reunión '
+    + 'llevan un panel que lo dice. Cuando exista, convertirá lo que decidió una reunión en '
+    + 'tareas y dejará que las personas que asistieron voten sobre ellas; hasta entonces, '
+    + 'escriba lo que se acordó en una nota.',
+  'help.journal.editing.heading': 'Cambiar o quitar algo',
+  'help.journal.editing.b0': 'Hay dos reglas, y cuál se aplica depende de qué esté cambiando.',
+  'help.journal.editing.b1.i0.term': 'Una nota',
+  'help.journal.editing.b1.i0.text':
+    'Solo la persona que la escribió puede editarla o eliminarla: cualquier nota suya, esté '
+    + 'donde esté en el hilo, no solo la más reciente. El lápiz y la papelera aparecen al '
+    + 'lado de las notas que son suyas y en ninguna otra.',
+  'help.journal.editing.b1.i1.term': 'La entrada en sí',
+  'help.journal.editing.b1.i1.text':
+    'Su título, el día de una reunión y quiénes asistieron pertenecen a quien la empezó. '
+    + 'Todos los demás añaden notas.',
+  'help.journal.editing.b2':
+    'En cualquier caso solo dura mientras usted siga ocupando el cargo. Un excargo no '
+    + 'conserva ninguna de las dos cosas, y todo lo que escribió se queda, que es la idea.',
+  'help.journal.editing.b3':
+    'Así que una nota que dejó la persona anterior a usted es suya para leerla y no para '
+    + 'reescribirla. Si está equivocada o desactualizada, añada una nota diciéndolo: eso '
+    + 'conserva tanto el original como la corrección, que es lo que hace que el cuaderno '
+    + 'valga la pena leerlo años después.',
+  'help.journal.editing.b4':
+    'Eliminar una nota deja el resto de la entrada intacto. Eliminar una **entrada** se '
+    + 'lleva todas las notas que hay debajo, para todas las personas que ocupan el cargo, '
+    + 'ahora y después. Las dos cosas son permanentes y la pantalla le pide confirmación.',
+  'help.journal.editing.b5':
+    'Si un cargo se retira de los cargos de la directiva de la familia, su cuaderno se va '
+    + 'con él. No queda ningún cargo al que las notas puedan seguir.',
 }

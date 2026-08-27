@@ -1,0 +1,14 @@
+{
+"help.directory.title": "Directory",
+"help.directory.summary": "Everyone in the family, searchable, with how to reach them.",
+"help.directory.searching.heading": "Finding somebody",
+"help.directory.searching.b0": "The filter box matches first name, last name and preferred name, and it ignores accents and punctuation — typing **jose** finds José, and **oconnor** finds O'Connor.",
+"help.directory.columns.heading": "What the list shows",
+"help.directory.columns.b0": "Four columns: **Name**, **Position**, **Chapter**, and the **Group** the person is on — which is the permission template deciding what they can do. **Position** is the board office they hold, written out in full — \"National Treasurer\", \"Austin Chapter Chair\" — and an em-dash for the most of the family who hold none. Which chapter somebody is in is on the row; which REGION that chapter belongs to is on their detail dialog, because the region follows from the chapter rather than being a separate answer.",
+"help.directory.columns.b1": "Everything else about a person is behind their name. **Pressing a name opens their record** — phone, email, city and state, their chapter and region, their preferred name, their group, and whether they have an account yet. The name is a real button, so tabbing to it and pressing Enter opens the same panel a click does.",
+"help.directory.columns.b2": "Phone, email and city each had a column of their own until 2026-08-19 and are in that panel now. Nothing was dropped and nothing new is shown: the same facts, one press away instead of five columns wide, which is what makes the list readable on a phone.",
+"help.directory.columns.b3": "On a narrow screen Position, Chapter and Group fold underneath the name rather than sliding off the side, so nothing is ever parked out of view.",
+"help.directory.columns.b4": "People recorded on the family tree without an email address appear here too. A recorded great-uncle is a member of the family; he simply has no account, and his record says so.",
+"help.directory.tree.heading": "From a name to the tree",
+"help.directory.tree.b0": "The **Family Tree** button takes you to the tree, where you can centre on anybody and see how they connect. It is the same question from the other side: the Directory answers *who*, the tree answers *how are they related*."
+}
