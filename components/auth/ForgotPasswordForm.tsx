@@ -66,18 +66,9 @@ export function ForgotPasswordForm() {
             invented: the link goes to /update-password (see onSubmit above), and a
             recovery token is single-use and expires. */}
         <CardContent className="space-y-3 text-sm text-muted-foreground">
+          <p>{t('ui.willSeeMessageWhichever')}</p>
           <p>
-            You will see this message whichever address you enter. We do not say whether
-            an account exists, because the family code needed to reach this site is meant
-            to be shared — and a form that answered would let anyone holding one work out
-            which of your relatives has registered.
-          </p>
-          <p>
-            <span className="font-medium text-foreground">{t('auth.nothingArrived')}</span> Check the
-            spam folder first, then try the address you registered with rather than the one
-            your family usually reaches you on. The link works once and expires, so ask for
-            a fresh one rather than reusing an old email.
-          </p>
+            <span className="font-medium text-foreground">{t('auth.nothingArrived')}</span>{t('ui.checkSpamFolderFirst')}</p>
         </CardContent>
         <CardFooter className="justify-center">
           <Link href="/login" className="text-primary font-medium hover:underline text-sm">

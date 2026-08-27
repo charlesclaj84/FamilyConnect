@@ -59,6 +59,7 @@ export default async function HelpChapterPage({ params }: Props) {
   if (!raw) notFound()
 
   const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
   if (!user) redirect('/login')
 
   const gate = await requireViewOrPending(user.id, 'help')
@@ -84,9 +85,7 @@ export default async function HelpChapterPage({ params }: Props) {
           href="/help"
           className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          All help
-        </Link>
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />{t('hlp.allHelp')}</Link>
 
         {part && (
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -100,10 +99,8 @@ export default async function HelpChapterPage({ params }: Props) {
       <HelpAvailabilityNote availability={availability} />
 
       {showContents && (
-        <nav aria-label="On this page" className="rounded-xl border bg-card px-4 py-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            On this page
-          </p>
+        <nav aria-label={t('hlp.page')} className="rounded-xl border bg-card px-4 py-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t('hlp.page')}</p>
           <ul className="space-y-1 text-sm">
             {chapter.sections.map(section => (
               <li key={section.id}>
@@ -126,7 +123,7 @@ export default async function HelpChapterPage({ params }: Props) {
       {/* The manual reads front to back, so these cross part boundaries rather than
           stopping at the end of each one. */}
       {(previous || next) && (
-        <nav aria-label="More of the manual" className="flex flex-wrap gap-3 border-t pt-6">
+        <nav aria-label={t('hlp.moreManual')} className="flex flex-wrap gap-3 border-t pt-6">
           {previous && (
             <Link
               href={`/help/${previous.slug}`}

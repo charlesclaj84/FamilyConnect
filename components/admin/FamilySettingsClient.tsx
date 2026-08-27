@@ -321,11 +321,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
       >
         <div className="p-5 sm:p-6">
           <h2 className="text-lg font-semibold">{t('set.familyName')}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            What this family is called everywhere in the app — the switcher, the dashboard,
-            and the emails inviting people to join. Changing it moves nothing else: the
-            family code below is what every record is filed under.
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('adm.whatFamilyCalledEverywhere')}</p>
 
           <form
             className="mt-4 space-y-4"
@@ -371,12 +367,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
                   <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>
                 ))}
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Where the family is. This decides whether a gathering has finished, whether a
-                task is overdue and when an election closes — the answers every member has to
-                agree on. It does not change the times on a gathering, which are always shown
-                as they were typed, or your own dates, which follow My Profile.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('adm.whereFamilyDecidesWhether')}</p>
             </div>
 
             <FormError message={error} />
@@ -397,20 +388,14 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
                 )}
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                You can see this page but not change the name. Ask an administrator for the
-                Settings permission.
-              </p>
+              <p className="text-sm text-muted-foreground">{t('adm.canSeePageBut')}</p>
             )}
           </form>
         </div>
 
         <div className="p-5 sm:p-6">
           <h2 className="text-lg font-semibold">{t('set.familyCode')}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Share this with relatives so they can join. Everyone who joins waits in Pending
-            Approval until somebody admits them.
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground">{t('adm.shareRelativesSoThey')}</p>
 
           <div className="mt-4 rounded-xl border-2 border-brand-primary/30 bg-brand-soft/40 px-6 py-4 text-center">
             <p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">
@@ -438,12 +423,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
             </button>
           </div>
 
-          <p className="mt-4 text-sm text-muted-foreground">
-            The code cannot be changed, and a family cannot be deleted. Every record in the
-            family — dues, funds, events, chat, members — is filed under this code, and
-            nothing in the database points back the other way, so changing it would leave
-            the family holding none of its own history.
-          </p>
+          <p className="mt-4 text-sm text-muted-foreground">{t('adm.codeCannotChangedFamily')}</p>
         </div>
 
         {/* REMOVAL IS THE LAST ROW OF THIS PANE, which is the one thing about its position
@@ -610,10 +590,7 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
         <PowerOff className="h-4 w-4 text-brand-withheld" aria-hidden="true" />
         {t('set.remove')}
       </h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Switches the family off for everybody in it. Nobody can open it, the family code
-        stops working, and outstanding invitations stop being accepted.
-      </p>
+      <p className="mt-1 text-sm text-muted-foreground">{t('adm.switchesFamilyOffEverybody')}</p>
       <p className="mt-2 text-sm text-muted-foreground">
         <strong className="font-semibold">{t('set.nothingDeleted')}</strong> Every payment,
         fund, photograph, event, message and person stays exactly where it is. Removing is

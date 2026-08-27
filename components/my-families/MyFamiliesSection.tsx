@@ -69,10 +69,8 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
         </CardTitle>
         <CardDescription>
           {multi
-            ? <>Your profile details are shared across every family you belong to. Choose which
-                one opens when you log in, or switch the family you&apos;re viewing now.</>
-            : <>The family this account belongs to. Your profile details are shared across every
-                family you join.</>}
+            ? <>{t('ui.profileDetailsSharedAcross')}</>
+            : <>{t('ui.familyAccountBelongsProfile')}</>}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -135,10 +133,7 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                     family — the badge alone would leave "removed" meaning whatever they
                     guessed. Nothing is deleted is the half people do not assume. */}
                 {removed && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Switched off by an administrator. Nothing was deleted, and only GENORRA
-                    support can bring it back.
-                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t('ui.switchedOffAdministratorNothing')}</p>
                 )}
               </div>
 

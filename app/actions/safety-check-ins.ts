@@ -334,6 +334,7 @@ export async function getCheckInComposer(): Promise<CheckInComposer> {
   if (!(await canAny(g.userId, 'community/safety-check-ins', 'create'))) {
     return { audiences: [], people: [] }
   }
+  const { t } = g
 
   const { candidates, ok } = await readRoster(g.familyCode)
   if (!ok) return { audiences: [], people: [] }
@@ -355,7 +356,7 @@ export async function getCheckInComposer(): Promise<CheckInComposer> {
   const audiences: CheckInAudienceOption[] = [{
     scope: 'family',
     id: null,
-    label: 'Everyone in the family',
+    label: t('shell.everyoneFamily'),
     ...tallyFor({ scope: 'family', regionId: null, chapterId: null, personIds: [] }),
   }]
 

@@ -147,17 +147,12 @@ export function MembershipSliceDialog({
       <div className="space-y-3">
         {loading && (
           <p className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> Looking up who is
-            in this group…
-          </p>
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />{t('rep.lookingUpWhoGroup')}</p>
         )}
 
         {/* WITHHELD IS SAID, NOT DRAWN AS EMPTINESS. See `load`. */}
         {!loading && withheld && (
-          <p className="py-8 text-sm text-muted-foreground">
-            Who is in this group is not yours to see. The figures on the chart are; the names
-            need the Member Directory as well.
-          </p>
+          <p className="py-8 text-sm text-muted-foreground">{t('rep.whoGroupNotYours')}</p>
         )}
 
         {!loading && !withheld && (
@@ -345,10 +340,7 @@ function MemberRow({ member, repair, chapters, busy, onDone, onError }: {
                 <option value="">{t('common.noChapter')}</option>
                 {chapters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Their region follows their chapter. Sons and daughters under eighteen with no
-                account of their own move with them.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('rep.theirRegionFollowsTheir')}</p>
             </div>
           )}
 
@@ -371,10 +363,7 @@ function MemberRow({ member, repair, chapters, busy, onDone, onError }: {
               <Label className="text-xs" htmlFor={`dob-${member.personId}`}>{t('field.dobLower')}</Label>
               <Input id={`dob-${member.personId}`} type="date" value={value}
                 onChange={e => setValue(e.target.value)} />
-              <p className="text-xs text-muted-foreground">
-                Adult or minor is worked out from this every time the report loads; nothing is
-                stored about their age.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('rep.adultMinorWorkedOut')}</p>
             </div>
           )}
 

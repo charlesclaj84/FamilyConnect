@@ -251,10 +251,7 @@ export function AdminRegionsChaptersClient({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h2 className="text-lg">{t('org.regions')}</h2>
-            <p className="text-sm text-muted-foreground">
-              A group of chapters — “Texas”, “Eastern”, “Southeast”. Optional: a family can run
-              on chapters alone, or on neither.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('adm.groupChaptersTexasEastern')}</p>
           </div>
           {mayCreate && (
             <Button size="sm" className="shrink-0" onClick={() => { setRegionError(''); setShowAddRegion(true) }}>
@@ -356,10 +353,7 @@ export function AdminRegionsChaptersClient({
         <FormError message={showAddChapter ? '' : chapterError} />
 
         {chapters.length === 0 ? (
-          <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-            No chapters yet. Until there are, every member is under National and owes only
-            the family-wide dues.
-          </p>
+          <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">{t('adm.noChaptersYetUntil')}</p>
         ) : (
           <div className="overflow-visible rounded-xl border">
             <table className="w-full border-collapse text-sm">
@@ -520,9 +514,7 @@ export function AdminRegionsChaptersClient({
               region decides who owes a REGIONAL DUE, so this select is not a filing
               convenience — and it is correctable afterwards from the Region column, which is
               what keeps the sentence reassuring rather than alarming. */}
-          <p className="text-xs text-muted-foreground">
-            A chapter’s region decides which regional dues its members owe. You can move a
-            chapter to another region at any time from the <strong>{t('dir.region')}</strong> column.
+          <p className="text-xs text-muted-foreground">{t('adm.chapterSRegionDecides')}<strong>{t('dir.region')}</strong> column.
           </p>
           <FormError message={chapterError} />
           <div className="flex flex-wrap justify-end gap-2 pt-1">

@@ -316,22 +316,14 @@ function ChapterBlock({
           {t('profile.noChapters')}
         </p>
       )}
-      <p className="mt-3 text-xs text-muted-foreground">
-        Your chapter applies to this family only — the rest of your profile is shared
-        across every family you belong to. Changing it also moves any sons or daughters
-        under 18 who have no account of their own; everybody else sets their own.
-      </p>
+      <p className="mt-3 text-xs text-muted-foreground">{t('prof.chapterAppliesFamilyOnly')}</p>
       {/* WHAT IT DECIDES ABOUT MONEY, said here because this is the only screen that sets
           it and 20260817000008 made it consequential: a due can belong to one region or one
           chapter, and somebody with no chapter is under National and owes neither. A member
           wondering why a chapter's due is not on their Dues screen has to be able to find
           the answer at the control that causes it. */}
       {chapters.length > 0 && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          It can also decide what you owe: a family can attach dues to one region or one
-          chapter. Choosing nothing leaves you under National, owing the family-wide dues
-          and none of the local ones.
-        </p>
+        <p className="mt-2 text-xs text-muted-foreground">{t('prof.canAlsoDecideWhat')}</p>
       )}
     </div>
   )
@@ -791,7 +783,7 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 pt-1">
           <Field label={t('field.dob')} value={formatDate(existing?.date_of_birth, intl)} />
           <div className="space-y-0.5">
-            <p className="text-xs text-muted-foreground">Sunset Date</p>
+            <p className="text-xs text-muted-foreground">{t('prof.sunsetDate')}</p>
             <p className="text-sm">
               {formatDate(existing?.sunset_date, intl) || <span className="text-muted-foreground/40 italic text-xs">{t('profile.living')}</span>}
             </p>
@@ -834,10 +826,7 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
                   <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>
                 ))}
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Dates and times the product records — when a payment was entered, when a message
-                was sent — are shown to you in this timezone.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('prof.datesTimesProductRecords')}</p>
             </div>
             {/* ── LANGUAGE ────────────────────────────────────────────────────────────
                 THE ENDONYM IS NOT TRANSLATED, and that is the one rule for this control:
@@ -857,10 +846,7 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
                   </option>
                 ))}
               </Select>
-              <p className="text-xs text-muted-foreground">
-                Leave this empty and we follow your browser. Translation is still in progress,
-                so some screens are English whichever language you choose.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('prof.leaveEmptyWeFollow')}</p>
             </div>
           </div>
           <FormActions isSubmitting={isSubmitting} onCancel={handleCancel} error={serverError} />

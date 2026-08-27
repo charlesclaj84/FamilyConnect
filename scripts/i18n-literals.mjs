@@ -69,22 +69,27 @@ import { join, relative, sep } from 'node:path'
 const ROOT = process.cwd()
 
 /**
- * The count as of 2026-08-27. LOWER IT FREELY. See the header before raising it.
+ * ZERO, as of 2026-08-27. LOWER IT FREELY — there is nowhere left to lower it to, which is
+ * the point: from here the ratchet is a real gate rather than a backlog counter, and any
+ * finding at all is a screen that shipped in English only.
  *
- * It was 1,027 when this script was written, three hours earlier. What came out of it was
- * the whole of `app/actions/**` — 702 call sites over 397 distinct sentences, every refusal
- * a form can show — plus the public site's own residue.
+ * ── RAISING IT IS A DELIBERATE ACT AND NEEDS A SENTENCE HERE ──────────────────────
+ * The honest reason to raise it is a scanner false positive, and the better answer to one of
+ * those is `NOT_COPY` below — a named entry with a reason, which is diffable, rather than a
+ * number that quietly admits an unknown quantity of English.
  *
- * WHAT IS NOT IN THE REMAINING 325, so nobody re-does it: Home, `/features`, `/pricing`,
- * `/how-it-works`, `/why-us`, `/about`, `/login`, `/register`, `/forgot-password` and every
- * server-action message. The first nine were measured against a real server in all three
- * languages; the last was swept and type-checked.
+ * ── WHAT IT WAS, AND HOW LONG IT TOOK ────────────────────────────────────────────
+ * 1,027 when this script was written. 325 three hours later, once `app/actions/**` was swept
+ * — 702 call sites over 397 sentences, every refusal a form can show. 0 that evening, once
+ * the Dashboard's own 305 strings were keyed.
  *
- * WHAT IS: the Dashboard's own components — panels, dialogs, tables and empty states. That
- * is the work queue, and the per-file list this script prints is ranked by size so the next
- * batch is the top of it.
+ * WHAT IS DELIBERATELY OUT OF ITS SIGHT, so nobody goes looking: `lib/` is not swept at all.
+ * The catalogues live there and their English IS the source; `lib/help/content.ts` is the
+ * manual, whose translation is DERIVED; and `lib/testimonials.ts` must never be translated
+ * (rule 4 in that file, and the FTC's rule on fabricated testimonials).
+ *
  */
-const CEILING = 323
+const CEILING = 0
 
 /** Directories swept. `lib/` is deliberately absent — see the header. */
 const ROOTS = ['app', 'components']
@@ -247,7 +252,17 @@ function scan(file) {
     const dedupe = `${line}:${text}`
     if (seen.has(dedupe)) return
     seen.add(dedupe)
-    findings.push({ file: rel, line, text: text.trim().replace(/\s+/g, ' '), shape })
+    findings.push({
+      file: rel,
+      line,
+      // NORMALIZED, for the report. A multi-line JSX text node reads as one line here.
+      text: text.trim().replace(/\s+/g, ' '),
+      // AND THE RAW RUN, exactly as it sits in the file. `--list` emits it with its
+      // newlines escaped, because a sweep has to match the source and not the report —
+      // that distinction cost a whole batch of silent misses the first time.
+      raw: text,
+      shape,
+    })
   }
 
   // 1 — a JSX text node. Between a `>` that closes a tag and the `<` that opens the next.
@@ -294,7 +309,12 @@ const ranked = [...byFile.entries()].sort((a, b) => b[1].length - a[1].length)
 // useless for actually working through the backlog.
 if (process.argv.includes('--list')) {
   for (const f of findings) {
-    console.log(`${f.file}:${f.line}	${f.shape}	${f.text}`)
+    // JSON.stringify, not a chain of replaces. It escapes the backslash, the
+    // newline and the tab in one pass, correctly, and the outer quotes come off
+    // with a slice — a hand-written chain of `.replace()` calls on those three
+    // is the shape that gets one of them wrong.
+    const raw = JSON.stringify(f.raw).slice(1, -1)
+    console.log(`${f.file}:${f.line}\t${f.shape}\t${f.text}\t${raw}`)
   }
   process.exit(0)
 }

@@ -13,6 +13,8 @@ import { HelpLink } from '@/components/help/HelpLink'
 import { collectedPercent, type DuesStanding, type MemberStatus } from '@/lib/dues-projection'
 import type { DuesProjectionResult, ProjectionPerson } from '@/app/actions/dues'
 import { useIntlTag } from '@/components/layout/LocaleProvider'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Dues Projections — what the family should collect this year, what it has, and from whom.
@@ -75,26 +77,28 @@ import { useIntlTag } from '@/components/layout/LocaleProvider'
  */
 
 /** What each standing is called, and what colour it carries. */
-const STANDING: Record<DuesStanding, { label: string; className: string; hint: string }> = {
-  unpaid:   { label: 'Nothing paid', className: 'bg-brand-withheld/10 text-brand-withheld', hint: 'Owes the whole amount for this period.' },
-  partial:  { label: 'Part paid',    className: 'bg-brand-warm text-brand-on-warm',         hint: 'Something in, not all of it.' },
-  settled:  { label: 'Settled',      className: 'bg-brand-affirm text-brand-on-affirm',     hint: 'Paid in full, or forgiven.' },
-  declined: { label: 'Declined',     className: 'bg-muted text-muted-foreground',           hint: 'Opted out of an optional due.' },
-  // Muted rather than affirm, and the distinction is load-bearing: a child below the age a
-  // due starts at has not paid anything, and colouring them green would read as settled.
-  exempt:   { label: 'Not yet due',  className: 'bg-muted text-muted-foreground',           hint: 'Below the age this due starts at.' },
-  // "Not theirs" rather than "not blood". The screen has to account for the money, and it
-  // can do that without labelling a relative by how they joined the family — the same call
-  // AGENTS.md records for the tree's cards, where the step and adopted pills came off
-  // because a word about somebody's route into the family, printed beside their name, reads
-  // as a correction attached to a person. The hint says which due it is about; the pill
-  // does not say anything about them.
-  excluded: { label: 'Not theirs',   className: 'bg-muted text-muted-foreground',           hint: 'This due is owed by the bloodline only.' },
-  // "Elsewhere", and deliberately NOT folded into 'Not theirs'. Both mean the member owes
-  // nothing, and one of them is reversible: they move chapter, or their chapter moves
-  // region, and the due becomes theirs. Wording it as geography also keeps the pill silent
-  // about how anybody joined the family, which is the same call 'Not theirs' makes.
-  'out-of-scope': { label: 'Elsewhere', className: 'bg-muted text-muted-foreground',        hint: 'This due is for one region or chapter, and they are in another — or in none, which puts them under National.' },
+function standing(t: T): Record<DuesStanding, { label: string; className: string; hint: string }> {
+  return {
+    unpaid:   { label: t('dues.nothingPaid'), className: 'bg-brand-withheld/10 text-brand-withheld', hint: 'Owes the whole amount for this period.' },
+    partial:  { label: t('dues.partPaid'),    className: 'bg-brand-warm text-brand-on-warm',         hint: 'Something in, not all of it.' },
+    settled:  { label: 'Settled',      className: 'bg-brand-affirm text-brand-on-affirm',     hint: 'Paid in full, or forgiven.' },
+    declined: { label: 'Declined',     className: 'bg-muted text-muted-foreground',           hint: 'Opted out of an optional due.' },
+    // Muted rather than affirm, and the distinction is load-bearing: a child below the age a
+    // due starts at has not paid anything, and colouring them green would read as settled.
+    exempt:   { label: t('dues.notYetDue'),  className: 'bg-muted text-muted-foreground',           hint: 'Below the age this due starts at.' },
+    // "Not theirs" rather than "not blood". The screen has to account for the money, and it
+    // can do that without labelling a relative by how they joined the family — the same call
+    // AGENTS.md records for the tree's cards, where the step and adopted pills came off
+    // because a word about somebody's route into the family, printed beside their name, reads
+    // as a correction attached to a person. The hint says which due it is about; the pill
+    // does not say anything about them.
+    excluded: { label: t('dues.notTheirs'),   className: 'bg-muted text-muted-foreground',           hint: 'This due is owed by the bloodline only.' },
+    // "Elsewhere", and deliberately NOT folded into 'Not theirs'. Both mean the member owes
+    // nothing, and one of them is reversible: they move chapter, or their chapter moves
+    // region, and the due becomes theirs. Wording it as geography also keeps the pill silent
+    // about how anybody joined the family, which is the same call 'Not theirs' makes.
+    'out-of-scope': { label: 'Elsewhere', className: 'bg-muted text-muted-foreground',        hint: 'This due is for one region or chapter, and they are in another — or in none, which puts them under National.' },
+  }
 }
 
 /** Least settled first, so the people to chase are at the top before anybody sorts. */
@@ -110,29 +114,31 @@ const STANDING_ORDER: readonly DuesStanding[] = [
  * would have to choose which of the two facts to hide. The words are the ones the requirement
  * asked for, verbatim, so the help chapter and the screen use one vocabulary.
  */
-const MEMBER_STATUS: Record<MemberStatus, { label: string; hint: string; className: string }> = {
-  // Heritage soft — a resting pill for the ordinary state. It is deliberately not affirm:
-  // affirm on this screen means money in, and having an account is not a payment.
-  active: {
-    label: 'Active',
-    hint: 'They have an account and can see this due on their own Dues screen.',
-    className: 'bg-brand-soft text-brand-on-soft',
-  },
-  // The one filled Warmth chip in this column: something is in progress and the ball is with
-  // them, which is neither the resting state nor nothing having happened.
-  invited: {
-    label: 'Invited',
-    hint: 'No account yet, and an invitation is open. They have been asked.',
-    className: 'bg-brand-warm text-brand-on-warm',
-  },
-  // Muted, because nothing has happened yet — which is the honest reading. NOT
-  // `--brand-withheld`: on this screen that token is what an outstanding figure is printed in,
-  // and a second meaning for it two cells away would make the colour say nothing at all.
-  'pending-invite': {
-    label: 'Pending Invite',
-    hint: 'Recorded in the family and not yet asked to join, so there is nobody to invoice.',
-    className: 'bg-muted text-muted-foreground',
-  },
+function memberStatus(t: T): Record<MemberStatus, { label: string; hint: string; className: string }> {
+  return {
+    // Heritage soft — a resting pill for the ordinary state. It is deliberately not affirm:
+    // affirm on this screen means money in, and having an account is not a payment.
+    active: {
+      label: 'Active',
+      hint: 'They have an account and can see this due on their own Dues screen.',
+      className: 'bg-brand-soft text-brand-on-soft',
+    },
+    // The one filled Warmth chip in this column: something is in progress and the ball is with
+    // them, which is neither the resting state nor nothing having happened.
+    invited: {
+      label: 'Invited',
+      hint: 'No account yet, and an invitation is open. They have been asked.',
+      className: 'bg-brand-warm text-brand-on-warm',
+    },
+    // Muted, because nothing has happened yet — which is the honest reading. NOT
+    // `--brand-withheld`: on this screen that token is what an outstanding figure is printed in,
+    // and a second meaning for it two cells away would make the colour say nothing at all.
+    'pending-invite': {
+      label: t('dues.pendingInvite'),
+      hint: 'Recorded in the family and not yet asked to join, so there is nobody to invoice.',
+      className: 'bg-muted text-muted-foreground',
+    },
+  }
 }
 
 /** Reachable first, so the caption reads from "we can ask them" down to "we cannot". */
@@ -161,6 +167,7 @@ function scopeCaption(
 }
 
 export function DuesProjectionsClient({ result }: { result: DuesProjectionResult }) {
+  const t = useT()
   const intl = useIntlTag()
   const { projection, people, placeNames } = result
   const [query, setQuery] = useState('')
@@ -203,7 +210,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
   // as a broken figure rather than as an absence.
   const statusSummary = MEMBER_STATUS_ORDER
     .filter(k => projection.statusCounts[k] > 0)
-    .map(k => `${projection.statusCounts[k]} ${MEMBER_STATUS[k].label}`)
+    .map(k => `${projection.statusCounts[k]} ${memberStatus(t)[k].label}`)
     .join(' · ')
   const unreachable = projection.statusCounts.invited + projection.statusCounts['pending-invite']
 
@@ -288,12 +295,9 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
 
       {/* ── PER SCHEDULE ──────────────────────────────────────────────────────────── */}
       <section className="space-y-3">
-        <h2 className="text-lg">By schedule</h2>
+        <h2 className="text-lg">{t('dues.schedule')}</h2>
         {projection.schedules.length === 0 ? (
-          <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-            No dues schedules are active, so there is nothing to project. Add one under
-            Accounting → Dues.
-          </p>
+          <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">{t('dues.noDuesSchedulesActive')}</p>
         ) : (
           <div className="overflow-visible rounded-xl border">
             <table className="w-full border-collapse text-sm">
@@ -320,9 +324,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                       </span>
                       {s.bloodlineOnly && (
                         <span className="ml-1.5 inline-block whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft"
-                          title="Only members descended from the family's line owe this.">
-                          Bloodline only
-                        </span>
+                          title={t('dues.onlyMembersDescendedFrom')}>{t('dues.bloodlineOnly')}</span>
                       )}
                       {/* WHICH PART OF THE FAMILY OWES IT. On the row and not only in the
                           totals, because a scoped due's Expected figure is a fraction of a
@@ -331,7 +333,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                           that has no chapters would be noise on every row. */}
                       {scopeCaption(s, placeNames) && (
                         <span className="ml-1.5 inline-block whitespace-nowrap rounded-full bg-brand-warm px-2 py-0.5 text-[11px] font-medium text-brand-on-warm"
-                          title="Only members in this part of the family owe this due. A member with no chapter is under National and owes nothing scoped.">
+                          title={t('dues.onlyMembersPartFamily')}>
                           {scopeCaption(s, placeNames)}
                         </span>
                       )}
@@ -345,7 +347,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                         <p className="mt-1 text-xs text-brand-withheld">
                           Nobody owes this: your family has not said which ancestor its line
                           descends from, so there is no bloodline to charge. Set{' '}
-                          <strong className="font-medium">Bloodline descends from</strong> on
+                          <strong className="font-medium">{t('dues.bloodlineDescendsFrom')}</strong> on
                           the family tree.
                         </p>
                       )}
@@ -380,9 +382,9 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                           of five zeroes on a schedule nobody has declined is noise. */}
                       <p className="mt-1 flex flex-wrap gap-1">
                         {STANDING_ORDER.filter(k => s.counts[k] > 0).map(k => (
-                          <span key={k} title={STANDING[k].hint}
-                            className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-medium', STANDING[k].className)}>
-                            {s.counts[k]} {STANDING[k].label.toLowerCase()}
+                          <span key={k} title={standing(t)[k].hint}
+                            className={cn('rounded-full px-1.5 py-0.5 text-[10px] font-medium', standing(t)[k].className)}>
+                            {s.counts[k]} {standing(t)[k].label.toLowerCase()}
                           </span>
                         ))}
                       </p>
@@ -408,7 +410,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
         <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
           <div>
             <h2 className="flex items-center gap-1 text-lg">
-              By member
+              {t('dues.member')}
               {/* WHO IS IN THIS TABLE IS THE FIRST THING A TREASURER DOUBTS, and it is not
                   answerable from the table itself: it lists every approved person in the
                   family, so a grandmother recorded on the tree is in it and owes her dues —
@@ -440,14 +442,12 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                 checked={onlyOwing}
                 onChange={e => setOnlyOwing(e.target.checked)}
                 className="h-4 w-4 rounded border-input accent-primary"
-              />
-              Only those who owe
-            </label>
+              />{t('dues.onlyThoseWhoOwe')}</label>
             <div className="relative w-full sm:w-52">
               <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
               <Input
-                aria-label="Filter members"
-                placeholder="Filter by name…"
+                aria-label={t('dues.filterMembers')}
+                placeholder={t('dues.filterName')}
                 value={query}
                 onChange={e => setQuery(e.target.value)}
                 className="h-8 pl-7 text-xs"
@@ -457,9 +457,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
         </div>
 
         {projection.members.length === 0 ? (
-          <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-            Nobody in the family has been approved yet, so there is nothing to project.
-          </p>
+          <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">{t('dues.nobodyFamilyBeenApproved')}</p>
         ) : (
           <div className="overflow-visible rounded-xl border">
             <table className="w-full border-collapse text-sm">
@@ -480,26 +478,24 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
               <tbody>
                 {rows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center text-xs text-muted-foreground">
-                      No members match that filter.
-                    </td>
+                    <td colSpan={7} className="px-3 py-6 text-center text-xs text-muted-foreground">{t('dues.noMembersMatchFilter')}</td>
                   </tr>
                 ) : rows.map(r => {
                   const pill = (
-                    <span title={STANDING[r.standing].hint}
+                    <span title={standing(t)[r.standing].hint}
                       className={cn('inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
-                        STANDING[r.standing].className)}>
-                      {STANDING[r.standing].label}
+                        standing(t)[r.standing].className)}>
+                      {standing(t)[r.standing].label}
                     </span>
                   )
                   // ONE ELEMENT, RENDERED TWICE — the folded column and the meta line — which is
                   // what AGENTS.md asks for when a column folds by moving its content: two copies
                   // of a rendering drift, and a variable cannot.
                   const statusPill = (
-                    <span title={MEMBER_STATUS[r.status].hint}
+                    <span title={memberStatus(t)[r.status].hint}
                       className={cn('inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
-                        MEMBER_STATUS[r.status].className)}>
-                      {MEMBER_STATUS[r.status].label}
+                        memberStatus(t)[r.status].className)}>
+                      {memberStatus(t)[r.status].label}
                     </span>
                   )
                   return (
@@ -571,12 +567,11 @@ function Figure({ label, value, caption, tone }: {
 
 /** The one-line key under the page heading. */
 export function ProjectionsLegend() {
+  const t = useT()
   return (
     <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
       <span className="flex items-center gap-1.5">
-        <TrendingUp className="h-3 w-3 text-brand-accent" aria-hidden="true" />
-        Each schedule is measured over its own year, so the totals are the sum of them
-      </span>
+        <TrendingUp className="h-3 w-3 text-brand-accent" aria-hidden="true" />{t('dues.eachScheduleMeasuredOver')}</span>
       <span>· A waiver settles a due without being income</span>
       {/* WHO IS COUNTED, in the one line under the heading, because it is the fact about this
           screen most likely to surprise somebody who last read it when the roster was

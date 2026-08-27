@@ -356,11 +356,7 @@ export function AdminFundsClient({
               <div className="space-y-1.5">
                 <Label>{t('fnd.minBalance')}</Label>
                 <Input type="number" min="0" step="0.01" value={nfMinimum} onChange={e => setNfMinimum(e.target.value)} placeholder={t('fnd.minPh')} />
-                <p className="text-xs text-muted-foreground">
-                  What this fund is topped up to before any fund below it receives
-                  anything. You can change it, and the order funds fill in, under
-                  Funds&nbsp;→&nbsp;Routing.
-                </p>
+                <p className="text-xs text-muted-foreground">{t('adm.whatFundToppedUp')}</p>
               </div>
               <div className="space-y-1.5">
                 <Label>{t('common.description')}</Label>
@@ -540,10 +536,7 @@ export function AdminFundsClient({
                 disabled button the admin cannot interrogate. */}
             {funds.length === 0 ? (
               <div className="space-y-3 mt-2">
-                <p className="text-sm text-muted-foreground">
-                  A milestone is awarded out of a fund, and there are none yet. Add a fund
-                  under Funds → Balances first.
-                </p>
+                <p className="text-sm text-muted-foreground">{t('adm.milestoneAwardedOutFund')}</p>
                 <Button variant="outline" onClick={onCloseCreate}>{t('action.close')}</Button>
               </div>
             ) : (
@@ -631,10 +624,7 @@ export function AdminFundsClient({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold">{t('fnd.duesRouting')}</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Set the share of each dues payment that flows to each fund. Funds higher in the list fill first;
-                  a fund below its minimum is topped up before lower ones receive anything.
-                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">{t('adm.setShareEachDues')}</p>
               </div>
               {alloc.length > 0 && !editingRouting && mayEditRouting && (
                 <Button size="sm" variant="outline" onClick={startEditRouting}>

@@ -162,10 +162,7 @@ export function MeetingDetailClient({ meeting: initialMeeting, zone }: {
       </div>
 
       {!open && (
-        <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-          These minutes are closed. Nothing about the meeting changes now — which is what makes
-          them the record.
-        </p>
+        <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">{t('ui.theseMinutesClosedNothing')}</p>
       )}
 
       <FormError message={error} />

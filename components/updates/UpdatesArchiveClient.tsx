@@ -147,7 +147,7 @@ export function UpdatesArchiveClient({
         <p className="rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
           This list is what has been sent to you. Family announcements are not included, because
           your family has not given you the board — see{' '}
-          <Link href="/help/who-can-do-what#missing">Who can do what</Link>.
+          <Link href="/help/who-can-do-what#missing">{t('ui.whoCanDoWhat')}</Link>.
         </p>
       )}
 
@@ -218,10 +218,7 @@ export function UpdatesArchiveClient({
                 somebody concludes their family's older news is gone — and it is not: a search
                 filters in the database, so it reaches every row there has ever been. */}
             {hasMore && atCeiling && (
-              <p className="text-xs text-muted-foreground">
-                That is as far as scrolling goes. There are older updates — search for a word in
-                one to find it.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('ui.farScrollingGoesThere')}</p>
             )}
           </div>
         </>

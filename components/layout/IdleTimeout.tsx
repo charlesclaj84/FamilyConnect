@@ -17,6 +17,7 @@ import {
 } from '@/lib/idle-timeout'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Signs a member out after a period with no keyboard or pointer activity and sends them to
@@ -104,6 +105,7 @@ export function IdleTimeout({ sessionStartedAt }: {
    */
   sessionStartedAt?: string | null
 }) {
+  const t = useT()
   /** null when not warning; otherwise whole seconds left. */
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
 
@@ -313,7 +315,7 @@ export function IdleTimeout({ sessionStartedAt }: {
     <Dialog
       open={secondsLeft !== null}
       onClose={staySignedIn}
-      title="Still there?"
+      title={t('shell.stillThere')}
       description="You have been inactive for a while, so we are about to sign you out."
     >
       <div className="space-y-4">
@@ -325,12 +327,8 @@ export function IdleTimeout({ sessionStartedAt }: {
             {secondsLeft === 1 ? ' second' : ' seconds'}.
           </p>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Anything you have typed and not saved will be lost, so finish up or carry on now.
-        </p>
-        <Button size="sm" className="w-full" onClick={staySignedIn}>
-          I&rsquo;m still here
-        </Button>
+        <p className="text-sm text-muted-foreground">{t('shell.anythingTypedNotSaved')}</p>
+        <Button size="sm" className="w-full" onClick={staySignedIn}>{t('shell.iMStillHere')}</Button>
       </div>
     </Dialog>
   )

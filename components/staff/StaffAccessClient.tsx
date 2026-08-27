@@ -200,11 +200,7 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
         <FormError message={rowError} />
 
         {team.length === 0 ? (
-          <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
-            The staff list could not be read. That is a refused query rather than an empty
-            team — you are on it, or this page would have answered 404 rather than rendering.
-            Try again in a moment, and check the server log for the reason.
-          </p>
+          <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">{t('stf.staffListCouldNot')}</p>
         ) : (
           /*
            * A real <table> with real `<th scope="col">`, so a cell is announced with the
@@ -258,12 +254,7 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
       <section className="space-y-3 rounded-xl border bg-card p-5">
         <div>
           <h2 className="text-lg">{t('staff.grantAccess')}</h2>
-          <p className="text-sm text-muted-foreground">
-            The address has to belong to an account that already exists. Somebody who has
-            never registered cannot be granted anything, and this screen will say so rather
-            than write a row for an id — which is why it asks for an address and not for a
-            user id.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('stf.addressBelongAccountAlready')}</p>
         </div>
 
         {/* A real form, so Enter in the address field submits and Enter in the reason box
@@ -327,11 +318,7 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
                 action (`NOTE_MAX`) and is not exported; a `500` typed in here would be a
                 second answer that drifts the first time the cap moves, and the refusal
                 already names the number. */}
-            <p className="text-xs text-muted-foreground">
-              Recorded on the row and shown in the list above. It is the only thing that
-              will explain this grant to whoever reads the list in a year, which is why it
-              is required.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('stf.recordedRowShownList')}</p>
           </div>
 
           {/* NOT `affirm`. That token is the create/record/pay role and it is right for a

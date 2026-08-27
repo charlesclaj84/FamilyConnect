@@ -121,10 +121,7 @@ export function BuyDialog({
                 number they did not expect. Both options name their figure and their date. */}
             {extendingLiveTerm
               ? (
-                <p className="text-sm text-muted-foreground">
-                  Billing starts when the term you have already paid for ends. Nothing is
-                  charged today.
-                </p>
+                <p className="text-sm text-muted-foreground">{t('adm.billingStartsWhenTerm')}</p>
               )
               : (
                 <div className="space-y-2">

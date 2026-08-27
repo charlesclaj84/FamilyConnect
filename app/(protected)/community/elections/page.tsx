@@ -57,9 +57,7 @@ export default async function ElectionsPage() {
         <Card>
           <CardContent className="py-12 text-center">
             <Vote className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">
-              No elections for your part of the family yet.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('comm.noElectionsPartFamily')}</p>
           </CardContent>
         </Card>
       ) : (

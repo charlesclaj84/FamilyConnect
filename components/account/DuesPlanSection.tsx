@@ -860,10 +860,7 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
           // screen with the button underneath. `items-end` so the two baselines meet when
           // they do share a row.
           <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
-            <p className="max-w-md text-xs text-muted-foreground">
-              One payment, itemized by due. It posts to the family&rsquo;s books the moment it
-              clears — there is nothing for anyone to key in afterwards.
-            </p>
+            <p className="max-w-md text-xs text-muted-foreground">{t('ui.onePaymentItemizedDue')}</p>
             <Button variant="affirm" disabled={isPending} onClick={onPayAll} className="ml-auto">
               <CreditCard className="h-4 w-4" />
               Pay {formatCurrency(totalCents, intl)} by card
@@ -873,10 +870,7 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
           // Said once, below both tables, where the old per-row "Pay online (coming soon)"
           // button said it N times. It answers the question that button raised and never
           // could — "so how DO I pay?" — which is the more useful half.
-          <p className="mt-4 text-xs text-muted-foreground">
-            Your family has not connected a card processor yet. Pay by whatever means your
-            family already uses, and it appears here once an administrator records it.
-          </p>
+          <p className="mt-4 text-xs text-muted-foreground">{t('ui.familyNotConnectedCard2')}</p>
         )
       )}
     </section>

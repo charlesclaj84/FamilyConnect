@@ -133,10 +133,7 @@ export function BylawsClient({ initialBylaws, rights }: {
         )}
       </form>
 
-      <p className="text-xs text-muted-foreground">
-        Whole words and phrases, and a leading minus excludes one. It reaches inside a document
-        only where the text could be read — see the badge on each article.
-      </p>
+      <p className="text-xs text-muted-foreground">{t('ui.wholeWordsPhrasesLeading')}</p>
 
       <FormError message={error} />
 
@@ -290,10 +287,7 @@ function AddDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => v
           {/* THE HONEST INSTRUCTION. Extraction from PDF and Word is not built, so pasting the
               text is not a nicety — it is the only way the search reaches inside an article
               today, and a form that did not say so would look broken later. */}
-          <p className="text-xs text-muted-foreground">
-            Pasting the text is what makes an article searchable word by word. A PDF or Word
-            file is stored and downloadable, but its contents are not read yet.
-          </p>
+          <p className="text-xs text-muted-foreground">{t('ui.pastingTextWhatMakes')}</p>
         </div>
 
         <div className="space-y-1.5">

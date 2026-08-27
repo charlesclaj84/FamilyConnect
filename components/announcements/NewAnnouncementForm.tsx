@@ -190,10 +190,7 @@ export function NewAnnouncementForm({ canPin, chapters }: { canPin: boolean; cha
                   </button>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground">
-                Optional. Leave it empty to pin until somebody unpins it. Each member can
-                dismiss it from their own updates whenever they like.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('ui.optionalLeaveEmptyPin')}</p>
             </div>
           )}
         </div>

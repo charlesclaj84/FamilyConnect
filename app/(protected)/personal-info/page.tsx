@@ -92,9 +92,9 @@ export default async function PersonalInfoPage({
           <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             {gate.membership.status === 'rejected'
-              ? <>Your request to join <span className="font-medium">{gate.membership.familyName}</span>{' '}
+              ? <>{t('prof.requestJoin')}<span className="font-medium">{gate.membership.familyName}</span>{' '}
                   was declined. You can still keep your profile up to date.</>
-              : <>Your membership of <span className="font-medium">{gate.membership.familyName}</span>{' '}
+              : <>{t('prof.membership')}<span className="font-medium">{gate.membership.familyName}</span>{' '}
                   is waiting for approval. Filling this in helps them recognise you —{' '}
                   <Link href="/dashboard" className="text-primary hover:underline">check the status</Link>.</>}
           </p>

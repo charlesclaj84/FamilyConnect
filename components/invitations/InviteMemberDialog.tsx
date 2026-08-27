@@ -226,11 +226,7 @@ export function InviteMemberDialog({
               />
             </div>
 
-            <p className="text-sm text-muted-foreground">
-              We&apos;ll email them an invitation. Only this address can use it, and it
-              expires in 14 days. The name is what your family sees while they are waiting
-              to be admitted.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('ui.weLlEmailThem')}</p>
 
             <FormError message={error} />
 
@@ -294,10 +290,7 @@ export function InviteMemberDialog({
               <>
                 <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-                  <p>
-                    The invitation was created, but we could not email it. Send them this
-                    link instead — it works exactly the same.
-                  </p>
+                  <p>{t('ui.invitationCreatedButWe')}</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -321,10 +314,7 @@ export function InviteMemberDialog({
                   </div>
                 </div>
 
-                <p className="text-sm text-muted-foreground">
-                  Treat it like a password — anyone who gets hold of it and has that email
-                  address can use it. It is shown once.
-                </p>
+                <p className="text-sm text-muted-foreground">{t('ui.treatLikePasswordAnyone')}</p>
 
                 {/* Opening it yourself is the obvious thing to do with a link you have just
                     been handed, and it cannot work: redemption requires the session's

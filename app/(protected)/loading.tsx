@@ -1,5 +1,14 @@
+'use client'
+
+// `'use client'` FOR THE TRANSLATOR AND FOR NOTHING ELSE. A sync Server Component
+// cannot await, so it cannot resolve the reader's language; and the router renders
+// this one directly, so there is no parent to hand a `t` down from. The markup is
+// static and the layout above already ships JS, so the directive buys the sentence
+// its language and costs nothing.
+
 import { Skeleton } from '@/components/ui/skeleton'
 import { PageShell } from '@/components/layout/PageShell'
+import { useT } from '@/components/layout/LocaleProvider'
 
 // Shown instantly during navigation between protected pages while the next
 // page's server data streams in. Mirrors the common page shape (heading +
@@ -16,13 +25,14 @@ import { PageShell } from '@/components/layout/PageShell'
 // app. A `reading` page's content column is narrower than these skeletons; its left edge
 // is the same one, and there are only two such pages left in any case.
 export default function Loading() {
+  const t = useT()
   return (
     <PageShell>
       {/* The live region is a child rather than PageShell itself, so the shell keeps its
           two-prop contract. Nothing is lost: `aria-busy` describes the region announcing
           the change, and this element wraps every skeleton on the page. */}
       <div className="space-y-8" aria-busy="true" aria-live="polite">
-        <span className="sr-only">Loading…</span>
+        <span className="sr-only">{t('shell.loading')}</span>
 
         {/* Heading */}
         <div className="space-y-2">

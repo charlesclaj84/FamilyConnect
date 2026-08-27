@@ -59,13 +59,13 @@ export default async function ElectionsReportPage() {
         },
         { label: 'Nominations', value: totals.nominations, hint: 'across every election' },
         {
-          label: 'Offices nobody stood for',
+          label: t('rep.officesNobodyStood'),
           value: uncontested,
           hint: 'nothing on the ballot',
           tone: uncontested > 0 ? 'withheld' : 'plain',
         },
         {
-          label: 'Members who have voted',
+          label: t('rep.membersWhoVoted'),
           value: totals.voters,
           hint: 'distinct people, not ballots',
           tone: 'affirm',
@@ -81,9 +81,7 @@ export default async function ElectionsReportPage() {
       ) : (
         <div className="overflow-hidden rounded-xl border">
           <table className="w-full border-collapse text-sm">
-            <caption className="sr-only">
-              Every published election with its phase, nominations and turnout.
-            </caption>
+            <caption className="sr-only">{t('rep.everyPublishedElectionIts')}</caption>
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <th scope="col" className="px-3 py-2">Election</th>
@@ -151,9 +149,7 @@ export default async function ElectionsReportPage() {
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        Turnout counts PEOPLE, not ballots: somebody voting for three offices in one election is
-        one voter. An election whose area holds no approved members reads <strong>n/a</strong>
+      <p className="text-xs text-muted-foreground">{t('rep.turnoutCountsPeopleNot')}<strong>n/a</strong>
         {' '}rather than 0% — nobody could have voted in it.
       </p>
     </PageShell>

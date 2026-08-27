@@ -1,7 +1,7 @@
 import Link from 'next/link'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { ACCENT_CHIP, TILE_META, type ResolvedTile } from '@/components/dashboard/tiles'
+import { ACCENT_CHIP, tileMeta, type ResolvedTile } from '@/components/dashboard/tiles'
 import type { T } from '@/lib/i18n/t'
 
 /**
@@ -82,7 +82,7 @@ export function AtAGlance({
           `11rem` is the floor at which a figure and its two captions still read. */}
       <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
         {tiles.map(({ id, value }) => {
-          const meta = TILE_META[id]
+          const meta = tileMeta(t)[id]
           const Icon = meta.icon
           return (
             <Link

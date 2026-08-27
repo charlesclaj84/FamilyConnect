@@ -199,9 +199,7 @@ export function RaiseCheckInDialog({
             // in no chapter is in no region, so a regional ask does not reach them —
             // `lib/safety-check-in.ts` argues why that narrowing is right, and this is the
             // sentence that stops it being a surprise.
-            <p className="text-xs text-muted-foreground">
-              A relative who has not told the family which chapter they are in is not in any
-              region, so they are not asked. Use <strong>{t('safety.justNamed')}</strong> to
+            <p className="text-xs text-muted-foreground">{t('ui.relativeWhoNotTold')}<strong>{t('safety.justNamed')}</strong> to
               include them.
             </p>
           )}

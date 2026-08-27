@@ -4,6 +4,7 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
+import { useT } from '@/components/layout/LocaleProvider'
 
 interface Props {
   country: string
@@ -15,6 +16,7 @@ interface Props {
 }
 
 export function AddressSelects({ country, state, onCountryChange, onStateChange, countryId = 'country', stateId = 'state' }: Props) {
+  const t = useT()
   const availableRegions = country && country in REGIONS ? REGIONS[country as Country] : []
 
   return (
@@ -32,14 +34,14 @@ export function AddressSelects({ country, state, onCountryChange, onStateChange,
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor={stateId}>State / Province</Label>
+        <Label htmlFor={stateId}>{t('ui.stateProvince')}</Label>
         {availableRegions.length > 0 ? (
           <Select id={stateId} value={state} onChange={e => onStateChange(e.target.value)}>
             <option value="">— Select state —</option>
             {availableRegions.map(r => <option key={r} value={r}>{r}</option>)}
           </Select>
         ) : (
-          <Input id={stateId} value={state} onChange={e => onStateChange(e.target.value)} placeholder="State / Province" />
+          <Input id={stateId} value={state} onChange={e => onStateChange(e.target.value)} placeholder={t('ui.stateProvince')} />
         )}
       </div>
     </>

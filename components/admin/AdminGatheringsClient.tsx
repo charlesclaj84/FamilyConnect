@@ -517,10 +517,7 @@ function ReviewQueuePane({
   const t = useT()
   if (queue.length === 0) {
     return (
-      <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-        Nothing is waiting for review. A task appears here the moment the relative it was
-        handed to submits an answer.
-      </p>
+      <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">{t('adm.nothingWaitingReviewTask')}</p>
     )
   }
 
@@ -813,8 +810,7 @@ function NewGatheringDialog({
               {mayAuthorTemplates
                 ? <>{t('agat.addOneIn')} <Link href="/admin/gatherings/templates">template library</Link> and a
                     gathering becomes a checklist handed out as tasks.</>
-                : <>A template is a checklist handed out as tasks — somebody who can author
-                    templates has to add the first.</>}
+                : <>{t('adm.templateChecklistHandedOut')}</>}
             </p>
           ) : (
             <>
@@ -937,10 +933,7 @@ function NewGatheringDialog({
                 disabled={!fundId}
                 onChange={e => setBudget(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">
-                A budget is always drawn on a fund. It may exceed what the fund holds — the
-                gathering says so in red rather than refusing it.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('adm.budgetAlwaysDrawnFund2')}</p>
             </div>
           </div>
         )}
@@ -955,10 +948,7 @@ function NewGatheringDialog({
             />
             <span className="text-sm font-medium">{t('agat.showAcrossTop')}</span>
           </label>
-          <p className="text-xs text-muted-foreground">
-            Several gatherings may be flagged at once — the Dashboard shows the soonest one that
-            has not finished, so last year’s reunion never blocks this year’s.
-          </p>
+          <p className="text-xs text-muted-foreground">{t('adm.severalGatheringsMayFlagged2')}</p>
         </div>
 
         <FormError message={error} />

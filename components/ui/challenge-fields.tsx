@@ -4,6 +4,7 @@ import { useState } from 'react'
 
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The two fields that stand in front of an irreversible act: a password, and an emailed code.
@@ -91,11 +92,12 @@ export function EmailedCodeField({ valueRef, id, sentTo }: {
   /** The address it went to. The caller's OWN, so this discloses nothing new. */
   sentTo: string
 }) {
+  const t = useT()
   const [value, setValue] = useState('')
 
   return (
     <div className="rounded-xl border border-brand-withheld/40 bg-brand-withheld/5 p-4">
-      <Label htmlFor={id}>Confirmation code</Label>
+      <Label htmlFor={id}>{t('ui.confirmationCode')}</Label>
       <Input
         id={id}
         inputMode="numeric"

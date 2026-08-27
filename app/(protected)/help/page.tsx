@@ -72,7 +72,7 @@ export default async function HelpIndexPage() {
             Your membership of{' '}
             <span className="font-medium">{gate.membership.familyName}</span>{' '}
             has not been decided yet, so most of the product is not open to you.{' '}
-            <Link href="/help/joining-a-family">Creating or joining a family</Link>{' '}
+            <Link href="/help/joining-a-family">{t('hlp.creatingJoiningFamily')}</Link>{' '}
             is the chapter that explains what happens next. Everything else is here to read
             in the meantime.
           </p>

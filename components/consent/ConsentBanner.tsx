@@ -75,10 +75,7 @@ export function ConsentBanner() {
         <p className="text-sm text-muted-foreground">
           {APP_NAME} can measure which advertisements bring families here, using Meta&apos;s
           advertising tools.{' '}
-          <span className="text-foreground">
-            Your family&apos;s records are never shared — no names, relationships, birthdays,
-            photographs or messages.
-          </span>{' '}
+          <span className="text-foreground">{t('ui.familySRecordsNever')}</span>{' '}
           Only your own account details are used, and only to match this visit to an
           advertisement.
         </p>

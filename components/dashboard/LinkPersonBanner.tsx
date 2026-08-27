@@ -122,10 +122,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
           <p className="text-sm font-medium text-brand-on-soft">
             {t('dash.link.title')}
           </p>
-          <p className="text-xs text-brand-on-soft/80 mt-0.5">
-            A family member may have already added you. Find yourself below and link your
-            account to the existing record.
-          </p>
+          <p className="text-xs text-brand-on-soft/80 mt-0.5">{t('dash.familyMemberMayAlready')}</p>
         </div>
 
         <div className="relative">

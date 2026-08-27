@@ -95,10 +95,7 @@ export function ElectionSummary({ summary, t }: {
           // do something about and the figure alone does not imply it: a nomination nobody
           // answered is not on the ballot, so a candidate can be missing from the poll while
           // appearing in the nomination total.
-          <p className="mt-2 text-xs text-brand-withheld">
-            A nomination nobody has answered is not on the ballot. Only accepted candidates can
-            be voted for.
-          </p>
+          <p className="mt-2 text-xs text-brand-withheld">{t('adm.nominationNobodyAnsweredNot')}</p>
         )}
       </div>
 

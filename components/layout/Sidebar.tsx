@@ -216,7 +216,14 @@ const adminItems: NavItem[] = [
 // Build the nav groups for the current user. Every item is listed unconditionally
 // and then filtered by what the member may actually view — the permission model is
 // the single authority, so there is no separate isAdmin branch here any more.
-function buildNavGroups(viewable: Set<string>): NavGroup[] {
+/**
+ * ── `t` IS A PARAMETER, NOT A HOOK, EVEN THOUGH THIS FILE IS A CLIENT COMPONENT ────
+ * This is a pure function over the caller's viewable set, called from the component's own
+ * `useMemo` — so it must not call a hook itself, and the translator it needs is the one the
+ * component already has. The rail's captions are the words a member navigates by, so they
+ * are the most-read copy in the product.
+ */
+function buildNavGroups(viewable: Set<string>, t: T): NavGroup[] {
   // ── GATHERINGS ─────────────────────────────────────────────────────────────────────
   // THIS SECTION WAS CALLED "EVENTS" UNTIL 2026-08-19 and held seven rows: Upcoming Events,
   // Event Planning, Gatherings, My Gathering Tasks, Calendar, Event Management, Event
@@ -329,7 +336,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
         // both came off together when the per-member lineage view was retired and this became
         // the only tree — see app/(protected)/community/family-tree/page.tsx. Nothing derives
         // it, so if a surface ever needs it again it is set here by hand exactly as it was.
-        { href: '/community/family-tree',   label: 'Family Tree',      icon: GitBranch },
+        { href: '/community/family-tree',   label: t('shell.familyTree'),      icon: GitBranch },
         { href: '/community/directory',     label: 'Directory',        icon: UsersRound },
         // ELECTIONS ARRIVED HERE FROM THE REVIEW SECTION, 2026-08-21 (20260821000003), and it
         // is still LAST: the family acting as an organization, which is a different thing
@@ -386,8 +393,8 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // is also most-consulted to least — a relative looking something up in the Library is
       // far more often checking what the bylaws say than reading a treasurer's working notes.
       { href: '/library/bylaws',          label: 'Bylaws',          icon: Scale },
-      { href: '/library/meeting-minutes', label: 'Meeting Minutes', icon: Gavel },
-      { href: '/library/officer-notes',   label: 'Officer Notes',   icon: BookText },
+      { href: '/library/meeting-minutes', label: t('shell.meetingMinutes'), icon: Gavel },
+      { href: '/library/officer-notes',   label: t('shell.officerNotes'),   icon: BookText },
       { href: '/library/documents',       label: 'Documents',       icon: FileText },
     ],
   })
@@ -421,7 +428,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // the halves carried: the rail row is the SCREEN, and what a member comes to it for
       // first is when the next payment falls. HeartHandshake did not disappear — it is the
       // Donations pane's own glyph on the rail inside the page.
-      { href: '/accounting/dues-and-donations', label: 'Dues & Donations', icon: CalendarClock },
+      { href: '/accounting/dues-and-donations', label: t('shell.duesDonations'), icon: CalendarClock },
       // ── TRANSACTIONS ARRIVED HERE ON 2026-08-22, FROM REPORTING ─────────────────────
       // The four ledgers are where money is RECORDED — a dues payment, a donation, a fund
       // contribution, a disbursement, a transfer — which is this group's job and not
@@ -505,7 +512,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // than under Admin because it is a member-facing reading rather than a tool for running
       // the family — the same argument that put Payment History and Transactions here.
       { href: '/reporting/membership', label: 'Membership',       icon: PieChart },
-      { href: '/reporting/payment-history',  label: 'Payment History',   icon: History },
+      { href: '/reporting/payment-history',  label: t('shell.paymentHistory'),   icon: History },
       // TRANSACTIONS LEFT THIS GROUP ON 2026-08-22 and is under Accounting above. It was
       // here on the argument this block's heading makes — "a reading of the money" — and
       // that argument was thinner than it looked: the four ledgers are where a payment, a
@@ -513,7 +520,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // recorded figure is read back. It sits beside the screens whose rows it holds now,
       // and the move took its route and its permission key with it (20260822000022), which
       // is what "the route tree IS the nav rail" costs.
-      { href: '/reporting/dues-projections', label: 'Dues Projections',  icon: TrendingUp },
+      { href: '/reporting/dues-projections', label: t('shell.duesProjections'),  icon: TrendingUp },
       // P&L SUMMARY ARRIVED HERE ON 2026-08-20, from Accounting by way of Review, and the
       // caption changed with the move. "Family Finances" beside four other readings of the
       // family's money does not say which one it is; what this screen uniquely holds is the
@@ -522,7 +529,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       //
       // LAST, because it is the only row here that is a SUMMARY of the two above it: the
       // ledger and the projection are where a figure on it is explained.
-      { href: '/reporting/pl-summary',  label: 'P&L Summary',       icon: Scale },
+      { href: '/reporting/pl-summary',  label: t('shell.pLSummary'),       icon: Scale },
       // ── THE FOUR ACTIVITY REPORTS, 2026-08-22 ────────────────────────────────────────
       // AFTER the money ones, and that order is the point rather than the arrival date. The
       // five above are readings of the family's MONEY and read as a block; these four are
@@ -543,7 +550,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       { href: '/reporting/gatherings', label: 'Gatherings',       icon: PartyPopper },
       { href: '/reporting/elections',  label: 'Elections',        icon: Vote },
       { href: '/reporting/meetings',   label: 'Meetings',         icon: Gavel },
-      { href: '/reporting/board',      label: 'Board & Offices',  icon: ShieldCheck },
+      { href: '/reporting/board',      label: t('shell.boardOffices'),  icon: ShieldCheck },
     ],
   })
 
@@ -595,7 +602,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   groups.push({
     section: { id: 'help', icon: LifeBuoy },
     items: [
-      { href: '/help', label: 'How-To Manual', icon: BookOpen },
+      { href: '/help', label: t('shell.howManual'), icon: BookOpen },
     ],
   })
 
@@ -980,12 +987,12 @@ export function Sidebar({ viewable }: {
   viewable: string[]
 }) {
   const pathname = usePathname()
-  const navGroups = buildNavGroups(new Set(viewable))
+  const t = useT()
+  const navGroups = buildNavGroups(new Set(viewable), t)
   // `useT()`, not a `locale` prop. This took one until Phase 5, which was fine for a component
   // the layout renders itself — and the page BODIES underneath are a hundred and fifteen client
   // components at arbitrary depth, where a threaded prop gets dropped in the middle and a pane
   // reverts to English with nothing to show for it. One mechanism; see `LocaleProvider`.
-  const t = useT()
 
   return (
     <aside className="relative hidden md:flex w-56 shrink-0 flex-col">
@@ -1044,8 +1051,8 @@ export function MobileNav({ viewable }: {
 }) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const navGroups = buildNavGroups(new Set(viewable))
   const t = useT()
+  const navGroups = buildNavGroups(new Set(viewable), t)
 
   // Close the drawer on navigation, during render rather than in an effect — same
   // reasoning as NavTree above. Every link in the drawer already calls setMobileOpen(false)

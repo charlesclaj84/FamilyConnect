@@ -299,11 +299,7 @@ export function LoginForm({
               </p>
             ) : (
               <>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  An account has to be confirmed before it can sign in. We sent a link when
-                  it was registered — check the spam folder first, and use the newest
-                  message: each link works once and expires after an hour.
-                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{t('ui.accountConfirmedBeforeCan')}</p>
                 <button
                   type="button"
                   onClick={resendConfirmation}

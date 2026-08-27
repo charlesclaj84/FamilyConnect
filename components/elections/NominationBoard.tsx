@@ -145,10 +145,7 @@ export function NominationBoard({
     <div className="space-y-6">
       <div>
         <h2 className="font-semibold">{t('elec.nominations')}</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Put a relative forward for any office below, or stand for one yourself. You can take
-          your own name off a nomination while nominations are open.
-        </p>
+        <p className="text-sm text-muted-foreground mt-0.5">{t('ui.putRelativeForwardAny')}</p>
       </div>
 
       <FormError message={boardError} />
@@ -249,10 +246,7 @@ export function NominationBoard({
                   onClick={() => myPersonId && nominate(openFor.id, myPersonId)}>
                   <UserPlus /> {t('elec.putMyselfForward')}
                 </Button>
-                <p className="mt-2 text-xs text-brand-on-soft">
-                  Standing for an office yourself needs nobody else&rsquo;s agreement, and it
-                  counts as accepted straight away.
-                </p>
+                <p className="mt-2 text-xs text-brand-on-soft">{t('ui.standingOfficeYourselfNeeds')}</p>
               </div>
             )}
 

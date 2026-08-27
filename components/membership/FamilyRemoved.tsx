@@ -63,10 +63,7 @@ export function FamilyRemoved({ membership, families }: {
           <h1 className="text-2xl font-bold leading-tight sm:text-3xl">
             {membership.familyName} has been removed
           </h1>
-          <p className="mt-2 text-muted-foreground">
-            An administrator of this family switched it off. Nobody can open it, join it or
-            accept an invitation to it.
-          </p>
+          <p className="mt-2 text-muted-foreground">{t('ui.administratorFamilySwitchedOff')}</p>
         </div>
       </div>
 
@@ -75,16 +72,8 @@ export function FamilyRemoved({ membership, families }: {
           expects to be true. */}
       <section className="rounded-xl border bg-card p-5 sm:p-6">
         <h2 className="text-lg font-semibold">{t('rem.nothingDeleted')}</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Every payment, fund, photograph, event, message, document and person is exactly
-          where it was. Removing a family closes its doors; it destroys no records at all,
-          and it did not touch your account or any other family you belong to.
-        </p>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Only GENORRA support can bring a family back — there is no button for it anywhere
-          in the product, on purpose. If this was not meant, ask whoever administers the
-          family to get in touch with support.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('ui.everyPaymentFundPhotograph')}</p>
+        <p className="mt-3 text-sm text-muted-foreground">{t('ui.onlyGenorraSupportCan')}</p>
       </section>
 
       {elsewhere.length > 0 && (

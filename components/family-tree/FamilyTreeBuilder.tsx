@@ -630,10 +630,7 @@ export function FamilyTreeBuilder({
               </option>
             ))}
           </select>
-          <span>
-            Everyone who shares an ancestor with them is a blood relative; their spouses
-            are not.
-          </span>
+          <span>{t('ui.everyoneWhoSharesAncestor')}</span>
         </div>
 
         {/* ── THE ANCHOR IS STANDING TOO LOW ────────────────────────────────────────
@@ -670,12 +667,7 @@ export function FamilyTreeBuilder({
                 and everybody they descend from count as blood, on both sides. A spouse who
                 married in is included that way.
               </p>
-              <p>
-                If your family&apos;s line runs through one of them, name that person
-                instead. Do not mark a real parent as step to get them out of the view —
-                they are a blood parent, and recording otherwise makes the tree wrong in a
-                way nothing else can correct.
-              </p>
+              <p>{t('ui.ifFamilySLine')}</p>
               {/* THE TOPMOST ANCESTORS, as one click each. Usually two — a father's line
                   and a mother's — and which of them the family descends from is precisely
                   the fact only the family knows, so nothing here picks. */}
@@ -943,10 +935,7 @@ export function FamilyTreeBuilder({
           <h2 className="mb-1 text-lg">
             {focus.firstName ? `${focus.firstName}'s brothers and sisters` : t('tree.siblings')}
           </h2>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Siblings share this person&apos;s generation, so they are listed here rather than
-            drawn in the row above.
-          </p>
+          <p className="mb-4 text-sm text-muted-foreground">{t('ui.siblingsSharePersonS')}</p>
           <div className="flex flex-wrap gap-3">
             {siblings.map(p => card(p, { edge: related(focus.id, 'sibling').find(e => e.to === p.id) }))}
             {TREE_RELATIONSHIPS.filter(r => r.relation === 'sibling')

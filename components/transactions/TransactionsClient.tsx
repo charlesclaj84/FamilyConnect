@@ -176,8 +176,8 @@ interface TransactionView {
  * because that is what it means — recorded_by is ON DELETE SET NULL, and since
  * 20260807000002 a row cannot be inserted without it.
  */
-const recorderField = (name: string | null) => ({
-  label: 'Recorded by',
+const recorderField = (name: string | null, t: T) => ({
+  label: t('tx.recorded'),
   value: name ?? 'No longer in the family',
 })
 
@@ -195,10 +195,10 @@ function viewOfPayment(p: DuesPayment | undefined, zone: string, t: T, intl: str
       { label: 'Date', value: formatDate(p.payment_date, intl) },
       // Absent on a waived row by design — no money moved, so there was no method and
       // no cheque to number.
-      { label: 'Payment method', value: p.payment_method },
-      { label: 'Check # / Reference', value: p.payment_reference },
+      { label: t('tx.paymentMethod2'), value: p.payment_method },
+      { label: t('tx.checkReference'), value: p.payment_reference },
       { label: 'Notes', value: p.notes },
-      recorderField(p.recorded_by_name),
+      recorderField(p.recorded_by_name, t),
       { label: 'Entered', value: formatInstantDate(p.created_at, zone) },
       ...(p.reversed_by_id ? [{ label: 'Reversed', value: 'Yes — a correcting entry cancels this payment' }] : []),
       ...(isReversal ? [{ label: 'Corrects', value: 'An earlier payment on this ledger' }] : []),
@@ -206,7 +206,7 @@ function viewOfPayment(p: DuesPayment | undefined, zone: string, t: T, intl: str
   }
 }
 
-function viewOfContribution(c: FundContribution | undefined, zone: string, intl: string): TransactionView | null {
+function viewOfContribution(c: FundContribution | undefined, zone: string, t: T, intl: string): TransactionView | null {
   if (!c) return null
   return {
     title: c.contributor_name ?? 'Routed from a payment',
@@ -215,16 +215,16 @@ function viewOfContribution(c: FundContribution | undefined, zone: string, intl:
       { label: 'Amount', value: fmt(c.amount_cents) },
       { label: 'Fund', value: c.fund_name ?? 'Unknown fund' },
       { label: 'Date', value: formatDate(c.contributed_date, intl) },
-      { label: 'Payment method', value: c.payment_method },
-      { label: 'Check # / Reference', value: c.payment_reference },
+      { label: t('tx.paymentMethod2'), value: c.payment_method },
+      { label: t('tx.checkReference'), value: c.payment_reference },
       { label: 'Notes', value: c.notes },
-      recorderField(c.recorded_by_name),
+      recorderField(c.recorded_by_name, t),
       { label: 'Entered', value: formatInstantDate(c.created_at, zone) },
     ],
   }
 }
 
-function viewOfDisbursement(d: FundDisbursement | undefined, zone: string, intl: string): TransactionView | null {
+function viewOfDisbursement(d: FundDisbursement | undefined, zone: string, t: T, intl: string): TransactionView | null {
   if (!d) return null
   return {
     title: d.person_name ?? 'Unknown member',
@@ -234,9 +234,9 @@ function viewOfDisbursement(d: FundDisbursement | undefined, zone: string, intl:
       { label: 'Fund', value: d.fund_name ?? 'Unknown fund' },
       { label: 'Milestone', value: d.milestone_name },
       { label: 'Date', value: formatDate(d.disbursed_date, intl) },
-      { label: 'Check # / Reference', value: d.payment_reference },
+      { label: t('tx.checkReference'), value: d.payment_reference },
       { label: 'Notes', value: d.notes },
-      recorderField(d.recorded_by_name),
+      recorderField(d.recorded_by_name, t),
       { label: 'Entered', value: formatInstantDate(d.created_at, zone) },
     ],
   }
@@ -246,19 +246,19 @@ function viewOfDisbursement(d: FundDisbursement | undefined, zone: string, intl:
  * A transfer has no counterparty to head the row with, so the two funds do the job:
  * the title is the movement itself and the subtitle says it changed no total.
  */
-function viewOfTransfer(t: FundTransfer | undefined, zone: string, intl: string): TransactionView | null {
-  if (!t) return null
+function viewOfTransfer(tr: FundTransfer | undefined, zone: string, t: T, intl: string): TransactionView | null {
+  if (!tr) return null
   return {
-    title: `${t.from_fund_name ?? 'Unknown fund'} → ${t.to_fund_name ?? 'Unknown fund'}`,
+    title: `${tr.from_fund_name ?? 'Unknown fund'} → ${tr.to_fund_name ?? 'Unknown fund'}`,
     subtitle: 'Fund transfer — money moved within the family',
     fields: [
-      { label: 'Amount', value: fmt(t.amount_cents) },
-      { label: 'From', value: t.from_fund_name ?? 'Unknown fund' },
-      { label: 'To', value: t.to_fund_name ?? 'Unknown fund' },
-      { label: 'Date', value: formatDate(t.transferred_date, intl) },
-      { label: 'Reason', value: t.reason },
-      recorderField(t.recorded_by_name),
-      { label: 'Entered', value: formatInstantDate(t.created_at, zone) },
+      { label: 'Amount', value: fmt(tr.amount_cents) },
+      { label: 'From', value: tr.from_fund_name ?? 'Unknown fund' },
+      { label: 'To', value: tr.to_fund_name ?? 'Unknown fund' },
+      { label: 'Date', value: formatDate(tr.transferred_date, intl) },
+      { label: 'Reason', value: tr.reason },
+      recorderField(tr.recorded_by_name, t),
+      { label: 'Entered', value: formatInstantDate(tr.created_at, zone) },
     ],
   }
 }
@@ -765,11 +765,11 @@ export function TransactionsClient({
   const viewed: TransactionView | null = !viewing
     ? null
     : viewing.ledger === 'contributions'
-      ? viewOfContribution(contributions.find(c => c.id === viewing.id), zone, intl)
+      ? viewOfContribution(contributions.find(c => c.id === viewing.id), zone, t, intl)
       : viewing.ledger === 'disbursements'
-        ? viewOfDisbursement(disbursements.find(d => d.id === viewing.id), zone, intl)
+        ? viewOfDisbursement(disbursements.find(d => d.id === viewing.id), zone, t, intl)
         : viewing.ledger === 'transfers'
-          ? viewOfTransfer(transfers.find(t => t.id === viewing.id), zone, intl)
+          ? viewOfTransfer(transfers.find(row => row.id === viewing.id), zone, t, intl)
           : viewOfPayment(payments.find(p => p.id === viewing.id), zone, t, intl)
 
   // Reachable: `transactions:view` opens the page, but each ledger is its own grant
@@ -778,11 +778,7 @@ export function TransactionsClient({
   // wonder what broke — the same answer AdminAccountShell gives for Accounting.
   if (visibleLedgers.length === 0) {
     return (
-      <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-        You can open Transactions, but none of its ledgers have been shared with you.
-        Ask an administrator for access to the ones you need — dues, donations,
-        contributions, disbursements and transfers are each granted separately.
-      </div>
+      <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">{t('tx.canOpenTransactionsBut')}</div>
     )
   }
 
@@ -830,7 +826,7 @@ export function TransactionsClient({
 
         {ledger === 'contributions' && (
           contributions.length === 0
-            ? <p className="text-sm text-muted-foreground">No contributions yet.</p>
+            ? <p className="text-sm text-muted-foreground">{t('tx.noContributionsYet')}</p>
             : (
               /* Source came off with Method and Reference, and loses least of the three:
                  the From cell already says "Routed from a payment" for exactly the rows
@@ -869,7 +865,7 @@ export function TransactionsClient({
 
         {ledger === 'disbursements' && (
           disbursements.length === 0
-            ? <p className="text-sm text-muted-foreground">No disbursements recorded.</p>
+            ? <p className="text-sm text-muted-foreground">{t('tx.noDisbursementsRecorded')}</p>
             : (
               /* No delete column, and no permission that would bring one back:
                  fund_disbursements is append-only as of 20260807000002.
@@ -880,7 +876,7 @@ export function TransactionsClient({
                  fund, so "Reunion Fund · Graduation" is one fact, not two. */
               <LedgerTable
                 columns={[
-                  { label: 'Paid to' }, { label: 'Fund / Milestone', collapse: true },
+                  { label: t('tx.paid') }, { label: t('tx.fundMilestone'), collapse: true },
                   { label: 'Date', collapse: true }, { label: 'Amount', right: true },
                 ]}
               >
@@ -920,7 +916,7 @@ export function TransactionsClient({
 
         {ledger === 'transfers' && (
           transfers.length === 0
-            ? <p className="text-sm text-muted-foreground">No transfers between funds yet.</p>
+            ? <p className="text-sm text-muted-foreground">{t('tx.noTransfersBetweenFunds')}</p>
             : (
               /* The row's subject is the MOVEMENT, so both funds share the first cell
                  and neither gets a column of its own — "Reunion → College" is one fact
@@ -932,7 +928,7 @@ export function TransactionsClient({
                  always there to read. */
               <LedgerTable
                 columns={[
-                  { label: 'From → To' },
+                  { label: t('tx.from') },
                   { label: 'Date', collapse: true },
                   { label: 'Amount', right: true },
                 ]}
@@ -1020,9 +1016,7 @@ export function TransactionsClient({
               {payableSchedules.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
             </Select>
             {payableSchedules.length === 0 && (
-              <p className="text-xs text-muted-foreground">
-                None set up yet — an admin adds these under Accounting.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('tx.noneSetUpYet')}</p>
             )}
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1047,10 +1041,7 @@ export function TransactionsClient({
                 <option value="waived">Waived</option>
               </Select>
               {rpStatus === 'waived' && (
-                <p className="text-xs text-muted-foreground">
-                  Waiving forgives the due. No money changed hands, so there is no
-                  method or reference to record.
-                </p>
+                <p className="text-xs text-muted-foreground">{t('tx.waivingForgivesDueNo')}</p>
               )}
             </div>
           )}
@@ -1059,15 +1050,15 @@ export function TransactionsClient({
           {rpStatus !== 'waived' && (
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label required>Payment Method</Label>
+                <Label required>{t('tx.paymentMethod')}</Label>
                 <Select value={rpMethod} onChange={e => setRpMethod(e.target.value)}>
                   <option value="">— Select method —</option>
                   {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <Label required>Check # / Reference</Label>
-                <Input value={rpReference} onChange={e => setRpReference(e.target.value)} placeholder="Check #1043" />
+                <Label required>{t('tx.checkReference')}</Label>
+                <Input value={rpReference} onChange={e => setRpReference(e.target.value)} placeholder={t('tx.check1043')} />
               </div>
             </div>
           )}
@@ -1081,7 +1072,7 @@ export function TransactionsClient({
               components/ui/textarea.tsx, after which it scrolls. */}
           <div className="space-y-1.5">
             <Label>Notes</Label>
-            <Textarea autoGrow rows={1} value={rpNotes} onChange={e => setRpNotes(e.target.value)} placeholder="Optional notes" />
+            <Textarea autoGrow rows={1} value={rpNotes} onChange={e => setRpNotes(e.target.value)} placeholder={t('tx.optionalNotes')} />
           </div>
           <FormError message={error} />
           <div className="flex gap-2 pt-1">
@@ -1097,7 +1088,7 @@ export function TransactionsClient({
       <Dialog
         open={recording === 'contributions'}
         onClose={() => setRecording(null)}
-        title="New Contribution"
+        title={t('tx.newContribution')}
         description="Money added to a fund directly, outside of dues routing."
         className="max-w-lg"
       >
@@ -1110,34 +1101,34 @@ export function TransactionsClient({
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label required>Who gave it</Label>
+            <Label required>{t('tx.whoGave')}</Label>
             <Select value={fcGiver} onChange={e => setFcGiver(e.target.value)}>
               <option value="">— Select —</option>
               {members.map(m => <option key={m.id} value={m.id}>{disambiguatedName(m, members)}</option>)}
-              <option value={NON_MEMBER}>Someone or something else…</option>
+              <option value={NON_MEMBER}>{t('tx.someoneSomethingElse')}</option>
             </Select>
           </div>
           {fcGiver === NON_MEMBER && (
             <div className="space-y-1.5">
-              <Label required>Name or source</Label>
+              <Label required>{t('tx.nameSource')}</Label>
               <Input
                 value={fcGiverName}
                 onChange={e => setFcGiverName(e.target.value)}
-                placeholder="Aunt Ruby's estate, 2026 reunion surplus…"
+                placeholder={t('tx.auntRubySEstate')}
               />
             </div>
           )}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label required>Payment Method</Label>
+              <Label required>{t('tx.paymentMethod')}</Label>
               <Select value={fcMethod} onChange={e => setFcMethod(e.target.value)}>
                 <option value="">— Select method —</option>
                 {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label required>Check # / Reference</Label>
-              <Input value={fcReference} onChange={e => setFcReference(e.target.value)} placeholder="Check #1043" />
+              <Label required>{t('tx.checkReference')}</Label>
+              <Input value={fcReference} onChange={e => setFcReference(e.target.value)} placeholder={t('tx.check1043')} />
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1152,7 +1143,7 @@ export function TransactionsClient({
           </div>
           <div className="space-y-1.5">
             <Label>Notes</Label>
-            <Textarea autoGrow rows={1} value={fcNotes} onChange={e => setFcNotes(e.target.value)} placeholder="Optional notes" />
+            <Textarea autoGrow rows={1} value={fcNotes} onChange={e => setFcNotes(e.target.value)} placeholder={t('tx.optionalNotes')} />
           </div>
           <FormError message={error} />
           <div className="flex gap-2 pt-1">
@@ -1168,7 +1159,7 @@ export function TransactionsClient({
       <Dialog
         open={recording === 'disbursements'}
         onClose={() => setRecording(null)}
-        title="New Disbursement"
+        title={t('tx.newDisbursement')}
         description="Money paid out of a fund to a member."
         className="max-w-lg"
       >
@@ -1182,7 +1173,7 @@ export function TransactionsClient({
           </div>
           {filteredMilestones.length > 0 && (
             <div className="space-y-1.5">
-              <Label>Milestone (optional)</Label>
+              <Label>{t('tx.milestoneOptional')}</Label>
               <Select value={rdMilestoneId} onChange={e => {
                 setRdMilestoneId(e.target.value)
                 if (e.target.value) {
@@ -1213,12 +1204,12 @@ export function TransactionsClient({
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label required>Check # / Reference</Label>
-            <Input value={rdReference} onChange={e => setRdReference(e.target.value)} placeholder="Check #1043" />
+            <Label required>{t('tx.checkReference')}</Label>
+            <Input value={rdReference} onChange={e => setRdReference(e.target.value)} placeholder={t('tx.check1043')} />
           </div>
           <div className="space-y-1.5">
             <Label>Notes</Label>
-            <Textarea autoGrow rows={1} value={rdNotes} onChange={e => setRdNotes(e.target.value)} placeholder="Optional notes" />
+            <Textarea autoGrow rows={1} value={rdNotes} onChange={e => setRdNotes(e.target.value)} placeholder={t('tx.optionalNotes')} />
           </div>
           <FormError message={error} />
           <div className="flex gap-2 pt-1">
@@ -1234,7 +1225,7 @@ export function TransactionsClient({
       <Dialog
         open={recording === 'transfers'}
         onClose={() => setRecording(null)}
-        title="New Transfer"
+        title={t('tx.newTransfer')}
         description="Move money from one fund to another. Nothing leaves the family."
         className="max-w-lg"
       >
@@ -1288,13 +1279,10 @@ export function TransactionsClient({
             <Textarea
               autoGrow rows={1}
               value={tfReason} onChange={e => setTfReason(e.target.value)}
-              placeholder="Board vote 2026-08-12 — surplus moved to the scholarship fund"
+              placeholder={t('tx.boardVote202608')}
             />
           </div>
-          <p className="text-xs text-muted-foreground">
-            A transfer cannot be edited or deleted. If it is wrong, move the money back —
-            both entries stay on the ledger.
-          </p>
+          <p className="text-xs text-muted-foreground">{t('tx.transferCannotEditedDeleted')}</p>
           <FormError message={error} />
           <div className="flex gap-2 pt-1">
             <Button className="flex-1" onClick={handleTransfer} disabled={isPending}>

@@ -110,11 +110,7 @@ export default async function AccountSummaryPage() {
     return (
       <PageShell className="space-y-8">
         <h1 className="text-3xl font-bold">{t('page./accounting/summary.title')}</h1>
-        <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-          None of the sections of Summary have been shared with you. Ask an administrator
-          for access to the ones you need — your dues, the donation drives, your payment
-          history and the family&apos;s funds are each granted separately.
-        </div>
+        <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">{t('acct.noneSectionsSummaryBeen')}</div>
       </PageShell>
     )
   }
@@ -142,8 +138,8 @@ export default async function AccountSummaryPage() {
 
       {(canDues || canHistory) && (
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-          {canDues && <Link href="/accounting/dues-and-donations">See all your dues</Link>}
-          {canHistory && <Link href="/reporting/payment-history">See your full payment history</Link>}
+          {canDues && <Link href="/accounting/dues-and-donations">{t('acct.seeAllDues')}</Link>}
+          {canHistory && <Link href="/reporting/payment-history">{t('acct.seeFullPaymentHistory')}</Link>}
         </div>
       )}
 
@@ -164,7 +160,7 @@ export default async function AccountSummaryPage() {
           in; the reverse asked them to take an appeal in before they knew what it fed. */}
       {canDonations && openDrives.length > 0 && (
         <section className="space-y-3">
-          <SectionHeading title="Open donation drives" href="/accounting/dues-and-donations?pane=donations" linkLabel="All drives" />
+          <SectionHeading title={t('acct.openDonationDrives')} href="/accounting/dues-and-donations?pane=donations" linkLabel="All drives" />
           {/* `chargesReady` so a drive carries a real Give button here as well as on
               [Dues & Donations](/accounting/dues-and-donations?pane=donations). A digest that
               shows the ask and cannot take the gift sends somebody to another screen to press

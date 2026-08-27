@@ -124,20 +124,11 @@ export default async function JournalPage() {
         // refusal: nothing has gone wrong for a member who holds no office.
         <div className="rounded-xl border bg-card px-4 py-12 text-center">
           <BookText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
-          <p className="text-sm text-muted-foreground">
-            An officer&rsquo;s journal is for members who hold an office, and you do not hold
-            one yet.
-          </p>
-          <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">
-            Every office in the family has a notebook of its own — what a treasurer worked out
-            about the bank, what an events chair learned about the hall. It belongs to the
-            office rather than to the person, so it is still there for whoever comes next.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('lib.officerSJournalMembers')}</p>
+          <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">{t('lib.everyOfficeFamilyNotebook')}</p>
           <p className="mt-3 text-xs text-muted-foreground">
             Offices are recorded under{' '}
-            <Link href="/admin/members/board-positions" className="underline underline-offset-4">
-              Members &amp; Access &rsaquo; Board Positions
-            </Link>
+            <Link href="/admin/members/board-positions" className="underline underline-offset-4">{t('lib.membersAccessBoardPositions')}</Link>
             .
           </p>
         </div>

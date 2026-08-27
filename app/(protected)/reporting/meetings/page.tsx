@@ -60,7 +60,7 @@ export default async function MeetingsReportPage() {
           value: totals.topics,
           hint: `${totals.votedTopics} reached a vote`,
         },
-        { label: 'Votes cast', value: totals.ballots, hint: 'one per topic answered' },
+        { label: t('rep.votesCast'), value: totals.ballots, hint: 'one per topic answered' },
       ]} />
 
       {rows.length === 0 ? (
@@ -72,20 +72,16 @@ export default async function MeetingsReportPage() {
       ) : (
         <>
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Every meeting
-            </h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('rep.everyMeeting')}</h2>
             <div className="overflow-hidden rounded-xl border">
               <table className="w-full border-collapse text-sm">
-                <caption className="sr-only">
-                  Every meeting, most recent first, with its room size, topics and votes.
-                </caption>
+                <caption className="sr-only">{t('rep.everyMeetingMostRecent')}</caption>
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <th scope="col" className="px-3 py-2">Meeting</th>
                     <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Date</th>
-                    <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Minutes by</th>
-                    <th scope="col" className="px-3 py-2 text-right">In the room</th>
+                    <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>{t('rep.minutes')}</th>
+                    <th scope="col" className="px-3 py-2 text-right">{t('rep.room')}</th>
                     <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>
                       Topics
                     </th>
@@ -147,22 +143,17 @@ export default async function MeetingsReportPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Who takes part
-            </h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('rep.whoTakesPart')}</h2>
             {/* TWO COLUMNS, NEVER ONE CALLED "ATTENDANCE" — see the header. `Asked` is the
                 attendee list and `Voted in` is the only positive evidence anybody was there. */}
             <div className="overflow-hidden rounded-xl border">
               <table className="w-full border-collapse text-sm">
-                <caption className="sr-only">
-                  Every relative who has been asked to a meeting, with how many they were asked
-                  to, how many they voted in, and how many they took the minutes of.
-                </caption>
+                <caption className="sr-only">{t('rep.everyRelativeWhoBeen')}</caption>
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <th scope="col" className="px-3 py-2">Relative</th>
-                    <th scope="col" className="px-3 py-2 text-right">Asked to</th>
-                    <th scope="col" className="px-3 py-2 text-right">Voted in</th>
+                    <th scope="col" className="px-3 py-2 text-right">{t('rep.asked')}</th>
+                    <th scope="col" className="px-3 py-2 text-right">{t('rep.voted')}</th>
                     <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>
                       Minuted
                     </th>
@@ -195,7 +186,7 @@ export default async function MeetingsReportPage() {
       )}
 
       <p className="text-xs text-muted-foreground">
-        <strong>Asked to</strong> is the attendee list, and <strong>voted in</strong> is how
+        <strong>{t('rep.asked')}</strong> is the attendee list, and <strong>voted in</strong> is how
         many of those meetings the person answered a vote in. Neither is attendance — nothing in
         GENORRA records who actually turned up, so this reports what it can count rather than
         estimating what it cannot.

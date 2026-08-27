@@ -2,6 +2,7 @@ import { requireStaff } from '@/lib/auth/staff'
 import { listStaffAccounts } from '@/app/actions/staff/accounts'
 import { StaffAccountsClient } from '@/components/staff/StaffAccountsClient'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
 
 export const metadata = { title: 'Accounts' }
 
@@ -32,6 +33,7 @@ export const metadata = { title: 'Accounts' }
  * No `permission_resources` row governs this page and none may — see `lib/auth/staff.ts`.
  */
 export default async function StaffAccountsPage() {
+  const { t } = await callerI18n(null)
   await requireStaff()
 
   const initial = await listStaffAccounts({ page: 1 })
@@ -40,11 +42,7 @@ export default async function StaffAccountsPage() {
     <PageShell className="space-y-6">
       <div>
         <h1 className="mb-1 text-3xl font-bold">Accounts</h1>
-        <p className="max-w-3xl text-muted-foreground">
-          Every account that can sign in, listed from the authentication service rather
-          than from any family&rsquo;s records — so an account that belongs to nothing, which
-          is one of the ways &ldquo;it does not work&rdquo; happens, still appears here.
-        </p>
+        <p className="max-w-3xl text-muted-foreground">{t('stf.everyAccountCanSign')}</p>
       </div>
 
       <StaffAccountsClient initial={initial} />

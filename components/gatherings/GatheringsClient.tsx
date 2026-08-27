@@ -362,11 +362,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
                 </label>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Every step of every template you choose becomes a task on this gathering, ready to
-              hand out. Choose none and this is a date on the family calendar with no tasks —
-              an organizer can build it out later.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('gath.everyStepEveryTemplate')}</p>
           </fieldset>
           )}
 

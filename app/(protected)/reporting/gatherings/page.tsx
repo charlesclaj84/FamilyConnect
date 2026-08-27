@@ -71,7 +71,7 @@ export default async function GatheringsReportPage() {
           hint: `${totals.upcoming} still to come · cancelled excluded`,
         },
         {
-          label: 'Tasks approved',
+          label: t('rep.tasksApproved'),
           value: `${totals.tasks.approved} / ${totals.tasks.total}`,
           hint: `${totals.tasks.submitted} waiting on a decision`,
           tone: 'affirm',
@@ -83,7 +83,7 @@ export default async function GatheringsReportPage() {
           tone: totals.overdue > 0 ? 'withheld' : 'plain',
         },
         {
-          label: 'Nobody holding it',
+          label: t('rep.nobodyHolding'),
           value: totals.unassigned,
           hint: `${totals.helpers} relative${totals.helpers === 1 ? '' : 's'} helping`,
           tone: totals.unassigned > 0 ? 'withheld' : 'plain',
@@ -99,9 +99,7 @@ export default async function GatheringsReportPage() {
       ) : (
         <div className="overflow-hidden rounded-xl border">
           <table className="w-full border-collapse text-sm">
-            <caption className="sr-only">
-              Every gathering with its task progress and, where shown, its budget.
-            </caption>
+            <caption className="sr-only">{t('rep.everyGatheringItsTask')}</caption>
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <th scope="col" className="px-3 py-2">Gathering</th>
@@ -193,10 +191,7 @@ export default async function GatheringsReportPage() {
       )}
 
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <CalendarCheck className="h-3.5 w-3.5" aria-hidden="true" />
-        A task counts as overdue when its date has passed and nobody has approved it — one that
-        has been submitted and not yet ruled on is still outstanding.
-      </p>
+        <CalendarCheck className="h-3.5 w-3.5" aria-hidden="true" />{t('rep.taskCountsOverdueWhen')}</p>
     </PageShell>
   )
 }

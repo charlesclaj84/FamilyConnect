@@ -3,6 +3,7 @@ import { listStaffFamilies } from '@/app/actions/staff/families'
 import { StaffFamiliesClient } from '@/components/staff/StaffFamiliesClient'
 import { PageShell } from '@/components/layout/PageShell'
 import { MEMBER_PAGE_SIZE } from '@/lib/pagination'
+import { callerI18n } from '@/lib/i18n/server'
 
 export const metadata = { title: 'Families' }
 
@@ -31,6 +32,7 @@ export const metadata = { title: 'Families' }
  * outside the family permission model.
  */
 export default async function StaffFamiliesPage() {
+  const { t } = await callerI18n(null)
   await requireStaff()
 
   const initial = await listStaffFamilies({ offset: 0, limit: MEMBER_PAGE_SIZE })
@@ -39,11 +41,7 @@ export default async function StaffFamiliesPage() {
     <PageShell className="space-y-6">
       <div>
         <h1 className="mb-1 text-3xl font-bold">Families</h1>
-        <p className="max-w-3xl text-muted-foreground">
-          Every family on the platform, whatever plan it is on and whether or not it has
-          been removed. Removing a family happens in the product, behind a code emailed to
-          the administrator doing it; putting one back happens only here.
-        </p>
+        <p className="max-w-3xl text-muted-foreground">{t('stf.everyFamilyPlatformWhatever')}</p>
       </div>
 
       <StaffFamiliesClient initial={initial} />

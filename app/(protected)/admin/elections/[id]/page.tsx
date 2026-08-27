@@ -63,8 +63,7 @@ export default async function AdminElectionDetailPage(
           href="/admin/elections"
           className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ChevronLeft className="h-3.5 w-3.5" /> Back to Elections
-        </Link>
+          <ChevronLeft className="h-3.5 w-3.5" />{t('adm.backElections')}</Link>
         <h1 className="text-3xl font-bold">{election.title}</h1>
         <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
           <MapPin className="h-3.5 w-3.5 shrink-0" /> {election.scope_label}

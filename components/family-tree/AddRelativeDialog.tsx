@@ -402,9 +402,7 @@ export function AddRelativeDialog({
                   spellCheck={false}
                 />
               </div>
-              <p className="text-sm text-muted-foreground">
-                They go on the tree straight away. We&apos;ll email them an invitation, and
-                when they accept it their account joins <em>this</em> card rather than
+              <p className="text-sm text-muted-foreground">{t('ui.theyGoTreeStraight')}<em>this</em> card rather than
                 making a second one. An administrator still approves them, the same as
                 anybody joining from My Families.
               </p>
@@ -434,10 +432,7 @@ export function AddRelativeDialog({
                   onChange={e => setDateOfBirth(e.target.value)}
                 />
                 {needsBirthday && (
-                  <p className="text-xs text-muted-foreground">
-                    Dues can start at an age. Without a birthday we cannot tell when this
-                    child starts owing them, and they would be billed as an adult.
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t('ui.duesCanStartAge')}</p>
                 )}
               </div>
 
@@ -455,11 +450,7 @@ export function AddRelativeDialog({
               </div>
               <div className="flex items-start gap-2 rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <p>
-                  This should be rare. We generate an address so the record can exist, and
-                  we never send anything to it — so this person cannot sign in, and nothing
-                  will reach them. If they might ever want an account, invite them instead.
-                </p>
+                <p>{t('ui.shouldRareWeGenerate')}</p>
               </div>
             </>
           )}

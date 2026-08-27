@@ -174,10 +174,7 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
     return (
       <Panel>
         <p className="text-sm font-medium">{t('proc.loadFailed')}</p>
-        <p className="text-sm text-muted-foreground max-w-md mx-auto">
-          Refresh the page. If this keeps happening, do not try to connect an account — ask an
-          administrator to check, because the family may already have one.
-        </p>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">{t('adm.refreshPageIfKeeps')}</p>
       </Panel>
     )
   }
@@ -187,10 +184,7 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
       <Panel>
         <p className="text-sm font-medium">{t('proc.notOn')}</p>
         <p className="text-sm text-muted-foreground max-w-md mx-auto">{status.unavailable}</p>
-        <p className="text-xs text-muted-foreground">
-          Dues are recorded by hand from the Transactions ledgers in the meantime, and every
-          payment already recorded stays exactly where it is.
-        </p>
+        <p className="text-xs text-muted-foreground">{t('adm.duesRecordedHandFrom')}</p>
       </Panel>
     )
   }
@@ -341,18 +335,9 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
             usually somebody deciding whether to undo it, and "the same account comes back"
             is exactly the half that would let them assume the payments do as well. */}
         {returning && (
-          <p className="text-sm text-brand-withheld max-w-md mx-auto">
-            Any recurring payments that were running were cancelled at Stripe when this was
-            disconnected. Those cannot be restarted &mdash; each of those relatives will need
-            to set their payment up again after you reconnect.
-          </p>
+          <p className="text-sm text-brand-withheld max-w-md mx-auto">{t('adm.anyRecurringPaymentsRunning')}</p>
         )}
-        <p className="text-xs text-muted-foreground max-w-md mx-auto">
-          The account belongs to the family, not to GENORRA. Money goes straight to the
-          family&rsquo;s own bank, Stripe&rsquo;s fees come out of the family&rsquo;s side, and
-          the family keeps its own Stripe dashboard. GENORRA never sees or stores a Stripe key
-          and takes no cut of what the family collects.
-        </p>
+        <p className="text-xs text-muted-foreground max-w-md mx-auto">{t('adm.accountBelongsFamilyNot')}</p>
         {status.canManage
           ? (
             <>
@@ -371,10 +356,7 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
             </>
           )
           : (
-            <p className="text-xs text-muted-foreground">
-              You can see this section but not change it. Ask an administrator with payment
-              settings access to connect an account.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('adm.canSeeSectionBut')}</p>
           )}
       </Panel>
     )

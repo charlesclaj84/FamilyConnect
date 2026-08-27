@@ -8,6 +8,7 @@ import { getMembers } from '@/app/actions/members'
 import { CollectionView } from '@/components/gallery/CollectionView'
 import { PageShell } from '@/components/layout/PageShell'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 export const metadata = { title: 'Album' }
 
@@ -24,6 +25,7 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
   const { id } = await params
 
   const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
   if (!user) redirect('/login')
 
   await requireView(user.id, 'community/gallery')
@@ -49,8 +51,7 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
       <div>
         <Link href="/community/gallery"
           className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="h-3.5 w-3.5" /> All albums
-        </Link>
+          <ChevronLeft className="h-3.5 w-3.5" />{t('comm.allAlbums')}</Link>
         <div className="flex items-center gap-3">
           <Images className="h-6 w-6 shrink-0 text-brand-accent" />
           <h1 className="text-2xl font-bold">{collection.name}</h1>

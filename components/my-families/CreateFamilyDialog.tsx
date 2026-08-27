@@ -121,11 +121,7 @@ export function CreateFamilyDialog() {
               />
             </div>
 
-            <p className="text-sm text-muted-foreground">
-              We will generate a family code you can share. Your name and contact details
-              are copied from the profile you already have, and stay in step across every
-              family you belong to.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('ui.weWillGenerateFamily')}</p>
 
             <FormError message={error} />
 
@@ -164,10 +160,7 @@ export function CreateFamilyDialog() {
               </p>
             </div>
 
-            <p className="text-sm text-muted-foreground">
-              Share this with your relatives so they can join. Everyone who joins waits in
-              Member Approvals until you admit them.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('ui.shareRelativesSoThey')}</p>
 
             <div className="flex justify-end gap-2">
               <button

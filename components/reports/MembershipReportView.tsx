@@ -117,11 +117,7 @@ export function MembershipReportView({ report, rights, t }: {
           <CardTitle className="flex items-center gap-2 text-base">
             <Users className="h-4 w-4 text-brand-accent" /> {t('rep.nationally')}
           </CardTitle>
-          <CardDescription>
-            Every approved member of the family, wherever they sit. Applicants still waiting
-            in the approvals queue are not counted, and neither are relatives recorded as
-            having died.
-          </CardDescription>
+          <CardDescription>{t('rep.everyApprovedMemberFamily')}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap items-end gap-x-10 gap-y-4">

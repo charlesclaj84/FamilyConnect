@@ -124,10 +124,7 @@ export function NotificationsSection({
         <h2 id="notifications-heading" className="text-lg font-semibold text-brand-ink">
           Notifications
         </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          What your family may contact you about, and how. Everything here is yours to set and
-          nobody else can set it for you.
-        </p>
+        <p className="mt-1 text-sm text-muted-foreground">{t('prof.whatFamilyMayContact')}</p>
       </div>
 
       {/* ── WHERE A NOTIFICATION WOULD GO ─────────────────────────────────────────

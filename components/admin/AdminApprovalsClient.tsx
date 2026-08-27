@@ -271,10 +271,7 @@ export function AdminApprovalsClient({
             <h2 className="flex items-center gap-2 text-lg font-semibold">
               <Mail className="h-4 w-4" /> {t('appr.invitationsSent')}
             </h2>
-            <p className="text-sm text-muted-foreground">
-              Not yet accepted. Cancelling one stops the link working — worth doing if it
-              went to the wrong address, since only that address can use it.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('adm.notYetAcceptedCancelling')}</p>
           </div>
           <div className="space-y-2">
             {openInvitations.map(invitation => {
@@ -357,19 +354,12 @@ export function AdminApprovalsClient({
               </p>
               <p className="mt-1 text-muted-foreground">
                 {resent.confirmationRequested
-                  ? <>They already have an account but never confirmed their email address, so
-                      they could not have signed in to accept. We have asked for the
-                      confirmation email to be sent again as well — they need to click that
-                      one first.</>
+                  ? <>{t('adm.theyAlreadyAccountBut')}</>
                   : resent.account === 'confirmed'
-                    ? <>Their account is confirmed, so the link will take them straight to
-                        sign-in and join.</>
+                    ? <>{t('adm.theirAccountConfirmedSo')}</>
                     : resent.account === 'none'
-                      ? <>There is no account for that address yet, so the link will take them
-                          to create one. They will not need the family code.</>
-                      : <>We could not check whether that address has an account, so if they
-                          still cannot get in, it is worth asking whether they ever confirmed
-                          their email.</>}
+                      ? <>{t('adm.thereNoAccountAddress')}</>
+                      : <>{t('adm.weCouldNotCheck')}</>}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
                 {t('appr.resendNote')}
@@ -385,9 +375,7 @@ export function AdminApprovalsClient({
             <h2 className="text-lg font-semibold">{t('fam.declined')}</h2>
             <p className="text-sm text-muted-foreground">
               {canDecide
-                ? <>Kept rather than deleted, so the record of the decision survives. You can
-                    admit somebody after all, and any member can send them a fresh
-                    invitation.</>
+                ? <>{t('adm.keptRatherThanDeleted')}</>
                 : <>{t('appr.keptNote')}</>}
             </p>
           </div>

@@ -87,10 +87,7 @@ export function MeetingsClient({ initialMeetings, attendeeOptions, maySchedule, 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="mb-1 text-3xl font-bold">{t('meet.heading')}</h1>
-          <p className="text-muted-foreground">
-            What the family met about, who was there, and what was decided. The secretary writes
-            it down; the room votes.
-          </p>
+          <p className="text-muted-foreground">{t('ui.whatFamilyMetAbout')}</p>
         </div>
         {maySchedule && (
           <Button onClick={() => setScheduling(true)}><Plus /> {t('meet.schedule')}</Button>
@@ -101,12 +98,7 @@ export function MeetingsClient({ initialMeetings, attendeeOptions, maySchedule, 
         <div className="rounded-xl border bg-card px-4 py-14 text-center">
           <Gavel className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">{t('meet.none')}</p>
-          <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">
-            Schedule one by saying what kind of meeting it is — the whole family, a chapter, a
-            board, one office across every area, or just the people you name — and everybody in
-            the room is told and gets it on their calendar. During the meeting the secretary
-            adds a topic and writes notes under it, and can call a vote the room answers.
-          </p>
+          <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">{t('ui.scheduleOneSayingWhat')}</p>
         </div>
       ) : (
         <>
@@ -492,10 +484,7 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
                     <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>
                   ))}
                 </Select>
-                <p className="text-xs text-muted-foreground">
-                  Everyone sees the time exactly as you typed it, with this timezone named
-                  beside it. Nothing is converted.
-                </p>
+                <p className="text-xs text-muted-foreground">{t('ui.everyoneSeesTimeExactly')}</p>
               </div>
             )}
 

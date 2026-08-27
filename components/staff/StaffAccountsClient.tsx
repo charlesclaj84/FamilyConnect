@@ -75,11 +75,7 @@ function LookupPanel() {
   return (
     <section className="rounded-xl border bg-card p-5">
       <h2 className="text-base font-semibold text-brand-ink">{t('staff.lookUpOne')}</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Paste the address from the ticket. This says whether an account exists at all,
-        whether it has ever been confirmed or used, and every family record carrying that
-        address — including one that was invited and never joined.
-      </p>
+      <p className="mt-1 text-sm text-muted-foreground">{t('stf.pasteAddressFromTicket')}</p>
 
       <form onSubmit={submit} className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1">
@@ -121,10 +117,7 @@ function LookupResult({ result }: { result: StaffAccountLookup }) {
           rendered as "no account" — a support engineer acting on that would tell somebody
           to register again and create a second account for them. */}
       {state === null ? (
-        <p className="text-muted-foreground">
-          The authentication service did not answer, so we do not know whether this address
-          has an account. That is a failed lookup, not a missing account — try again.
-        </p>
+        <p className="text-muted-foreground">{t('stf.authenticationServiceDidNot')}</p>
       ) : !state.exists ? (
         <p className="text-muted-foreground">
           <span className="font-medium text-foreground">{t('staff.noAccount')}</span>{' '}
@@ -137,10 +130,7 @@ function LookupResult({ result }: { result: StaffAccountLookup }) {
             {state.confirmed
               ? t('staff.confirmed')
               : (
-                <span className="text-brand-withheld">
-                  The address has never been confirmed — that is what stops the sign-in.
-                  Resending the confirmation is the fix.
-                </span>
+                <span className="text-brand-withheld">{t('stf.addressNeverBeenConfirmed')}</span>
               )}
           </li>
           <li>
@@ -152,15 +142,9 @@ function LookupResult({ result }: { result: StaffAccountLookup }) {
       )}
 
       {result.membershipsFailed ? (
-        <p className="text-muted-foreground">
-          The family records for this address could not be read — that is a refused query
-          rather than an address belonging to nothing.
-        </p>
+        <p className="text-muted-foreground">{t('stf.familyRecordsAddressCould')}</p>
       ) : result.memberships.length === 0 ? (
-        <p className="text-muted-foreground">
-          This address is in no family record. An account with no family sees a 404 on
-          every page, which is what &ldquo;it just does not work&rdquo; looks like.
-        </p>
+        <p className="text-muted-foreground">{t('stf.addressNoFamilyRecord')}</p>
       ) : (
         <div>
           <p className="mb-1.5 font-medium">{t('staff.inTheseFamilies')}</p>
@@ -218,10 +202,7 @@ function AccountTable({ initial }: { initial: StaffAccountPage }) {
       />
 
       {data.failed ? (
-        <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
-          The account list could not be read. That is the authentication service refusing
-          or timing out, not a platform with no accounts on it.
-        </p>
+        <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">{t('stf.accountListCouldNot')}</p>
       ) : data.rows.length === 0 ? (
         <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
           {debounced

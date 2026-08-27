@@ -78,6 +78,7 @@ export const metadata: Metadata = {
 }
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
+  const { t } = await callerI18n(null)
   // RESTORED 2026-08-19. This line read
   //
   //     const staff = { email: 'MUTATED', role: 'support' } as Awaited<ReturnType<typeof requireStaff>>
@@ -139,17 +140,13 @@ export default async function StaffLayout({ children }: { children: React.ReactN
                     the eye lands on, not a subtitle under it. */}
                 <p className="truncate text-sm font-semibold leading-tight">
                   <span className="gn-wordmark">{APP_NAME}</span>
-                  <span className="mx-1.5 opacity-50" aria-hidden="true">/</span>
-                  Staff Console
-                </p>
+                  <span className="mx-1.5 opacity-50" aria-hidden="true">/</span>{t('stf.staffConsole')}</p>
                 {/* THE STANDING NOTICE, on every screen rather than on the index. Every
                     figure in here is the whole platform: a count that would be one
                     family's anywhere else in this codebase is every family's here, and
                     somebody reading a number needs to know that at the moment they read
                     it, not once when they arrived. */}
-                <p className="truncate text-xs opacity-80">
-                  Reads across every family on the platform
-                </p>
+                <p className="truncate text-xs opacity-80">{t('stf.readsAcrossEveryFamily')}</p>
               </div>
             </div>
 
@@ -186,9 +183,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
               <Link
                 href="/dashboard"
                 className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium text-brand-on-hero/80 underline-offset-4 transition-colors hover:bg-brand-on-hero/10 hover:text-brand-on-hero hover:underline"
-              >
-                Back to the app
-              </Link>
+              >{t('stf.backApp')}</Link>
             </div>
           </div>
         </header>

@@ -96,10 +96,7 @@ export function GalleryClient({ rights, myPersonId }: {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="mb-1 text-3xl font-bold">{t('gal.heading')}</h1>
-          <p className="text-muted-foreground">
-            The family&rsquo;s photographs, kept in albums. Tag who is in them so a cousin can
-            find themselves.
-          </p>
+          <p className="text-muted-foreground">{t('ui.familySPhotographsKept')}</p>
         </div>
         {rights.upload && (
           <Button onClick={() => { setCreating(true); setError('') }}>

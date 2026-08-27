@@ -524,11 +524,7 @@ function StepDialog({
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Every step of that template becomes a task of its own here, in its own order, at
-              this point in the list. Nobody answers this step — it is the checklist, not a
-              question. A template cannot include itself, or anything that leads back to it.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('adm.everyStepTemplateBecomes')}</p>
           </div>
         )}
 
@@ -575,10 +571,7 @@ function StepDialog({
                 disabled={isPending}
                 onChange={e => setBudget(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">
-                A starting figure copied onto the task. An organizer can change it on the
-                gathering, and the money that counts is the gathering’s own budget.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('adm.startingFigureCopiedOnto')}</p>
             </div>
           </div>
         )}
@@ -955,11 +948,7 @@ function TemplateCard({
                     layer gives it only a COLOUR, so a class-less `<h3>` is body text in
                     terracotta — indistinguishable in weight from the paragraph it heads. */}
                 <h3 className="text-sm font-semibold">{t('tmpl.steps')}</h3>
-                <p className="text-sm text-muted-foreground">
-                  One per thing somebody has to do or decide, in the order they will be handed
-                  out. They are copied onto the tasks of every gathering scheduled from this
-                  template, so editing one here never changes a gathering already running.
-                </p>
+                <p className="text-sm text-muted-foreground">{t('adm.onePerThingSomebody')}</p>
               </div>
               {mayCreate && (
                 <Button variant="affirm" size="sm" onClick={() => setAddingStep(true)}>

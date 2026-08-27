@@ -124,10 +124,7 @@ export function BudgetBand({ budget, state, className, intl }: BudgetBandProps) 
           'rounded-2xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground',
           className,
         )}
-      >
-        The budget for this gathering could not be read just now. Nothing has changed — reload the
-        page to try again.
-      </div>
+      >{t('gath.budgetGatheringCouldNot')}</div>
     )
   }
 

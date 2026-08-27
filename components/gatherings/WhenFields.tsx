@@ -12,6 +12,7 @@ import {
   WHEN_PROBLEM_TEXT, whenProblems,
   type GatheringOccurrence, type GatheringWhen,
 } from '@/lib/gathering-when'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * **When** — the one place a gathering's dates and times are entered.
@@ -56,6 +57,7 @@ export function WhenFields({ value, onChange, idPrefix = 'when', disabled }: {
   idPrefix?: string
   disabled?: boolean
 }) {
+  const t = useT()
   const problems = whenProblems(value)
   const problemAt = (index: number) =>
     problems.find(p => 'index' in p && p.index === index)?.code ?? null
@@ -163,7 +165,7 @@ export function WhenFields({ value, onChange, idPrefix = 'when', disabled }: {
           onChange={e => setMultiDay(e.target.checked)}
           className="mt-0.5 h-4 w-4 rounded border-input accent-primary"
         />
-        <span className="text-sm">Runs over more than one day</span>
+        <span className="text-sm">{t('gath.runsOverMoreThan')}</span>
       </label>
 
       {multiDay && (
@@ -209,7 +211,7 @@ export function WhenFields({ value, onChange, idPrefix = 'when', disabled }: {
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor={`${idPrefix}-start-time`}>Start time</Label>
+              <Label htmlFor={`${idPrefix}-start-time`}>{t('gath.startTime')}</Label>
               <Input
                 id={`${idPrefix}-start-time`}
                 type="time"
@@ -223,7 +225,7 @@ export function WhenFields({ value, onChange, idPrefix = 'when', disabled }: {
                   ...(e.target.value ? {} : { endTime: null }),
                 })}
               />
-              <p className="text-xs text-muted-foreground">Optional.</p>
+              <p className="text-xs text-muted-foreground">{t('gath.optional')}</p>
             </div>
           </div>
 
@@ -239,13 +241,11 @@ export function WhenFields({ value, onChange, idPrefix = 'when', disabled }: {
                   disabled={disabled}
                   onChange={e => patchFirst({ endsOn: e.target.value || null })}
                 />
-                <p className="text-xs text-muted-foreground">
-                  Leave empty if it is all on one day.
-                </p>
+                <p className="text-xs text-muted-foreground">{t('gath.leaveEmptyIfAll')}</p>
               </div>
             )}
             <div className="space-y-1.5">
-              <Label htmlFor={`${idPrefix}-end-time`}>End time</Label>
+              <Label htmlFor={`${idPrefix}-end-time`}>{t('gath.endTime')}</Label>
               <Input
                 id={`${idPrefix}-end-time`}
                 type="time"
@@ -331,9 +331,7 @@ export function WhenFields({ value, onChange, idPrefix = 'when', disabled }: {
           ))}
 
           <Button variant="outline" size="sm" disabled={disabled} onClick={addOccurrence}>
-            <Plus className="h-3.5 w-3.5" />
-            Add another day
-          </Button>
+            <Plus className="h-3.5 w-3.5" />{t('gath.addAnotherDay')}</Button>
           <p className="text-xs text-muted-foreground">
             Every day here is its own entry on the calendar, all named{' '}
             <span className="italic">this</span> gathering.
@@ -410,6 +408,7 @@ function ZoneRow({ value, onChange, idPrefix, disabled }: {
   idPrefix: string
   disabled?: boolean
 }) {
+  const t = useT()
   const anyTimed = value.occurrences.some(o => o.startTime)
   if (!anyTimed) return null
 
@@ -422,15 +421,12 @@ function ZoneRow({ value, onChange, idPrefix, disabled }: {
         disabled={disabled}
         onChange={e => onChange({ ...value, timeZone: e.target.value || null })}
       >
-        <option value="">Choose a timezone…</option>
+        <option value="">{t('gath.chooseTimezone')}</option>
         {TIMEZONES.map(tz => (
           <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>
         ))}
       </Select>
-      <p className="text-xs text-muted-foreground">
-        Everyone sees the time exactly as you typed it, with this timezone named beside it.
-        Nothing is converted.
-      </p>
+      <p className="text-xs text-muted-foreground">{t('gath.everyoneSeesTimeExactly')}</p>
     </div>
   )
 }

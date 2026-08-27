@@ -62,10 +62,7 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
   // rendering an empty billing panel over a live subscription.
   if (!billing) {
     return (
-      <p className="text-sm text-muted-foreground">
-        Billing could not be loaded. Refresh the page &mdash; do not start a new payment on the
-        Plan tab until it appears, in case this family already has one.
-      </p>
+      <p className="text-sm text-muted-foreground">{t('adm.billingCouldNotLoaded')}</p>
     )
   }
 
@@ -117,10 +114,7 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
               a term running out is not an error and nothing has been deleted. It is the same
               reading the dues ladder takes of a missed installment. */}
           {term.lapsed && (
-            <dd className="text-xs text-brand-withheld">
-              This term has ended. Pay again on the Plan tab to reopen the pages it covered —
-              every record is still here.
-            </dd>
+            <dd className="text-xs text-brand-withheld">{t('adm.termEndedPayAgain')}</dd>
           )}
         </div>
         <div>
@@ -182,18 +176,12 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
               <ExternalLink className="h-4 w-4" />
               {t('bill.cardsReceipts')}
             </Button>
-            <p className="text-sm text-muted-foreground">
-              Stripe&rsquo;s own portal, where the card on file is changed and every invoice can
-              be downloaded.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('adm.stripeSOwnPortal')}</p>
           </div>
           <FormError message={error} />
         </div>
       ) : (
-        <p className="text-xs text-muted-foreground">
-          You can see what this family pays but not change it. Ask an administrator with
-          Settings access.
-        </p>
+        <p className="text-xs text-muted-foreground">{t('adm.canSeeWhatFamily')}</p>
       )}
 
       {/* ── WHAT WE HAVE CHARGED ────────────────────────────────────────────────────

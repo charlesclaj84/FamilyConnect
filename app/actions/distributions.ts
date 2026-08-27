@@ -294,6 +294,7 @@ export async function getDistributionRights(): Promise<DistributionRights> {
 export async function getDistributionAudiences(): Promise<AudienceOption[]> {
   const g = await requireMember()
   if (!g.ok) return []
+  const { t } = g
   // `canAny` on `create`, matching `sendDistribution`. Reading the audience list in order to
   // send is the same grant as sending — a read that is one grant cheaper than the write it
   // exists to set up is the mismatch `getMemberProfileForEdit` documents.
@@ -321,7 +322,7 @@ export async function getDistributionAudiences(): Promise<AudienceOption[]> {
   options.push({
     scope: 'family',
     id: null,
-    label: 'Everyone in the family',
+    label: t('shell.everyoneFamily'),
     ...tally({ scope: 'family', regionId: null, chapterId: null }),
   })
 

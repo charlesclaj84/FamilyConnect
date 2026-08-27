@@ -2,6 +2,7 @@ import { requireStaffOwner } from '@/lib/auth/staff'
 import { listStaffTeam } from '@/app/actions/staff/access'
 import { StaffAccessClient } from '@/components/staff/StaffAccessClient'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
 
 export const metadata = { title: 'Access' }
 
@@ -67,6 +68,7 @@ export const metadata = { title: 'Access' }
  * feature has a chapter in a manual that documents the member product.
  */
 export default async function StaffAccessPage() {
+  const { t } = await callerI18n(null)
   await requireStaffOwner()
 
   const team = await listStaffTeam()
@@ -75,11 +77,7 @@ export default async function StaffAccessPage() {
     <PageShell className="space-y-6">
       <div>
         <h1 className="mb-1 text-3xl font-bold">Access</h1>
-        <p className="max-w-3xl text-muted-foreground">
-          Everybody who can open this console, and what kind of access they have. Only an
-          owner can see this page or change anything on it — everyone else gets a 404, the
-          same answer the console gives a customer. The very first owner on a new database
-          still comes from <code className="rounded bg-muted px-1 py-0.5 text-xs">supabase/scripts/grant_staff.sql</code>,
+        <p className="max-w-3xl text-muted-foreground">{t('stf.everybodyWhoCanOpen')}<code className="rounded bg-muted px-1 py-0.5 text-xs">supabase/scripts/grant_staff.sql</code>,
           because there has to be somebody able to open this screen before it can grant
           anything.
         </p>

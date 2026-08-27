@@ -109,10 +109,7 @@ export function MyTasksClient({ initialTasks, today }: MyTasksClientProps) {
       // A SENTENCE, NEVER AN EMPTY TABLE. "No rows" over a set of column headings reads as a
       // screen that failed to load; this says what is true, which is that nobody has asked
       // this member for anything yet.
-      <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-        Nothing is assigned to you at the moment. When an organizer hands you part of a
-        gathering, it appears here with what to send back and by when.
-      </p>
+      <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">{t('gath.nothingAssignedMomentWhen')}</p>
     )
   }
 

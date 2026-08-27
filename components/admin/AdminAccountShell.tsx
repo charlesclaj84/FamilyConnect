@@ -385,11 +385,7 @@ export function AdminAccountShell({
   // render an empty rail beside an empty pane and let them wonder what broke.
   if (visibleGroups.length === 0) {
     return (
-      <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-        You can open Accounting, but none of its sections have been shared with you.
-        Ask an administrator for access to the areas you need — dues, donations, funds,
-        routing, milestones or payment settings are each granted separately.
-      </div>
+      <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">{t('adm.canOpenAccountingBut')}</div>
     )
   }
 
@@ -624,15 +620,8 @@ function BankInfoPanel() {
     <div className="rounded-xl border bg-card p-8 text-center space-y-3">
       <Banknote className="h-8 w-8 mx-auto text-muted-foreground" />
       <p className="text-sm font-medium">{t('acct.noBank')}</p>
-      <p className="text-sm text-muted-foreground max-w-md mx-auto">
-        The account dues are deposited into, and that disbursements and event expenses
-        are paid from, will be recorded here — so the numbers on a check or a transfer
-        do not have to be looked up somewhere else.
-      </p>
-      <p className="text-xs text-muted-foreground">
-        Not yet available. Account details need encrypted storage and a narrower
-        permission than Accounting before they can be kept here.
-      </p>
+      <p className="text-sm text-muted-foreground max-w-md mx-auto">{t('adm.accountDuesDepositedInto')}</p>
+      <p className="text-xs text-muted-foreground">{t('adm.notYetAvailableAccount')}</p>
     </div>
   )
 }

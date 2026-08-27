@@ -189,10 +189,7 @@ export function MemberPositionDialog({
             {positions.length === 0 ? (
               // A DEAD END WITH A WAY OUT. The family has no offices, so there is nothing to
               // give — and the place to fix that is a tab away, so the sentence names it.
-              <p className="text-sm text-muted-foreground">
-                Your family has not set up any board positions yet. Add them under
-                Members &amp; Access → Organization, then come back.
-              </p>
+              <p className="text-sm text-muted-foreground">{t('adm.familyNotSetUp')}</p>
             ) : (
               <>
                 <div className="space-y-1.5">

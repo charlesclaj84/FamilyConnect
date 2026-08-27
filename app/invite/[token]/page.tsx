@@ -7,6 +7,7 @@ import { InviteMismatchActions } from '@/components/invitations/InviteMismatchAc
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { APP_NAME } from '@/lib/brand'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * `noindex`, on top of the `Disallow: /invite/` already in robots.txt.
@@ -105,23 +106,18 @@ export default async function InvitePage({
   const invitation = await peekInvitation(token)
 
   const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
 
   if (!invitation.valid) {
     return (
       <Shell>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Ban className="h-4 w-4" /> This invitation is not valid
-          </CardTitle>
-          <CardDescription>
-            It may have expired, been cancelled, or already been used. Ask whoever
-            invited you to send a new one.
-          </CardDescription>
+            <Ban className="h-4 w-4" />{t('inv.invitationNotValid')}</CardTitle>
+          <CardDescription>{t('inv.mayExpiredBeenCancelled')}</CardDescription>
         </CardHeader>
         <CardContent>
-          <Link href="/login" className="text-sm font-medium text-primary hover:underline">
-            Go to sign in
-          </Link>
+          <Link href="/login" className="text-sm font-medium text-primary hover:underline">{t('inv.goSign')}</Link>
         </CardContent>
       </Shell>
     )
@@ -175,23 +171,17 @@ export default async function InvitePage({
               <Link
                 href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}
                 className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
-              >
-                Sign in to accept
-              </Link>
+              >{t('inv.signAccept')}</Link>
             ) : (
               <>
                 <Link
                   href={`/register?invite=${encodeURIComponent(token)}`}
                   className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
-                >
-                  Create an account
-                </Link>
+                >{t('inv.createAccount')}</Link>
                 <Link
                   href={`/login?next=${encodeURIComponent(`/invite/${token}`)}`}
                   className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
-                >
-                  Sign in
-                </Link>
+                >{t('inv.sign')}</Link>
               </>
             )}
           </div>
@@ -206,8 +196,7 @@ export default async function InvitePage({
       <Shell>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <AtSign className="h-4 w-4" /> This invitation is for a different address
-          </CardTitle>
+            <AtSign className="h-4 w-4" />{t('inv.invitationDifferentAddress')}</CardTitle>
           <CardDescription>
             It was sent to{' '}
             <span className="font-medium text-foreground">{invitation.email}</span>, and only
@@ -231,9 +220,7 @@ export default async function InvitePage({
 
           <InviteMismatchActions token={token} />
 
-          <Link href="/dashboard" className="inline-block text-sm font-medium text-primary hover:underline">
-            Go to your dashboard
-          </Link>
+          <Link href="/dashboard" className="inline-block text-sm font-medium text-primary hover:underline">{t('inv.goDashboard')}</Link>
         </CardContent>
       </Shell>
     )
@@ -249,14 +236,11 @@ export default async function InvitePage({
       <Shell>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Ban className="h-4 w-4" /> Could not accept this invitation
-          </CardTitle>
+            <Ban className="h-4 w-4" />{t('inv.couldNotAcceptInvitation')}</CardTitle>
           <CardDescription>{result.message}</CardDescription>
         </CardHeader>
         <CardContent>
-          <Link href="/dashboard" className="text-sm font-medium text-primary hover:underline">
-            Go to your dashboard
-          </Link>
+          <Link href="/dashboard" className="text-sm font-medium text-primary hover:underline">{t('inv.goDashboard')}</Link>
         </CardContent>
       </Shell>
     )

@@ -535,10 +535,7 @@ export function AdminGatheringDetailClient({
         <section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5">
           <div>
             <h2 className="text-lg">{t('agat.details')}</h2>
-            <p className="text-sm text-muted-foreground">
-              Status is a statement rather than something the calendar works out: a gathering can
-              be cancelled without moving its dates, and Complete is your word for it.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('adm.statusStatementRatherThan')}</p>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -637,11 +634,7 @@ export function AdminGatheringDetailClient({
             />
             <span className="text-sm font-medium">{t('agat.showAcrossTop')}</span>
           </label>
-          <p className="text-sm text-muted-foreground">
-            Several gatherings may be flagged at once — the Dashboard shows the soonest one that
-            has not finished yet, so last year’s reunion never blocks this year’s. Nothing
-            appears there when no flagged gathering is still upcoming.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('adm.severalGatheringsMayFlagged')}</p>
           <FormError message={premierError} />
 
           {/* ── THE PHOTOGRAPH ──────────────────────────────────────────────────────────
@@ -655,11 +648,7 @@ export function AdminGatheringDetailClient({
               behind it. */}
           <div className="space-y-2 border-t pt-4">
             <h3 className="text-sm font-medium">{t('agat.bandPhoto')}</h3>
-            <p className="text-sm text-muted-foreground">
-              One photograph, cropped to the band’s shape. Without one the band draws the
-              GENORRA tree instead. Anyone with the link can view an uploaded photo, the same as
-              a family photo — so it is published to whoever it is shared with.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('adm.onePhotographCroppedBand')}</p>
 
             {gathering.photoUrl && (
               <div className="flex items-center gap-3">
@@ -668,7 +657,7 @@ export function AdminGatheringDetailClient({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={gathering.photoUrl}
-                  alt="The photo currently on the Dashboard band"
+                  alt={t('adm.photoCurrentlyDashboardBand')}
                   className="h-16 w-24 rounded-md border object-cover"
                 />
                 <Button
@@ -735,11 +724,7 @@ export function AdminGatheringDetailClient({
                 label={t('agat.fundHelp')}
               />
             </div>
-            <p className="text-sm text-muted-foreground">
-              A budget is always drawn on a fund, and it may exceed what that fund holds — the
-              figures say so rather than refusing it, because a family plans a reunion before it
-              has raised the money for one.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('adm.budgetAlwaysDrawnFund')}</p>
           </div>
           {/* Read-only, and shared with the member-facing gathering page so the two cannot
               disagree about what the money says. */}
@@ -778,13 +763,7 @@ export function AdminGatheringDetailClient({
       <section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5">
         <div>
           <h2 className="text-lg">{t('agat.segments')}</h2>
-          <p className="text-sm text-muted-foreground">
-            A gathering is made of parts, and each is an occasion of its own: a reunion is the
-            Welcome, the Picnic and the Send Off, on their own days in their own places. Every
-            template you add is one of those, and its steps become tasks here. Nothing about the
-            template reaches the tasks already on this gathering — each one keeps its own copy of
-            what it asked.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('adm.gatheringMadePartsEach')}</p>
         </div>
         {usedTemplates.length === 0 ? (
           <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
@@ -880,10 +859,7 @@ export function AdminGatheringDetailClient({
                 <Plus className="h-4 w-4" /> {isPending ? t('action.adding') : t('agat.addSteps')}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Both are optional. Leave the day empty for a gathering that happens all at once, and
-              the place empty to use whatever the template usually uses.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('adm.bothOptionalLeaveDay')}</p>
           </div>
         )}
         {/* WITHHELD, NOT DESTRUCTIVE, and not a `FormError`: this arrives beside `success: true`
@@ -1595,10 +1571,7 @@ function TaskDialog({
                   disabled={isPending}
                   onChange={e => setAmount(e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground">
-                  What this one task is expected to cost. Empty means it costs the family
-                  nothing. The lines together are what the band above compares to the budget.
-                </p>
+                <p className="text-xs text-muted-foreground">{t('adm.whatOneTaskExpected')}</p>
                 <Button disabled={!budgetDirty || isPending} onClick={handleSaveBudget}>
                   {isPending ? t('action.saving') : t('agat.saveBudgetLine')}
                 </Button>

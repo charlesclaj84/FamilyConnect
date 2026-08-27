@@ -101,7 +101,7 @@ export default async function RegisterPage({
     return (
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle as="h1" className="text-2xl">You already have an account</CardTitle>
+          <CardTitle as="h1" className="text-2xl">{t('auth.alreadyAccount')}</CardTitle>
           <CardDescription>
             <span className="font-medium">{invitation.email}</span> is already registered
             with {APP_NAME}, so there is nothing to create. Sign in and you will come
@@ -113,9 +113,7 @@ export default async function RegisterPage({
           <Link
             href={`/login?next=${encodeURIComponent(`/invite/${invite}`)}`}
             className="inline-flex rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
-          >
-            Sign in to accept
-          </Link>
+          >{t('auth.signAccept')}</Link>
         </CardContent>
       </Card>
     )

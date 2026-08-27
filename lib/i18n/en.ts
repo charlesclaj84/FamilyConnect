@@ -2989,4 +2989,726 @@ export const en: Catalogue = {
     + 'admin to merge.',
   'act.yourEmailAddressAlreadyConfirmed': 'Your email address is already confirmed.',
   'act.yourMembershipAwaitingApproval': 'Your membership is awaiting approval.',
+
+  // ── THE DASHBOARD'S OWN COPY ────────────────────────────────────────────────────
+  // 305 strings across 96 files, keyed on 2026-08-27: panel ledes, dialog hints, empty
+  // states, column headings, placeholders and the four `aria-label`s a screen reader needs.
+  // Every one was found by `npm run i18n:literals`, which counts what a reader would see in
+  // English and is the only thing in the tree that can — `i18n:check` proves every KEY is
+  // consistent and is structurally blind to a string nobody keyed.
+  //
+  // ── THE PREFIX IS THE SURFACE, NOT THE FILE ─────────────────────────────────────
+  // `tx.` is Transactions wherever it is rendered from, `dues.` is the projections screen,
+  // `stf.` is the Staff console. A page and the component it renders share a prefix, because
+  // the reader does not know which of them a sentence came from and a key that follows the
+  // file tree would move whenever a component did.
+  //
+  // A HANDFUL ARE DELIBERATELY IDENTICAL ACROSS PREFIXES — `Back to Elections` is both
+  // `adm.backElections` and `comm.backElections`, `Family Tree` is three keys. They are not
+  // deduplicated: the administrator's Elections and the member's are different screens, and a
+  // language that wanted a different register for one of them can have it.
+  'auth.alreadyAccount': 'You already have an account',
+  'auth.signAccept': 'Sign in to accept',
+  'auth.linkNoLongerValid': 'That link is no longer valid',
+  'auth.resetLinksWorkOnce': 
+    'Reset links work once and expire after an hour. Request a new one and it '
+    + 'will arrive in a moment.',
+  'auth.sendMeNewLink': 'Send me a new link',
+  'acct.noneSectionsSummaryBeen': 
+    'None of the sections of Summary have been shared with you. Ask an '
+    + 'administrator for access to the ones you need — your dues, the donation '
+    + 'drives, your payment history and the family\'s funds are each granted '
+    + 'separately.',
+  'acct.seeAllDues': 'See all your dues',
+  'acct.seeFullPaymentHistory': 'See your full payment history',
+  'acct.openDonationDrives': 'Open donation drives',
+  'adm.backElections': 'Back to Elections',
+  'adm.weCouldNotLoad': 'We could not load this family’s details. Try again in a moment.',
+  'comm.unableLoadChat': 'Unable to load chat',
+  'comm.makeSureChatMigration': 'Make sure the chat migration has been applied in your Supabase project.',
+  'comm.familyTree': 'Family Tree',
+  'comm.noElectionsPartFamily': 'No elections for your part of the family yet.',
+  'comm.backElections': 'Back to Elections',
+  'comm.noVotesCast': 'No votes cast.',
+  'comm.allAlbums': 'All albums',
+  'shell.somethingWentWrong': 'Something went wrong',
+  'shell.weCouldnTLoad': 'We couldn\'t load this page. This is usually temporary — please try again.',
+  'shell.tryAgain': 'Try again',
+  'shell.backDashboard': 'Back to dashboard',
+  'gath.backGatherings': 'Back to Gatherings',
+  'hlp.creatingJoiningFamily': 'Creating or joining a family',
+  'hlp.allHelp': 'All help',
+  'hlp.page': 'On this page',
+  'hlp.moreManual': 'More of the manual',
+  'lib.allMeetings': 'All meetings',
+  'lib.officerSJournalMembers': 
+    'An officer’s journal is for members who hold an office, and you do not '
+    + 'hold one yet.',
+  'lib.everyOfficeFamilyNotebook': 
+    'Every office in the family has a notebook of its own — what a treasurer '
+    + 'worked out about the bank, what an events chair learned about the hall. '
+    + 'It belongs to the office rather than to the person, so it is still there '
+    + 'for whoever comes next.',
+  'lib.membersAccessBoardPositions': 'Members & Access › Board Positions',
+  'shell.loading': 'Loading…',
+  'shell.pageNotFound': 'Page not found',
+  'shell.pageReLookingDoesn': 'The page you\'re looking for doesn\'t exist or may have moved.',
+  'prof.requestJoin': 'Your request to join',
+  'prof.membership': 'Your membership of',
+  'rep.everyOffice': 'Every office',
+  'rep.everyBoardPositionFamily': 'Every board position in the family’s own order, with who holds it.',
+  'rep.held': 'Held by',
+  'rep.holdingMoreThanOne': 'Holding more than one office',
+  'rep.notProblemItselfSmall': 
+    'Not a problem in itself — a small chapter often has one person doing two '
+    + 'jobs. It is here because it is usually the sign of a gap somebody has '
+    + 'quietly covered.',
+  'rep.wearingTwoHats': 'Wearing two hats',
+  'rep.everyPublishedElectionIts': 'Every published election with its phase, nominations and turnout.',
+  'rep.turnoutCountsPeopleNot': 
+    'Turnout counts PEOPLE, not ballots: somebody voting for three offices in '
+    + 'one election is one voter. An election whose area holds no approved '
+    + 'members reads',
+  'rep.officesNobodyStood': 'Offices nobody stood for',
+  'rep.membersWhoVoted': 'Members who have voted',
+  'rep.everyGatheringItsTask': 'Every gathering with its task progress and, where shown, its budget.',
+  'rep.taskCountsOverdueWhen': 
+    'A task counts as overdue when its date has passed and nobody has '
+    + 'approved it — one that has been submitted and not yet ruled on is still '
+    + 'outstanding.',
+  'rep.tasksApproved': 'Tasks approved',
+  'rep.nobodyHolding': 'Nobody holding it',
+  'rep.everyMeeting': 'Every meeting',
+  'rep.everyMeetingMostRecent': 'Every meeting, most recent first, with its room size, topics and votes.',
+  'rep.minutes': 'Minutes by',
+  'rep.room': 'In the room',
+  'rep.whoTakesPart': 'Who takes part',
+  'rep.everyRelativeWhoBeen': 
+    'Every relative who has been asked to a meeting, with how many they were '
+    + 'asked to, how many they voted in, and how many they took the minutes of.',
+  'rep.asked': 'Asked to',
+  'rep.voted': 'Voted in',
+  'rep.votesCast': 'Votes cast',
+  'stf.staffConsole': 'Staff Console',
+  'stf.readsAcrossEveryFamily': 'Reads across every family on the platform',
+  'stf.backApp': 'Back to the app',
+  'stf.pageNotFound': 'Page not found',
+  'stf.thereNothingAddress': 'There is nothing at this address.',
+  'stf.everybodyWhoCanOpen': 
+    'Everybody who can open this console, and what kind of access they have. '
+    + 'Only an owner can see this page or change anything on it — everyone else '
+    + 'gets a 404, the same answer the console gives a customer. The very first '
+    + 'owner on a new database still comes from',
+  'stf.everyAccountCanSign': 
+    'Every account that can sign in, listed from the authentication service '
+    + 'rather than from any family’s records — so an account that belongs to '
+    + 'nothing, which is one of the ways “it does not work” happens, still '
+    + 'appears here.',
+  'stf.everyFamilyPlatformWhatever': 
+    'Every family on the platform, whatever plan it is on and whether or not '
+    + 'it has been removed. Removing a family happens in the product, behind a '
+    + 'code emailed to the administrator doing it; putting one back happens '
+    + 'only here.',
+  'stf.crossFamilyToolsAnswering': 
+    'Cross-family tools for answering a support ticket. Everything here reads '
+    + 'every family on the platform, not one — and the only thing it can change '
+    + 'is putting a removed family back.',
+  'stf.accessConsole': 'Access to this console',
+  'stf.staffAccessRow': 'Staff access is a row in',
+  'stf.anybodyWithoutRowGets': 
+    'Anybody without a row gets a 404 on every page here, which is why the '
+    + 'console never says “not authorized”. There is no family-facing '
+    + 'permission for any of this: staffness is orthogonal to the family '
+    + 'permission model, so no family administrator can see that these screens '
+    + 'exist.',
+  'shell.everyoneFamily': 'Everyone in the family',
+  'inv.invitationNotValid': 'This invitation is not valid',
+  'inv.mayExpiredBeenCancelled': 
+    'It may have expired, been cancelled, or already been used. Ask whoever '
+    + 'invited you to send a new one.',
+  'inv.goSign': 'Go to sign in',
+  'inv.signAccept': 'Sign in to accept',
+  'inv.createAccount': 'Create an account',
+  'inv.sign': 'Sign in',
+  'inv.invitationDifferentAddress': 'This invitation is for a different address',
+  'inv.goDashboard': 'Go to your dashboard',
+  'inv.couldNotAcceptInvitation': 'Could not accept this invitation',
+  'ui.familyNotConnectedCard': 
+    'Your family has not connected a card processor yet, so drives cannot be '
+    + 'given to online. Hand your gift to whoever keeps the books and it '
+    + 'appears here once they record it.',
+  'ui.onePaymentItemizedDue': 
+    'One payment, itemized by due. It posts to the family’s books the moment '
+    + 'it clears — there is nothing for anyone to key in afterwards.',
+  'ui.familyNotConnectedCard2': 
+    'Your family has not connected a card processor yet. Pay by whatever '
+    + 'means your family already uses, and it appears here once an '
+    + 'administrator records it.',
+  'adm.howFamilyDividesItself': 
+    'How the family divides itself up geographically. A chapter belongs to '
+    + 'one region, or it sits under National — which is where everything starts '
+    + 'and where a member with no chapter stays. Dues can be scoped to a region '
+    + 'or a chapter under',
+  'adm.nothingSetHereFeature': 
+    'Nothing to set here — this feature is either always available or '
+    + 'governed by the rows above it.',
+  'adm.canOpenAccountingBut': 
+    'You can open Accounting, but none of its sections have been shared with '
+    + 'you. Ask an administrator for access to the areas you need — dues, '
+    + 'donations, funds, routing, milestones or payment settings are each '
+    + 'granted separately.',
+  'adm.accountDuesDepositedInto': 
+    'The account dues are deposited into, and that disbursements and event '
+    + 'expenses are paid from, will be recorded here — so the numbers on a '
+    + 'check or a transfer do not have to be looked up somewhere else.',
+  'adm.notYetAvailableAccount': 
+    'Not yet available. Account details need encrypted storage and a narrower '
+    + 'permission than Accounting before they can be kept here.',
+  'adm.notYetAcceptedCancelling': 
+    'Not yet accepted. Cancelling one stops the link working — worth doing if '
+    + 'it went to the wrong address, since only that address can use it.',
+  'adm.theyAlreadyAccountBut': 
+    'They already have an account but never confirmed their email address, so '
+    + 'they could not have signed in to accept. We have asked for the '
+    + 'confirmation email to be sent again as well — they need to click that '
+    + 'one first.',
+  'adm.theirAccountConfirmedSo': 
+    'Their account is confirmed, so the link will take them straight to '
+    + 'sign-in and join.',
+  'adm.thereNoAccountAddress': 
+    'There is no account for that address yet, so the link will take them to '
+    + 'create one. They will not need the family code.',
+  'adm.weCouldNotCheck': 
+    'We could not check whether that address has an account, so if they still '
+    + 'cannot get in, it is worth asking whether they ever confirmed their '
+    + 'email.',
+  'adm.keptRatherThanDeleted': 
+    'Kept rather than deleted, so the record of the decision survives. You '
+    + 'can admit somebody after all, and any member can send them a fresh '
+    + 'invitation.',
+  'adm.onlyPartFamilyCan': 
+    'Only this part of the family can see the election, be nominated, or vote '
+    + '— and it can only fill offices recorded at the same level.',
+  'adm.bothDaysCountNominations': 
+    'Both days count — nominations are open from the first through the last, '
+    + 'unless voting opens on the closing day, in which case they shut as it '
+    + 'opens. The closing date cannot be earlier than the day after they open.',
+  'adm.votingMayOpenSame': 
+    'Voting may open on the same day nominations close, and that day then '
+    + 'belongs to voting. It may not open before.',
+  'adm.whatFundToppedUp': 
+    'What this fund is topped up to before any fund below it receives '
+    + 'anything. You can change it, and the order funds fill in, under '
+    + 'Funds → Routing.',
+  'adm.milestoneAwardedOutFund': 
+    'A milestone is awarded out of a fund, and there are none yet. Add a fund '
+    + 'under Funds → Balances first.',
+  'adm.setShareEachDues': 
+    'Set the share of each dues payment that flows to each fund. Funds higher '
+    + 'in the list fill first; a fund below its minimum is topped up before '
+    + 'lower ones receive anything.',
+  'adm.statusStatementRatherThan': 
+    'Status is a statement rather than something the calendar works out: a '
+    + 'gathering can be cancelled without moving its dates, and Complete is '
+    + 'your word for it.',
+  'adm.severalGatheringsMayFlagged': 
+    'Several gatherings may be flagged at once — the Dashboard shows the '
+    + 'soonest one that has not finished yet, so last year’s reunion never '
+    + 'blocks this year’s. Nothing appears there when no flagged gathering is '
+    + 'still upcoming.',
+  'adm.onePhotographCroppedBand': 
+    'One photograph, cropped to the band’s shape. Without one the band draws '
+    + 'the GENORRA tree instead. Anyone with the link can view an uploaded '
+    + 'photo, the same as a family photo — so it is published to whoever it is '
+    + 'shared with.',
+  'adm.budgetAlwaysDrawnFund': 
+    'A budget is always drawn on a fund, and it may exceed what that fund '
+    + 'holds — the figures say so rather than refusing it, because a family '
+    + 'plans a reunion before it has raised the money for one.',
+  'adm.gatheringMadePartsEach': 
+    'A gathering is made of parts, and each is an occasion of its own: a '
+    + 'reunion is the Welcome, the Picnic and the Send Off, on their own days '
+    + 'in their own places. Every template you add is one of those, and its '
+    + 'steps become tasks here. Nothing about the template reaches the tasks '
+    + 'already on this gathering — each one keeps its own copy of what it '
+    + 'asked.',
+  'adm.bothOptionalLeaveDay': 
+    'Both are optional. Leave the day empty for a gathering that happens all '
+    + 'at once, and the place empty to use whatever the template usually uses.',
+  'adm.whatOneTaskExpected': 
+    'What this one task is expected to cost. Empty means it costs the family '
+    + 'nothing. The lines together are what the band above compares to the '
+    + 'budget.',
+  'adm.photoCurrentlyDashboardBand': 'The photo currently on the Dashboard band',
+  'adm.nothingWaitingReviewTask': 
+    'Nothing is waiting for review. A task appears here the moment the '
+    + 'relative it was handed to submits an answer.',
+  'adm.templateChecklistHandedOut': 
+    'A template is a checklist handed out as tasks — somebody who can author '
+    + 'templates has to add the first.',
+  'adm.budgetAlwaysDrawnFund2': 
+    'A budget is always drawn on a fund. It may exceed what the fund holds — '
+    + 'the gathering says so in red rather than refusing it.',
+  'adm.severalGatheringsMayFlagged2': 
+    'Several gatherings may be flagged at once — the Dashboard shows the '
+    + 'soonest one that has not finished, so last year’s reunion never blocks '
+    + 'this year’s.',
+  'adm.everyStepTemplateBecomes': 
+    'Every step of that template becomes a task of its own here, in its own '
+    + 'order, at this point in the list. Nobody answers this step — it is the '
+    + 'checklist, not a question. A template cannot include itself, or anything '
+    + 'that leads back to it.',
+  'adm.startingFigureCopiedOnto': 
+    'A starting figure copied onto the task. An organizer can change it on '
+    + 'the gathering, and the money that counts is the gathering’s own budget.',
+  'adm.onePerThingSomebody': 
+    'One per thing somebody has to do or decide, in the order they will be '
+    + 'handed out. They are copied onto the tasks of every gathering scheduled '
+    + 'from this template, so editing one here never changes a gathering '
+    + 'already running.',
+  'adm.whatEachMemberEncouraged': 
+    'What each member is encouraged to reach. Advisory — members give what '
+    + 'they like, and may go past it.',
+  'adm.driveMembersCanGive': 
+    'A drive members can give to between two dates. Nobody owes it, and it '
+    + 'never counts against a member’s balance.',
+  'adm.groupChaptersTexasEastern': 
+    'A group of chapters — “Texas”, “Eastern”, “Southeast”. Optional: a '
+    + 'family can run on chapters alone, or on neither.',
+  'adm.noChaptersYetUntil': 
+    'No chapters yet. Until there are, every member is under National and '
+    + 'owes only the family-wide dues.',
+  'adm.chapterSRegionDecides': 
+    'A chapter’s region decides which regional dues its members owe. You can '
+    + 'move a chapter to another region at any time from the',
+  'adm.billingCouldNotLoaded': 
+    'Billing could not be loaded. Refresh the page — do not start a new '
+    + 'payment on the Plan tab until it appears, in case this family already '
+    + 'has one.',
+  'adm.termEndedPayAgain': 
+    'This term has ended. Pay again on the Plan tab to reopen the pages it '
+    + 'covered — every record is still here.',
+  'adm.stripeSOwnPortal': 
+    'Stripe’s own portal, where the card on file is changed and every invoice '
+    + 'can be downloaded.',
+  'adm.canSeeWhatFamily': 
+    'You can see what this family pays but not change it. Ask an '
+    + 'administrator with Settings access.',
+  'adm.nominationNobodyAnsweredNot': 
+    'A nomination nobody has answered is not on the ballot. Only accepted '
+    + 'candidates can be voted for.',
+  'adm.whatFamilyCalledEverywhere': 
+    'What this family is called everywhere in the app — the switcher, the '
+    + 'dashboard, and the emails inviting people to join. Changing it moves '
+    + 'nothing else: the family code below is what every record is filed under.',
+  'adm.whereFamilyDecidesWhether': 
+    'Where the family is. This decides whether a gathering has finished, '
+    + 'whether a task is overdue and when an election closes — the answers '
+    + 'every member has to agree on. It does not change the times on a '
+    + 'gathering, which are always shown as they were typed, or your own dates, '
+    + 'which follow My Profile.',
+  'adm.canSeePageBut': 
+    'You can see this page but not change the name. Ask an administrator for '
+    + 'the Settings permission.',
+  'adm.shareRelativesSoThey': 
+    'Share this with relatives so they can join. Everyone who joins waits in '
+    + 'Pending Approval until somebody admits them.',
+  'adm.codeCannotChangedFamily': 
+    'The code cannot be changed, and a family cannot be deleted. Every record '
+    + 'in the family — dues, funds, events, chat, members — is filed under this '
+    + 'code, and nothing in the database points back the other way, so changing '
+    + 'it would leave the family holding none of its own history.',
+  'adm.switchesFamilyOffEverybody': 
+    'Switches the family off for everybody in it. Nobody can open it, the '
+    + 'family code stops working, and outstanding invitations stop being '
+    + 'accepted.',
+  'adm.familyNotSetUp': 
+    'Your family has not set up any board positions yet. Add them under '
+    + 'Members & Access → Organization, then come back.',
+  'adm.cannotSeeSetMember': 
+    'You cannot see or set this member’s password. Send them a link and they '
+    + 'choose a new one themselves; the current one keeps working until they '
+    + 'do.',
+  'adm.billingStartsWhenTerm': 
+    'Billing starts when the term you have already paid for ends. Nothing is '
+    + 'charged today.',
+  'adm.canSeePlanBut': 
+    'You can see the plan but not change it. Ask an administrator for the '
+    + 'Settings permission.',
+  'adm.refreshPageIfKeeps': 
+    'Refresh the page. If this keeps happening, do not try to connect an '
+    + 'account — ask an administrator to check, because the family may already '
+    + 'have one.',
+  'adm.duesRecordedHandFrom': 
+    'Dues are recorded by hand from the Transactions ledgers in the meantime, '
+    + 'and every payment already recorded stays exactly where it is.',
+  'adm.anyRecurringPaymentsRunning': 
+    'Any recurring payments that were running were cancelled at Stripe when '
+    + 'this was disconnected. Those cannot be restarted — each of those '
+    + 'relatives will need to set their payment up again after you reconnect.',
+  'adm.accountBelongsFamilyNot': 
+    'The account belongs to the family, not to GENORRA. Money goes straight '
+    + 'to the family’s own bank, Stripe’s fees come out of the family’s side, '
+    + 'and the family keeps its own Stripe dashboard. GENORRA never sees or '
+    + 'stores a Stripe key and takes no cut of what the family collects.',
+  'adm.canSeeSectionBut': 
+    'You can see this section but not change it. Ask an administrator with '
+    + 'payment settings access to connect an account.',
+  'ui.optionalLeaveEmptyPin': 
+    'Optional. Leave it empty to pin until somebody unpins it. Each member '
+    + 'can dismiss it from their own updates whenever they like.',
+  'ui.willSeeMessageWhichever': 
+    'You will see this message whichever address you enter. We do not say '
+    + 'whether an account exists, because the family code needed to reach this '
+    + 'site is meant to be shared — and a form that answered would let anyone '
+    + 'holding one work out which of your relatives has registered.',
+  'ui.checkSpamFolderFirst': 
+    'Check the spam folder first, then try the address you registered with '
+    + 'rather than the one your family usually reaches you on. The link works '
+    + 'once and expires, so ask for a fresh one rather than reusing an old '
+    + 'email.',
+  'ui.accountConfirmedBeforeCan': 
+    'An account has to be confirmed before it can sign in. We sent a link '
+    + 'when it was registered — check the spam folder first, and use the newest '
+    + 'message: each link works once and expires after an hour.',
+  'ui.pickSomethingNotUsed': 
+    'Pick something you have not used here before. You will be signed in as '
+    + 'soon as it is saved.',
+  'ui.wholeWordsPhrasesLeading': 
+    'Whole words and phrases, and a leading minus excludes one. It reaches '
+    + 'inside a document only where the text could be read — see the badge on '
+    + 'each article.',
+  'ui.pastingTextWhatMakes': 
+    'Pasting the text is what makes an article searchable word by word. A PDF '
+    + 'or Word file is stored and downloadable, but its contents are not read '
+    + 'yet.',
+  'ui.familySRecordsNever': 
+    'Your family\'s records are never shared — no names, relationships, '
+    + 'birthdays, photographs or messages.',
+  'dash.familyMemberMayAlready': 
+    'A family member may have already added you. Find yourself below and link '
+    + 'your account to the existing record.',
+  'dash.familyMembers': 'Family Members',
+  'dash.pendingApproval': 'Pending Approval',
+  'dash.upcomingGatherings': 'Upcoming Gatherings',
+  'dash.addMember': 'Add Member',
+  'dash.recordPayment': 'Record Payment',
+  'dash.sendMessage': 'Send Message',
+  'dash.myTasks': 'My Tasks',
+  'dist.emailEveryoneFamilyOnce': 
+    'Email everyone in the family at once. The list of who gets it is your '
+    + 'membership — there is nothing to keep up to date, and nobody is on it '
+    + 'twice.',
+  'dist.newDistribution': 'New distribution',
+  'dist.canLeavePageSend': 'You can leave this page — the send carries on from where it got to.',
+  'dist.weCouldNotRead': 
+    'We could not read your distributions just now. Nothing has been lost — '
+    + 'try again in a moment.',
+  'dist.sent': 'Sent to',
+  'dist.sent2': 'Sent by',
+  'dist.tryAgain': 'Try again',
+  'dist.whoGoes': 'Who it goes to',
+  'dist.plainTextLeaveBlank': 
+    'Plain text. Leave a blank line between paragraphs. Replies come back to '
+    + 'your own email address, not to GENORRA.',
+  'dist.loading': 'Loading…',
+  'dist.whatSent': 'What was sent',
+  'dist.whoWent': 'Who it went to',
+  'dist.reunionDetails4th': 'Reunion details for the 4th',
+  'dist.waitingSend': 'Waiting to send',
+  'dist.couldNotDelivered': 'Could not be delivered',
+  'dist.noEmailAddressFile': 'No email address on file',
+  'dist.sharesAddress': 'Shares an address',
+  'dist.notSentStopped': 'Not sent — stopped',
+  'dist.emailsSentBeenSent':
+    'The emails that were sent have been sent. This removes the record of who was '
+    + 'emailed and what happened to each message, and it cannot be undone.',
+  'dues.schedule': 'By schedule',
+  'dues.noDuesSchedulesActive': 
+    'No dues schedules are active, so there is nothing to project. Add one '
+    + 'under Accounting → Dues.',
+  'dues.bloodlineOnly': 'Bloodline only',
+  'dues.bloodlineDescendsFrom': 'Bloodline descends from',
+  'dues.member': 'By member',
+  'dues.onlyThoseWhoOwe': 'Only those who owe',
+  'dues.nobodyFamilyBeenApproved': 
+    'Nobody in the family has been approved yet, so there is nothing to '
+    + 'project.',
+  'dues.noMembersMatchFilter': 'No members match that filter.',
+  'dues.eachScheduleMeasuredOver': 
+    'Each schedule is measured over its own year, so the totals are the sum '
+    + 'of them',
+  'dues.filterName': 'Filter by name…',
+  'dues.filterMembers': 'Filter members',
+  'dues.onlyMembersDescendedFrom': 'Only members descended from the family\'s line owe this.',
+  'dues.onlyMembersPartFamily': 
+    'Only members in this part of the family owe this due. A member with no '
+    + 'chapter is under National and owes nothing scoped.',
+  'dues.nothingPaid': 'Nothing paid',
+  'dues.partPaid': 'Part paid',
+  'dues.notYetDue': 'Not yet due',
+  'dues.notTheirs': 'Not theirs',
+  'dues.pendingInvite': 'Pending Invite',
+  'ui.putRelativeForwardAny': 
+    'Put a relative forward for any office below, or stand for one yourself. '
+    + 'You can take your own name off a nomination while nominations are open.',
+  'ui.standingOfficeYourselfNeeds': 
+    'Standing for an office yourself needs nobody else’s agreement, and it '
+    + 'counts as accepted straight away.',
+  'ui.theyGoTreeStraight': 
+    'They go on the tree straight away. We\'ll email them an invitation, and '
+    + 'when they accept it their account joins',
+  'ui.duesCanStartAge': 
+    'Dues can start at an age. Without a birthday we cannot tell when this '
+    + 'child starts owing them, and they would be billed as an adult.',
+  'ui.shouldRareWeGenerate': 
+    'This should be rare. We generate an address so the record can exist, and '
+    + 'we never send anything to it — so this person cannot sign in, and '
+    + 'nothing will reach them. If they might ever want an account, invite them '
+    + 'instead.',
+  'ui.everyoneWhoSharesAncestor': 
+    'Everyone who shares an ancestor with them is a blood relative; their '
+    + 'spouses are not.',
+  'ui.ifFamilySLine': 
+    'If your family\'s line runs through one of them, name that person '
+    + 'instead. Do not mark a real parent as step to get them out of the view — '
+    + 'they are a blood parent, and recording otherwise makes the tree wrong in '
+    + 'a way nothing else can correct.',
+  'ui.siblingsSharePersonS': 
+    'Siblings share this person\'s generation, so they are listed here rather '
+    + 'than drawn in the row above.',
+  'ui.onlyBloodLinksCarry': 
+    'Only blood links carry the bloodline, so this is what the Bloodline view '
+    + 'walks. Each connection is saved as you change it.',
+  'ui.decidesWhetherTheyFill': 
+    'This decides whether they fill the father or the mother slot, and lets '
+    + 'us name the connection back to them.',
+  'ui.gotEmailAddressNow': 
+    'Got an email address now? Send them an invitation. When they accept it, '
+    + 'their account joins',
+  'ui.familySPhotographsKept': 
+    'The family’s photographs, kept in albums. Tag who is in them so a cousin '
+    + 'can find themselves.',
+  'gath.budgetGatheringCouldNot': 
+    'The budget for this gathering could not be read just now. Nothing has '
+    + 'changed — reload the page to try again.',
+  'gath.noTasksYetGathering': 
+    'No tasks yet. A gathering’s tasks come from the templates it was built '
+    + 'from, so an organizer adding a template here adds its jobs to this list.',
+  'gath.everyStepEveryTemplate': 
+    'Every step of every template you choose becomes a task on this '
+    + 'gathering, ready to hand out. Choose none and this is a date on the '
+    + 'family calendar with no tasks — an organizer can build it out later.',
+  'gath.nothingAssignedMomentWhen': 
+    'Nothing is assigned to you at the moment. When an organizer hands you '
+    + 'part of a gathering, it appears here with what to send back and by when.',
+  'gath.runsOverMoreThan': 'Runs over more than one day',
+  'gath.startTime': 'Start time',
+  'gath.optional': 'Optional.',
+  'gath.leaveEmptyIfAll': 'Leave empty if it is all on one day.',
+  'gath.endTime': 'End time',
+  'gath.addAnotherDay': 'Add another day',
+  'gath.chooseTimezone': 'Choose a timezone…',
+  'gath.everyoneSeesTimeExactly': 
+    'Everyone sees the time exactly as you typed it, with this timezone named '
+    + 'beside it. Nothing is converted.',
+  'ui.weLlEmailThem': 
+    'We\'ll email them an invitation. Only this address can use it, and it '
+    + 'expires in 14 days. The name is what your family sees while they are '
+    + 'waiting to be admitted.',
+  'ui.invitationCreatedButWe': 
+    'The invitation was created, but we could not email it. Send them this '
+    + 'link instead — it works exactly the same.',
+  'ui.treatLikePasswordAnyone': 
+    'Treat it like a password — anyone who gets hold of it and has that email '
+    + 'address can use it. It is shown once.',
+  'shell.anythingTypedNotSaved': 
+    'Anything you have typed and not saved will be lost, so finish up or '
+    + 'carry on now.',
+  'shell.iMStillHere': 'I’m still here',
+  'shell.stillThere': 'Still there?',
+  'shell.familyTree': 'Family Tree',
+  'shell.meetingMinutes': 'Meeting Minutes',
+  'shell.officerNotes': 'Officer Notes',
+  'shell.duesDonations': 'Dues & Donations',
+  'shell.paymentHistory': 'Payment History',
+  'shell.duesProjections': 'Dues Projections',
+  'shell.pLSummary': 'P&L Summary',
+  'shell.boardOffices': 'Board & Offices',
+  'shell.howManual': 'How-To Manual',
+  'ui.theseMinutesClosedNothing': 
+    'These minutes are closed. Nothing about the meeting changes now — which '
+    + 'is what makes them the record.',
+  'ui.whatFamilyMetAbout': 
+    'What the family met about, who was there, and what was decided. The '
+    + 'secretary writes it down; the room votes.',
+  'ui.scheduleOneSayingWhat': 
+    'Schedule one by saying what kind of meeting it is — the whole family, a '
+    + 'chapter, a board, one office across every area, or just the people you '
+    + 'name — and everybody in the room is told and gets it on their calendar. '
+    + 'During the meeting the secretary adds a topic and writes notes under it, '
+    + 'and can call a vote the room answers.',
+  'ui.everyoneSeesTimeExactly': 
+    'Everyone sees the time exactly as you typed it, with this timezone named '
+    + 'beside it. Nothing is converted.',
+  'ui.administratorFamilySwitchedOff': 
+    'An administrator of this family switched it off. Nobody can open it, '
+    + 'join it or accept an invitation to it.',
+  'ui.everyPaymentFundPhotograph': 
+    'Every payment, fund, photograph, event, message, document and person is '
+    + 'exactly where it was. Removing a family closes its doors; it destroys no '
+    + 'records at all, and it did not touch your account or any other family '
+    + 'you belong to.',
+  'ui.onlyGenorraSupportCan': 
+    'Only GENORRA support can bring a family back — there is no button for it '
+    + 'anywhere in the product, on purpose. If this was not meant, ask whoever '
+    + 'administers the family to get in touch with support.',
+  'ui.requestBackTheirAdministrators': 
+    'Your request is back with their administrators, with your note attached. '
+    + 'They will see who declined it before and what you have said about it.',
+  'ui.sayWhoHowRelated': 
+    'Say who you are and how you are related, so whoever reviews it can place '
+    + 'you. This goes to the family\'s administrators.',
+  'ui.weSentConfirmationLink': 
+    'We sent a confirmation link when you signed up. Your request cannot be '
+    + 'approved until you have used it.',
+  'ui.weWillGenerateFamily': 
+    'We will generate a family code you can share. Your name and contact '
+    + 'details are copied from the profile you already have, and stay in step '
+    + 'across every family you belong to.',
+  'ui.shareRelativesSoThey': 
+    'Share this with your relatives so they can join. Everyone who joins '
+    + 'waits in Member Approvals until you admit them.',
+  'ui.profileDetailsSharedAcross': 
+    'Your profile details are shared across every family you belong to. '
+    + 'Choose which one opens when you log in, or switch the family you\'re '
+    + 'viewing now.',
+  'ui.familyAccountBelongsProfile': 
+    'The family this account belongs to. Your profile details are shared '
+    + 'across every family you join.',
+  'ui.switchedOffAdministratorNothing': 
+    'Switched off by an administrator. Nothing was deleted, and only GENORRA '
+    + 'support can bring it back.',
+  'prof.whatFamilyMayContact': 
+    'What your family may contact you about, and how. Everything here is '
+    + 'yours to set and nobody else can set it for you.',
+  'prof.chapterAppliesFamilyOnly': 
+    'Your chapter applies to this family only — the rest of your profile is '
+    + 'shared across every family you belong to. Changing it also moves any '
+    + 'sons or daughters under 18 who have no account of their own; everybody '
+    + 'else sets their own.',
+  'prof.canAlsoDecideWhat': 
+    'It can also decide what you owe: a family can attach dues to one region '
+    + 'or one chapter. Choosing nothing leaves you under National, owing the '
+    + 'family-wide dues and none of the local ones.',
+  'prof.sunsetDate': 'Sunset Date',
+  'prof.datesTimesProductRecords': 
+    'Dates and times the product records — when a payment was entered, when a '
+    + 'message was sent — are shown to you in this timezone.',
+  'prof.leaveEmptyWeFollow': 
+    'Leave this empty and we follow your browser. Translation is still in '
+    + 'progress, so some screens are English whichever language you choose.',
+  'prof.changeSignEmail': 'Change sign-in email',
+  'prof.passwordBeenChangedEvery': 
+    'Your password has been changed, and every other device signed in to this '
+    + 'account has been signed out. They will need the new password.',
+  'rep.everyApprovedMemberFamily': 
+    'Every approved member of the family, wherever they sit. Applicants still '
+    + 'waiting in the approvals queue are not counted, and neither are '
+    + 'relatives recorded as having died.',
+  'rep.lookingUpWhoGroup': 'Looking up who is in this group…',
+  'rep.whoGroupNotYours': 
+    'Who is in this group is not yours to see. The figures on the chart are; '
+    + 'the names need the Member Directory as well.',
+  'rep.theirRegionFollowsTheir': 
+    'Their region follows their chapter. Sons and daughters under eighteen '
+    + 'with no account of their own move with them.',
+  'rep.adultMinorWorkedOut': 
+    'Adult or minor is worked out from this every time the report loads; '
+    + 'nothing is stored about their age.',
+  'ui.relativeWhoNotTold': 
+    'A relative who has not told the family which chapter they are in is not '
+    + 'in any region, so they are not asked. Use',
+  'stf.staffListCouldNot': 
+    'The staff list could not be read. That is a refused query rather than an '
+    + 'empty team — you are on it, or this page would have answered 404 rather '
+    + 'than rendering. Try again in a moment, and check the server log for the '
+    + 'reason.',
+  'stf.addressBelongAccountAlready': 
+    'The address has to belong to an account that already exists. Somebody '
+    + 'who has never registered cannot be granted anything, and this screen '
+    + 'will say so rather than write a row for an id — which is why it asks for '
+    + 'an address and not for a user id.',
+  'stf.recordedRowShownList': 
+    'Recorded on the row and shown in the list above. It is the only thing '
+    + 'that will explain this grant to whoever reads the list in a year, which '
+    + 'is why it is required.',
+  'stf.pasteAddressFromTicket': 
+    'Paste the address from the ticket. This says whether an account exists '
+    + 'at all, whether it has ever been confirmed or used, and every family '
+    + 'record carrying that address — including one that was invited and never '
+    + 'joined.',
+  'stf.authenticationServiceDidNot': 
+    'The authentication service did not answer, so we do not know whether '
+    + 'this address has an account. That is a failed lookup, not a missing '
+    + 'account — try again.',
+  'stf.addressNeverBeenConfirmed': 
+    'The address has never been confirmed — that is what stops the sign-in. '
+    + 'Resending the confirmation is the fix.',
+  'stf.familyRecordsAddressCould': 
+    'The family records for this address could not be read — that is a '
+    + 'refused query rather than an address belonging to nothing.',
+  'stf.addressNoFamilyRecord': 
+    'This address is in no family record. An account with no family sees a '
+    + '404 on every page, which is what “it just does not work” looks like.',
+  'stf.accountListCouldNot': 
+    'The account list could not be read. That is the authentication service '
+    + 'refusing or timing out, not a platform with no accounts on it.',
+  'stf.familiesListCouldNot': 
+    'The families list could not be read. That is a refused query rather than '
+    + 'an empty platform — try again in a moment, and check the server log for '
+    + 'the reason.',
+  'tx.canOpenTransactionsBut': 
+    'You can open Transactions, but none of its ledgers have been shared with '
+    + 'you. Ask an administrator for access to the ones you need — dues, '
+    + 'donations, contributions, disbursements and transfers are each granted '
+    + 'separately.',
+  'tx.noContributionsYet': 'No contributions yet.',
+  'tx.noDisbursementsRecorded': 'No disbursements recorded.',
+  'tx.noTransfersBetweenFunds': 'No transfers between funds yet.',
+  'tx.noneSetUpYet': 'None set up yet — an admin adds these under Accounting.',
+  'tx.waivingForgivesDueNo': 
+    'Waiving forgives the due. No money changed hands, so there is no method '
+    + 'or reference to record.',
+  'tx.paymentMethod': 'Payment Method',
+  'tx.checkReference': 'Check # / Reference',
+  'tx.whoGave': 'Who gave it',
+  'tx.someoneSomethingElse': 'Someone or something else…',
+  'tx.nameSource': 'Name or source',
+  'tx.milestoneOptional': 'Milestone (optional)',
+  'tx.transferCannotEditedDeleted': 
+    'A transfer cannot be edited or deleted. If it is wrong, move the money '
+    + 'back — both entries stay on the ledger.',
+  'tx.check1043': 'Check #1043',
+  'tx.optionalNotes': 'Optional notes',
+  'tx.auntRubySEstate': 'Aunt Ruby\'s estate, 2026 reunion surplus…',
+  'tx.boardVote202608': 'Board vote 2026-08-12 — surplus moved to the scholarship fund',
+  'tx.newContribution': 'New Contribution',
+  'tx.newDisbursement': 'New Disbursement',
+  'tx.newTransfer': 'New Transfer',
+  'tx.recorded': 'Recorded by',
+  'tx.paymentMethod2': 'Payment method',
+  'tx.paid': 'Paid to',
+  'tx.fundMilestone': 'Fund / Milestone',
+  'tx.from': 'From → To',
+  'ui.stateProvince': 'State / Province',
+  'ui.profilePhoto': 'Profile photo',
+  'ui.confirmationCode': 'Confirmation code',
+  'ui.chosen': 'Chosen:',
+  'ui.nobodyMatches': 'Nobody matches that.',
+  'ui.searchName': 'Search by name…',
+  'ui.whoCanDoWhat': 'Who can do what',
+  'ui.farScrollingGoesThere': 
+    'That is as far as scrolling goes. There are older updates — search for a '
+    + 'word in one to find it.',
 }

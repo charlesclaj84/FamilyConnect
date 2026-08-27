@@ -234,10 +234,7 @@ export function PersonRecordDialog({
           <div className="space-y-4">
             <div>
               <Label>How {name} is related</Label>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Only blood links carry the bloodline, so this is what the Bloodline view
-                walks. Each connection is saved as you change it.
-              </p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('ui.onlyBloodLinksCarry')}</p>
             </div>
 
             {connections.map(connection => {
@@ -360,10 +357,7 @@ export function PersonRecordDialog({
                 <option key={g} value={g}>{GENDER_LABELS[g]}</option>
               ))}
             </select>
-            <p className="text-xs text-muted-foreground">
-              This decides whether they fill the father or the mother slot, and lets us
-              name the connection back to them.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('ui.decidesWhetherTheyFill')}</p>
           </div>
 
           <div className="flex items-center justify-end gap-3">
@@ -400,9 +394,7 @@ export function PersonRecordDialog({
                   spellCheck={false}
                 />
               </div>
-              <p className="text-sm text-muted-foreground">
-                Got an email address now? Send them an invitation. When they accept it,
-                their account joins <em>this</em> card instead of making a second one —
+              <p className="text-sm text-muted-foreground">{t('ui.gotEmailAddressNow')}<em>this</em> card instead of making a second one —
                 everything you have drawn around them stays. An administrator approves
                 them, the same as anybody joining from My Families.
               </p>

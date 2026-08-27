@@ -147,7 +147,7 @@ function kindCopy(t: T): Record<ScheduleKind, {
       noun: 'donation',
       title: t('inc.newDonation'),
       editTitle: t('inc.editDonation'),
-      blurb: 'A drive members can give to between two dates. Nobody owes it, and it never counts against a member’s balance.',
+      blurb: t('adm.driveMembersCanGive'),
       empty: t('inc.noDonations'),
       labelPlaceholder: t('inc.scholarshipDrive'),
       amountPlaceholder: '500.00',
@@ -359,10 +359,7 @@ function ScheduleFields({
           <Label required>{t('inc.goalAmount')}</Label>
           <Input type="number" min="0" step="0.01" value={form.goal}
             onChange={e => onChange({ goal: e.target.value })} placeholder={copy.amountPlaceholder} />
-          <p className="text-xs text-muted-foreground">
-            What each member is encouraged to reach. Advisory — members give what they
-            like, and may go past it.
-          </p>
+          <p className="text-xs text-muted-foreground">{t('adm.whatEachMemberEncouraged')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

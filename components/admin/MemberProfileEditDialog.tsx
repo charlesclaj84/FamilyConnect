@@ -484,10 +484,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
           {profile.hasAccount && (
             <section className="space-y-2 rounded-lg border bg-muted/30 p-4">
               <h3 className="text-sm font-semibold text-brand-ink">{t('mpe.signIn')}</h3>
-              <p className="text-sm text-muted-foreground">
-                You cannot see or set this member’s password. Send them a link and they
-                choose a new one themselves; the current one keeps working until they do.
-              </p>
+              <p className="text-sm text-muted-foreground">{t('adm.cannotSeeSetMember')}</p>
               <Button variant="outline" onClick={handleReset} disabled={resetting || saving}>
                 {resetting
                   ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />

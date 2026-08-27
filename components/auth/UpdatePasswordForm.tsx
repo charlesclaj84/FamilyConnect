@@ -85,10 +85,7 @@ export function UpdatePasswordForm() {
     <Card className="w-full max-w-md">
       <CardHeader>
         <CardTitle as="h1" className="text-2xl">{t('auth.chooseNew')}</CardTitle>
-        <CardDescription>
-          Pick something you have not used here before. You will be signed in as soon as
-          it is saved.
-        </CardDescription>
+        <CardDescription>{t('ui.pickSomethingNotUsed')}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

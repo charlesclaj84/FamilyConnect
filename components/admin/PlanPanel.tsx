@@ -573,10 +573,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
           the buttons a caller can see are absent for them and what to do about it — a fact
           about THEM that no amount of looking at the screen will produce. */}
       {!canEdit && (
-        <p className="mt-4 text-sm text-muted-foreground">
-          You can see the plan but not change it. Ask an administrator for the Settings
-          permission.
-        </p>
+        <p className="mt-4 text-sm text-muted-foreground">{t('adm.canSeePlanBut')}</p>
       )}
 
       {detail && (

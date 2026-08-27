@@ -231,10 +231,7 @@ export function GatheringDetailClient({ tasks, taskCounts, showTaskBudgets, segm
       </div>
 
       {taskCounts.total === 0 ? (
-        <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-          No tasks yet. A gathering&rsquo;s tasks come from the templates it was built from, so an
-          organizer adding a template here adds its jobs to this list.
-        </p>
+        <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">{t('gath.noTasksYetGathering')}</p>
       ) : groups.length === 0 ? (
         /* NEVER A SILENTLY SHORT LIST. The filter is the only thing that can empty a table that
            has rows, and saying so is what stops somebody concluding a task was deleted. */

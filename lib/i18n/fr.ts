@@ -3042,4 +3042,770 @@ export const fr: Catalogue = {
     + 'administrateur pour les fusionner.',
   'act.yourEmailAddressAlreadyConfirmed': 'Votre adresse électronique est déjà confirmée.',
   'act.yourMembershipAwaitingApproval': 'Votre adhésion est en attente d’approbation.',
+
+  // Les textes propres au tableau de bord. Voir la version anglaise pour le raisonnement.
+  'auth.alreadyAccount': 'Vous avez déjà un compte',
+  'auth.signAccept': 'Connectez-vous pour accepter',
+  'auth.linkNoLongerValid': 'Ce lien n’est plus valable',
+  'auth.resetLinksWorkOnce': 
+    'Les liens de réinitialisation ne fonctionnent qu’une fois et expirent au '
+    + 'bout d’une heure. Demandez-en un nouveau et il arrivera dans un instant.',
+  'auth.sendMeNewLink': 'Envoyez-moi un nouveau lien',
+  'acct.noneSectionsSummaryBeen': 
+    'Aucune des sections du Récapitulatif ne vous a été ouverte. Demandez à '
+    + 'un administrateur l’accès à celles dont vous avez besoin : vos '
+    + 'cotisations, les collectes, votre historique de paiements et les caisses '
+    + 'de la famille s’accordent séparément.',
+  'acct.seeAllDues': 'Voir toutes vos cotisations',
+  'acct.seeFullPaymentHistory': 'Voir tout votre historique de paiements',
+  'acct.openDonationDrives': 'Collectes en cours',
+  'adm.backElections': 'Retour aux Élections',
+  'adm.weCouldNotLoad': 
+    'Nous n’avons pas pu charger les informations de cette famille. Réessayez '
+    + 'dans un instant.',
+  'comm.unableLoadChat': 'Impossible de charger la messagerie',
+  'comm.makeSureChatMigration': 
+    'Vérifiez que la migration de la messagerie a bien été appliquée dans '
+    + 'votre projet Supabase.',
+  'comm.familyTree': 'Arbre généalogique',
+  'comm.noElectionsPartFamily': 'Aucune élection pour votre partie de la famille pour l’instant.',
+  'comm.backElections': 'Retour aux Élections',
+  'comm.noVotesCast': 'Aucun vote exprimé.',
+  'comm.allAlbums': 'Tous les albums',
+  'shell.somethingWentWrong': 'Quelque chose s’est mal passé',
+  'shell.weCouldnTLoad': 
+    'Nous n’avons pas pu charger cette page. C’est généralement temporaire — '
+    + 'réessayez.',
+  'shell.tryAgain': 'Réessayer',
+  'shell.backDashboard': 'Retour au tableau de bord',
+  'gath.backGatherings': 'Retour aux Rassemblements',
+  'hlp.creatingJoiningFamily': 'Créer une famille ou en rejoindre une',
+  'hlp.allHelp': 'Toute l’aide',
+  'hlp.page': 'Sur cette page',
+  'hlp.moreManual': 'Plus du manuel',
+  'lib.allMeetings': 'Toutes les réunions',
+  'lib.officerSJournalMembers': 
+    'Le carnet d’une fonction est réservé aux membres qui occupent une '
+    + 'fonction, et vous n’en occupez pas encore.',
+  'lib.everyOfficeFamilyNotebook': 
+    'Chaque fonction de la famille a son propre carnet : ce qu’un trésorier a '
+    + 'compris de la banque, ce qu’un responsable des événements a appris de la '
+    + 'salle. Il appartient à la fonction et non à la personne, il reste donc '
+    + 'là pour la personne suivante.',
+  'lib.membersAccessBoardPositions': 'Membres et accès › Postes du conseil',
+  'shell.loading': 'Chargement…',
+  'shell.pageNotFound': 'Page introuvable',
+  'shell.pageReLookingDoesn': 'La page que vous cherchez n’existe pas ou a peut-être été déplacée.',
+  'prof.requestJoin': 'Votre demande pour rejoindre',
+  'prof.membership': 'Votre adhésion à',
+  'rep.everyOffice': 'Toutes les fonctions',
+  'rep.everyBoardPositionFamily': 
+    'Tous les postes du conseil dans l’ordre propre à la famille, avec qui '
+    + 'les occupe.',
+  'rep.held': 'Occupé par',
+  'rep.holdingMoreThanOne': 'Occupe plus d’une fonction',
+  'rep.notProblemItselfSmall': 
+    'Ce n’est pas un problème en soi : dans un petit chapitre, une même '
+    + 'personne fait souvent deux métiers. C’est ici parce que c’est '
+    + 'généralement le signe d’un manque que quelqu’un a discrètement comblé.',
+  'rep.wearingTwoHats': 'Deux casquettes',
+  'rep.everyPublishedElectionIts': 
+    'Toutes les élections publiées avec leur phase, leurs candidatures et '
+    + 'leur participation.',
+  'rep.turnoutCountsPeopleNot': 
+    'La participation compte des PERSONNES et non des bulletins : quelqu’un '
+    + 'qui vote pour trois postes dans une élection est un votant. Une élection '
+    + 'dont la zone ne compte aucun membre approuvé se lit',
+  'rep.officesNobodyStood': 'Postes pour lesquels personne ne s’est présenté',
+  'rep.membersWhoVoted': 'Membres ayant voté',
+  'rep.everyGatheringItsTask': 
+    'Tous les rassemblements avec l’avancement de leurs tâches et, là où '
+    + 'c’est indiqué, leur budget.',
+  'rep.taskCountsOverdueWhen': 
+    'Une tâche est en retard lorsque sa date est passée et que personne ne '
+    + 'l’a approuvée ; une tâche envoyée et pas encore tranchée reste en '
+    + 'attente.',
+  'rep.tasksApproved': 'Tâches approuvées',
+  'rep.nobodyHolding': 'Personne ne l’occupe',
+  'rep.everyMeeting': 'Toutes les réunions',
+  'rep.everyMeetingMostRecent': 
+    'Toutes les réunions, la plus récente d’abord, avec la taille de la '
+    + 'salle, les points et les votes.',
+  'rep.minutes': 'Procès-verbal de',
+  'rep.room': 'Dans la salle',
+  'rep.whoTakesPart': 'Qui participe',
+  'rep.everyRelativeWhoBeen': 
+    'Chaque proche convié à une réunion, avec le nombre de réunions '
+    + 'auxquelles il a été convié, celles où il a voté et celles dont il a '
+    + 'rédigé le procès-verbal.',
+  'rep.asked': 'Convié à',
+  'rep.voted': 'A voté à',
+  'rep.votesCast': 'Votes exprimés',
+  'stf.staffConsole': 'Console du personnel',
+  'stf.readsAcrossEveryFamily': 'Lit toutes les familles de la plateforme',
+  'stf.backApp': 'Retour à l’application',
+  'stf.pageNotFound': 'Page introuvable',
+  'stf.thereNothingAddress': 'Il n’y a rien à cette adresse.',
+  'stf.everybodyWhoCanOpen': 
+    'Toutes les personnes qui peuvent ouvrir cette console, et le type '
+    + 'd’accès qu’elles ont. Seul un propriétaire peut voir cette page ou y '
+    + 'changer quoi que ce soit ; tous les autres reçoivent un 404, la même '
+    + 'réponse que la console donne à un client. Le tout premier propriétaire '
+    + 'sur une base de données neuve vient toujours de',
+  'stf.everyAccountCanSign': 
+    'Tous les comptes qui peuvent se connecter, listés depuis le service '
+    + 'd’authentification et non depuis les registres d’une famille — de sorte '
+    + 'qu’un compte qui n’appartient à rien, l’une des façons dont survient le '
+    + '« ça ne marche pas », apparaît aussi ici.',
+  'stf.everyFamilyPlatformWhatever': 
+    'Toutes les familles de la plateforme, quel que soit leur forfait et '
+    + 'qu’elles aient été supprimées ou non. Supprimer une famille se fait dans '
+    + 'le produit, derrière un code envoyé par courriel à l’administrateur qui '
+    + 'le fait ; en rétablir une ne se fait qu’ici.',
+  'stf.crossFamilyToolsAnswering': 
+    'Outils inter-familles pour traiter un ticket d’assistance. Tout ce qui '
+    + 'est ici lit toutes les familles de la plateforme, pas une seule — et la '
+    + 'seule chose que cela peut changer est de rétablir une famille supprimée.',
+  'stf.accessConsole': 'Accès à cette console',
+  'stf.staffAccessRow': 'L’accès du personnel est une ligne dans',
+  'stf.anybodyWithoutRowGets': 
+    'Quiconque n’a pas de ligne reçoit un 404 sur chaque page d’ici, et c’est '
+    + 'pourquoi la console ne dit jamais « non autorisé ». Il n’existe aucune '
+    + 'autorisation côté famille pour tout ceci : la qualité de personnel est '
+    + 'étrangère au modèle d’autorisations de la famille, aucun administrateur '
+    + 'de famille ne peut donc voir que ces écrans existent.',
+  'shell.everyoneFamily': 'Tout le monde dans cette famille',
+  'inv.invitationNotValid': 'Cette invitation n’est pas valable',
+  'inv.mayExpiredBeenCancelled': 
+    'Elle a peut-être expiré, été annulée, ou déjà été utilisée. Demandez à '
+    + 'qui vous a invité de vous en envoyer une nouvelle.',
+  'inv.goSign': 'Aller à la connexion',
+  'inv.signAccept': 'Connectez-vous pour accepter',
+  'inv.createAccount': 'Créer un compte',
+  'inv.sign': 'Se connecter',
+  'inv.invitationDifferentAddress': 'Cette invitation concerne une autre adresse',
+  'inv.goDashboard': 'Aller à votre tableau de bord',
+  'inv.couldNotAcceptInvitation': 'Cette invitation n’a pas pu être acceptée',
+  'ui.familyNotConnectedCard': 
+    'Votre famille n’a pas encore connecté de processeur de cartes, les '
+    + 'collectes ne peuvent donc pas recevoir de dons en ligne. Remettez votre '
+    + 'don à qui tient les comptes et il apparaîtra ici dès qu’il sera '
+    + 'enregistré.',
+  'ui.onePaymentItemizedDue': 
+    'Un seul paiement, détaillé par cotisation. Il s’inscrit dans les comptes '
+    + 'de la famille dès qu’il est encaissé — il n’y a rien à saisir après.',
+  'ui.familyNotConnectedCard2': 
+    'Votre famille n’a pas encore connecté de processeur de cartes. Payez par '
+    + 'le moyen que votre famille utilise déjà et cela apparaîtra ici dès qu’un '
+    + 'administrateur l’enregistrera.',
+  'adm.howFamilyDividesItself': 
+    'Comment la famille se répartit géographiquement. Un chapitre appartient '
+    + 'à une région, ou relève de National — là où tout commence et où reste un '
+    + 'membre sans chapitre. Les cotisations peuvent être limitées à une région '
+    + 'ou à un chapitre dans',
+  'adm.nothingSetHereFeature': 
+    'Rien à régler ici — cette fonctionnalité est soit toujours disponible, '
+    + 'soit régie par les lignes ci-dessus.',
+  'adm.canOpenAccountingBut': 
+    'Vous pouvez ouvrir la Comptabilité, mais aucune de ses sections ne vous '
+    + 'a été ouverte. Demandez à un administrateur l’accès aux domaines dont '
+    + 'vous avez besoin : cotisations, dons, caisses, répartition, jalons et '
+    + 'réglages de paiement s’accordent séparément.',
+  'adm.accountDuesDepositedInto': 
+    'Le compte sur lequel les cotisations sont versées, et depuis lequel les '
+    + 'versements et les frais d’événements sont payés, sera enregistré ici — '
+    + 'pour ne pas avoir à chercher ailleurs les numéros d’un chèque ou d’un '
+    + 'virement.',
+  'adm.notYetAvailableAccount': 
+    'Pas encore disponible. Les coordonnées bancaires exigent un stockage '
+    + 'chiffré et une autorisation plus étroite que la Comptabilité avant de '
+    + 'pouvoir être conservées ici.',
+  'adm.notYetAcceptedCancelling': 
+    'Pas encore acceptée. En annuler une rend le lien inopérant — utile si '
+    + 'elle est partie à la mauvaise adresse, puisque seule cette adresse peut '
+    + 'l’utiliser.',
+  'adm.theyAlreadyAccountBut': 
+    'Cette personne a déjà un compte mais n’a jamais confirmé son adresse '
+    + 'électronique ; elle n’aurait donc pas pu se connecter pour accepter. '
+    + 'Nous avons aussi demandé le renvoi du courriel de confirmation — c’est '
+    + 'celui-là qu’elle doit ouvrir d’abord.',
+  'adm.theirAccountConfirmedSo': 
+    'Son compte est confirmé, le lien la mènera donc directement à la '
+    + 'connexion puis à l’adhésion.',
+  'adm.thereNoAccountAddress': 
+    'Il n’y a pas encore de compte pour cette adresse ; le lien la mènera '
+    + 'donc à en créer un. Le code de famille ne lui sera pas nécessaire.',
+  'adm.weCouldNotCheck': 
+    'Nous n’avons pas pu vérifier si cette adresse a un compte ; si cette '
+    + 'personne ne parvient toujours pas à entrer, il vaut la peine de lui '
+    + 'demander si elle a jamais confirmé son adresse.',
+  'adm.keptRatherThanDeleted': 
+    'Conservé plutôt que supprimé, pour que la trace de la décision subsiste. '
+    + 'Vous pouvez finalement admettre quelqu’un, et n’importe quel membre peut '
+    + 'lui envoyer une nouvelle invitation.',
+  'adm.onlyPartFamilyCan': 
+    'Seule cette partie de la famille peut voir l’élection, être proposée ou '
+    + 'voter — et elle ne peut pourvoir que des fonctions enregistrées au même '
+    + 'niveau.',
+  'adm.bothDaysCountNominations': 
+    'Les deux jours comptent — les candidatures sont ouvertes du premier au '
+    + 'dernier, sauf si le vote s’ouvre le jour de clôture, auquel cas elles se '
+    + 'ferment à son ouverture. La date de clôture ne peut pas être antérieure '
+    + 'au lendemain de l’ouverture.',
+  'adm.votingMayOpenSame': 
+    'Le vote peut s’ouvrir le jour même où les candidatures se ferment, et ce '
+    + 'jour appartient alors au vote. Il ne peut pas s’ouvrir avant.',
+  'adm.whatFundToppedUp': 
+    'Le montant jusqu’auquel cette caisse est complétée avant qu’une caisse '
+    + 'en dessous ne reçoive quoi que ce soit. Vous pouvez le modifier, ainsi '
+    + 'que l’ordre de remplissage, dans Caisses → Répartition.',
+  'adm.milestoneAwardedOutFund': 
+    'Un jalon est attribué sur une caisse, et il n’y en a aucune. Ajoutez '
+    + 'd’abord une caisse dans Caisses → Soldes.',
+  'adm.setShareEachDues': 
+    'Fixez la part de chaque paiement de cotisation qui va à chaque caisse. '
+    + 'Les caisses les plus hautes dans la liste se remplissent d’abord ; une '
+    + 'caisse sous son minimum est complétée avant que les suivantes ne '
+    + 'reçoivent quoi que ce soit.',
+  'adm.statusStatementRatherThan': 
+    'L’état est une affirmation et non un calcul du calendrier : un '
+    + 'rassemblement peut être annulé sans que ses dates bougent, et Terminé '
+    + 'est votre mot pour le dire.',
+  'adm.severalGatheringsMayFlagged': 
+    'Plusieurs rassemblements peuvent être signalés en même temps — le '
+    + 'tableau de bord montre le plus proche qui n’est pas encore terminé, de '
+    + 'sorte que la réunion de l’an dernier ne bloque jamais celle de cette '
+    + 'année. Rien n’y apparaît lorsqu’aucun rassemblement signalé n’est encore '
+    + 'à venir.',
+  'adm.onePhotographCroppedBand': 
+    'Une photographie, recadrée à la forme du bandeau. Sans elle, le bandeau '
+    + 'dessine l’arbre GENORRA. Quiconque a le lien peut voir une photo '
+    + 'téléversée, comme une photo de famille — elle est donc publiée pour '
+    + 'toute personne à qui elle est partagée.',
+  'adm.budgetAlwaysDrawnFund': 
+    'Un budget est toujours prélevé sur une caisse, et il peut dépasser ce '
+    + 'que cette caisse contient — les chiffres le disent plutôt que de le '
+    + 'refuser, parce qu’une famille planifie une réunion avant d’avoir réuni '
+    + 'l’argent.',
+  'adm.gatheringMadePartsEach': 
+    'Un rassemblement est fait de parties, et chacune est une occasion en soi '
+    + ': une réunion de famille, c’est l’Accueil, le Pique-nique et les Adieux, '
+    + 'à leurs propres dates et dans leurs propres lieux. Chaque modèle que '
+    + 'vous ajoutez est l’une d’elles, et ses étapes deviennent ici des tâches. '
+    + 'Rien du modèle n’atteint les tâches déjà présentes sur ce rassemblement '
+    + '— chacune garde sa propre copie de ce qu’elle demandait.',
+  'adm.bothOptionalLeaveDay': 
+    'Les deux sont facultatifs. Laissez la date vide pour un rassemblement '
+    + 'qui a lieu d’un seul coup, et le lieu vide pour utiliser celui que le '
+    + 'modèle utilise d’habitude.',
+  'adm.whatOneTaskExpected': 
+    'Ce que cette tâche est censée coûter. Vide signifie qu’elle ne coûte '
+    + 'rien à la famille. Les lignes réunies sont ce que le bandeau ci-dessus '
+    + 'compare au budget.',
+  'adm.photoCurrentlyDashboardBand': 'La photo actuellement sur le bandeau du tableau de bord',
+  'adm.nothingWaitingReviewTask': 
+    'Rien n’attend d’être examiné. Une tâche apparaît ici dès que le proche à '
+    + 'qui elle a été confiée envoie une réponse.',
+  'adm.templateChecklistHandedOut': 
+    'Un modèle est une liste d’étapes distribuée sous forme de tâches — '
+    + 'quelqu’un pouvant créer des modèles doit ajouter le premier.',
+  'adm.budgetAlwaysDrawnFund2': 
+    'Un budget est toujours prélevé sur une caisse. Il peut dépasser ce que '
+    + 'la caisse contient — le rassemblement le dit en rouge plutôt que de le '
+    + 'refuser.',
+  'adm.severalGatheringsMayFlagged2': 
+    'Plusieurs rassemblements peuvent être signalés en même temps — le '
+    + 'tableau de bord montre le plus proche qui n’est pas terminé, de sorte '
+    + 'que la réunion de l’an dernier ne bloque jamais celle de cette année.',
+  'adm.everyStepTemplateBecomes': 
+    'Chaque étape de ce modèle devient ici une tâche à part entière, dans son '
+    + 'propre ordre, à cet endroit de la liste. Personne ne répond à cette '
+    + 'étape — c’est la liste, pas une question. Un modèle ne peut pas '
+    + 's’inclure lui-même, ni rien qui y ramène.',
+  'adm.startingFigureCopiedOnto': 
+    'Un montant de départ recopié sur la tâche. Un organisateur peut le '
+    + 'modifier sur le rassemblement, et l’argent qui compte est le budget '
+    + 'propre du rassemblement.',
+  'adm.onePerThingSomebody': 
+    'Une par chose que quelqu’un doit faire ou décider, dans l’ordre où elles '
+    + 'seront distribuées. Elles sont recopiées sur les tâches de chaque '
+    + 'rassemblement programmé à partir de ce modèle ; en modifier une ici ne '
+    + 'change donc jamais un rassemblement déjà en cours.',
+  'adm.whatEachMemberEncouraged': 
+    'Le montant que chaque membre est encouragé à atteindre. Indicatif — les '
+    + 'membres donnent ce qu’ils veulent et peuvent aller au-delà.',
+  'adm.driveMembersCanGive': 
+    'Une collecte à laquelle les membres peuvent donner entre deux dates. '
+    + 'Personne ne la doit, et elle ne compte jamais contre le solde d’un '
+    + 'membre.',
+  'adm.groupChaptersTexasEastern': 
+    'Un groupe de chapitres — « Texas », « Est », « Sud-Est ». Facultatif : '
+    + 'une famille peut fonctionner avec les chapitres seuls, ou sans ni l’un '
+    + 'ni l’autre.',
+  'adm.noChaptersYetUntil': 
+    'Aucun chapitre pour l’instant. Jusqu’à ce qu’il y en ait, chaque membre '
+    + 'relève de National et ne doit que les cotisations de toute la famille.',
+  'adm.chapterSRegionDecides': 
+    'La région d’un chapitre détermine quelles cotisations régionales ses '
+    + 'membres doivent. Vous pouvez déplacer un chapitre vers une autre région '
+    + 'à tout moment depuis',
+  'adm.billingCouldNotLoaded': 
+    'La facturation n’a pas pu être chargée. Rechargez la page — ne lancez '
+    + 'pas de nouveau paiement dans l’onglet Forfait avant qu’elle '
+    + 'n’apparaisse, au cas où cette famille en aurait déjà un.',
+  'adm.termEndedPayAgain': 
+    'Cette période est terminée. Payez de nouveau dans l’onglet Forfait pour '
+    + 'réouvrir les pages qu’elle couvrait — tous les enregistrements sont '
+    + 'toujours là.',
+  'adm.stripeSOwnPortal': 
+    'Le portail de Stripe lui-même, où la carte enregistrée se change et où '
+    + 'chaque facture peut être téléchargée.',
+  'adm.canSeeWhatFamily': 
+    'Vous pouvez voir ce que paie cette famille mais pas le modifier. '
+    + 'Demandez-le à un administrateur ayant accès aux Réglages.',
+  'adm.nominationNobodyAnsweredNot': 
+    'Une candidature à laquelle personne n’a répondu n’est pas sur le '
+    + 'scrutin. Seuls les candidats ayant accepté peuvent recevoir des voix.',
+  'adm.whatFamilyCalledEverywhere': 
+    'Le nom de cette famille partout dans l’application — le sélecteur, le '
+    + 'tableau de bord et les courriels d’invitation. Le changer ne déplace '
+    + 'rien d’autre : le code de famille ci-dessous est ce sous quoi chaque '
+    + 'enregistrement est classé.',
+  'adm.whereFamilyDecidesWhether': 
+    'Où se trouve la famille. Cela détermine si un rassemblement est terminé, '
+    + 'si une tâche est en retard et quand une élection se clôt — les réponses '
+    + 'sur lesquelles tous les membres doivent s’accorder. Cela ne change pas '
+    + 'les heures d’un rassemblement, toujours affichées telles qu’elles ont '
+    + 'été saisies, ni vos propres dates, qui suivent Mon profil.',
+  'adm.canSeePageBut': 
+    'Vous pouvez voir cette page mais pas changer le nom. Demandez à un '
+    + 'administrateur l’autorisation Réglages.',
+  'adm.shareRelativesSoThey': 
+    'Partagez ceci avec vos proches pour qu’ils puissent vous rejoindre. '
+    + 'Toute personne qui rejoint attend dans Approbation en attente jusqu’à ce '
+    + 'que quelqu’un l’admette.',
+  'adm.codeCannotChangedFamily': 
+    'Le code ne peut pas être changé, et une famille ne peut pas être '
+    + 'supprimée. Chaque enregistrement de la famille — cotisations, caisses, '
+    + 'événements, messagerie, membres — est classé sous ce code, et rien dans '
+    + 'la base de données ne pointe en sens inverse : le changer laisserait '
+    + 'donc la famille sans rien de sa propre histoire.',
+  'adm.switchesFamilyOffEverybody': 
+    'Désactive la famille pour tous ses membres. Personne ne peut l’ouvrir, '
+    + 'le code de famille cesse de fonctionner, et les invitations en cours '
+    + 'cessent d’être acceptées.',
+  'adm.familyNotSetUp': 
+    'Votre famille n’a encore défini aucun poste de conseil. Ajoutez-les dans '
+    + 'Membres et accès → Organisation, puis revenez.',
+  'adm.cannotSeeSetMember': 
+    'Vous ne pouvez ni voir ni définir le mot de passe de ce membre. '
+    + 'Envoyez-lui un lien et il en choisira un nouveau lui-même ; l’actuel '
+    + 'continue de fonctionner jusque-là.',
+  'adm.billingStartsWhenTerm': 
+    'La facturation commence à la fin de la période que vous avez déjà payée. '
+    + 'Rien n’est prélevé aujourd’hui.',
+  'adm.canSeePlanBut': 
+    'Vous pouvez voir le forfait mais pas le modifier. Demandez à un '
+    + 'administrateur l’autorisation Réglages.',
+  'adm.refreshPageIfKeeps': 
+    'Rechargez la page. Si cela persiste, n’essayez pas de connecter un '
+    + 'compte — demandez à un administrateur de vérifier, car la famille en a '
+    + 'peut-être déjà un.',
+  'adm.duesRecordedHandFrom': 
+    'Les cotisations sont saisies à la main depuis les registres des '
+    + 'Transactions en attendant, et chaque paiement déjà enregistré reste '
+    + 'exactement où il est.',
+  'adm.anyRecurringPaymentsRunning': 
+    'Les paiements récurrents en cours ont été annulés chez Stripe lors de la '
+    + 'déconnexion. Ceux-là ne peuvent pas être relancés — chacun de ces '
+    + 'proches devra reconfigurer son paiement après votre reconnexion.',
+  'adm.accountBelongsFamilyNot': 
+    'Le compte appartient à la famille, pas à GENORRA. L’argent va '
+    + 'directement à la banque de la famille, les frais de Stripe sortent du '
+    + 'côté de la famille, et la famille garde son propre tableau de bord '
+    + 'Stripe. GENORRA ne voit ni ne conserve jamais de clé Stripe et ne prend '
+    + 'aucune part de ce que la famille encaisse.',
+  'adm.canSeeSectionBut': 
+    'Vous pouvez voir cette section mais pas la modifier. Demandez à un '
+    + 'administrateur ayant accès aux réglages de paiement de connecter un '
+    + 'compte.',
+  'ui.optionalLeaveEmptyPin': 
+    'Facultatif. Laissez vide pour épingler jusqu’à ce que quelqu’un le '
+    + 'retire. Chaque membre peut l’écarter de ses propres actualités quand il '
+    + 'le souhaite.',
+  'ui.willSeeMessageWhichever': 
+    'Vous verrez ce message quelle que soit l’adresse saisie. Nous ne disons '
+    + 'pas si un compte existe, car le code de famille nécessaire pour '
+    + 'atteindre ce site est fait pour être partagé — et un formulaire qui '
+    + 'répondrait permettrait à quiconque en détient un de savoir lesquels de '
+    + 'vos proches se sont inscrits.',
+  'ui.checkSpamFolderFirst': 
+    'Regardez d’abord dans les courriers indésirables, puis essayez l’adresse '
+    + 'avec laquelle vous vous êtes inscrit plutôt que celle par laquelle votre '
+    + 'famille vous joint d’habitude. Le lien fonctionne une fois et expire : '
+    + 'demandez-en un nouveau plutôt que de réutiliser un ancien courriel.',
+  'ui.accountConfirmedBeforeCan': 
+    'Un compte doit être confirmé avant de pouvoir se connecter. Nous avons '
+    + 'envoyé un lien à l’inscription — regardez d’abord dans les courriers '
+    + 'indésirables, et utilisez le message le plus récent : chaque lien '
+    + 'fonctionne une fois et expire au bout d’une heure.',
+  'ui.pickSomethingNotUsed': 
+    'Choisissez quelque chose que vous n’avez jamais utilisé ici. Vous serez '
+    + 'connecté dès l’enregistrement.',
+  'ui.wholeWordsPhrasesLeading': 
+    'Des mots et des expressions entiers ; un moins devant en exclut un. Cela '
+    + 'n’atteint l’intérieur d’un document que là où le texte a pu être lu — '
+    + 'voyez le badge sur chaque article.',
+  'ui.pastingTextWhatMakes': 
+    'Coller le texte est ce qui rend un article cherchable mot à mot. Un PDF '
+    + 'ou un fichier Word est conservé et téléchargeable, mais son contenu '
+    + 'n’est pas encore lu.',
+  'ui.familySRecordsNever': 
+    'Les registres de votre famille ne sont jamais partagés — ni noms, ni '
+    + 'liens de parenté, ni dates de naissance, ni photographies, ni messages.',
+  'dash.familyMemberMayAlready': 
+    'Un membre de la famille vous a peut-être déjà ajouté. Trouvez-vous '
+    + 'ci-dessous et liez votre compte à la fiche existante.',
+  'dash.familyMembers': 'Membres de la famille',
+  'dash.pendingApproval': 'Approbation en attente',
+  'dash.upcomingGatherings': 'Prochains rassemblements',
+  'dash.addMember': 'Ajouter un membre',
+  'dash.recordPayment': 'Enregistrer un paiement',
+  'dash.sendMessage': 'Envoyer un message',
+  'dash.myTasks': 'Mes tâches',
+  'dist.emailEveryoneFamilyOnce': 
+    'Écrivez à toute la famille d’un coup. La liste des destinataires est '
+    + 'votre propre composition familiale — il n’y a rien à tenir à jour, et '
+    + 'personne n’y figure deux fois.',
+  'dist.newDistribution': 'Nouvel envoi',
+  'dist.canLeavePageSend': 'Vous pouvez quitter cette page — l’envoi se poursuit là où il en était.',
+  'dist.weCouldNotRead': 
+    'Nous n’avons pas pu lire vos envois pour le moment. Rien n’a été perdu — '
+    + 'réessayez dans un instant.',
+  'dist.sent': 'Envoyé à',
+  'dist.sent2': 'Envoyé par',
+  'dist.tryAgain': 'Réessayer',
+  'dist.whoGoes': 'À qui cela va',
+  'dist.plainTextLeaveBlank': 
+    'Texte brut. Laissez une ligne vide entre les paragraphes. Les réponses '
+    + 'reviennent à votre propre adresse électronique, pas à GENORRA.',
+  'dist.loading': 'Chargement…',
+  'dist.whatSent': 'Ce qui a été envoyé',
+  'dist.whoWent': 'À qui cela est parti',
+  'dist.reunionDetails4th': 'Détails de la réunion du 4',
+  'dist.waitingSend': 'En attente d’envoi',
+  'dist.couldNotDelivered': 'N’a pas pu être livré',
+  'dist.noEmailAddressFile': 'Aucune adresse électronique au dossier',
+  'dist.sharesAddress': 'Partage une adresse',
+  'dist.notSentStopped': 'Non envoyé — arrêté',
+  'dist.emailsSentBeenSent':
+    'Les courriels envoyés sont envoyés. Ceci supprime la trace de qui a été contacté et de '
+    + 'ce qu’il est advenu de chaque message, et c’est irréversible.',
+  'dues.schedule': 'Par barème',
+  'dues.noDuesSchedulesActive': 
+    'Aucun barème de cotisations n’est actif, il n’y a donc rien à projeter. '
+    + 'Ajoutez-en un dans Comptabilité → Cotisations.',
+  'dues.bloodlineOnly': 'Filiation uniquement',
+  'dues.bloodlineDescendsFrom': 'La filiation descend de',
+  'dues.member': 'Par membre',
+  'dues.onlyThoseWhoOwe': 'Seulement ceux qui la doivent',
+  'dues.nobodyFamilyBeenApproved': 
+    'Personne dans la famille n’a encore été approuvé, il n’y a donc rien à '
+    + 'projeter.',
+  'dues.noMembersMatchFilter': 'Aucun membre ne correspond à ce filtre.',
+  'dues.eachScheduleMeasuredOver': 
+    'Chaque barème est mesuré sur sa propre année ; les totaux en sont donc '
+    + 'la somme',
+  'dues.filterName': 'Filtrer par nom…',
+  'dues.filterMembers': 'Filtrer les membres',
+  'dues.onlyMembersDescendedFrom': 'Seuls les membres descendant de la lignée de la famille la doivent.',
+  'dues.onlyMembersPartFamily': 
+    'Seuls les membres de cette partie de la famille doivent cette '
+    + 'cotisation. Un membre sans chapitre relève de National et ne doit rien '
+    + 'de local.',
+  'dues.nothingPaid': 'Rien de payé',
+  'dues.partPaid': 'Partiellement payé',
+  'dues.notYetDue': 'Pas encore dû',
+  'dues.notTheirs': 'Ne le concerne pas',
+  'dues.pendingInvite': 'Invitation en attente',
+  'ui.putRelativeForwardAny': 
+    'Proposez un proche pour n’importe quel poste ci-dessous, ou '
+    + 'présentez-vous vous-même. Vous pouvez retirer votre propre nom d’une '
+    + 'candidature tant que les candidatures sont ouvertes.',
+  'ui.standingOfficeYourselfNeeds': 
+    'Se présenter soi-même à un poste ne demande l’accord de personne '
+    + 'd’autre, et compte comme accepté immédiatement.',
+  'ui.theyGoTreeStraight': 
+    'Cette personne entre aussitôt dans l’arbre. Nous lui enverrons une '
+    + 'invitation par courriel et, quand elle l’acceptera, son compte rejoindra',
+  'ui.duesCanStartAge': 
+    'Les cotisations peuvent commencer à un âge donné. Sans date de '
+    + 'naissance, nous ne pouvons pas savoir quand cet enfant commence à les '
+    + 'devoir, et il serait facturé comme un adulte.',
+  'ui.shouldRareWeGenerate': 
+    'Cela devrait être rare. Nous générons une adresse pour que la fiche '
+    + 'puisse exister et nous n’y envoyons jamais rien — cette personne ne peut '
+    + 'donc pas se connecter et rien ne lui parviendra. Si elle pourrait un '
+    + 'jour vouloir un compte, invitez-la plutôt.',
+  'ui.everyoneWhoSharesAncestor': 
+    'Toute personne partageant un ancêtre avec elle est un parent par le sang '
+    + '; leurs conjoints ne le sont pas.',
+  'ui.ifFamilySLine': 
+    'Si la lignée de votre famille passe par l’un d’eux, désignez plutôt '
+    + 'cette personne. Ne marquez pas un véritable parent comme beau-parent '
+    + 'pour l’écarter de la vue : c’est un parent par le sang, et enregistrer '
+    + 'autre chose rend l’arbre faux d’une manière que rien d’autre ne peut '
+    + 'corriger.',
+  'ui.siblingsSharePersonS': 
+    'Les frères et sœurs partagent la génération de cette personne ; ils sont '
+    + 'donc listés ici plutôt que dessinés dans la rangée du dessus.',
+  'ui.onlyBloodLinksCarry': 
+    'Seuls les liens du sang portent la filiation, et c’est donc ce que '
+    + 'parcourt la vue Filiation. Chaque lien est enregistré au fur et à mesure '
+    + 'que vous le modifiez.',
+  'ui.decidesWhetherTheyFill': 
+    'Cela détermine si cette personne occupe la place du père ou celle de la '
+    + 'mère, et nous permet de nommer le lien en retour vers elle.',
+  'ui.gotEmailAddressNow': 
+    'Une adresse électronique désormais ? Envoyez-lui une invitation. Quand '
+    + 'elle l’acceptera, son compte rejoindra',
+  'ui.familySPhotographsKept': 
+    'Les photographies de la famille, rangées en albums. Identifiez qui y '
+    + 'figure pour qu’un cousin puisse se retrouver.',
+  'gath.budgetGatheringCouldNot': 
+    'Le budget de ce rassemblement n’a pas pu être lu pour le moment. Rien '
+    + 'n’a changé — rechargez la page pour réessayer.',
+  'gath.noTasksYetGathering': 
+    'Aucune tâche pour l’instant. Les tâches d’un rassemblement viennent des '
+    + 'modèles dont il a été construit ; un organisateur qui ajoute ici un '
+    + 'modèle ajoute donc ses travaux à cette liste.',
+  'gath.everyStepEveryTemplate': 
+    'Chaque étape de chaque modèle que vous choisissez devient une tâche de '
+    + 'ce rassemblement, prête à être distribuée. N’en choisissez aucun et ceci '
+    + 'est une date au calendrier de la famille sans aucune tâche — un '
+    + 'organisateur pourra l’étoffer plus tard.',
+  'gath.nothingAssignedMomentWhen': 
+    'Rien ne vous est confié pour le moment. Quand un organisateur vous '
+    + 'confiera une partie d’un rassemblement, cela apparaîtra ici avec ce '
+    + 'qu’il faut renvoyer et pour quand.',
+  'gath.runsOverMoreThan': 'S’étend sur plus d’une journée',
+  'gath.startTime': 'Heure de début',
+  'gath.optional': 'Facultatif.',
+  'gath.leaveEmptyIfAll': 'Laissez vide si tout se passe le même jour.',
+  'gath.endTime': 'Heure de fin',
+  'gath.addAnotherDay': 'Ajouter une autre journée',
+  'gath.chooseTimezone': 'Choisissez un fuseau horaire…',
+  'gath.everyoneSeesTimeExactly': 
+    'Chacun voit l’heure exactement telle que vous l’avez saisie, avec ce '
+    + 'fuseau horaire nommé à côté. Rien n’est converti.',
+  'ui.weLlEmailThem': 
+    'Nous lui enverrons une invitation par courriel. Seule cette adresse peut '
+    + 'l’utiliser, et elle expire dans 14 jours. Le nom est ce que votre '
+    + 'famille voit pendant qu’elle attend d’être admise.',
+  'ui.invitationCreatedButWe': 
+    'L’invitation a été créée, mais nous n’avons pas pu l’envoyer par '
+    + 'courriel. Transmettez-lui plutôt ce lien — il fonctionne exactement de '
+    + 'la même façon.',
+  'ui.treatLikePasswordAnyone': 
+    'Traitez-le comme un mot de passe — quiconque le récupère et dispose de '
+    + 'cette adresse électronique peut l’utiliser. Il n’est affiché qu’une '
+    + 'fois.',
+  'shell.anythingTypedNotSaved': 
+    'Tout ce que vous avez saisi sans l’enregistrer sera perdu : terminez ou '
+    + 'continuez maintenant.',
+  'shell.iMStillHere': 'Je suis toujours là',
+  'shell.stillThere': 'Toujours là ?',
+  'shell.familyTree': 'Arbre généalogique',
+  'shell.meetingMinutes': 'Procès-verbaux',
+  'shell.officerNotes': 'Carnets de fonction',
+  'shell.duesDonations': 'Cotisations et dons',
+  'shell.paymentHistory': 'Historique des paiements',
+  'shell.duesProjections': 'Projections de cotisations',
+  'shell.pLSummary': 'Résultat de l’exercice',
+  'shell.boardOffices': 'Conseil et fonctions',
+  'shell.howManual': 'Mode d’emploi',
+  'ui.theseMinutesClosedNothing': 
+    'Ce procès-verbal est clos. Plus rien ne change au sujet de la réunion — '
+    + 'et c’est ce qui en fait le compte rendu.',
+  'ui.whatFamilyMetAbout': 
+    'De quoi la famille a discuté, qui était là et ce qui a été décidé. La '
+    + 'personne chargée du procès-verbal l’écrit ; la salle vote.',
+  'ui.scheduleOneSayingWhat': 
+    'Programez-en une en indiquant de quel genre de réunion il s’agit — toute '
+    + 'la famille, un chapitre, un conseil, une même fonction dans toutes les '
+    + 'zones, ou seulement les personnes que vous nommez — et chacun dans la '
+    + 'salle est averti et la voit à son calendrier. Pendant la réunion, la '
+    + 'personne chargée du procès-verbal ajoute un point et écrit des notes en '
+    + 'dessous, et peut appeler un vote auquel la salle répond.',
+  'ui.everyoneSeesTimeExactly': 
+    'Chacun voit l’heure exactement telle que vous l’avez saisie, avec ce '
+    + 'fuseau horaire nommé à côté. Rien n’est converti.',
+  'ui.administratorFamilySwitchedOff': 
+    'Un administrateur de cette famille l’a désactivée. Personne ne peut '
+    + 'l’ouvrir, la rejoindre ni accepter une invitation.',
+  'ui.everyPaymentFundPhotograph': 
+    'Chaque paiement, caisse, photographie, événement, message, document et '
+    + 'personne est exactement où il était. Supprimer une famille ferme ses '
+    + 'portes ; cela ne détruit aucun enregistrement et n’a touché ni votre '
+    + 'compte ni aucune autre famille à laquelle vous appartenez.',
+  'ui.onlyGenorraSupportCan': 
+    'Seule l’assistance GENORRA peut rétablir une famille — il n’y a de '
+    + 'bouton pour cela nulle part dans le produit, volontairement. Si ce '
+    + 'n’était pas voulu, demandez à qui administre la famille de contacter '
+    + 'l’assistance.',
+  'ui.requestBackTheirAdministrators': 
+    'Votre demande est de nouveau entre les mains de leurs administrateurs, '
+    + 'avec votre note jointe. Ils verront qui l’a refusée auparavant et ce que '
+    + 'vous en avez dit.',
+  'ui.sayWhoHowRelated': 
+    'Dites qui vous êtes et quel est votre lien de parenté, pour que la '
+    + 'personne qui examine la demande puisse vous situer. Ceci va aux '
+    + 'administrateurs de la famille.',
+  'ui.weSentConfirmationLink': 
+    'Nous vous avons envoyé un lien de confirmation à votre inscription. '
+    + 'Votre demande ne peut pas être approuvée avant que vous l’ayez utilisé.',
+  'ui.weWillGenerateFamily': 
+    'Nous produirons un code de famille que vous pourrez partager. Votre nom '
+    + 'et vos coordonnées sont reprises du profil que vous avez déjà et restent '
+    + 'identiques dans toutes les familles auxquelles vous appartenez.',
+  'ui.shareRelativesSoThey': 
+    'Partagez ceci avec vos proches pour qu’ils puissent vous rejoindre. '
+    + 'Toute personne qui rejoint attend dans Approbations des membres jusqu’à '
+    + 'ce que vous l’admettiez.',
+  'ui.profileDetailsSharedAcross': 
+    'Les informations de votre profil sont partagées entre toutes les '
+    + 'familles auxquelles vous appartenez. Choisissez laquelle s’ouvre à la '
+    + 'connexion, ou changez la famille que vous consultez actuellement.',
+  'ui.familyAccountBelongsProfile': 
+    'La famille à laquelle ce compte appartient. Les informations de votre '
+    + 'profil sont partagées entre toutes les familles que vous rejoignez.',
+  'ui.switchedOffAdministratorNothing': 
+    'Désactivée par un administrateur. Rien n’a été supprimé, et seule '
+    + 'l’assistance GENORRA peut la rétablir.',
+  'prof.whatFamilyMayContact': 
+    'À quel sujet votre famille peut vous contacter, et comment. Tout ici '
+    + 'vous appartient et personne d’autre ne peut le régler pour vous.',
+  'prof.chapterAppliesFamilyOnly': 
+    'Votre chapitre ne concerne que cette famille — le reste de votre profil '
+    + 'est partagé entre toutes les familles auxquelles vous appartenez. Le '
+    + 'changer déplace aussi vos fils et filles de moins de 18 ans sans compte '
+    + 'propre ; tous les autres règlent le leur.',
+  'prof.canAlsoDecideWhat': 
+    'Il peut aussi déterminer ce que vous devez : une famille peut rattacher '
+    + 'des cotisations à une région ou à un chapitre. Ne rien choisir vous '
+    + 'laisse sous National, devant les cotisations de toute la famille et '
+    + 'aucune des locales.',
+  'prof.sunsetDate': 'Date de décès',
+  'prof.datesTimesProductRecords': 
+    'Les dates et heures que le produit enregistre — quand un paiement a été '
+    + 'saisi, quand un message a été envoyé — vous sont affichées dans ce '
+    + 'fuseau horaire.',
+  'prof.leaveEmptyWeFollow': 
+    'Laissez vide et nous suivons votre navigateur. La traduction est encore '
+    + 'en cours : certains écrans sont en anglais quelle que soit la langue '
+    + 'choisie.',
+  'prof.changeSignEmail': 'Changer l’adresse de connexion',
+  'prof.passwordBeenChangedEvery': 
+    'Votre mot de passe a été changé, et tous les autres appareils connectés '
+    + 'à ce compte ont été déconnectés. Il leur faudra le nouveau mot de passe.',
+  'rep.everyApprovedMemberFamily': 
+    'Tous les membres approuvés de la famille, où qu’ils soient. Les '
+    + 'candidats encore en attente dans la file d’approbation ne sont pas '
+    + 'comptés, ni les proches enregistrés comme décédés.',
+  'rep.lookingUpWhoGroup': 'Recherche des personnes de ce groupe…',
+  'rep.whoGroupNotYours': 
+    'Savoir qui est dans ce groupe ne vous est pas ouvert. Les chiffres du '
+    + 'graphique le sont ; les noms exigent en plus l’Annuaire des membres.',
+  'rep.theirRegionFollowsTheir': 
+    'Leur région suit leur chapitre. Les fils et filles de moins de dix-huit '
+    + 'ans sans compte propre se déplacent avec eux.',
+  'rep.adultMinorWorkedOut': 
+    'Majeur ou mineur est calculé à partir de ceci chaque fois que le rapport '
+    + 'se charge ; rien n’est conservé au sujet de leur âge.',
+  'ui.relativeWhoNotTold': 
+    'Un proche qui n’a pas dit à la famille dans quel chapitre il se trouve '
+    + 'n’est dans aucune région ; il n’est donc pas interrogé. Utilisez',
+  'stf.staffListCouldNot': 
+    'La liste du personnel n’a pas pu être lue. C’est une requête refusée et '
+    + 'non une équipe vide : vous y figurez, sinon cette page aurait répondu '
+    + '404 au lieu de s’afficher. Réessayez dans un instant et consultez le '
+    + 'journal du serveur pour la raison.',
+  'stf.addressBelongAccountAlready': 
+    'L’adresse doit appartenir à un compte qui existe déjà. On ne peut rien '
+    + 'accorder à quelqu’un qui ne s’est jamais inscrit, et cet écran le dira '
+    + 'plutôt que d’écrire une ligne pour un identifiant — c’est pourquoi il '
+    + 'demande une adresse et non un identifiant d’utilisateur.',
+  'stf.recordedRowShownList': 
+    'Enregistré sur la ligne et affiché dans la liste ci-dessus. C’est la '
+    + 'seule chose qui expliquera cette autorisation à qui lira la liste dans '
+    + 'un an, et c’est pourquoi elle est obligatoire.',
+  'stf.pasteAddressFromTicket': 
+    'Collez l’adresse du ticket. Ceci indique si un compte existe, s’il a '
+    + 'jamais été confirmé ou utilisé, et chaque fiche de famille portant cette '
+    + 'adresse — y compris une personne invitée qui n’a jamais rejoint.',
+  'stf.authenticationServiceDidNot': 
+    'Le service d’authentification n’a pas répondu : nous ne savons donc pas '
+    + 'si cette adresse a un compte. C’est une recherche échouée, pas un compte '
+    + 'absent — réessayez.',
+  'stf.addressNeverBeenConfirmed': 
+    'L’adresse n’a jamais été confirmée — c’est ce qui bloque la connexion. '
+    + 'Renvoyer la confirmation est la solution.',
+  'stf.familyRecordsAddressCould': 
+    'Les fiches de famille de cette adresse n’ont pas pu être lues — c’est '
+    + 'une requête refusée, et non une adresse n’appartenant à rien.',
+  'stf.addressNoFamilyRecord': 
+    'Cette adresse ne figure dans aucune fiche de famille. Un compte sans '
+    + 'famille voit un 404 sur chaque page, et c’est à cela que ressemble « ça '
+    + 'ne marche tout simplement pas ».',
+  'stf.accountListCouldNot': 
+    'La liste des comptes n’a pas pu être lue. C’est le service '
+    + 'd’authentification qui refuse ou expire, pas une plateforme sans aucun '
+    + 'compte.',
+  'stf.familiesListCouldNot': 
+    'La liste des familles n’a pas pu être lue. C’est une requête refusée et '
+    + 'non une plateforme vide — réessayez dans un instant et consultez le '
+    + 'journal du serveur pour la raison.',
+  'tx.canOpenTransactionsBut': 
+    'Vous pouvez ouvrir les Transactions, mais aucun de ses registres ne vous '
+    + 'a été ouvert. Demandez à un administrateur l’accès à ceux dont vous avez '
+    + 'besoin : cotisations, dons, contributions, versements et virements '
+    + 's’accordent séparément.',
+  'tx.noContributionsYet': 'Aucune contribution pour l’instant.',
+  'tx.noDisbursementsRecorded': 'Aucun versement enregistré.',
+  'tx.noTransfersBetweenFunds': 'Aucun virement entre caisses pour l’instant.',
+  'tx.noneSetUpYet': 'Aucun pour l’instant — un administrateur les ajoute dans Comptabilité.',
+  'tx.waivingForgivesDueNo': 
+    'Une remise annule la cotisation. Aucun argent n’a changé de mains : il '
+    + 'n’y a donc ni moyen de paiement ni référence à enregistrer.',
+  'tx.paymentMethod': 'Moyen de paiement',
+  'tx.checkReference': 'N° de chèque / référence',
+  'tx.whoGave': 'Qui l’a donné',
+  'tx.someoneSomethingElse': 'Quelqu’un ou quelque chose d’autre…',
+  'tx.nameSource': 'Nom ou origine',
+  'tx.milestoneOptional': 'Jalon (facultatif)',
+  'tx.transferCannotEditedDeleted': 
+    'Un virement ne peut être ni modifié ni supprimé. S’il est erroné, '
+    + 'remettez l’argent en place — les deux écritures restent au registre.',
+  'tx.check1043': 'Chèque n° 1043',
+  'tx.optionalNotes': 'Notes facultatives',
+  'tx.auntRubySEstate': 'Succession de tante Ruby, excédent de la réunion 2026…',
+  'tx.boardVote202608': 'Vote du conseil du 12/08/2026 — excédent transféré à la caisse des bourses',
+  'tx.newContribution': 'Nouvelle contribution',
+  'tx.newDisbursement': 'Nouveau versement',
+  'tx.newTransfer': 'Nouveau virement',
+  'tx.recorded': 'Enregistré par',
+  'tx.paymentMethod2': 'Moyen de paiement',
+  'tx.paid': 'Payé à',
+  'tx.fundMilestone': 'Caisse / jalon',
+  'tx.from': 'De → à',
+  'ui.stateProvince': 'État / province',
+  'ui.profilePhoto': 'Photo de profil',
+  'ui.confirmationCode': 'Code de confirmation',
+  'ui.chosen': 'Choisi :',
+  'ui.nobodyMatches': 'Personne ne correspond.',
+  'ui.searchName': 'Rechercher par nom…',
+  'ui.whoCanDoWhat': 'Qui peut faire quoi',
+  'ui.farScrollingGoesThere': 
+    'Le défilement s’arrête là. Il y a des actualités plus anciennes — '
+    + 'cherchez un mot de l’une d’elles pour la retrouver.',
 }

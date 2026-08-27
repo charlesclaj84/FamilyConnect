@@ -199,10 +199,7 @@ export function PendingApprovalScreen({
                 <p className="flex items-center gap-2 text-sm font-medium">
                   <Clock className="h-4 w-4" /> Sent to {family.familyName}
                 </p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Your request is back with their administrators, with your note attached.
-                  They will see who declined it before and what you have said about it.
-                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{t('ui.requestBackTheirAdministrators')}</p>
               </>
             ) : appealing === family.familyCode ? (
               <>
@@ -212,10 +209,7 @@ export function PendingApprovalScreen({
                 >
                   Ask {family.familyName} to look again
                 </label>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Say who you are and how you are related, so whoever reviews it can place
-                  you. This goes to the family&apos;s administrators.
-                </p>
+                <p className="mt-1 text-sm text-muted-foreground">{t('ui.sayWhoHowRelated')}</p>
                 <Textarea
                   id={`appeal-${family.familyCode}`}
                   value={appealNote}
@@ -279,10 +273,7 @@ export function PendingApprovalScreen({
             <p className="flex items-center gap-2 text-sm font-medium">
               <Mail className="h-4 w-4" /> {t('pend.confirmEmail')}
             </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              We sent a confirmation link when you signed up. Your request cannot be
-              approved until you have used it.
-            </p>
+            <p className="mt-1 text-sm text-muted-foreground">{t('ui.weSentConfirmationLink')}</p>
             <button
               type="button"
               onClick={resend}

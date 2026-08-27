@@ -76,9 +76,7 @@ export default async function FamilySettingsPage({ searchParams }: Props) {
       {settings
         ? <FamilySettingsClient settings={settings} initialPane={pane} billing={billing} />
         : (
-          <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
-            We could not load this family&rsquo;s details. Try again in a moment.
-          </p>
+          <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">{t('adm.weCouldNotLoad')}</p>
         )}
     </PageShell>
   )

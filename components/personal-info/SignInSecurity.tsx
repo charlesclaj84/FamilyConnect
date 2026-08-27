@@ -256,9 +256,7 @@ export function SignInSecuritySection({ visible, signInEmail }: {
         </p>
 
         {emailStage === 'idle' && (
-          <Button size="sm" variant="outline" onClick={() => { setNewEmail(''); setEmailError(''); setEmailStage('form') }}>
-            Change sign-in email
-          </Button>
+          <Button size="sm" variant="outline" onClick={() => { setNewEmail(''); setEmailError(''); setEmailStage('form') }}>{t('prof.changeSignEmail')}</Button>
         )}
 
         {emailStage === 'form' && (
@@ -401,10 +399,7 @@ export function SignInSecuritySection({ visible, signInEmail }: {
               opposite, which is the sentence somebody reads after changing their password
               because they think a relative is in their account.
             */}
-            <p>
-              Your password has been changed, and every other device signed in to this
-              account has been signed out. They will need the new password.
-            </p>
+            <p>{t('prof.passwordBeenChangedEvery')}</p>
           </div>
         )}
       </Panel>

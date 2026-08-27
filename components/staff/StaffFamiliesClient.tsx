@@ -144,10 +144,7 @@ export function StaffFamiliesClient({ initial }: { initial: StaffFamilyPage }) {
       <FormError message={error} />
 
       {data.failed ? (
-        <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
-          The families list could not be read. That is a refused query rather than an empty
-          platform — try again in a moment, and check the server log for the reason.
-        </p>
+        <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">{t('stf.familiesListCouldNot')}</p>
       ) : data.rows.length === 0 ? (
         <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
           {debounced

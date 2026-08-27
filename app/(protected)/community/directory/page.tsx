@@ -43,9 +43,7 @@ export default async function MembersPage() {
         </div>
         <Link href="/community/family-tree">
           <Button variant="outline">
-            <GitBranch className="h-4 w-4" aria-hidden="true" />
-            Family Tree
-          </Button>
+            <GitBranch className="h-4 w-4" aria-hidden="true" />{t('comm.familyTree')}</Button>
         </Link>
       </div>
       <MemberDirectoryClient members={members} />

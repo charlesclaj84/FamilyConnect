@@ -423,11 +423,7 @@ export function AdminAccessClient({
           {organization.showGeography && (
             <div className="space-y-6">
               <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  How the family divides itself up geographically. A chapter belongs to one
-                  region, or it sits under National — which is where everything starts and
-                  where a member with no chapter stays. Dues can be scoped to a region or a
-                  chapter under <Link href="/admin/accounting?section=dues">{t('acct.heading')}</Link>.
+                <p className="text-sm text-muted-foreground">{t('adm.howFamilyDividesItself')}<Link href="/admin/accounting?section=dues">{t('acct.heading')}</Link>.
                 </p>
                 {/* A SECOND PLACED HELP LINK ON THIS SCREEN, and the bar for one is the same
                     as the Permission Templates icon's: a control where a reader can be
@@ -1606,10 +1602,7 @@ function TemplatesTab({
                                   // feature can be REGISTERED (see AGENTS.md on why a page
                                   // needs a row even when nothing is granted per action), and
                                   // saying so is better than an empty panel.
-                                  <p className="text-xs text-muted-foreground">
-                                    Nothing to set here — this feature is either always
-                                    available or governed by the rows above it.
-                                  </p>
+                                  <p className="text-xs text-muted-foreground">{t('adm.nothingSetHereFeature')}</p>
                                 ) : actionable.map(({ action, scopes }) => {
                                   const current = policy[`${r.key}:${action}`] ?? 'none'
                                   return (
