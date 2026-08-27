@@ -6,14 +6,16 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/currency-utils'
+import { formatCurrency, formatMoney } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { formatInstantDate } from '@/lib/tz'
-import { PAYMENT_STATUS_LABELS } from '@/lib/dues-utils'
+import { paymentStatusLabel } from '@/lib/dues-utils'
+import type { T } from '@/lib/i18n/t'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
 import type { DuesPayment } from '@/app/actions/dues'
 import { PaidThisYearCard } from '@/components/account/PaidThisYearCard'
 import { SortTh, type SortDir } from '@/components/ui/sortable-header'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 type HistCol = 'schedule' | 'date' | 'amount'
 
@@ -39,36 +41,36 @@ const fmtDate = (s: string) => formatDate(s) ?? ''
  * Every value is pre-formatted to a string, exactly as the ledger dialog does it, so a
  * date or an amount cannot be shown one way in the table and another in the detail.
  */
-function viewOfMyPayment(p: DuesPayment, zone: string): {
+function viewOfMyPayment(p: DuesPayment, zone: string, t: T, intl: string): {
   title: string
   subtitle: string
   fields: { label: string; value: string | null }[]
 } {
   const isReversal = Boolean(p.reverses_id)
-  const kindWord = p.schedule_kind === 'donation' ? 'Donation payment' : 'Dues payment'
+  const kindWord = p.schedule_kind === 'donation' ? t('history.donationPayment') : t('history.duesPayment')
   return {
-    title: p.schedule_label ?? 'General Payment',
-    subtitle: isReversal ? `${kindWord} — correcting entry` : kindWord,
+    title: p.schedule_label ?? t('cards.generalPayment'),
+    subtitle: isReversal ? t('history.correctingEntry', { kind: kindWord }) : kindWord,
     fields: [
-      { label: 'Amount', value: formatCurrency(p.amount_cents) },
-      { label: 'Status', value: PAYMENT_STATUS_LABELS[p.status] ?? p.status },
-      { label: 'Date', value: formatDate(p.payment_date) },
+      { label: t('money.amount'), value: formatMoney(p.amount_cents, { locale: intl }) },
+      { label: t('money.status'), value: paymentStatusLabel(t, p.status) },
+      { label: t('money.date'), value: formatDate(p.payment_date, intl) },
       // Both null on a waived row by design — no money moved, so there was no method
       // and no cheque to number. The dialog renders a null as an em dash.
-      { label: 'Payment method', value: p.payment_method },
-      { label: 'Check # / Reference', value: p.payment_reference },
-      { label: 'Notes', value: p.notes },
+      { label: t('history.paymentMethod'), value: p.payment_method },
+      { label: t('history.reference'), value: p.payment_reference },
+      { label: t('history.notes'), value: p.notes },
       // When the family recorded it, which is not the same as when it was paid — a
       // cheque handed over in March and keyed in in May has two different dates, and
       // this is the one that explains why it only just appeared here.
       // `created_at` is an INSTANT, so it has no calendar date of its own — see lib/tz.ts.
       // `payment_date` above is a DATE column and stays on `formatDate`.
-      { label: 'Recorded', value: formatInstantDate(p.created_at, zone) },
+      { label: t('history.recorded'), value: formatInstantDate(p.created_at, zone) },
       ...(p.reversed_by_id
-        ? [{ label: 'Reversed', value: 'Yes — a correcting entry cancels this payment' }]
+        ? [{ label: t('history.reversed'), value: t('history.reversedYes') }]
         : []),
       ...(isReversal
-        ? [{ label: 'Corrects', value: 'An earlier payment in this history' }]
+        ? [{ label: t('history.corrects'), value: t('history.correctsWhat') }]
         : []),
     ],
   }
@@ -83,13 +85,15 @@ function viewOfMyPayment(p: DuesPayment, zone: string): {
  * on this screen writes.
  */
 export function PaymentHistorySection({ history, zone }: { history: DuesPayment[]; zone: string }) {
+  const t = useT()
+  const intl = useIntlTag()
   // Which payment's detail dialog is open. Held as an ID rather than as the row itself,
   // for the reason TransactionsClient holds one: the dialog then re-derives from live
   // props, so a reversal posted while it is open updates the entry being read instead of
   // showing a stale snapshot of it.
   const [viewingId, setViewingId] = useState<string | null>(null)
   const viewedPayment = viewingId ? history.find(p => p.id === viewingId) ?? null : null
-  const viewed = viewedPayment ? viewOfMyPayment(viewedPayment, zone) : null
+  const viewed = viewedPayment ? viewOfMyPayment(viewedPayment, zone, t, intl) : null
 
   const [histSearch, setHistSearch] = useState('')
   const [histSort, setHistSort] = useState<{ col: HistCol; dir: SortDir }>({ col: 'date', dir: 'desc' })
@@ -123,19 +127,19 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
       <div>
         <div className="mb-3 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
           <p className="text-xs text-muted-foreground">
-            {history.length === 0 ? 'No payments on record' : `${history.length} transaction${history.length !== 1 ? 's' : ''}`}
+            {history.length === 0 ? t('cards.noPayments') : `${history.length} transaction${history.length !== 1 ? 's' : ''}`}
           </p>
           {history.length > 0 && (
             <div className="relative w-full sm:w-44">
               <Search className="absolute left-2.5 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input aria-label="Filter payment history" placeholder="Filter..." value={histSearch} onChange={e => setHistSearch(e.target.value)} className="pl-7 h-8 text-xs" />
+              <Input aria-label={t('history.filter')} placeholder={t('history.filterPh')} value={histSearch} onChange={e => setHistSearch(e.target.value)} className="pl-7 h-8 text-xs" />
             </div>
           )}
         </div>
         {history.length === 0 ? (
           <div className="flex flex-col items-center py-10 gap-2">
             <DollarSign className="h-10 w-10 text-muted-foreground/20" />
-            <p className="text-sm text-muted-foreground">No payment history available yet.</p>
+            <p className="text-sm text-muted-foreground">{t('history.none')}</p>
           </div>
         ) : (
           /* Method and Status already folded here before the pattern had a name —
@@ -146,16 +150,16 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
-                  <SortTh label="Schedule" active={histSort.col === 'schedule'} dir={histSort.dir} onClick={() => sortHist('schedule')} />
-                  <SortTh label="Date" active={histSort.col === 'date'} dir={histSort.dir} onClick={() => sortHist('date')} className={COLLAPSING_CELL} />
-                  <SortTh label="Amount" active={histSort.col === 'amount'} dir={histSort.dir} onClick={() => sortHist('amount')} align="right" />
-                  <th className={cn('py-2 pr-3 text-xs font-medium text-muted-foreground text-left', COLLAPSING_CELL)}>Method</th>
-                  <th className={cn('py-2 text-xs font-medium text-muted-foreground text-left', COLLAPSING_CELL)}>Status</th>
+                  <SortTh label={t('money.schedule')} active={histSort.col === 'schedule'} dir={histSort.dir} onClick={() => sortHist('schedule')} />
+                  <SortTh label={t('money.date')} active={histSort.col === 'date'} dir={histSort.dir} onClick={() => sortHist('date')} className={COLLAPSING_CELL} />
+                  <SortTh label={t('money.amount')} active={histSort.col === 'amount'} dir={histSort.dir} onClick={() => sortHist('amount')} align="right" />
+                  <th className={cn('py-2 pr-3 text-xs font-medium text-muted-foreground text-left', COLLAPSING_CELL)}>{t('money.method')}</th>
+                  <th className={cn('py-2 text-xs font-medium text-muted-foreground text-left', COLLAPSING_CELL)}>{t('money.status')}</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredHistory.length === 0 ? (
-                  <tr><td colSpan={5} className="text-center text-xs text-muted-foreground py-6">No matching payments.</td></tr>
+                  <tr><td colSpan={5} className="text-center text-xs text-muted-foreground py-6">{t('history.noMatches')}</td></tr>
                 ) : filteredHistory.map(p => {
                   const statusPill = (
                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium ${
@@ -185,7 +189,7 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
                           onClick={e => { e.stopPropagation(); setViewingId(p.id) }}
                           className="text-left font-medium hover:underline focus-visible:underline focus-visible:outline-none"
                         >
-                          {p.schedule_label ?? 'General Payment'}
+                          {p.schedule_label ?? t('cards.generalPayment')}
                         </button>
                         {/* Dues and donations land in the same ledger, so each row
                             says which it was. Both are tagged, not just donations:
@@ -194,7 +198,7 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
                             coloured pill in this row is the payment's status. */}
                         {p.schedule_kind && (
                           <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                            {p.schedule_kind === 'donation' ? 'Donation' : 'Dues'}
+                            {p.schedule_kind === 'donation' ? t('money.donation') : 'Dues'}
                           </span>
                         )}
                       </p>
@@ -265,7 +269,7 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
               ))}
             </dl>
             <div className="pt-4">
-              <Button variant="outline" className="w-full" onClick={() => setViewingId(null)}>Close</Button>
+              <Button variant="outline" className="w-full" onClick={() => setViewingId(null)}>{t('money.close')}</Button>
             </div>
           </div>
         )}

@@ -29,9 +29,11 @@ import { SignInSecuritySection } from '@/components/personal-info/SignInSecurity
 import { NotificationsSection } from '@/components/personal-info/Notifications'
 import type { MyNotificationSettings } from '@/app/actions/notification-prefs'
 import {
-  PROFILE_SECTION_LABELS, type ProfileSection,
+  profileSectionLabel, type ProfileSection,
 } from '@/components/personal-info/profile-sections'
 import { formatPhone } from '@/lib/phone-format'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 // ── `useWatch`, never `watch()` ────────────────────────────────────────────────
 //
@@ -62,11 +64,12 @@ const formatDate = fmtDate
 // ── View-mode field ────────────────────────────────────────────────────────────
 
 function Field({ label, value }: { label: string; value?: string | null }) {
+  const t = useT()
   return (
     <div className="space-y-0.5">
       <p className="text-xs text-muted-foreground">{label}</p>
       <p className="text-sm">
-        {value || <span className="text-muted-foreground/40 italic text-xs">Not set</span>}
+        {value || <span className="text-muted-foreground/40 italic text-xs">{t('action.notSet')}</span>}
       </p>
     </div>
   )
@@ -114,6 +117,7 @@ function AvatarUpload({ initials, existingUrl, allowed }: {
   /** Does the family being viewed include profile pictures? `familyShowsPhotos`. */
   allowed: boolean
 }) {
+  const t = useT()
   const confirm = useConfirm()
   const fileRef = useRef<HTMLInputElement>(null)
   const [preview, setPreview] = useState<string | null>(existingUrl ?? null)
@@ -124,11 +128,11 @@ function AvatarUpload({ initials, existingUrl, allowed }: {
     const file = e.target.files?.[0]
     if (!file) return
     const ok = await confirm({
-      title: existingUrl ? 'Replace profile photo' : 'Set profile photo',
+      title: existingUrl ? t('profile.photo.replaceLong') : t('profile.photo.setLong'),
       description: existingUrl
         ? `Replace your profile photo with "${file.name}"? Your current photo is removed.`
         : `Use "${file.name}" as your profile photo?`,
-      confirmLabel: existingUrl ? 'Replace photo' : 'Set photo',
+      confirmLabel: existingUrl ? t('profile.photo.replace') : t('profile.photo.set'),
     })
     if (!ok) { if (fileRef.current) fileRef.current.value = ''; return }
     setError('')
@@ -139,7 +143,7 @@ function AvatarUpload({ initials, existingUrl, allowed }: {
       const result = await uploadAvatar(fd)
       if (!result.success) {
         setPreview(existingUrl ?? null)
-        setError(result.message ?? 'Could not set that photo')
+        setError(result.message ?? t('profile.photo.failed'))
       }
       // THE INPUT IS CLEARED EITHER WAY. Without it, choosing the same file again after a
       // refusal fires no `change` event at all — the value has not changed — so the member's
@@ -168,7 +172,7 @@ function AvatarUpload({ initials, existingUrl, allowed }: {
         onClick={() => fileRef.current?.click()}
         disabled={isPending}
         className="absolute -bottom-1 -right-1 rounded-full bg-muted border border-border p-1 hover:bg-accent transition-colors disabled:opacity-50"
-        aria-label="Upload profile photo"
+        aria-label={t('profile.photo.upload')}
       >
         {isPending
           ? <Loader2 className="h-3 w-3 text-muted-foreground animate-spin" />
@@ -247,15 +251,16 @@ function FormActions({
   onCancel: () => void
   error?: string
 }) {
+  const t = useT()
   return (
     <div className="space-y-3 pt-1">
       <FormError message={error} />
       <div className="flex gap-2">
         <Button type="submit" size="sm" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving…' : 'Save'}
+          {isSubmitting ? t('action.saving') : t('action.save')}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
-          Cancel
+          {t('action.cancel')}
         </Button>
       </div>
     </div>
@@ -295,10 +300,11 @@ function ChapterBlock({
   chapters: Chapter[]
   children: React.ReactNode
 }) {
+  const t = useT()
   return (
     <div className="mt-6 rounded-lg border bg-muted/30 p-4">
       <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-        {familyName ? `In ${familyName}` : 'In this family'}
+        {familyName ? t('profile.inFamily', { family: familyName }) : t('profile.inThisFamily')}
       </p>
       {/* The empty case says so instead of rendering nothing. A family that has not
           created any chapters is the common case, not an error, and a member who was
@@ -307,7 +313,7 @@ function ChapterBlock({
         <div className="space-y-1.5">{children}</div>
       ) : (
         <p className="text-sm text-muted-foreground">
-          This family has no chapters, so there is nothing to choose.
+          {t('profile.noChapters')}
         </p>
       )}
       <p className="mt-3 text-xs text-muted-foreground">
@@ -331,11 +337,14 @@ function ChapterBlock({
   )
 }
 
-const generalSchema = z.object({
+// A FACTORY, not a constant. The two required-field messages are copy, and a schema built
+// at module load cannot reach the reader's catalogue. `GeneralData` is inferred from the
+// RETURN type below, so the shape is still checked exactly as before.
+const generalSchema = (t: T) => z.object({
   prefix:         z.string().optional(),
-  first_name:     z.string().min(1, 'First name is required'),
+  first_name:     z.string().min(1, t('profile.firstNameRequired')),
   middle_name:    z.string().optional(),
-  last_name:      z.string().min(1, 'Last name is required'),
+  last_name:      z.string().min(1, t('profile.lastNameRequired')),
   nick_name:      z.string().optional(),
   suffix:         z.string().optional(),
   primary_email:  z.string().optional(),
@@ -347,7 +356,7 @@ const generalSchema = z.object({
   // <option>s, not by the resolver.
   gender:         z.string().optional(),
 })
-type GeneralData = z.infer<typeof generalSchema>
+type GeneralData = z.infer<ReturnType<typeof generalSchema>>
 
 function GeneralSection({
   existing,
@@ -372,6 +381,7 @@ function GeneralSection({
   /** Leave edit mode — saved or cancelled, the parent does not need to know which. */
   onEditDone: () => void
 }) {
+  const t = useT()
   const confirm = useConfirm()
   const [serverError, setServerError] = useState('')
   const existingChapterId = existing?.chapter_id
@@ -382,7 +392,7 @@ function GeneralSection({
   const currentChapter = chapters.find(c => c.id === existingChapterId)
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<GeneralData>({
-    resolver: zodResolver(generalSchema),
+    resolver: zodResolver(generalSchema(t)),
     defaultValues: {
       prefix: tv(existing?.prefix), first_name: tv(existing?.first_name),
       middle_name: tv(existing?.middle_name), last_name: tv(existing?.last_name),
@@ -422,14 +432,14 @@ function GeneralSection({
   async function onSubmit(data: GeneralData) {
     const chapterChanged = chapterId !== (existingChapterId ?? '')
     const ok = await confirm({
-      title: 'Save general information',
+      title: t('profile.confirm.general'),
       description: chapterChanged
         // SAYS WHAT MOVES. There is no household here (AGENTS.md §4b: one kind of `people`
         // row), and what follows a member is narrower than one: a son or daughter under
         // eighteen with no account of their own.
         ? `Save your changes and move to the ${chapters.find(c => c.id === chapterId)?.name ?? 'selected'} chapter? Any sons or daughters under 18 who have no account of their own move with you.`
-        : 'Save your changes to your general information?',
-      confirmLabel: 'Save changes',
+        : t('profile.confirm.generalBody'),
+      confirmLabel: t('action.saveChanges'),
     })
     if (!ok) return
     setServerError('')
@@ -439,14 +449,14 @@ function GeneralSection({
     // (lib/profile-columns.ts). saveChapterAndPropagate is the real path: it is the only
     // one that also moves the member's minor children.
     const result = await saveProfileSection(data)
-    if (!result.success) { setServerError(result.message ?? 'Something went wrong'); return }
+    if (!result.success) { setServerError(result.message ?? t('profile.wentWrong')); return }
     if (chapterChanged) {
       const chapterResult = await saveChapterAndPropagate(chapterId || null)
       // Reported rather than swallowed. The chapter is now a SEPARATE write, so it can
       // fail on its own — and it is the half that also moves the member's under-18 children,
       // which is the last thing to report success over silently.
       if (!chapterResult.success) {
-        setServerError(chapterResult.message ?? 'Your details were saved, but the chapter could not be changed.')
+        setServerError(chapterResult.message ?? t('profile.chapterNotChanged'))
         onSaved()
         return
       }
@@ -467,23 +477,23 @@ function GeneralSection({
       {!editing ? (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 pt-1">
-            <Field label="Prefix"         value={existing?.prefix} />
-            <Field label="First Name"     value={existing?.first_name} />
-            <Field label="Middle Name"    value={existing?.middle_name} />
-            <Field label="Last Name"      value={existing?.last_name} />
-            <Field label="Nickname"       value={existing?.nick_name ?? null} />
-            <Field label="Suffix"         value={existing?.suffix} />
-            <Field label="Email"          value={existing?.primary_email} />
-            <Field label="Phone"          value={formatPhone(existing?.primary_phone)} />
+            <Field label={t('field.prefix')}         value={existing?.prefix} />
+            <Field label={t('field.firstName')}      value={existing?.first_name} />
+            <Field label={t('field.middleName')}     value={existing?.middle_name} />
+            <Field label={t('field.lastName')}       value={existing?.last_name} />
+            <Field label={t('field.nickname')}       value={existing?.nick_name ?? null} />
+            <Field label={t('field.suffix')}         value={existing?.suffix} />
+            <Field label={t('field.email')}          value={existing?.primary_email} />
+            <Field label={t('field.phone')}          value={formatPhone(existing?.primary_phone)} />
             {/* genderLabel() rather than the raw column: the row holds 'male', the
                 screen says Male. It returns '' for a value it does not recognise, so
                 Field falls through to "Not set" instead of printing a token. */}
-            <Field label="Gender"         value={genderLabel(existing?.gender)} />
+            <Field label={t('field.gender')}         value={genderLabel(existing?.gender)} />
           </div>
           <ChapterBlock familyName={familyName} chapters={chapters}>
             <p className="text-xs text-muted-foreground">Chapter</p>
             <p className="text-sm">
-              {currentChapter?.name ?? <span className="text-muted-foreground">Not set</span>}
+              {currentChapter?.name ?? <span className="text-muted-foreground">{t('action.notSet')}</span>}
             </p>
           </ChapterBlock>
         </>
@@ -491,47 +501,47 @@ function GeneralSection({
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="prefix">Prefix</Label>
+              <Label htmlFor="prefix">{t('field.prefix')}</Label>
               <Select id="prefix" {...register('prefix')}>
                 <option value="">— None —</option>
                 {PREFIXES.map(p => <option key={p} value={p}>{p}</option>)}
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="first_name" required>First Name</Label>
+              <Label htmlFor="first_name" required>{t('field.firstName')}</Label>
               <Input id="first_name" {...register('first_name')} />
               <FieldError message={errors.first_name?.message} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="middle_name">Middle Name</Label>
+              <Label htmlFor="middle_name">{t('field.middleName')}</Label>
               <Input id="middle_name" {...register('middle_name')} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="last_name" required>Last Name</Label>
+              <Label htmlFor="last_name" required>{t('field.lastName')}</Label>
               <Input id="last_name" {...register('last_name')} />
               <FieldError message={errors.last_name?.message} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="nick_name">Nickname</Label>
-              <Input id="nick_name" placeholder="e.g. Big Mike" {...register('nick_name')} />
+              <Label htmlFor="nick_name">{t('field.nickname')}</Label>
+              <Input id="nick_name" placeholder={t('field.ph.nickname')} {...register('nick_name')} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="suffix">Suffix</Label>
+              <Label htmlFor="suffix">{t('field.suffix')}</Label>
               <Select id="suffix" {...register('suffix')}>
                 <option value="">— None —</option>
                 {SUFFIXES.map(s => <option key={s} value={s}>{s}</option>)}
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="primary_email">Email</Label>
-              <Input id="primary_email" type="email" placeholder="you@example.com" {...register('primary_email')} />
+              <Label htmlFor="primary_email">{t('field.email')}</Label>
+              <Input id="primary_email" type="email" placeholder={t('field.ph.email')} {...register('primary_email')} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="primary_phone">Phone</Label>
-              <Input id="primary_phone" type="tel" placeholder="(555) 000-0000" {...register('primary_phone')} />
+              <Label htmlFor="primary_phone">{t('field.phone')}</Label>
+              <Input id="primary_phone" type="tel" placeholder={t('field.ph.phone')} {...register('primary_phone')} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="gender">Gender</Label>
+              <Label htmlFor="gender">{t('field.gender')}</Label>
               {/* Blank is a real, keepable answer and it is the default, so the option
                   is worded as one rather than as an empty prompt — nothing here obliges
                   anyone to state it. It saves as NULL. */}
@@ -542,7 +552,7 @@ function GeneralSection({
             </div>
           </div>
           <ChapterBlock familyName={familyName} chapters={chapters}>
-            <Label htmlFor="chapter_id">Chapter</Label>
+            <Label htmlFor="chapter_id">{t('field.chapter')}</Label>
             <select
               id="chapter_id"
               className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm sm:max-w-xs"
@@ -587,6 +597,7 @@ function AddressSection({
   editing: boolean
   onEditDone: () => void
 }) {
+  const t = useT()
   const confirm = useConfirm()
   const [serverError, setServerError] = useState('')
 
@@ -600,7 +611,9 @@ function AddressSection({
   const selectedState    = useWatch({ control, name: 'state' }) ?? ''
   const availableRegions = selectedCountry && selectedCountry in REGIONS ? REGIONS[selectedCountry as Country] : []
 
-  const stateLabel = selectedCountry === 'Canada' ? 'Province' : 'State'
+  // 'Canada' is the STORED VALUE of the country field, not a caption — it stays English.
+  // What is translated is the label the comparison chooses.
+  const stateLabel = selectedCountry === 'Canada' ? t('field.province') : t('field.state')
 
   function handleCountryChange(e: React.ChangeEvent<HTMLSelectElement>) {
     setValue('country', e.target.value)
@@ -617,15 +630,15 @@ function AddressSection({
 
   async function onSubmit(data: AddressData) {
     const ok = await confirm({
-      title: 'Save address',
-      description: 'Save your changes to your address?',
-      confirmLabel: 'Save changes',
+      title: t('profile.confirm.address'),
+      description: t('profile.confirm.addressBody'),
+      confirmLabel: t('action.saveChanges'),
     })
     if (!ok) return
     setServerError('')
     const result = await saveProfileSection(data)
     if (result.success) { onEditDone(); onSaved() }
-    else setServerError(result.message ?? 'Something went wrong')
+    else setServerError(result.message ?? t('profile.wentWrong'))
   }
 
   // NO `fullAddress`. A newline-joined one-block address was built here and never rendered:
@@ -639,17 +652,17 @@ function AddressSection({
     <SectionCard>
       {!editing ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 pt-1">
-          <Field label="Country"          value={existing?.country} />
-          <Field label="Street Address"   value={existing?.street_address} />
-          <Field label="Apartment / Suite" value={existing?.apartment} />
-          <Field label="City"             value={existing?.city} />
-          <Field label={stateLabel || 'State / Province'} value={existing?.state} />
-          <Field label="ZIP / Postal"     value={existing?.zip_code} />
+          <Field label={t('field.country')}        value={existing?.country} />
+          <Field label={t('field.street')}         value={existing?.street_address} />
+          <Field label={t('field.apartment')}      value={existing?.apartment} />
+          <Field label={t('field.city')}           value={existing?.city} />
+          <Field label={stateLabel || t('field.stateProvince')} value={existing?.state} />
+          <Field label={t('field.zip')}            value={existing?.zip_code} />
         </div>
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="country">Country</Label>
+            <Label htmlFor="country">{t('field.country')}</Label>
             <Select id="country" value={selectedCountry} onChange={handleCountryChange} className="max-w-xs">
               <option value="">— Select Country —</option>
               {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -658,21 +671,21 @@ function AddressSection({
 
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="street_address">Street Address</Label>
-              <Input id="street_address" placeholder="123 Main Street" {...register('street_address')} />
+              <Label htmlFor="street_address">{t('field.street')}</Label>
+              <Input id="street_address" placeholder={t('field.ph.street')} {...register('street_address')} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="apartment">Apartment / Suite</Label>
-              <Input id="apartment" placeholder="Apt 4B" {...register('apartment')} />
+              <Label htmlFor="apartment">{t('field.apartment')}</Label>
+              <Input id="apartment" placeholder={t('field.ph.apartment')} {...register('apartment')} />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="col-span-2 space-y-1.5">
-                <Label htmlFor="city">City</Label>
-                <Input id="city" placeholder="Springfield" {...register('city')} />
+                <Label htmlFor="city">{t('field.city')}</Label>
+                <Input id="city" placeholder={t('field.ph.city')} {...register('city')} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="state">
-                  {selectedCountry === 'Canada' ? 'Province' : selectedCountry ? 'State' : 'State / Province'}
+                  {selectedCountry === 'Canada' ? t('field.province') : selectedCountry ? t('field.state') : t('field.stateProvince')}
                 </Label>
                 {availableRegions.length > 0 ? (
                   <Select id="state" value={selectedState} onChange={e => setValue('state', e.target.value)}>
@@ -680,12 +693,12 @@ function AddressSection({
                     {availableRegions.map(r => <option key={r} value={r}>{r}</option>)}
                   </Select>
                 ) : (
-                  <Input id="state" placeholder="State" disabled={!selectedCountry} {...register('state')} />
+                  <Input id="state" placeholder={t('field.state')} disabled={!selectedCountry} {...register('state')} />
                 )}
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="zip_code">ZIP / Postal</Label>
-                <Input id="zip_code" placeholder="62701" {...register('zip_code')} />
+                <Label htmlFor="zip_code">{t('field.zip')}</Label>
+                <Input id="zip_code" placeholder={t('field.ph.zip')} {...register('zip_code')} />
               </div>
             </div>
           </div>
@@ -718,6 +731,8 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
   editing: boolean
   onEditDone: () => void
 }) {
+  const t = useT()
+  const intl = useIntlTag()
   const confirm = useConfirm()
   const [serverError, setServerError] = useState('')
 
@@ -753,15 +768,15 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
 
   async function onSubmit(data: AdditionalData) {
     const ok = await confirm({
-      title: 'Save additional information',
-      description: 'Save your changes to your additional information?',
-      confirmLabel: 'Save changes',
+      title: t('profile.confirm.additional'),
+      description: t('profile.confirm.additionalBody'),
+      confirmLabel: t('action.saveChanges'),
     })
     if (!ok) return
     setServerError('')
     const result = await saveProfileSection(data)
     if (result.success) { onEditDone(); onSaved() }
-    else setServerError(result.message ?? 'Something went wrong')
+    else setServerError(result.message ?? t('profile.wentWrong'))
   }
 
   const shirtDisplay = existing?.tshirt_category && existing?.tshirt_size
@@ -774,45 +789,45 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
     <SectionCard>
       {!editing ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 pt-1">
-          <Field label="Date of Birth" value={formatDate(existing?.date_of_birth)} />
+          <Field label={t('field.dob')} value={formatDate(existing?.date_of_birth, intl)} />
           <div className="space-y-0.5">
             <p className="text-xs text-muted-foreground">Sunset Date</p>
             <p className="text-sm">
-              {formatDate(existing?.sunset_date) || <span className="text-muted-foreground/40 italic text-xs">Living</span>}
+              {formatDate(existing?.sunset_date, intl) || <span className="text-muted-foreground/40 italic text-xs">{t('profile.living')}</span>}
             </p>
           </div>
-          <Field label="T-Shirt" value={shirtDisplay} />
-          <Field label="Time Zone" value={existing?.time_zone ? (TIMEZONE_LABELS[existing.time_zone] ?? existing.time_zone) : null} />
+          <Field label={t('field.tshirt')} value={shirtDisplay} />
+          <Field label={t('field.timeZone')} value={existing?.time_zone ? (TIMEZONE_LABELS[existing.time_zone] ?? existing.time_zone) : null} />
         </div>
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="date_of_birth">Date of Birth</Label>
+              <Label htmlFor="date_of_birth">{t('field.dob')}</Label>
               <Input id="date_of_birth" type="date" {...register('date_of_birth')} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="sunset_date">Sunset Date</Label>
+              <Label htmlFor="sunset_date">{t('field.sunset')}</Label>
               <Input id="sunset_date" type="date" {...register('sunset_date')} />
-              <p className="text-xs text-muted-foreground">Leave blank if living.</p>
+              <p className="text-xs text-muted-foreground">{t('profile.sunsetHint')}</p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tshirt_category">T-Shirt Category</Label>
+              <Label htmlFor="tshirt_category">{t('field.tshirtCategory')}</Label>
               <Select id="tshirt_category" value={selectedCategory} onChange={e => { setValue('tshirt_category', e.target.value); setValue('tshirt_size', '') }}>
                 <option value="">— Select —</option>
                 {TSHIRT_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="tshirt_size">T-Shirt Size</Label>
+              <Label htmlFor="tshirt_size">{t('field.tshirtSize')}</Label>
               <Select id="tshirt_size" disabled={availableSizes.length === 0} value={selectedSize} onChange={e => setValue('tshirt_size', e.target.value)}>
                 <option value="">— Select —</option>
                 {availableSizes.map(s => <option key={s} value={s}>{s}</option>)}
               </Select>
-              {availableSizes.length === 0 && <p className="text-xs text-muted-foreground">Select a category first.</p>}
+              {availableSizes.length === 0 && <p className="text-xs text-muted-foreground">{t('profile.sizeFirst')}</p>}
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="time_zone">Time Zone</Label>
+              <Label htmlFor="time_zone">{t('field.timeZone')}</Label>
               <Select id="time_zone" {...register('time_zone')}>
                 <option value="">— Select —</option>
                 {TIMEZONES.map(tz => (
@@ -833,7 +848,7 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
                 No flags. A flag is a country and a language is not — Spanish is not Spain
                 to a family in Monterrey. */}
             <div className="space-y-1.5">
-              <Label htmlFor="locale">Language</Label>
+              <Label htmlFor="locale">{t('field.language')}</Label>
               <Select id="locale" {...register('locale')}>
                 <option value="">— Select —</option>
                 {LOCALES.map(l => (
@@ -864,13 +879,18 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
  * own — `?section=` is written by replaceState and read on the next full load — so a real
  * link would promise a round trip that discards whatever is half-typed in a section.
  */
-const RAIL_ITEMS: MainRailItem<ProfileSection>[] = [
-  { id: 'general', label: PROFILE_SECTION_LABELS.general, icon: User },
-  { id: 'address', label: PROFILE_SECTION_LABELS.address, icon: MapPin },
-  { id: 'additional', label: PROFILE_SECTION_LABELS.additional, icon: Info },
-  { id: 'notifications', label: PROFILE_SECTION_LABELS.notifications, icon: Bell },
-  { id: 'security', label: PROFILE_SECTION_LABELS.security, icon: ShieldCheck },
-]
+// A FUNCTION, not a constant, since Phase 5: the captions come from the reader's catalogue,
+// so they cannot be resolved at module load. The ICONS and the ORDER stay here, which is
+// what this list is actually for.
+function railItems(t: T): MainRailItem<ProfileSection>[] {
+  return [
+    { id: 'general', label: profileSectionLabel(t, 'general'), icon: User },
+    { id: 'address', label: profileSectionLabel(t, 'address'), icon: MapPin },
+    { id: 'additional', label: profileSectionLabel(t, 'additional'), icon: Info },
+    { id: 'notifications', label: profileSectionLabel(t, 'notifications'), icon: Bell },
+    { id: 'security', label: profileSectionLabel(t, 'security'), icon: ShieldCheck },
+  ]
+}
 
 /**
  * Sections whose content is not an editable record, so the rail's Edit trigger would be
@@ -913,6 +933,7 @@ export function PersonalInfoForm({
    */
   notificationSettings: MyNotificationSettings
 }) {
+  const t = useT()
   const router = useRouter()
   const [section, setSection] = useState<ProfileSection>(initialSection)
 
@@ -942,8 +963,8 @@ export function PersonalInfoForm({
   return (
     <div className="space-y-5">
       <MainRail
-        label="My Profile sections"
-        items={RAIL_ITEMS}
+        label={t('profile.rail')}
+        items={railItems(t)}
         active={section}
         onSelect={selectSection}
         // The active pane's one action, in the slot Transactions and Accounting use for
@@ -952,9 +973,9 @@ export function PersonalInfoForm({
         action={!editing && !NO_EDIT_TRIGGER.has(section) && (
           <Button size="sm" variant="ghost"
             onClick={() => setEditingSection(section)}
-            aria-label={`Edit ${PROFILE_SECTION_LABELS[section]}`}>
+            aria-label={t('profile.editSection', { section: profileSectionLabel(t, section) })}>
             <Pencil className="mr-1 h-3.5 w-3.5" />
-            Edit
+            {t('action.edit')}
           </Button>
         )}
       />

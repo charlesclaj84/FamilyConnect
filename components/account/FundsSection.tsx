@@ -7,6 +7,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { type FundWithStats } from '@/app/actions/funds'
 import { formatCurrency as fmt } from '@/lib/currency-utils'
+import { useT } from '@/components/layout/LocaleProvider'
 
 // Member-initiated "open contributions" was removed along with the contributeToFund
 // server action it called. The action was live, unpermissioned service-role code that
@@ -33,6 +34,7 @@ function pctLabel(bps: number) {
 }
 
 export function FundsSection({ funds, canManage }: Props) {
+  const t = useT()
   const [expanded, setExpanded] = useState<string | null>(null)
 
   // Nothing to show and nothing to do about it. Somebody who CAN set funds up still
@@ -45,17 +47,17 @@ export function FundsSection({ funds, canManage }: Props) {
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
         <CardTitle className="text-base flex items-center gap-2">
           <Award className="h-4 w-4 text-primary" />
-          Family Funds
+          {t('funds.title')}
         </CardTitle>
         {canManage && (
           <Link href="/admin/accounting?section=funds" className={buttonVariants({ size: 'sm', variant: 'outline' })}>
-            Manage Funds
+            {t('funds.manage')}
           </Link>
         )}
       </CardHeader>
       <CardContent className="space-y-2">
         {funds.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No funds set up yet.</p>
+          <p className="text-sm text-muted-foreground">{t('funds.none')}</p>
         ) : (
           funds.map(fund => {
             // ── THE TARGET IS THE MINIMUM, AND `goal_cents` IS NOT CONSULTED ──────

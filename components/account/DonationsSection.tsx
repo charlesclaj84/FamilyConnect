@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import type { DonationSummary } from '@/app/actions/dues'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The family's donation drives and how far the FAMILY has got toward each goal.
@@ -73,6 +74,7 @@ function DonationRow({ donation: d, chargesReady }: {
   donation: DonationSummary
   chargesReady: boolean
 }) {
+  const t = useT()
   const { schedule, goalCents, raisedCents, myGivenCents, progressPercent, goalMet, closed } = d
   // What would meet the goal, or null when there is no goal or it is already met. Context
   // for the giver, never a proposed amount — see `GiveButton`.
@@ -96,12 +98,12 @@ function DonationRow({ donation: d, chargesReady }: {
             </span>
             {goalMet && (
               <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-affirm px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-on-affirm">
-                <Check className="h-3 w-3" /> Goal met
+                <Check className="h-3 w-3" /> {t('drives.goalMet')}
               </span>
             )}
             {closed && (
               <span className="inline-flex shrink-0 items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Closed
+                {t('drives.closed')}
               </span>
             )}
           </p>
@@ -136,7 +138,7 @@ function DonationRow({ donation: d, chargesReady }: {
         <p className="text-xs text-muted-foreground">
           {raisedCents > 0
             ? <><span className="font-medium text-foreground">{formatCurrency(raisedCents)}</span> raised{myGivenCents > 0 && ` · ${formatCurrency(myGivenCents)} from you`}</>
-            : 'No goal set — give what you like.'}
+            : t('drives.noGoal')}
         </p>
       )}
     </div>

@@ -24,7 +24,9 @@ import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
 import { formatDate, todayLocal } from '@/lib/date-utils'
 import { formatInstantDate } from '@/lib/tz'
 import { PAYMENT_METHODS } from '@/lib/payment-methods'
-import { PAYMENT_STATUS_LABELS, type ScheduleKind } from '@/lib/dues-utils'
+import { paymentStatusLabel, type ScheduleKind } from '@/lib/dues-utils'
+import type { T } from '@/lib/i18n/t'
+import { useT } from '@/components/layout/LocaleProvider'
 import { useServerState } from '@/lib/use-server-state'
 import { recordPayment, reversePayment, type DuesSchedule, type DuesPayment } from '@/app/actions/dues'
 import {
@@ -145,10 +147,13 @@ const SOURCE_LABELS: Record<string, string> = {
   member_contribution: 'From a member',
 }
 
-// MOVED TO lib/dues-utils.ts as PAYMENT_STATUS_LABELS. My Summary's Payment History
-// dialog renders the same statuses, and a second copy of this map is a second answer on
-// the one pair of screens a family compares when a figure looks wrong.
-const STATUS_LABELS = PAYMENT_STATUS_LABELS
+// MOVED TO lib/dues-utils.ts, and a FUNCTION of `t` since Phase 5. My Summary's Payment
+// History dialog renders the same statuses, and a second copy of this map is a second
+// answer on the one pair of screens a family compares when a figure looks wrong.
+//
+// THIS SCREEN IS NOT TRANSLATED YET — the Transactions ledger is on Phase 5's admin pass.
+// Bound to English here rather than left broken, so the two statuses it shows still read
+// as words. When this file gets its pass, take `t` from `useT()` and delete this.
 
 /**
  * One transaction rendered as a title and a flat list of labelled fields.
@@ -176,7 +181,7 @@ const recorderField = (name: string | null) => ({
   value: name ?? 'No longer in the family',
 })
 
-function viewOfPayment(p: DuesPayment | undefined, zone: string): TransactionView | null {
+function viewOfPayment(p: DuesPayment | undefined, zone: string, t: T): TransactionView | null {
   if (!p) return null
   const isReversal = Boolean(p.reverses_id)
   const kindWord = p.schedule_kind === 'donation' ? 'Donation payment' : 'Dues payment'
@@ -185,7 +190,7 @@ function viewOfPayment(p: DuesPayment | undefined, zone: string): TransactionVie
     subtitle: isReversal ? `${kindWord} — correcting entry` : kindWord,
     fields: [
       { label: 'Amount', value: fmt(p.amount_cents) },
-      { label: 'Status', value: STATUS_LABELS[p.status] ?? p.status },
+      { label: 'Status', value: paymentStatusLabel(t, p.status) },
       { label: p.schedule_kind === 'donation' ? 'Donation' : 'Schedule', value: p.schedule_label ?? 'No schedule' },
       { label: 'Date', value: formatDate(p.payment_date) },
       // Absent on a waived row by design — no money moved, so there was no method and
@@ -399,6 +404,7 @@ export function TransactionsClient({
   myName,
   zone,
 }: Props) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [ledger, setLedger] = useState<Ledger>(initialLedger)
@@ -763,7 +769,7 @@ export function TransactionsClient({
         ? viewOfDisbursement(disbursements.find(d => d.id === viewing.id), zone)
         : viewing.ledger === 'transfers'
           ? viewOfTransfer(transfers.find(t => t.id === viewing.id), zone)
-          : viewOfPayment(payments.find(p => p.id === viewing.id), zone)
+          : viewOfPayment(payments.find(p => p.id === viewing.id), zone, t)
 
   // Reachable: `transactions:view` opens the page, but each ledger is its own grant
   // since 20260808000000, so a caller can hold the page and none of its contents.
@@ -1313,6 +1319,7 @@ export function TransactionsClient({
  * one thing this pill must never do.
  */
 function PaymentStatusPill({ payment }: { payment: DuesPayment }) {
+  const t = useT()
   const isReversal = Boolean(payment.reverses_id)
   const isReversed = Boolean(payment.reversed_by_id)
   return (
@@ -1325,7 +1332,7 @@ function PaymentStatusPill({ payment }: { payment: DuesPayment }) {
     )}>
       {isReversed ? 'Reversed'
         : isReversal ? 'Correcting entry'
-          : STATUS_LABELS[payment.status] ?? payment.status}
+          : paymentStatusLabel(t, payment.status)}
     </span>
   )
 }

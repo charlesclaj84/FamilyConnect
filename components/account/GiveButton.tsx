@@ -10,6 +10,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { FieldError, FormError } from '@/components/ui/form-message'
 import { formatCurrency } from '@/lib/currency-utils'
 import { startDonationCheckout } from '@/app/actions/pay-dues'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Giving to one drive, by card.
@@ -37,6 +38,7 @@ export function GiveButton({ scheduleId, label, toGoalCents }: {
   /** What is left before the goal is met, or null when there is no goal or it is met. */
   toGoalCents: number | null
 }) {
+  const t = useT()
   const [open, setOpen] = useState(false)
   const [amount, setAmount] = useState('')
   const [pending, startTransition] = useTransition()
@@ -50,7 +52,7 @@ export function GiveButton({ scheduleId, label, toGoalCents }: {
     // typed something impossible finds out before a redirect rather than after.
     const cents = Math.round(Number(amount) * 100)
     if (!Number.isFinite(cents) || cents <= 0) {
-      setAmountError('Enter an amount to give.')
+      setAmountError(t('drives.needAmount'))
       return
     }
     startTransition(async () => {
@@ -67,7 +69,7 @@ export function GiveButton({ scheduleId, label, toGoalCents }: {
     <>
       <Button size="sm" variant="affirm" onClick={() => setOpen(true)}>
         <HeartHandshake className="h-3.5 w-3.5" />
-        Give
+        {t('drives.give')}
       </Button>
 
       {open && (
@@ -75,11 +77,11 @@ export function GiveButton({ scheduleId, label, toGoalCents }: {
           open
           onClose={() => setOpen(false)}
           title={`Give to ${label}`}
-          description="Paid by card straight to your family. It posts to their books the moment it clears."
+          description={t('drives.giveHint')}
         >
           <div className="space-y-4">
             <div>
-              <Label htmlFor={`give-${scheduleId}`} required>Amount</Label>
+              <Label htmlFor={`give-${scheduleId}`} required>{t('money.amount')}</Label>
               <Input
                 id={`give-${scheduleId}`}
                 type="number"
@@ -95,7 +97,7 @@ export function GiveButton({ scheduleId, label, toGoalCents }: {
               <p className="mt-1.5 text-xs text-muted-foreground">
                 {toGoalCents != null
                   ? `${formatCurrency(toGoalCents)} would meet the goal — give what you like.`
-                  : 'Give what you like. There is no set amount.'}
+                  : t('drives.giveAnything')}
               </p>
             </div>
 
@@ -105,10 +107,10 @@ export function GiveButton({ scheduleId, label, toGoalCents }: {
             <FormError message={error} />
 
             <div className="flex flex-wrap justify-end gap-2">
-              <Button variant="ghost" onClick={() => setOpen(false)} disabled={pending}>Cancel</Button>
+              <Button variant="ghost" onClick={() => setOpen(false)} disabled={pending}>{t('action.cancel')}</Button>
               <Button variant="affirm" onClick={give} disabled={pending}>
                 <HeartHandshake className="h-4 w-4" />
-                {pending ? 'Opening…' : 'Give by card'}
+                {pending ? t('money.opening') : t('drives.giveByCard')}
               </Button>
             </div>
           </div>

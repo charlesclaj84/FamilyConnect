@@ -160,13 +160,13 @@ export function PlanSetupBanner({ tier }: { tier: FamilyTier }) {
             disabled={isPending}
             className="shrink-0"
           >
-            {t('dash.cancel')}
+            {t('action.cancel')}
           </Button>
         </div>
 
         <p className="text-xs text-brand-on-soft/80">
           <InlineText text={t('dash.plan.explain', {
-            pay: t('dash.plan.pay'), cancel: t('dash.cancel'),
+            pay: t('dash.plan.pay'), cancel: t('action.cancel'),
           })} />
           {/* NAMES THE PANE EXPLICITLY even though `plan` is `DEFAULT_SETTINGS_PANE`. The
               default is a decision that screen is free to change, and a link that relies on it

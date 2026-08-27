@@ -2,6 +2,7 @@ import { CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency-utils'
 import type { DuesPayment } from '@/app/actions/dues'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The payment history in one figure, with what it is the sum of.
@@ -26,6 +27,7 @@ export function PaidThisYearCard({ history, className }: {
   history: DuesPayment[]
   className?: string
 }) {
+  const t = useT()
   const paidPayments = history.filter(p => p.status === 'paid')
   const totalPaidCents = paidPayments.reduce((sum, p) => sum + p.amount_cents, 0)
 
@@ -33,7 +35,7 @@ export function PaidThisYearCard({ history, className }: {
   for (const p of paidPayments) {
     // The same fallback the Payment History table uses, so one payment cannot be called
     // two different things on one page.
-    const name = p.schedule_label ?? 'General Payment'
+    const name = p.schedule_label ?? t('cards.generalPayment')
     byName.set(name, (byName.get(name) ?? 0) + p.amount_cents)
   }
   const paidBySchedule = [...byName]
@@ -44,11 +46,11 @@ export function PaidThisYearCard({ history, className }: {
     <div className={cn('rounded-2xl border bg-card p-5 space-y-2', className)}>
       <div className="flex items-center gap-2.5">
         <div className="p-1.5 rounded-full bg-brand-affirm"><CheckCircle2 className="h-4 w-4 text-brand-on-affirm" /></div>
-        <span className="text-sm text-muted-foreground font-medium">Paid This Year</span>
+        <span className="text-sm text-muted-foreground font-medium">{t('cards.paidThisYear')}</span>
       </div>
       <p className="text-3xl font-bold">{formatCurrency(totalPaidCents)}</p>
       <p className="text-xs text-muted-foreground">
-        {paidPayments.length === 0 ? 'No payments on record' : `${paidPayments.length} payment${paidPayments.length !== 1 ? 's' : ''} recorded`}
+        {paidPayments.length === 0 ? t('cards.noPayments') : `${paidPayments.length} payment${paidPayments.length !== 1 ? 's' : ''} recorded`}
       </p>
       {/* The breakdown, under the count. Name on the left, figure on the right rather
           than run together with a dash: these are a column of amounts to be compared

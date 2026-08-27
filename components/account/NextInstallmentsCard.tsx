@@ -4,6 +4,7 @@ import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { isOutstanding } from '@/lib/dues-utils'
 import type { DuesSummary } from '@/app/actions/dues'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * What the member pays next, across every schedule that has a date.
@@ -32,6 +33,7 @@ export function NextInstallmentsCard({ summary, className }: {
   /** Sizing from the parent — a grid cell in every current call site. */
   className?: string
 }) {
+  const t = useT()
   // `isOutstanding`, not `!paid`: a due the member has DECLINED is neither paid nor
   // owed, and counting it here would put a figure on the card against something they
   // have already said no to.
@@ -67,7 +69,7 @@ export function NextInstallmentsCard({ summary, className }: {
         {upcoming.length > 0 ? formatCurrency(upcomingTotalCents) : '—'}
       </p>
       {upcoming.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No upcoming dues</p>
+        <p className="text-xs text-muted-foreground">{t('cards.noUpcoming')}</p>
       ) : (
         /* TWO LINES PER SCHEDULE: the name, then when it is due and for how much.
            One line held all three and the name was the part that lost — it truncated

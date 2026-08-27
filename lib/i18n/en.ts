@@ -258,7 +258,6 @@ export const en: Catalogue = {
   'dash.plan.opening': 'Opening…',
   'dash.plan.advance': 'Buy months in advance instead',
   'dash.dismiss': 'Dismiss',
-  'dash.cancel': 'Cancel',
   'dash.plan.explain':
     '**{pay}** takes you to Stripe to pay monthly, starting with the rest of this month. '
     + '**{cancel}** drops the plan and leaves your family on Free — nothing is charged either '
@@ -266,4 +265,275 @@ export const en: Catalogue = {
   'dash.safety.titleMany': 'Your family is asking whether you are safe ({n} check-ins)',
   'dash.tree.manyLeaves':
     '{n} leaves — members who are not connected to anybody on the tree yet.',
+
+  // ── FORM FIELD LABELS, SHARED ACROSS EVERY FORM ──────────────────────────────────
+  // `field.*` and `action.*` are the one place this catalogue deliberately SHARES a caption
+  // rather than keeping a key per surface.
+  //
+  // That is not a reversal of the `nav.item.*` / `page.*.title` rule, it is the other side of
+  // it. A rail caption and a page heading name a SCREEN, and two screens that happen to share a
+  // word in English can need different words elsewhere — so those keep two keys. "First Name"
+  // on a form names a FIELD, and it is the same field on My Profile, on the member edit dialog
+  // and on registration. Three keys there would be three translations of one label, free to
+  // drift, on forms a member compares side by side.
+  //
+  // The test before adding to `field.*`: would a translator ever want these two to differ? If
+  // yes it belongs to its surface.
+  'field.prefix': 'Prefix',
+  'field.firstName': 'First Name',
+  'field.middleName': 'Middle Name',
+  'field.lastName': 'Last Name',
+  'field.nickname': 'Nickname',
+  'field.suffix': 'Suffix',
+  'field.email': 'Email',
+  'field.phone': 'Phone',
+  'field.gender': 'Gender',
+  'field.country': 'Country',
+  'field.street': 'Street Address',
+  'field.apartment': 'Apartment / Suite',
+  'field.city': 'City',
+  'field.state': 'State',
+  'field.province': 'Province',
+  'field.stateProvince': 'State / Province',
+  'field.zip': 'ZIP / Postal',
+  'field.dob': 'Date of Birth',
+  'field.sunset': 'Sunset Date',
+  'field.chapter': 'Chapter',
+  'field.timeZone': 'Time Zone',
+  'field.language': 'Language',
+  'field.tshirt': 'T-Shirt',
+  'field.tshirtCategory': 'T-Shirt Category',
+  'field.tshirtSize': 'T-Shirt Size',
+  'field.ph.nickname': 'e.g. Big Mike',
+  'field.ph.email': 'you@example.com',
+  'field.ph.phone': '(555) 000-0000',
+  'field.ph.street': '123 Main Street',
+  'field.ph.apartment': 'Apt 4B',
+  'field.ph.city': 'Springfield',
+  'field.ph.zip': '62701',
+  'action.cancel': 'Cancel',
+  'action.edit': 'Edit',
+  'action.saving': 'Saving…',
+  'action.saveChanges': 'Save changes',
+  'action.notSet': 'Not set',
+  'profile.section.general': 'General',
+  'profile.section.address': 'Address',
+  'profile.section.additional': 'Additional Information',
+  'profile.section.notifications': 'Notifications',
+  'profile.section.security': 'Sign-in & Security',
+  'profile.rail': 'My Profile sections',
+  'profile.editSection': 'Edit {section}',
+  'profile.photo.upload': 'Upload profile photo',
+  'profile.photo.replaceLong': 'Replace profile photo',
+  'profile.photo.setLong': 'Set profile photo',
+  'profile.photo.replace': 'Replace photo',
+  'profile.photo.set': 'Set photo',
+  'profile.photo.failed': 'Could not set that photo',
+  'profile.living': 'Living',
+  'profile.sunsetHint': 'Leave blank if living.',
+  'profile.sizeFirst': 'Select a category first.',
+  'profile.noChapters': 'This family has no chapters, so there is nothing to choose.',
+  'profile.inThisFamily': 'In this family',
+  'profile.firstNameRequired': 'First name is required',
+  'profile.lastNameRequired': 'Last name is required',
+  'profile.wentWrong': 'Something went wrong',
+  'profile.chapterNotChanged': 'Your details were saved, but the chapter could not be changed.',
+  'profile.confirm.general': 'Save general information',
+  'profile.confirm.generalBody': 'Save your changes to your general information?',
+  'profile.confirm.address': 'Save address',
+  'profile.confirm.addressBody': 'Save your changes to your address?',
+  'profile.confirm.additional': 'Save additional information',
+  'profile.confirm.additionalBody': 'Save your changes to your additional information?',
+  'action.save': 'Save',
+  'profile.inFamily': 'In {family}',
+
+  // ── NOTIFICATIONS AND SIGN-IN & SECURITY ─────────────────────────────────────────
+  // `notify.channel.*` and `notify.type.*` are keyed on the IDS in `lib/notification-prefs.ts`.
+  // That registry keeps the ids, the defaults and the `unavailable` marker — the facts — and the
+  // captions live here, exactly as `profile-sections.ts` gives up its labels.
+  //
+  // **SMS stays SMS**, untranslated, in all three languages: it is what the acronym is called
+  // everywhere this product ships, and *Mensajes de texto* / *Messages texte* is what the ROW
+  // says at length rather than what a narrow column heading should.
+  'notify.channel.email': 'Email',
+  'notify.channel.sms': 'SMS',
+  'notify.channel.push': 'Push Notification',
+  'notify.type.safety_check.label': 'Safety Check',
+  'notify.type.safety_check.description':
+    'Your family raises a check-in during a storm, an evacuation or an emergency, and asks '
+    + 'whether you are safe.',
+  'notify.colNotification': 'Notification',
+  'notify.notBuilt': 'Not built yet',
+  'notify.stopped': 'Stopped',
+  'notify.toggleLabel': '{channel} for {notification}',
+  'notify.noneOnFile': 'None on file',
+  'notify.placeholderAddress': 'A placeholder address — nothing can reach it',
+  'notify.endingIn': 'Ending {digits}',
+  'notify.fromGeneral':
+    'These come from your **General** details — change them there and every notification '
+    + 'follows.',
+  'notify.failed': 'That did not work',
+  'notify.noEmail':
+    'We have no email address that can reach you, so nothing marked on for Email will arrive. '
+    + 'Add one under **General**.',
+  'notify.stoppedNote':
+    'You replied **STOP** to one of our text messages, so we cannot text that number again — '
+    + 'and we cannot switch it back on from here, because that is a rule your mobile network '
+    + 'enforces rather than a setting we hold. Text **START** to the number that messaged you if '
+    + 'you want them back.',
+  'notify.smsNotOn':
+    'Text messages are not switched on yet. You can record your choice now, and we will start '
+    + 'using it as soon as they are.',
+  'notify.noMobile':
+    'We have no mobile number for you, so nothing marked on for SMS will arrive. Add one under '
+    + '**General**.',
+  'notify.willConfirm':
+    'We will confirm your mobile number with a code before we text you anything.',
+  'security.email.title': 'Sign-in email',
+  'security.email.lede':
+    'The address you sign in with. Separate from the contact email in your profile — changing '
+    + 'one does not change the other.',
+  'security.currently': 'Currently ',
+  'security.newEmail': 'New email address',
+  'security.sending': 'Sending…',
+  'security.sendConfirmation': 'Send confirmation',
+  'security.badEmail': 'Enter a valid email address',
+  'security.sameEmail': 'That is already your sign-in address',
+  'security.password.title': 'Password',
+  'security.password.lede':
+    'Changing it takes your current password and a short code we email you. Your other devices '
+    + 'are signed out afterwards.',
+  'security.sendingCode': 'Sending code…',
+  'security.changePassword': 'Change password',
+  'security.code': 'Code from your email',
+  'security.currentPassword': 'Current password',
+  'security.newPassword': 'New password',
+  'security.confirmPassword': 'Confirm new password',
+  'security.savePassword': 'Save new password',
+  'security.needCode': 'Enter the code from your email',
+  'security.needCurrent': 'Enter your current password',
+  'security.tooShort': 'New password must be at least 8 characters',
+  'security.noMatch': 'New passwords do not match',
+  'security.samePassword': 'That is already your password. Choose a different one.',
+  'security.wrongCurrent': 'That is not your current password.',
+  'security.ph.minChars': 'Min. 8 characters',
+
+  // ── THE MEMBER'S MONEY SCREENS ───────────────────────────────────────────────────
+  // Summary, Dues & Donations, Payment History and the dues projection — what a member is
+  // asked for and what they have paid. `money.*` for the shared vocabulary, then a prefix per
+  // screen.
+  //
+  // ONE WORD DECIDED ONCE AND USED EVERYWHERE: an INSTALLMENT is one rung of a schedule's
+  // ladder, and it is not the same as what a member PAYS NEXT — `lib/dues-utils.ts` §7c is the
+  // whole argument. The two have separate keys here for that reason, and a translation must
+  // keep them separate or the screen starts claiming the catch-up figure is the ordinary one.
+  'money.amount': 'Amount',
+  'money.total': 'Total',
+  'money.remaining': 'Remaining',
+  'money.paid': 'Paid',
+  'money.status': 'Status',
+  'money.method': 'Method',
+  'money.date': 'Date',
+  'money.schedule': 'Schedule',
+  'money.actions': 'Actions',
+  'money.pastDue': 'Past due',
+  'money.dueNow': 'Due now',
+  'money.notYetDue': 'Not yet due',
+  'money.declined': 'Declined',
+  'money.income': 'Income',
+  'money.expenses': 'Expenses',
+  'money.donation': 'Donation',
+  'money.close': 'Close',
+  'money.opening': 'Opening…',
+  'pnl.lede': 'Life to date · every entry the family has recorded',
+  'pnl.duesAndDonations': 'Dues &amp; donations',
+  'pnl.direct': 'Direct contributions',
+  'pnl.netLine': 'Income less expenses',
+  'pnl.routedHeading': 'Income Routed to Funds',
+  'pnl.nothingRouted': 'Nothing has been routed to funds yet.',
+  'pnl.balancesToday': 'Fund balances today',
+  'pnl.nothingPaidOut': 'Nothing paid out yet',
+  'pnl.disbursed': 'Disbursed from the family’s funds',
+  'pnl.surplus': 'Net surplus',
+  'pnl.deficit': 'Net deficit',
+  'pnl.routedBeyond': 'Routed beyond dues income',
+  'pnl.notYetRouted': 'Collected, not yet routed to a fund',
+  'pnl.allRouted': 'Every dues payment has been routed into a fund.',
+  'pnl.overRouted':
+    'More has gone into funds than dues brought in — direct contributions make up the '
+    + 'difference.',
+  'pnl.unrouted':
+    'Dues collected against a schedule with no routing rule stay here until one is set up on '
+    + 'Accounting.',
+  'drives.goalMet': 'Goal met',
+  'drives.closed': 'Closed',
+  'drives.noGoal': 'No goal set — give what you like.',
+  'drives.none': 'Your family is not running any donation drives right now.',
+  'drives.rail': 'Dues and donations',
+  'drives.give': 'Give',
+  'drives.giveByCard': 'Give by card',
+  'drives.giveHint':
+    'Paid by card straight to your family. It posts to their books the moment it clears.',
+  'drives.giveAnything': 'Give what you like. There is no set amount.',
+  'drives.needAmount': 'Enter an amount to give.',
+  'plan.noSchedules': 'You are not on any dues schedules — your family has not set any up for you.',
+  'plan.required': 'Required dues',
+  'plan.optional': 'Optional dues',
+  'plan.nextPayment': 'Next Payment',
+  'plan.nextDue': 'Next Due',
+  'plan.thisDue': 'This due',
+  'plan.whatYouPayNow': 'What you pay now',
+  'plan.payCadence': 'Payment plan',
+  'plan.changeCadence': 'Change pay cadence',
+  'plan.pickCadence': 'Pick a pay cadence to set up automatic payments.',
+  'plan.setUpAuto': 'Set up automatic payments',
+  'plan.stopAuto': 'Stop automatic payments',
+  'plan.stopAutoConfirm': 'Stop automatic payments?',
+  'plan.stopPayments': 'Stop payments',
+  'plan.cadenceFailed': 'Could not update cadence',
+  'plan.changeFailed': 'Could not change that',
+  'plan.optOut': 'Opt out',
+  'plan.optBackIn': 'Opt back in',
+  'plan.optionalHint':
+    'This is an optional due, so you can decline it. It will stop counting toward what you '
+    + 'owe, and you can opt back in at any time.',
+  'plan.allSettled': 'Nothing is waiting on you — every due is settled or declined.',
+  'plan.calendarAsked': 'What the calendar has asked for, including anything still to catch up on.',
+  'plan.needAmount': 'Enter an amount to pay.',
+  'plan.pay': 'Pay',
+  'plan.payByCard': 'Pay by card',
+  'plan.oneAcross': 'One payment across every due below. Set a due to zero to leave it out.',
+  'plan.straightToFamily':
+    'Paid straight to your family. It posts to their books the moment it clears.',
+  'plan.whyDiffers': 'Why the next payment can differ from the installment',
+  'funds.title': 'Family Funds',
+  'funds.manage': 'Manage Funds',
+  'funds.none': 'No funds set up yet.',
+  'cards.noUpcoming': 'No upcoming dues',
+  'cards.paidThisYear': 'Paid This Year',
+  'cards.generalPayment': 'General Payment',
+  'cards.noPayments': 'No payments on record',
+  'cards.remainingBalance': 'Remaining Balance',
+  'cards.noSchedules': 'No dues schedules configured.',
+  'cards.viewDues': 'View Dues',
+  'cards.requiredPaid': 'Required dues all paid',
+  'cards.allPaid': 'All dues paid — thank you!',
+  'history.none': 'No payment history available yet.',
+  'history.noMatches': 'No matching payments.',
+  'history.filter': 'Filter payment history',
+  'history.filterPh': 'Filter...',
+  'history.duesPayment': 'Dues payment',
+  'history.donationPayment': 'Donation payment',
+  'history.paymentMethod': 'Payment method',
+  'history.reference': 'Check # / Reference',
+  'history.recorded': 'Recorded',
+  'history.reversed': 'Reversed',
+  'history.reversedYes': 'Yes — a correcting entry cancels this payment',
+  'history.corrects': 'Corrects',
+  'history.correctsWhat': 'An earlier payment in this history',
+  'history.notes': 'Notes',
+  'history.correctingEntry': '{kind} — correcting entry',
+  'payStatus.paid': 'Paid',
+  'payStatus.waived': 'Waived',
+  'payStatus.pending': 'Pending',
 }

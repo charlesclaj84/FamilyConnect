@@ -1,3 +1,5 @@
+import type { T } from '@/lib/i18n/t'
+
 /**
  * Which notifications a member may be sent, down which channel, and what they have said
  * about it.
@@ -37,10 +39,26 @@
 export const CHANNELS = ['email', 'sms', 'push'] as const
 export type NotificationChannel = (typeof CHANNELS)[number]
 
-export const CHANNEL_LABEL: Record<NotificationChannel, string> = {
-  email: 'Email',
-  sms: 'SMS',
-  push: 'Push Notification',
+/**
+ * A channel's column heading, in the reader's language.
+ *
+ * A FUNCTION TAKING `t` rather than a map, so this module stays free of React and of the
+ * catalogue: the `T` import is type-only and erased. Same shape as `profileSectionLabel`.
+ *
+ * The IDS are the contract — they are the `channel` column in `notification_prefs`, the keys of
+ * every `defaults` object below, and what `mayNotify` is asked about. Only the caption moved.
+ */
+export function channelLabel(t: T, channel: NotificationChannel): string {
+  return t(`notify.channel.${channel}`)
+}
+
+/** One notification's row heading and the sentence under it. */
+export function notificationLabel(t: T, key: string): string {
+  return t(`notify.type.${key}.label`)
+}
+
+export function notificationDescription(t: T, key: string): string {
+  return t(`notify.type.${key}.description`)
 }
 
 /**
@@ -53,12 +71,13 @@ export const CHANNEL_LABEL: Record<NotificationChannel, string> = {
 export type ChannelDefault = 'opt-out' | 'opt-in' | 'unavailable'
 
 export interface NotificationType {
-  /** Stored in `person_notification_prefs.notification_key`. Never renamed lightly. */
+  /**
+   * Stored in `person_notification_prefs.notification_key`. Never renamed lightly — and
+   * since Phase 5 it is also what the CAPTIONS are keyed on: `notify.type.<key>.label`
+   * and `.description`, reached through the two helpers above. So a rename here is a
+   * rename in three catalogues as well as a data migration.
+   */
   key: string
-  /** The grid's first column. */
-  label: string
-  /** One sentence under the label, saying what would actually arrive. */
-  description: string
   defaults: Record<NotificationChannel, ChannelDefault>
 }
 
@@ -78,10 +97,9 @@ export interface NotificationType {
 export const NOTIFICATIONS: readonly NotificationType[] = [
   {
     key: 'safety_check',
-    label: 'Safety Check',
-    description:
-      'Your family raises a check-in during a storm, an evacuation or an emergency, and asks '
-      + 'whether you are safe.',
+    // NO `label` OR `description` HERE SINCE PHASE 5 — they are `notify.type.safety_check.*` in
+    // the catalogue, reached through the two helpers above. What stays is what this registry is
+    // for: the key, the per-channel defaults, and the `unavailable` marker.
     defaults: {
       // ON BY DEFAULT, and it is the one cell in this table where that is a safety decision
       // rather than a convenience. A check-in that reaches nobody is the failure mode; a member

@@ -1,3 +1,5 @@
+import type { T } from '@/lib/i18n/t'
+
 /**
  * The five sections of My Profile.
  *
@@ -13,28 +15,38 @@ export const PROFILE_SECTIONS =
 
 export type ProfileSection = (typeof PROFILE_SECTIONS)[number]
 
-export const PROFILE_SECTION_LABELS: Record<ProfileSection, string> = {
-  general: 'General',
-  address: 'Address',
-  additional: 'Additional Information',
-  // ── IT WAS `texts`/"Text Messages" UNTIL 2026-08-26, AND THE OLD NOTE WAS RIGHT ──
-  // That note argued against calling this "Notifications" on the grounds that there was no
-  // email or bell preference in the product, so the name would promise four controls and offer
-  // one. True when it was written, and the fix was the product rather than the label: there is
-  // a GRID now — a row per notification, a column per channel — so the name is what it holds.
-  //
-  // The old name is kept as an alias below. A member with `?section=texts` bookmarked, or a
-  // help chapter linking it, lands where they meant to.
-  //
-  // It is a SECTION rather than a band inside Sign-in & Security because an address we may send
-  // to is not an account credential. Confusing the two is how a member ends up believing that
-  // removing their mobile number affects how they log in.
-  notifications: 'Notifications',
-  // The account, not the profile: sign-in address and password. It carries no
-  // permission_resources row and needs no migration, because My Profile is one of the
-  // pages 20260806000006 deliberately put outside the permission grid — see the header
-  // of components/personal-info/SignInSecurity.tsx.
-  security: 'Sign-in & Security',
+/**
+ * THE LABELS LIVE IN THE CATALOGUE, NOT HERE — `profile.section.<id>`.
+ *
+ * This module stayed pure (no React, no icons) so the page could resolve `?section=` before
+ * rendering; Phase 5 keeps that and takes the captions out, exactly as `Sidebar`'s section
+ * registry went from `{ label, icon }` to `{ id, icon }`. The ID is the contract — it is in
+ * URLs, in `ALIASES` below and in help links — and the caption is copy.
+ *
+ * The reasoning that used to sit on the two renamed entries is worth keeping:
+ *
+ *   `notifications` WAS `texts`/"Text Messages" until 2026-08-26. The old note argued against
+ *   the broader name on the grounds that only one channel existed, so it would promise four
+ *   controls and offer one. That was right when written, and the fix was the product rather
+ *   than the label: there is a GRID now. `texts` stays in `ALIASES` so a bookmark still lands.
+ *
+ *   It is a SECTION rather than a band inside Sign-in & Security because an address we may send
+ *   to is not an account credential. Confusing the two is how a member comes to believe that
+ *   removing their mobile number changes how they log in.
+ *
+ *   `security` carries no `permission_resources` row and needs no migration: My Profile is one
+ *   of the pages `20260806000006` deliberately put outside the permission grid.
+ */
+
+/**
+ * One section's caption, in the reader's language.
+ *
+ * A FUNCTION TAKING `t` rather than a map, so this module can stay pure: the `T` import is
+ * type-only and erased at build time, so no React and no catalogue is dragged into the module
+ * graph of the server page that resolves `?section=`.
+ */
+export function profileSectionLabel(t: T, section: ProfileSection): string {
+  return t(`profile.section.${section}`)
 }
 
 /** Landing section when `?section=` is absent or unreadable. */

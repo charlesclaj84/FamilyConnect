@@ -28,6 +28,7 @@ import { HelpLink } from '@/components/help/HelpLink'
 import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
 import { NextInstallmentsCard } from '@/components/account/NextInstallmentsCard'
 import { SortTh, type SortDir } from '@/components/ui/sortable-header'
+import { useT } from '@/components/layout/LocaleProvider'
 
 type DuesCol = 'schedule' | 'amount' | 'due_date'
 
@@ -49,7 +50,7 @@ const fmtDate = (s: string) => formatDate(s) ?? ''
  * by a pill in a column of its own. Splitting them on `required` makes that column say the
  * same thing on every row of each table, which is the definition of a column worth removing.
  * So **Payment** is gone, and the two states that column ALSO carried have moved rather than
- * vanished: `Declined` and `Not yet due` are pills beside the schedule name, because they are
+ * vanished: t('money.declined') and t('money.notYetDue') are pills beside the schedule name, because they are
  * facts about that one row rather than about the table it is in.
  *
  * Each table renders only if the member has a schedule in it. A family that runs no optional
@@ -107,6 +108,7 @@ export function DuesPlanSection({ summary, online }: {
    */
   online: DuesOnlineStatus
 }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [isPending, startTransition] = useTransition()
@@ -180,7 +182,7 @@ export function DuesPlanSection({ summary, online }: {
     ))
     startTransition(async () => {
       const res = await setMyDuesPlan(scheduleId, cadence)
-      if (!res.success) setError(res.message ?? 'Could not update cadence')
+      if (!res.success) setError(res.message ?? t('plan.cadenceFailed'))
       router.refresh()
     })
   }
@@ -201,9 +203,9 @@ export function DuesPlanSection({ summary, online }: {
     const ok = await confirm({
       title: optOut ? `Opt out of ${row.schedule.label}?` : `Opt back in to ${row.schedule.label}?`,
       description: optOut
-        ? 'This is an optional due, so you can decline it. It will stop counting toward what you owe, and you can opt back in at any time.'
+        ? t('plan.optionalHint')
         : `${row.schedule.label} will count toward what you owe again, at ${formatCurrency(row.installmentCents)} per ${row.cadence} installment.`,
-      confirmLabel: optOut ? 'Opt out' : 'Opt back in',
+      confirmLabel: optOut ? t('plan.optOut') : t('plan.optBackIn'),
     })
     if (!ok) return
     setError('')
@@ -214,7 +216,7 @@ export function DuesPlanSection({ summary, online }: {
     ))
     startTransition(async () => {
       const res = await setMyDuesOptOut(row.schedule.id, optOut)
-      if (!res.success) setError(res.message ?? 'Could not change that')
+      if (!res.success) setError(res.message ?? t('plan.changeFailed'))
       router.refresh()
     })
   }
@@ -231,9 +233,9 @@ export function DuesPlanSection({ summary, online }: {
 
   async function stopAutopay(row: DuesSummary) {
     const ok = await confirm({
-      title: 'Stop automatic payments?',
+      title: t('plan.stopAutoConfirm'),
       description: `No further card payments will be taken for ${row.schedule.label}. Everything you have already paid stays on your record.`,
-      confirmLabel: 'Stop payments',
+      confirmLabel: t('plan.stopPayments'),
     })
     if (!ok) return
     setError('')
@@ -303,7 +305,7 @@ export function DuesPlanSection({ summary, online }: {
         variant="inline"
         slug="my-dues"
         section="next-payment"
-        label="Why the next payment can differ from the installment"
+        label={t('plan.whyDiffers')}
       />
 
       <FormError message={error} />
@@ -317,7 +319,7 @@ export function DuesPlanSection({ summary, online }: {
         <div className="flex flex-col items-center py-10 gap-2">
           <CheckCircle2 className="h-10 w-10 text-muted-foreground/20" />
           <p className="text-sm text-muted-foreground">
-            You are not on any dues schedules — your family has not set any up for you.
+            {t('plan.noSchedules')}
           </p>
         </div>
       ) : (
@@ -327,11 +329,11 @@ export function DuesPlanSection({ summary, online }: {
               dues and this member is on none of them, which is a different fact and usually
               not the true one. */}
           {requiredRows.length > 0 && (
-            <DuesTable title="Required dues" rows={requiredRows} {...rowProps} />
+            <DuesTable title={t('plan.required')} rows={requiredRows} {...rowProps} />
           )}
 
           {optionalRows.length > 0 && (
-            <DuesTable title="Optional dues" rows={optionalRows} {...rowProps} />
+            <DuesTable title={t('plan.optional')} rows={optionalRows} {...rowProps} />
           )}
 
           <DuesTotals
@@ -390,6 +392,7 @@ function DuesTable({ title, rows, ...handlers }: {
   title: string
   rows: DuesSummary[]
 } & RowHandlers) {
+  const t = useT()
   const [sort, setSort] = useState<{ col: DuesCol; dir: SortDir }>({ col: 'due_date', dir: 'asc' })
   function sortBy(col: DuesCol) {
     setSort(s => s.col === col ? { col, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { col, dir: 'asc' })
@@ -457,14 +460,14 @@ function DuesTable({ title, rows, ...handlers }: {
               behaviour wanted, stated in one place. */}
           <thead>
             <tr className="border-b">
-              <SortTh label="Schedule" active={sort.col === 'schedule'} dir={sort.dir} onClick={() => sortBy('schedule')} />
-              <SortTh label="Next Payment" active={sort.col === 'amount'} dir={sort.dir} onClick={() => sortBy('amount')} align="right" className="w-28 sm:w-36" />
-              <SortTh label="Next Due" active={sort.col === 'due_date'} dir={sort.dir} onClick={() => sortBy('due_date')} className={cn(COLLAPSING_CELL, 'sm:w-28')} />
-              <th className={cn('py-2 pr-3 text-xs font-medium text-muted-foreground text-right', COLLAPSING_CELL, 'sm:w-28')}>Remaining</th>
+              <SortTh label={t('money.schedule')} active={sort.col === 'schedule'} dir={sort.dir} onClick={() => sortBy('schedule')} />
+              <SortTh label={t('plan.nextPayment')} active={sort.col === 'amount'} dir={sort.dir} onClick={() => sortBy('amount')} align="right" className="w-28 sm:w-36" />
+              <SortTh label={t('plan.nextDue')} active={sort.col === 'due_date'} dir={sort.dir} onClick={() => sortBy('due_date')} className={cn(COLLAPSING_CELL, 'sm:w-28')} />
+              <th className={cn('py-2 pr-3 text-xs font-medium text-muted-foreground text-right', COLLAPSING_CELL, 'sm:w-28')}>{t('money.remaining')}</th>
               {/* `sr-only` like every other action column here: the cell holds controls that
                   name themselves, and a visible "Actions" heading over two icons is noise. */}
               <th className="w-20 py-2 text-xs font-medium text-muted-foreground text-right sm:w-24">
-                <span className="sr-only">Actions</span>
+                <span className="sr-only">{t('money.actions')}</span>
               </th>
             </tr>
           </thead>
@@ -482,6 +485,7 @@ function DuesTable({ title, rows, ...handlers }: {
 function DuesRow({
   row, isPending, online, onPay, onCadence, onOptOut, onStartAutopay, onStopAutopay, autopayFor,
 }: { row: DuesSummary } & RowHandlers) {
+  const t = useT()
   const declined = row.optedOut
   /**
    * Below the age this due starts at, for the whole of this period.
@@ -539,7 +543,7 @@ function DuesRow({
         ? `Includes ${row.periodsElapsed} installment${row.periodsElapsed === 1 ? '' : 's'} due since ${fmtDate(row.overdueSinceDate)}`
         : undefined}
     >
-      Past due
+      {t('money.pastDue')}
     </span>
   ) : settled ? (
     // AFFIRM, the token for a good outcome — the same treatment "Goal met" gets on a
@@ -547,14 +551,14 @@ function DuesRow({
     // the section header), so it needs to say WHY it has no figures beside it, and it must
     // not look like the muted rows below it.
     <span className="inline-block whitespace-nowrap rounded-full bg-brand-affirm px-2 py-0.5 text-[11px] font-medium text-brand-on-affirm">
-      Paid
+      {t('money.paid')}
     </span>
   ) : quiet ? (
     // Declined and Not yet due were in the **Payment** column, which the required/optional
     // split removed. They are facts about ONE row rather than about the table it sits in,
     // so they moved here rather than going with the column.
     <span className="inline-block whitespace-nowrap rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-      {declined ? 'Declined' : 'Not yet due'}
+      {declined ? t('money.declined') : t('money.notYetDue')}
     </span>
   ) : null
 
@@ -620,7 +624,7 @@ function DuesRow({
               {/* A SETTLED ROW STILL SHOWS ITS BALANCE, and it is zero. That is the whole
                   point of keeping it listed — "you are on this and you owe nothing on it"
                   is a different sentence from the row not being there. */}
-              <MetaIf value={formatCurrency(row.remainingBalanceCents)} prefix="Remaining" />
+              <MetaIf value={formatCurrency(row.remainingBalanceCents)} prefix={t('money.remaining')} />
             </>
           )}
         </div>
@@ -688,7 +692,7 @@ function DuesRow({
             <Button size="sm" variant="affirm" disabled={isPending}
               onClick={() => onPay(row)}>
               <CreditCard className="h-3.5 w-3.5" />
-              Pay
+              {t('plan.pay')}
             </Button>
           )}
 
@@ -702,16 +706,16 @@ function DuesRow({
                   </RowMenuNote>
                 ) : declined ? (
                   <RowMenuItem icon={RotateCcw} onClick={() => { close(); onOptOut(row, false) }}>
-                    Opt back in
+                    {t('plan.optBackIn')}
                   </RowMenuItem>
                 ) : (
                   // A SETTLED ROW KEEPS THE WHOLE MENU. Nothing is owed now and the period
                   // turns over, so changing the cadence or starting automatic payments is
                   // exactly the thing somebody who has just cleared a due wants to do.
                   <>
-                    <RowMenuLabel>Payment plan</RowMenuLabel>
+                    <RowMenuLabel>{t('plan.payCadence')}</RowMenuLabel>
                     <RowMenuItem icon={CalendarClock} onClick={() => { close(); onCadence(row) }}>
-                      Change pay cadence
+                      {t('plan.changeCadence')}
                     </RowMenuItem>
 
                     {/* Automatic payments follow the cadence the member already chose, so
@@ -721,16 +725,16 @@ function DuesRow({
                       : autopay ? (
                         <RowMenuItem icon={XCircle} destructive
                           onClick={() => { close(); onStopAutopay(row) }}>
-                          Stop automatic payments
+                          {t('plan.stopAuto')}
                         </RowMenuItem>
                       ) : row.cadence === 'one-time' ? (
                         <RowMenuNote>
-                          Pick a pay cadence to set up automatic payments.
+                          {t('plan.pickCadence')}
                         </RowMenuNote>
                       ) : (
                         <RowMenuItem icon={Repeat}
                           onClick={() => { close(); onStartAutopay(row) }}>
-                          Set up automatic payments
+                          {t('plan.setUpAuto')}
                         </RowMenuItem>
                       )}
 
@@ -739,9 +743,9 @@ function DuesRow({
                         is a promise nobody can act on. */}
                     {!row.required && (
                       <>
-                        <RowMenuLabel>This due</RowMenuLabel>
+                        <RowMenuLabel>{t('plan.thisDue')}</RowMenuLabel>
                         <RowMenuItem icon={XCircle} onClick={() => { close(); onOptOut(row, true) }}>
-                          Opt out
+                          {t('plan.optOut')}
                         </RowMenuItem>
                       </>
                     )}
@@ -792,6 +796,7 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
   isPending: boolean
   onPayAll: () => void
 }) {
+  const t = useT()
   // REQUIRED FIRST, then optional, then by name — the reading order of the two tables above,
   // so a member checking the receipt against the list they just read finds the rows in the
   // same sequence. Sorted from a fresh array; `lines` is a prop.
@@ -801,11 +806,11 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
 
   return (
     <section className="rounded-xl border bg-card p-4 sm:p-5">
-      <h2 className="text-lg font-semibold text-brand-ink">Due now</h2>
+      <h2 className="text-lg font-semibold text-brand-ink">{t('money.dueNow')}</h2>
       <p className="text-sm text-muted-foreground">
         {ordered.length === 0
-          ? 'Nothing is waiting on you — every due is settled or declined.'
-          : 'What the calendar has asked for, including anything still to catch up on.'}
+          ? t('plan.allSettled')
+          : t('plan.calendarAsked')}
       </p>
 
       {ordered.length > 0 && (
@@ -837,7 +842,7 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
 
       <dl className="mt-3 border-t pt-2 text-sm">
         <div className="flex items-baseline justify-between gap-4">
-          <dt className="font-medium">Total</dt>
+          <dt className="font-medium">{t('money.total')}</dt>
           <dd className="text-lg font-bold text-brand-accent whitespace-nowrap">
             {formatCurrency(totalCents)}
           </dd>
@@ -899,6 +904,7 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
   onClose: () => void
   onChoose: (cadence: PayCadence) => void
 }) {
+  const t = useT()
   const [choice, setChoice] = useState<PayCadence>(row.cadence)
   const preview = planFor(row, choice)
 
@@ -906,7 +912,7 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
     <Dialog
       open
       onClose={onClose}
-      title="Change pay cadence"
+      title={t('plan.changeCadence')}
       description={`How often you pay ${row.schedule.label}. The annual total does not change — the cadence divides it.`}
     >
       <div className="space-y-4">
@@ -952,7 +958,7 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
                   )}
                   {c === row.cadence && (
                     <span className="mt-0.5 block text-xs text-muted-foreground">
-                      What you pay now
+                      {t('plan.whatYouPayNow')}
                     </span>
                   )}
                 </span>
@@ -962,7 +968,7 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
         </fieldset>
 
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>{t('action.cancel')}</Button>
           <Button
             variant="affirm"
             disabled={choice === row.cadence}
@@ -998,6 +1004,7 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
  * with a redirect.
  */
 function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void }) {
+  const t = useT()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState('')
   const [fieldError, setFieldError] = useState('')
@@ -1028,7 +1035,7 @@ function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void
       }
     }
     if (valid.length === 0) {
-      setFieldError('Enter an amount to pay.')
+      setFieldError(t('plan.needAmount'))
       return
     }
     startTransition(async () => {
@@ -1049,10 +1056,10 @@ function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void
     <Dialog
       open
       onClose={onClose}
-      title={many ? 'Pay by card' : `Pay ${rows[0].schedule.label}`}
+      title={many ? t('plan.payByCard') : `Pay ${rows[0].schedule.label}`}
       description={many
-        ? 'One payment across every due below. Set a due to zero to leave it out.'
-        : 'Paid straight to your family. It posts to their books the moment it clears.'}
+        ? t('plan.oneAcross')
+        : t('plan.straightToFamily')}
     >
       <div className="space-y-4">
         <div className="space-y-3">
@@ -1082,7 +1089,7 @@ function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void
 
         {many && (
           <div className="flex items-baseline justify-between gap-4 border-t pt-3">
-            <span className="font-medium">Total</span>
+            <span className="font-medium">{t('money.total')}</span>
             <span className="text-lg font-bold text-brand-accent whitespace-nowrap">
               {formatCurrency(totalCents)}
             </span>
@@ -1098,7 +1105,7 @@ function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void
         <FormError message={error} />
 
         <div className="flex flex-wrap justify-end gap-2">
-          <Button variant="ghost" onClick={onClose} disabled={pending}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose} disabled={pending}>{t('action.cancel')}</Button>
           {/* Disabled only while a redirect is being fetched, NOT when the total is zero.
               A dead button is an unexplained refusal — pressing it with every field empty
               answers "Enter an amount to pay", which is the sentence somebody in that state
@@ -1106,7 +1113,7 @@ function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void
               rather than being greyed out. */}
           <Button variant="affirm" onClick={pay} disabled={pending}>
             <CreditCard className="h-4 w-4" />
-            {pending ? 'Opening…' : `Pay ${formatCurrency(totalCents)}`}
+            {pending ? t('money.opening') : `Pay ${formatCurrency(totalCents)}`}
           </Button>
         </div>
       </div>

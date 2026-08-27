@@ -8,12 +8,15 @@ import { FormError } from '@/components/ui/form-message'
 import { COLLAPSING_CELL } from '@/components/ui/table-collapse'
 import { cn } from '@/lib/utils'
 import {
-  CHANNELS, CHANNEL_LABEL, NOTIFICATIONS, channelDefault, prefEnabled,
+  CHANNELS, channelLabel, notificationLabel, notificationDescription,
+  NOTIFICATIONS, channelDefault, prefEnabled,
   type NotificationChannel,
 } from '@/lib/notification-prefs'
 import {
   setMyNotificationPref, type MyNotificationSettings,
 } from '@/app/actions/notification-prefs'
+import { useT } from '@/components/layout/LocaleProvider'
+import { InlineText } from '@/components/ui/inline-text'
 
 /**
  * My Profile → Notifications.
@@ -59,6 +62,7 @@ export function NotificationsSection({
   /** Resolved on the server so the grid paints with real answers, never a flash of defaults. */
   settings: MyNotificationSettings
 }) {
+  const t = useT()
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState('')
@@ -103,7 +107,7 @@ export function NotificationsSection({
           delete rest[cellKey(key, channel)]
           return rest
         })
-        setError(result.message ?? 'That did not work')
+        setError(result.message ?? t('notify.failed'))
       }
       // REFRESHED EITHER WAY. A refused SMS opt-in may still have written a consent event or
       // adopted a number, so the server's answer has moved even when the answer was no.
@@ -133,33 +137,32 @@ export function NotificationsSection({
       <dl className="grid gap-3 rounded-lg border px-4 py-3 sm:grid-cols-2">
         <div className="min-w-0">
           <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Email
+            {t('notify.channel.email')}
           </dt>
           <dd className="mt-0.5 truncate text-sm">
             {emailUsable
               ? settings.contact.email
               : <span className="text-brand-withheld">
                   {settings.contact.email
-                    ? 'A placeholder address — nothing can reach it'
-                    : 'None on file'}
+                    ? t('notify.placeholderAddress')
+                    : t('notify.noneOnFile')}
                 </span>}
           </dd>
         </div>
         <div className="min-w-0">
           <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Mobile
+            {t('notify.channel.sms')}
           </dt>
           {/* LAST FOUR DIGITS ONLY. `getMyNotificationSettings` never sends the whole number
               back — a mobile number is the kind of thing a screenshot leaks. */}
           <dd className="mt-0.5 text-sm">
             {settings.contact.phoneEnding
-              ? <>Ending <span className="font-medium tabular-nums">{settings.contact.phoneEnding}</span></>
-              : <span className="text-brand-withheld">None on file</span>}
+              ? t('notify.endingIn', { digits: settings.contact.phoneEnding })
+              : <span className="text-brand-withheld">{t('notify.noneOnFile')}</span>}
           </dd>
         </div>
         <p className="text-xs text-muted-foreground sm:col-span-2">
-          These come from your <strong>General</strong> details — change them there and every
-          notification follows.
+          <InlineText text={t('notify.fromGeneral')} />
         </p>
       </dl>
 
@@ -172,7 +175,7 @@ export function NotificationsSection({
           <thead>
             <tr className="border-b bg-muted/40">
               <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">
-                Notification
+                {t('notify.colNotification')}
               </th>
               {CHANNELS.map(c => (
                 <th
@@ -185,7 +188,7 @@ export function NotificationsSection({
                     c === 'push' && COLLAPSING_CELL,
                   )}
                 >
-                  {CHANNEL_LABEL[c]}
+                  {channelLabel(t, c)}
                 </th>
               ))}
             </tr>
@@ -194,8 +197,10 @@ export function NotificationsSection({
             {NOTIFICATIONS.map(n => (
               <tr key={n.key} className="border-b align-top last:border-0">
                 <td className="px-4 py-3">
-                  <p className="font-medium">{n.label}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{n.description}</p>
+                  <p className="font-medium">{notificationLabel(t, n.key)}</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {notificationDescription(t, n.key)}
+                  </p>
                 </td>
                 {CHANNELS.map(c => {
                   const fallback = channelDefault(n.key, c)
@@ -207,14 +212,17 @@ export function NotificationsSection({
                       {fallback === 'unavailable' ? (
                         // NOT A DISABLED SWITCH. A control nobody can move is one somebody
                         // keeps pressing; this says what it is waiting for instead.
-                        <span className="text-xs text-muted-foreground">Not built yet</span>
+                        <span className="text-xs text-muted-foreground">{t('notify.notBuilt')}</span>
                       ) : c === 'sms' && stopped ? (
-                        <span className="text-xs text-brand-withheld">Stopped</span>
+                        <span className="text-xs text-brand-withheld">{t('notify.stopped')}</span>
                       ) : (
                         <ChannelToggle
                           on={isOn(n.key, c)}
                           disabled={pending}
-                          label={`${CHANNEL_LABEL[c]} for ${n.label}`}
+                          label={t('notify.toggleLabel', {
+                            channel: channelLabel(t, c),
+                            notification: notificationLabel(t, n.key),
+                          })}
                           onChange={next => toggle(n.key, c, next)}
                         />
                       )}
@@ -238,36 +246,30 @@ export function NotificationsSection({
       <div className="space-y-2 text-sm">
         {!emailUsable && (
           <p className="text-brand-withheld">
-            We have no email address that can reach you, so nothing marked on for Email will
-            arrive. Add one under <strong>General</strong>.
+            <InlineText text={t('notify.noEmail')} />
           </p>
         )}
         {stopped ? (
           <p className="text-brand-withheld">
-            You replied <strong>STOP</strong> to one of our text messages, so we cannot text that
-            number again — and we cannot switch it back on from here, because that is a rule your
-            mobile network enforces rather than a setting we hold. Text <strong>START</strong> to
-            the number that messaged you if you want them back.
+            <InlineText text={t('notify.stoppedNote')} />
           </p>
         ) : (
           <>
             {!settings.smsAvailable && (
               <p className="text-brand-withheld">
-                Text messages are not switched on yet. You can record your choice now, and we
-                will start using it as soon as they are.
+                <InlineText text={t('notify.smsNotOn')} />
               </p>
             )}
             {settings.smsConsent === 'granted' && !settings.contact.phoneEnding && (
               <p className="text-brand-withheld">
-                We have no mobile number for you, so nothing marked on for SMS will arrive. Add
-                one under <strong>General</strong>.
+                <InlineText text={t('notify.noMobile')} />
               </p>
             )}
             {settings.smsConsent === 'granted'
               && settings.contact.phoneEnding
               && !settings.smsNumberVerified && (
               <p className="text-brand-withheld">
-                We will confirm your mobile number with a code before we text you anything.
+                <InlineText text={t('notify.willConfirm')} />
               </p>
             )}
           </>

@@ -235,7 +235,6 @@ export const es: Catalogue = {
   'dash.plan.opening': 'Abriendo…',
   'dash.plan.advance': 'Comprar meses por adelantado',
   'dash.dismiss': 'Descartar',
-  'dash.cancel': 'Cancelar',
   'dash.plan.explain':
     '**{pay}** lo lleva a Stripe para pagar cada mes, empezando por lo que resta de este mes. '
     + '**{cancel}** descarta el plan y deja a su familia en Gratis: no se cobra nada en ningún '
@@ -243,4 +242,263 @@ export const es: Catalogue = {
   'dash.safety.titleMany': 'Su familia pregunta si está a salvo ({n} avisos)',
   'dash.tree.manyLeaves':
     '{n} hojas sueltas: miembros que aún no están conectados con nadie en el árbol.',
+
+  // ── FORM FIELD LABELS, SHARED ACROSS EVERY FORM ──────────────────────────────────
+  // See `en.ts`. Two notes on the choices below:
+  //
+  //   *Apellido*, singular, for `field.lastName`. Latin American forms usually ask for one
+  //   surname box even where two surnames are normal, and this product has one column.
+  //
+  //   *Correo electrónico* rather than *Email* on the LABEL, and *Email* would also be
+  //   understood — the label is the formal one because it sits beside *Teléfono*.
+  'field.prefix': 'Título',
+  'field.firstName': 'Nombre',
+  'field.middleName': 'Segundo nombre',
+  'field.lastName': 'Apellido',
+  'field.nickname': 'Apodo',
+  'field.suffix': 'Sufijo',
+  'field.email': 'Correo electrónico',
+  'field.phone': 'Teléfono',
+  'field.gender': 'Género',
+  'field.country': 'País',
+  'field.street': 'Dirección',
+  'field.apartment': 'Departamento / Suite',
+  'field.city': 'Ciudad',
+  'field.state': 'Estado',
+  'field.province': 'Provincia',
+  'field.stateProvince': 'Estado / Provincia',
+  'field.zip': 'Código postal',
+  'field.dob': 'Fecha de nacimiento',
+  'field.sunset': 'Fecha de fallecimiento',
+  'field.chapter': 'Capítulo',
+  'field.timeZone': 'Zona horaria',
+  'field.language': 'Idioma',
+  'field.tshirt': 'Camiseta',
+  'field.tshirtCategory': 'Categoría de camiseta',
+  'field.tshirtSize': 'Talla de camiseta',
+  'field.ph.nickname': 'p. ej. Miguelón',
+  'field.ph.email': 'usted@ejemplo.com',
+  'field.ph.phone': '(555) 000-0000',
+  'field.ph.street': 'Av. Principal 123',
+  'field.ph.apartment': 'Depto. 4B',
+  'field.ph.city': 'Monterrey',
+  'field.ph.zip': '64000',
+  'action.cancel': 'Cancelar',
+  'action.edit': 'Editar',
+  'action.saving': 'Guardando…',
+  'action.saveChanges': 'Guardar cambios',
+  'action.notSet': 'Sin definir',
+  'profile.section.general': 'General',
+  'profile.section.address': 'Dirección',
+  'profile.section.additional': 'Información adicional',
+  'profile.section.notifications': 'Notificaciones',
+  'profile.section.security': 'Inicio de sesión y seguridad',
+  'profile.rail': 'Secciones de mi perfil',
+  'profile.editSection': 'Editar {section}',
+  'profile.photo.upload': 'Subir foto de perfil',
+  'profile.photo.replaceLong': 'Cambiar la foto de perfil',
+  'profile.photo.setLong': 'Poner una foto de perfil',
+  'profile.photo.replace': 'Cambiar la foto',
+  'profile.photo.set': 'Poner una foto',
+  'profile.photo.failed': 'No se pudo usar esa foto',
+  'profile.living': 'Con vida',
+  'profile.sunsetHint': 'Déjelo en blanco si la persona vive.',
+  'profile.sizeFirst': 'Elija primero una categoría.',
+  'profile.noChapters': 'Esta familia no tiene capítulos, así que no hay nada que elegir.',
+  'profile.inThisFamily': 'En esta familia',
+  'profile.firstNameRequired': 'El nombre es obligatorio',
+  'profile.lastNameRequired': 'El apellido es obligatorio',
+  'profile.wentWrong': 'Algo salió mal',
+  'profile.chapterNotChanged': 'Sus datos se guardaron, pero no se pudo cambiar el capítulo.',
+  'profile.confirm.general': 'Guardar la información general',
+  'profile.confirm.generalBody': '¿Guardar los cambios en su información general?',
+  'profile.confirm.address': 'Guardar la dirección',
+  'profile.confirm.addressBody': '¿Guardar los cambios en su dirección?',
+  'profile.confirm.additional': 'Guardar la información adicional',
+  'profile.confirm.additionalBody': '¿Guardar los cambios en su información adicional?',
+  'action.save': 'Guardar',
+  'profile.inFamily': 'En {family}',
+
+  // ── NOTIFICATIONS AND SIGN-IN & SECURITY ─────────────────────────────────────────
+  // *Aviso de seguridad* for the safety check row, matching `dash.safety.*` and the mail: never
+  // *alerta*, because the product does not claim anything is happening — a relative asked.
+  'notify.channel.email': 'Correo',
+  'notify.channel.sms': 'SMS',
+  'notify.channel.push': 'Notificación push',
+  'notify.type.safety_check.label': 'Aviso de seguridad',
+  'notify.type.safety_check.description':
+    'Su familia levanta un aviso durante una tormenta, una evacuación o una emergencia, y '
+    + 'pregunta si está a salvo.',
+  'notify.colNotification': 'Notificación',
+  'notify.notBuilt': 'Aún no está disponible',
+  'notify.stopped': 'Detenido',
+  'notify.toggleLabel': '{channel} para {notification}',
+  'notify.noneOnFile': 'No hay ninguno registrado',
+  'notify.placeholderAddress': 'Una dirección generada: nada puede llegar ahí',
+  'notify.endingIn': 'Termina en {digits}',
+  'notify.fromGeneral':
+    'Estos vienen de sus datos **generales**: cámbielos ahí y todas las notificaciones lo '
+    + 'siguen.',
+  'notify.failed': 'Eso no funcionó',
+  'notify.noEmail':
+    'No tenemos ninguna dirección de correo que pueda alcanzarlo, así que nada marcado para '
+    + 'Correo va a llegar. Agregue una en **General**.',
+  'notify.stoppedNote':
+    'Respondió **STOP** a uno de nuestros mensajes de texto, así que no podemos volver a '
+    + 'escribir a ese número, y no podemos reactivarlo desde aquí: es una regla que impone su '
+    + 'operadora, no un ajuste que tengamos. Escriba **START** al número que le mandó el mensaje '
+    + 'si quiere recibirlos de nuevo.',
+  'notify.smsNotOn':
+    'Los mensajes de texto todavía no están activados. Puede registrar su preferencia ahora y '
+    + 'la usaremos en cuanto lo estén.',
+  'notify.noMobile':
+    'No tenemos su número de celular, así que nada marcado para SMS va a llegar. Agregue uno en '
+    + '**General**.',
+  'notify.willConfirm':
+    'Confirmaremos su número de celular con un código antes de enviarle cualquier mensaje.',
+  'security.email.title': 'Correo de inicio de sesión',
+  'security.email.lede':
+    'La dirección con la que inicia sesión. Es distinta del correo de contacto de su perfil: '
+    + 'cambiar una no cambia la otra.',
+  'security.currently': 'Actualmente ',
+  'security.newEmail': 'Nueva dirección de correo',
+  'security.sending': 'Enviando…',
+  'security.sendConfirmation': 'Enviar confirmación',
+  'security.badEmail': 'Escriba una dirección de correo válida',
+  'security.sameEmail': 'Esa ya es su dirección de inicio de sesión',
+  'security.password.title': 'Contraseña',
+  'security.password.lede':
+    'Para cambiarla hacen falta su contraseña actual y un código corto que le enviamos por '
+    + 'correo. Sus otros dispositivos quedan desconectados después.',
+  'security.sendingCode': 'Enviando el código…',
+  'security.changePassword': 'Cambiar la contraseña',
+  'security.code': 'Código de su correo',
+  'security.currentPassword': 'Contraseña actual',
+  'security.newPassword': 'Contraseña nueva',
+  'security.confirmPassword': 'Confirme la contraseña nueva',
+  'security.savePassword': 'Guardar la contraseña nueva',
+  'security.needCode': 'Escriba el código de su correo',
+  'security.needCurrent': 'Escriba su contraseña actual',
+  'security.tooShort': 'La contraseña nueva debe tener al menos 8 caracteres',
+  'security.noMatch': 'Las contraseñas nuevas no coinciden',
+  'security.samePassword': 'Esa ya es su contraseña. Elija otra.',
+  'security.wrongCurrent': 'Esa no es su contraseña actual.',
+  'security.ph.minChars': 'Mín. 8 caracteres',
+
+  // ── THE MEMBER'S MONEY SCREENS ───────────────────────────────────────────────────
+  // *Cuota* for a due and *abono* for an installment, which is the distinction §7c needs: a
+  // *cuota* is what is owed and an *abono* is one payment against it. *Pago* is kept for the
+  // act of paying.
+  'money.amount': 'Monto',
+  'money.total': 'Total',
+  'money.remaining': 'Restante',
+  'money.paid': 'Pagado',
+  'money.status': 'Estado',
+  'money.method': 'Método',
+  'money.date': 'Fecha',
+  'money.schedule': 'Programa',
+  'money.actions': 'Acciones',
+  'money.pastDue': 'Vencida',
+  'money.dueNow': 'A pagar ahora',
+  'money.notYetDue': 'Aún no vence',
+  'money.declined': 'Rechazada',
+  'money.income': 'Ingresos',
+  'money.expenses': 'Gastos',
+  'money.donation': 'Donación',
+  'money.close': 'Cerrar',
+  'money.opening': 'Abriendo…',
+  'pnl.lede': 'Desde el inicio · cada movimiento que la familia ha registrado',
+  'pnl.duesAndDonations': 'Cuotas y donaciones',
+  'pnl.direct': 'Aportaciones directas',
+  'pnl.netLine': 'Ingresos menos gastos',
+  'pnl.routedHeading': 'Ingresos asignados a fondos',
+  'pnl.nothingRouted': 'Todavía no se ha asignado nada a los fondos.',
+  'pnl.balancesToday': 'Saldos de los fondos hoy',
+  'pnl.nothingPaidOut': 'Todavía no se ha pagado nada',
+  'pnl.disbursed': 'Pagado desde los fondos de la familia',
+  'pnl.surplus': 'Superávit neto',
+  'pnl.deficit': 'Déficit neto',
+  'pnl.routedBeyond': 'Asignado más allá de los ingresos por cuotas',
+  'pnl.notYetRouted': 'Recaudado, aún sin asignar a un fondo',
+  'pnl.allRouted': 'Cada pago de cuotas se ha asignado a un fondo.',
+  'pnl.overRouted':
+    'Ha entrado más a los fondos de lo que trajeron las cuotas: las aportaciones directas '
+    + 'cubren la diferencia.',
+  'pnl.unrouted':
+    'Las cuotas cobradas con un programa sin regla de asignación se quedan aquí hasta que se '
+    + 'configure una en Contabilidad.',
+  'drives.goalMet': 'Meta cumplida',
+  'drives.closed': 'Cerrada',
+  'drives.noGoal': 'Sin meta: dé lo que quiera.',
+  'drives.none': 'Su familia no tiene ninguna campaña de donación en este momento.',
+  'drives.rail': 'Cuotas y donaciones',
+  'drives.give': 'Donar',
+  'drives.giveByCard': 'Donar con tarjeta',
+  'drives.giveHint':
+    'Se paga con tarjeta directamente a su familia. Entra en sus libros en cuanto se '
+    + 'acredita.',
+  'drives.giveAnything': 'Dé lo que quiera. No hay una cantidad fija.',
+  'drives.needAmount': 'Escriba una cantidad para donar.',
+  'plan.noSchedules':
+    'No está en ningún programa de cuotas: su familia no ha configurado ninguno para usted.',
+  'plan.required': 'Cuotas obligatorias',
+  'plan.optional': 'Cuotas opcionales',
+  'plan.nextPayment': 'Próximo pago',
+  'plan.nextDue': 'Próximo vencimiento',
+  'plan.thisDue': 'Esta cuota',
+  'plan.whatYouPayNow': 'Lo que paga ahora',
+  'plan.payCadence': 'Plan de pago',
+  'plan.changeCadence': 'Cambiar la frecuencia de pago',
+  'plan.pickCadence': 'Elija una frecuencia de pago para configurar los pagos automáticos.',
+  'plan.setUpAuto': 'Configurar pagos automáticos',
+  'plan.stopAuto': 'Detener los pagos automáticos',
+  'plan.stopAutoConfirm': '¿Detener los pagos automáticos?',
+  'plan.stopPayments': 'Detener los pagos',
+  'plan.cadenceFailed': 'No se pudo cambiar la frecuencia',
+  'plan.changeFailed': 'No se pudo cambiar eso',
+  'plan.optOut': 'Rechazar',
+  'plan.optBackIn': 'Volver a aceptar',
+  'plan.optionalHint':
+    'Esta cuota es opcional, así que puede rechazarla. Dejará de contar en lo que debe, y '
+    + 'puede volver a aceptarla cuando quiera.',
+  'plan.allSettled': 'No hay nada pendiente: cada cuota está pagada o rechazada.',
+  'plan.calendarAsked': 'Lo que el calendario ha pedido, incluido lo que falta por poner al día.',
+  'plan.needAmount': 'Escriba una cantidad para pagar.',
+  'plan.pay': 'Pagar',
+  'plan.payByCard': 'Pagar con tarjeta',
+  'plan.oneAcross':
+    'Un solo pago para todas las cuotas de abajo. Ponga una en cero para dejarla fuera.',
+  'plan.straightToFamily':
+    'Se paga directamente a su familia. Entra en sus libros en cuanto se acredita.',
+  'plan.whyDiffers': 'Por qué el próximo pago puede ser distinto del abono',
+  'funds.title': 'Fondos de la familia',
+  'funds.manage': 'Administrar los fondos',
+  'funds.none': 'Todavía no hay fondos configurados.',
+  'cards.noUpcoming': 'No hay cuotas próximas',
+  'cards.paidThisYear': 'Pagado este año',
+  'cards.generalPayment': 'Pago general',
+  'cards.noPayments': 'No hay pagos registrados',
+  'cards.remainingBalance': 'Saldo pendiente',
+  'cards.noSchedules': 'No hay programas de cuotas configurados.',
+  'cards.viewDues': 'Ver las cuotas',
+  'cards.requiredPaid': 'Todas las cuotas obligatorias pagadas',
+  'cards.allPaid': 'Todas las cuotas pagadas. ¡Gracias!',
+  'history.none': 'Todavía no hay historial de pagos.',
+  'history.noMatches': 'No hay pagos que coincidan.',
+  'history.filter': 'Filtrar el historial de pagos',
+  'history.filterPh': 'Filtrar…',
+  'history.duesPayment': 'Pago de cuotas',
+  'history.donationPayment': 'Pago de donación',
+  'history.paymentMethod': 'Método de pago',
+  'history.reference': 'N.º de cheque / Referencia',
+  'history.recorded': 'Registrado',
+  'history.reversed': 'Revertido',
+  'history.reversedYes': 'Sí: un movimiento de corrección cancela este pago',
+  'history.corrects': 'Corrige',
+  'history.correctsWhat': 'Un pago anterior de este historial',
+  'history.notes': 'Notas',
+  'history.correctingEntry': '{kind}: movimiento de corrección',
+  'payStatus.paid': 'Pagado',
+  'payStatus.waived': 'Exonerado',
+  'payStatus.pending': 'Pendiente',
 }

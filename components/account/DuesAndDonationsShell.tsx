@@ -10,6 +10,7 @@ import {
   MONEY_PANES, MONEY_PANE_LABEL, type MoneyPane,
 } from '@/lib/money-panes'
 import type { DuesSummary, DonationSummary } from '@/app/actions/dues'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * WHERE A MEMBER STANDS — what they owe, and what the family is asking them to give to.
@@ -64,6 +65,7 @@ export function DuesAndDonationsShell({
    */
   online: DuesOnlineStatus
 }) {
+  const t = useT()
   const [pane, setPane] = useState<MoneyPane>(initialPane)
 
   const items: MainRailItem<MoneyPane>[] = MONEY_PANES.map(id => ({
@@ -83,7 +85,7 @@ export function DuesAndDonationsShell({
 
   return (
     <div className="space-y-6">
-      <MainRail label="Dues and donations" items={items} active={pane} onSelect={select} />
+      <MainRail label={t('drives.rail')} items={items} active={pane} onSelect={select} />
 
       <div hidden={pane !== 'dues'}>
         {/* `online` goes INTO the pane rather than beside it, since 2026-08-25. It was a
@@ -104,7 +106,7 @@ export function DuesAndDonationsShell({
           <div className="flex flex-col items-center gap-2 py-10">
             <HeartHandshake className="h-10 w-10 text-muted-foreground/20" aria-hidden="true" />
             <p className="text-sm text-muted-foreground">
-              Your family is not running any donation drives right now.
+              {t('drives.none')}
             </p>
           </div>
         ) : (

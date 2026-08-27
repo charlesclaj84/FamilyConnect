@@ -231,6 +231,12 @@ const KNOWN_DYNAMIC = [
   ['theme.', 'ThemeToggle maps its three modes: t(`theme.${mode}`).'],
   ['switcher.badge.', 'FamilySwitcher picks a badge by membership state.'],
   ['dash.link.match.', 'LinkPersonBanner names why a record matched: t(`dash.link.match.${reason}`).'],
+  ['profile.section.', 'profileSectionLabel() maps a section id: t(`profile.section.${section}`).'],
+  ['notify.channel.', 'channelLabel() maps a channel id: t(`notify.channel.${channel}`). '
+    + 'lib/notification-prefs.ts keeps the ids; the captions are here.'],
+  ['notify.type.', 'notificationLabel()/notificationDescription() map a notification key.'],
+  ['payStatus.', 'paymentStatusLabel() maps a dues_payments.status: t(`payStatus.${status}`). '
+    + 'An unknown status falls back to the raw column value.'],
 ]
 
 const isDynamic = key => KNOWN_DYNAMIC.some(([prefix]) => key.startsWith(prefix))
@@ -264,7 +270,10 @@ const OPTIONAL_LOCALE = ['formatDate', 'formatDateRange', 'formatMonthDay', 'for
  * surfaces are threaded in Phase 4; raising it is a deliberate act that owes a reason on this
  * line.
  */
-const PINNED_CEILING = 211
+// RATCHETED DOWN AS PHASE 5 THREADS EACH SURFACE. 211 was the figure the day the formatters
+// moved to `Intl`; every reduction below is a surface whose dates now render in the reader's
+// language. Lower it freely; raising it is a deliberate act that owes a reason on this line.
+const PINNED_CEILING = 207
 
 // ── SCANNING ────────────────────────────────────────────────────────────────────────
 

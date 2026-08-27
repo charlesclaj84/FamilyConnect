@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency-utils'
 import { isOutstanding } from '@/lib/dues-utils'
 import { type DuesSummary } from '@/app/actions/dues'
+import { useT } from '@/components/layout/LocaleProvider'
 
 interface Props {
   summary: DuesSummary[]
@@ -83,6 +84,7 @@ function PlanLine({ summary: s }: { summary: DuesSummary }) {
 }
 
 export function DuesBalanceKpi({ summary, showViewLink = false, className }: Props) {
+  const t = useT()
   const outstanding = summary.filter(isOutstanding)
   const requiredDue = outstanding.filter(s => s.required)
   const optionalDue = outstanding.filter(s => !s.required)
@@ -96,11 +98,11 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className }: Pro
         <div className={cn('rounded-full p-1.5', requiredCents > 0 ? 'bg-brand-legacy' : 'bg-brand-affirm')}>
           <Clock className={cn('h-4 w-4', requiredCents > 0 ? 'text-brand-on-legacy' : 'text-brand-on-affirm')} />
         </div>
-        <span className="text-sm font-medium text-muted-foreground">Remaining Balance</span>
+        <span className="text-sm font-medium text-muted-foreground">{t('cards.remainingBalance')}</span>
       </div>
 
       {summary.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No dues schedules configured.</p>
+        <p className="text-sm text-muted-foreground">{t('cards.noSchedules')}</p>
       ) : (
         <>
           <div className="flex items-end gap-2">
@@ -113,7 +115,7 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className }: Pro
               <CheckCircle className="h-4 w-4 shrink-0" />
               {/* "Required dues", not "All dues": with an optional due outstanding on the
                   next line, a bare "all dues paid" would contradict it. */}
-              {optionalCents > 0 ? 'Required dues all paid' : 'All dues paid — thank you!'}
+              {optionalCents > 0 ? t('cards.requiredPaid') : t('cards.allPaid')}
             </p>
           ) : (
             <ul className="space-y-1">
@@ -180,7 +182,7 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className }: Pro
           primary action at all. */}
       {showViewLink && (
         <Link href="/accounting/dues-and-donations" className={buttonVariants({ size: 'sm', variant: 'secondary' }) + ' w-full justify-center'}>
-          View Dues
+          {t('cards.viewDues')}
         </Link>
       )}
     </div>
