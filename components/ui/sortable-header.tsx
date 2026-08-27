@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { sortRows, type SortDirection, type SortValue } from '@/lib/sort-rows'
+import { useIntlTag } from '@/components/layout/LocaleProvider'
 
 export type SortDir = SortDirection
 
@@ -108,14 +109,20 @@ export function useTableSort<
   type K = keyof C & string
   const [key, setKey] = useState<K>(initialKey)
   const [dir, setDir] = useState<SortDir>(initialDir)
+  // ── THE READER'S ALPHABET, NOT THE HOST'S ─────────────────────────────────────────
+  // `lib/sort-rows.ts` decision 2 has the measurement: `ñ` is a letter of its own in Spanish
+  // and files after `n`, so a family with a Muñoz in it saw the name in the English position
+  // until this was threaded. `useIntlTag()` and not `useT()` — a collation is an `Intl` tag
+  // (`es-MX`) rather than a catalogue code (`es`), and this hook renders no words at all.
+  const intl = useIntlTag()
 
   const sorted = useMemo(
-    () => sortRows(rows, columns[key], dir),
+    () => sortRows(rows, columns[key], dir, intl),
     // `columns` is an object literal at the call site and so is a new identity every render —
     // depending on it would defeat the memo entirely. The KEY is what selects the extractor,
     // and a table does not change what a column means while it is on screen.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, key, dir],
+    [rows, key, dir, intl],
   )
 
   function toggle(next: K) {
