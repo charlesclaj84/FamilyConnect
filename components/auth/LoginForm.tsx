@@ -215,7 +215,7 @@ export function LoginForm({
             that could be — and until 2026-08-12 there was no h1 here at all, which
             leaves a screen-reader user nothing to jump to. See CardTitle's `as`. */}
         <CardTitle as="h1" className="text-2xl">{t('auth.welcomeBack')}</CardTitle>
-        <CardDescription>Sign in to your {APP_NAME} account</CardDescription>
+        <CardDescription>{t('auth.signInToYour', { app: APP_NAME })}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

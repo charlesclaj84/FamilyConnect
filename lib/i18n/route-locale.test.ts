@@ -7,6 +7,7 @@ import {
   localeAlternates,
   localePrefixRedirect,
   localizedHref,
+  localizedAlternates,
   splitLocalePath,
 } from '@/lib/i18n/route-locale'
 
@@ -33,7 +34,7 @@ import {
  * `it`. That is deliberate rather than an oversight: they are three halves of one claim, and
  * splitting them would report a single mistake three times.
  *
- * `marketingAlternates` is checked in `lib/marketing/locale.test.ts` rather than here, because
+ * `localizedAlternates` is checked in `lib/marketing/locale.test.ts` rather than here, because
  * it is the only thing in this feature that builds a `Metadata` object and belongs beside the
  * rest of that module's behaviour.
  */
@@ -124,6 +125,41 @@ describe('localeAlternates', () => {
 
   it('covers Home', () => {
     expect(localeAlternates('/')).toEqual({ en: '/', es: '/es', fr: '/fr' })
+  })
+})
+
+describe('localizedAlternates', () => {
+  it('names this language as the canonical address, not the English one', () => {
+    // The load-bearing case. `/es/pricing` is the canonical address OF THE SPANISH PAGE — a
+    // canonical of `/pricing` here would tell a crawler the Spanish page is a duplicate of the
+    // English one and should not be indexed at all.
+    expect(localizedAlternates('/pricing', 'es')?.canonical).toBe('/es/pricing')
+    expect(localizedAlternates('/pricing', 'fr')?.canonical).toBe('/fr/pricing')
+    expect(localizedAlternates('/pricing', 'en')?.canonical).toBe('/pricing')
+  })
+
+  it('lists every language plus x-default', () => {
+    // `x-default` is what a crawler serves a reader whose language matches none of the three.
+    // The same URL as `en` deliberately: two different claims about one address, and omitting
+    // it leaves the fallback to be guessed.
+    expect(localizedAlternates('/features', 'es')?.languages).toEqual({
+      en: '/features',
+      es: '/es/features',
+      fr: '/fr/features',
+      'x-default': '/features',
+    })
+  })
+
+  it('covers Home', () => {
+    const alt = localizedAlternates('/', 'fr')
+    expect(alt?.canonical).toBe('/fr')
+    expect(alt?.languages).toEqual({ en: '/', es: '/es', fr: '/fr', 'x-default': '/' })
+  })
+
+  it('falls back to the path for a locale it does not know', () => {
+    // Never undefined: a page that somehow resolved a locale outside the registry still gets a
+    // canonical, because a metadata block with a missing canonical is worse than a plain one.
+    expect(localizedAlternates('/about', 'de')?.canonical).toBe('/about')
   })
 })
 

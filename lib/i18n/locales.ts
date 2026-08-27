@@ -137,3 +137,43 @@ export function negotiateLocale(header: string | null | undefined): string | nul
   }
   return null
 }
+
+
+/**
+ * Which of the reader's four possible answers wins.
+ *
+ * ── WHY THIS IS A FUNCTION AND NOT FOUR ¤??¤ IN `resolveLocale` ────────────────────
+ * It was exactly that, and the fourth source arrived in 2026-08-27 by INSERTING a term in
+ * the middle of the chain — which is the shape of edit that is easy to get subtly wrong and
+ * impossible to test where it lived: ¤resolveLocale¤ reads ¤next/headers¤ and queries
+ * Supabase, and AGENTS.md §7b draws ¤lib/**‍/*.test.ts¤ as a BOUNDARY around modules that do
+ * neither. So the ORDER is here, where ¤npm test¤ can reach it, and the impure resolver is
+ * three reads and one call.
+ *
+ * The order, and the argument for each rung:
+ *
+ *   1. ¤chosen¤     ¤people.locale¤ — what the member set on My Profile. An explicit
+ *                   statement about the READER, so nothing outranks it.
+ *   2. ¤addressed¤  the ¤/es¤ or ¤/fr¤ in the URL. A statement about this PAGE. Below a
+ *                   stored choice, because a member who set Spanish and then opened an
+ *                   English-addressed link has not changed their mind. Above the browser,
+ *                   because a path segment is something somebody navigated to and
+ *                   ¤Accept-Language¤ is something their browser was configured with.
+ *   3. ¤asked¤      ¤Accept-Language¤.
+ *   4. ¤BASE_LOCALE¤  English, which the catalogue is written in. Always answers, so no
+ *                   caller branches on "we do not know".
+ *
+ * Every argument is optional and an unsupported value is treated as absent rather than as
+ * an error — a locale arriving from a header, a URL or a column may be anything at all, and
+ * the fallback is what this function is for.
+ */
+export function preferredLocale({ chosen, addressed, asked }: {
+  chosen?: string | null
+  addressed?: string | null
+  asked?: string | null
+}): string {
+  for (const candidate of [chosen, addressed, asked]) {
+    if (isSupportedLocale(candidate)) return candidate as string
+  }
+  return BASE_LOCALE
+}

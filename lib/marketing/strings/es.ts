@@ -347,6 +347,53 @@ export const marketingEs: Catalogue = {
   'mkt.feat.screenOne': '1 pantalla',
   'mkt.feat.screenMany': '{n} pantallas',
   'mkt.feat.onTheWay': '{n} en camino',
+  // L,M,M,J,V,S,D — la semana empieza en lunes, igual que en el dibujo.
+  'mkt.vignette.dayLetters': 'L,M,M,J,V,S,D',
+  'mkt.vignette.reunionDates': '15–17 de agosto',
+  'mkt.vignette.reunionTitle': 'Reencuentro de verano',
+  'mkt.vignette.bookHall': 'Reservar el salón',
+  'mkt.vignette.orderShirts': 'Encargar las camisetas',
+  'mkt.vignette.collectPhotos': 'Recopilar las fotografías',
+  'mkt.vignette.budgetClaimed': 'Presupuesto reclamado',
+  'mkt.vignette.reunionFund': 'Fondo del reencuentro',
+  'mkt.vignette.scholarshipFund': 'Fondo de becas',
+  'mkt.vignette.emergencyFund': 'Fondo de emergencia',
+  'mkt.vignette.thisYear': 'Este año',
+  'mkt.vignette.moneyWent': 'Adónde fue el dinero',
+  'mkt.vignette.duesCollected': 'Cuotas cobradas',
+  'mkt.vignette.againstOutstanding': 'frente a lo pendiente',
+  'mkt.vignette.routed': 'Distribuido automáticamente, por orden de prioridad',
+  'mkt.vignette.oneLedger': 'Cada aportación y cada pago en un solo libro',
+  'mkt.vignette.threeGenerations': 'Tres generaciones',
+  'mkt.vignette.familyRecord': 'El registro de la familia',
+
+  'mkt.quotes.eyebrow': 'En sus palabras',
+  'mkt.quotes.heading': 'Las familias no vuelven atrás',
+  'mkt.quotes.verbatim':
+    'Citamos a estas familias en el idioma en que escribieron. No traducimos un '
+    + 'testimonio, porque la traducción serían palabras que ellas nunca aprobaron.',
+  'mkt.quotes.railLabel': 'Testimonios de familias, se puede desplazar',
+  'mkt.quotes.prev': 'Testimonio anterior',
+  'mkt.quotes.next': 'Testimonio siguiente',
+
+  'mkt.social.follow': 'Síganos',
+  'mkt.social.soon': 'Perfiles próximamente.',
+
+  'mkt.price.availableNow': 'Disponible ya',
+  'mkt.ladder.bestFirstStep': 'El mejor primer paso',
+  'mkt.price.whyFreeHeading': '¿Por qué regalar todo el producto?',
+  'mkt.price.whyFreeBody':
+    'Porque un portal familiar con la mitad de la familia dentro no vale nada, y un precio '
+    + 'por miembro garantiza que la otra mitad se quede fuera. Así que meter a todo el mundo '
+    + 'es gratis y siempre lo será: el directorio, el chat, los avisos y el reencuentro en un '
+    + 'calendario compartido, para todos sus familiares y sin tarjeta. Cobramos cuando una '
+    + 'familia empieza a DIRIGIRSE en lugar de solo reunirse: conservar el árbol, cobrar '
+    + 'cuotas, repartir el trabajo y, más arriba, aceptar pagos con tarjeta, elegir cargos y '
+    + 'rendir cuentas a una junta.',
+  'mkt.feat.spansPlans':
+    'Cada uno de esos tres abarca más de un plan. Lo que sigue es la respuesta exacta, '
+    + 'pantalla por pantalla, con el plan al que pertenece encima de cada grupo.',
+  'mkt.feat.seeCosts': 'O vea cuánto cuesta cada plan',
   'mkt.feat.perMonth': '{amount} al mes',
   'mkt.feat.noCharge': 'Sin costo',
   'mkt.feat.seePlan': ': vea qué incluye el plan {plan}',

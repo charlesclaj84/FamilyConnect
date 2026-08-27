@@ -1,20 +1,62 @@
 import { cache } from 'react'
 import { headers } from 'next/headers'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { BASE_LOCALE, isSupportedLocale, negotiateLocale, storedLocale } from '@/lib/i18n/locales'
+import { isSupportedLocale, negotiateLocale, preferredLocale, storedLocale } from '@/lib/i18n/locales'
+import { LOCALE_HEADER } from '@/lib/i18n/route-locale'
 
 /**
  * Which language is this caller reading in?
  *
  * The impure counterpart to `lib/i18n/locales.ts`, and the exact shape of `lib/auth/zone.ts`
- * one concern over — three sources, in order, with a last one that can always answer:
+ * one concern over — four sources, in order, with a last one that can always answer:
  *
  *   1. `people.locale`     what the member CHOSE, on My Profile. Authoritative.
- *   2. `Accept-Language`   what their BROWSER asks for. A member who has never opened the
+ *   2. the `/es` or `/fr`   what the ADDRESS BAR says this page is. See below — it is only ever
+ *      path segment       set on the handful of routes that have localized addresses.
+ *   3. `Accept-Language`   what their BROWSER asks for. A member who has never opened the
  *                          control still gets Spanish if their browser asks for Spanish.
- *   3. `BASE_LOCALE`       English, which the catalogue is written in.
+ *   4. `BASE_LOCALE`       English, which the catalogue is written in.
  *
- * Because the third always answers, no call site branches on "we do not know".
+ * Because the last always answers, no call site branches on "we do not know".
+ *
+ * ── THE ORDER ITSELF IS `preferredLocale`, IN THE PURE MODULE ─────────────────────
+ * This function READS the four sources; `lib/i18n/locales.ts` decides which wins, and
+ * `lib/i18n/locales.test.ts` pins it. §7b's boundary is why: this file imports
+ * `next/headers` and the admin client, so nothing under `npm test` can call it, and a
+ * four-rung precedence that a fifth source might join is worth being able to assert.
+ *
+ * ── THE PATH SEGMENT WAS MISSING AND THE SIGN-IN FORM WAS THE COST ─────────────────
+ * This had three sources until 2026-08-27, and its own header said the URL structure was none
+ * of its business: *"a marketing page takes its locale from its `/es` or `/fr` path segment,
+ * which is a routing fact rather than a caller fact"*. True of a marketing page, which resolves
+ * through `marketingLocale()` and never comes here — and false of the four AUTH routes, which
+ * are in `LOCALIZED_ROOTS` for a reason stated there: *a reader who has been on Spanish Home
+ * for four pages must not be handed an English form by the one click that matters.*
+ *
+ * They were handed one. Measured against a real server, with `Accept-Language: en-US`:
+ *
+ *     GET /es/login   →   `<html lang="es">`   and every word of the form in English
+ *
+ * The `lang` was right because `app/layout.tsx` reads the header directly; the CONTENT was
+ * wrong because `LocaleProvider` in `app/(auth)/layout.tsx` is seeded from `callerI18n(null)`,
+ * which came here and got the browser's answer. So a Spanish reader who clicked *Iniciar
+ * sesión* landed on a page whose `lang` told their screen reader Spanish and whose labels were
+ * English — worse than either being wrong on its own.
+ *
+ * ── WHERE IT SITS IN THE ORDER, AND WHY THAT IS THE ONLY DEFENSIBLE PLACE ──────────
+ * BELOW the stored choice, because an explicit preference is about the READER and a URL is
+ * about a PAGE; a member who set Spanish on My Profile and then opened an English-addressed
+ * link has not changed their mind. ABOVE `Accept-Language`, because a path segment is
+ * something somebody navigated to and a request header is something their browser was
+ * configured with years ago — and because `proxy.ts` only ever produces a prefixed path for a
+ * reader who was ALREADY reading that language, or who negotiated into it once and had the
+ * choice recorded in `LOCALE_PICK_COOKIE`.
+ *
+ * ── IT CHANGES NOTHING ON THE DASHBOARD, STRUCTURALLY ─────────────────────────────
+ * The header is set by `proxy.ts` only when it rewrites a prefixed path, and it only rewrites
+ * paths `isLocalizablePath()` admits — Home, the five marketing pages and the four auth ones.
+ * `/es/dashboard` is not one: it matches no route and 404s, which is the design. So on every
+ * signed-in page the header is absent and this resolver behaves exactly as it did.
  *
  * ── WHY A HEADER AND NOT A COOKIE, WHICH IS THE OPPOSITE OF THE ZONE ────────────────
  * `resolveZone` reads a cookie, because a browser's ZONE is not in any request header and has
@@ -39,9 +81,12 @@ import { BASE_LOCALE, isSupportedLocale, negotiateLocale, storedLocale } from '@
  * Staff console's English fallback, and for the recipient of a piece of mail.
  */
 export const resolveLocale = cache(async (userId: string | null | undefined): Promise<string> => {
+  // Both request-scoped sources, read once. `addressed` is the `/es` or `/fr` the reader is
+  // actually at; `asked` is what their browser would like. See the header for the order.
+  const addressed = await addressedLocale()
   const asked = await browserLocale()
 
-  if (!userId) return asked ?? BASE_LOCALE
+  if (!userId) return preferredLocale({ addressed, asked })
 
   const db = createAdminClient()
   // SELF — `.eq('user_id', userId)`, narrower than a family. See the header.
@@ -59,10 +104,30 @@ export const resolveLocale = cache(async (userId: string | null | undefined): Pr
   // English would otherwise look like a preference nobody set.
   if (error) console.error('resolveLocale: could not read locale', error)
 
-  const chosen = data?.locale
-  if (isSupportedLocale(chosen)) return chosen as string
-  return asked ?? BASE_LOCALE
+  return preferredLocale({ chosen: data?.locale, addressed, asked })
 })
+
+/**
+ * The language this page's own ADDRESS says it is, or null.
+ *
+ * `proxy.ts` sets `LOCALE_HEADER` when it rewrites `/es/login` onto `/login`, so this is the
+ * one place the routing decision is visible to a Server Component that is not a marketing
+ * page. `marketingLocale()` reads the same header and differs in its FALLBACK: it answers
+ * English, because an unprefixed marketing path is English's one canonical address and
+ * negotiating there would serve Spanish prose at it. This answers `null` instead, because the
+ * caller has two further sources to try and "no prefix" is not a statement about the reader.
+ *
+ * `headers()` throws outside a request scope, so a missing scope is `null` rather than an
+ * exception — the same reasoning as `browserLocale()` below.
+ */
+async function addressedLocale(): Promise<string | null> {
+  try {
+    const named = (await headers()).get(LOCALE_HEADER)
+    return isSupportedLocale(named) ? (named as string) : null
+  } catch {
+    return null
+  }
+}
 
 /**
  * The language each of several relatives reads in, by `people.id`.

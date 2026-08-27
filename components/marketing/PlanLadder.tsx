@@ -357,7 +357,7 @@ function PlanCard({ plan }: { plan: MarketingPlan }) {
           // of the card, and the sweep runs inside it.
           <div className="relative overflow-hidden bg-brand-legacy px-6 py-1.5 text-center">
             <span className="relative z-10 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-on-legacy">
-              Best first step
+              {t('mkt.ladder.bestFirstStep')}
             </span>
             <span
               aria-hidden="true"

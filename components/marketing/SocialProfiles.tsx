@@ -1,4 +1,7 @@
+'use client'
+
 import type { ComponentProps } from 'react'
+import { useMarketingT } from '@/components/marketing/MarketingLocale'
 import { BRAND_SOCIAL, type SocialPlatform } from '@/lib/brand'
 
 /**
@@ -108,13 +111,16 @@ export function SocialProfiles() {
    * containing only profiles that exist. A platform rejoins it by getting a URL, which
    * is the same one-line edit either way.
    */
+  const t = useMarketingT()
+  // The PLATFORM NAMES are not translated and are not in any catalogue: Facebook, Instagram
+  // and X are proper nouns, and `profile.label` in `lib/brand.ts` is where they live.
   const live = BRAND_SOCIAL.filter(profile => profile.href !== null)
   const profiles = live.length > 0 ? live : BRAND_SOCIAL
 
   return (
     <div>
       <h2 className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground">
-        Follow
+        {t('mkt.social.follow')}
       </h2>
       <ul className="mt-3 flex items-center gap-1">
         {profiles.map(profile => {
@@ -164,7 +170,7 @@ export function SocialProfiles() {
         // says that four times, on the roadmap badges in `sections.tsx`, where it means
         // a feature that is not built yet. The same two words in the footer would read
         // as a fifth one of those. The noun is what keeps them apart.
-        <p className="mt-2 text-xs text-muted-foreground">Profiles coming soon.</p>
+        <p className="mt-2 text-xs text-muted-foreground">{t('mkt.social.soon')}</p>
       )}
     </div>
   )

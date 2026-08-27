@@ -1,5 +1,6 @@
 import { Check, Clock, Search, Wallet } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * ── WHAT THIS REPLACED, AND WHY IT HAD TO GO ────────────────────────────────
@@ -77,9 +78,30 @@ const FRAME =
 
 export function PillarVignette({
   kind,
+  t,
   className,
 }: {
   kind: PillarVignetteKind
+  /**
+   * The reader's language, bound.
+   *
+   * ── A PROP, NOT `useMarketingT()`, AND THE REASON IS THE OTHER CALLER ────────────
+   * Both call sites are Server Components — `/features` and `FeatureShowcase` — and the
+   * second one's file opens by saying so: *"No 'use client'. This is data and markup — the
+   * whole band renders on the server and ships no JS. Adding a hook or a handler here would
+   * need the directive back."* A hook in HERE would put the directive back on that band by
+   * the back door, and turn three drawings' worth of markup into shipped JavaScript.
+   *
+   * Passing it costs nothing: a function crossing a server-to-server boundary is passed by
+   * reference and never serialized, and a missing prop is a type error. Same argument
+   * `lib/i18n/server.ts` makes at length, and the same one `UpgradeScreen` rests on.
+   *
+   * `PlanningUpsell` went the other way on the same day and that is not an inconsistency —
+   * ONE of its callers was already a client component, so the module was in the browser
+   * bundle either way and `'use client'` cost nothing there. Here it would cost the whole
+   * band.
+   */
+  t: T
   className?: string
 }) {
   return (
@@ -94,9 +116,9 @@ export function PillarVignette({
           at the wide size, and spreading the three groups to the edges reads as a
           laid-out screen where a top-aligned stack reads as content that ran out. */}
       <div className="relative flex h-full flex-col justify-between">
-        {kind === 'gatherings' && <Gatherings />}
-        {kind === 'treasury' && <Treasury />}
-        {kind === 'family-record' && <FamilyRecord />}
+        {kind === 'gatherings' && <Gatherings t={t} />}
+        {kind === 'treasury' && <Treasury t={t} />}
+        {kind === 'family-record' && <FamilyRecord t={t} />}
       </div>
     </div>
   )
@@ -157,24 +179,40 @@ const ROW = 'text-[11px] @[26rem]:text-sm'
    Draws: a gathering spanning three days of a month strip, its steps held by named
    relatives with one still outstanding, and a budget line claimed against a fund.
    Every one of those four is a bullet on the pillar beside it. */
-function Gatherings() {
+function Gatherings({ t }: { t: T }) {
   // Mon–Sun of the week the reunion runs. It goes Friday to Sunday, which is what
   // makes the calendar bullet's point: a three-day gathering fills three days rather
   // than sitting on one as a dot.
-  const DAYS = [
-    { d: 'M', n: 11 }, { d: 'T', n: 12 }, { d: 'W', n: 13 }, { d: 'T', n: 14 },
-    { d: 'F', n: 15 }, { d: 'S', n: 16 }, { d: 'S', n: 17 },
-  ]
+  //
+  // ── THE DAY LETTERS ARE A KEY AND NOT `Intl`, WHICH IS UNUSUAL HERE ─────────────
+  // AGENTS.md's rule is not to restate a fact the product derives, and weekday names are
+  // derivable — `Intl.DateTimeFormat(intl, { weekday: 'narrow' })`. What it needs is a REAL
+  // date, and this week is fabricated: the 11th to the 17th of no particular month of no
+  // particular year, chosen so a three-day span reads as three days. Deriving would mean
+  // inventing a date to derive FROM, which is a fact the drawing does not have.
+  //
+  // So it is one key holding seven comma-separated letters — `L,M,M,J,V,S,D` in Spanish and
+  // French, which both start the week on Monday as this drawing does. A language starting on
+  // Sunday would need the NUMBERS moved too, which is why the key is the whole row rather
+  // than seven keys a translator could reorder into a week that does not match the dates.
+  const DAYS = t('mkt.vignette.dayLetters').split(',').map((d, i) => ({ d, n: 11 + i }))
   const TASKS = [
-    { label: 'Book the hall', who: 'Marcus', done: true },
-    { label: 'Order the shirts', who: 'Dee', done: true },
-    { label: 'Collect the photographs', who: 'Aunt J', done: false },
+    // The NAMES are people and are not translated — the same rule as the family names on the
+    // quote cards, one level down. `who` is a first name in an illustration.
+    { label: t('mkt.vignette.bookHall'), who: 'Marcus', done: true },
+    { label: t('mkt.vignette.orderShirts'), who: 'Dee', done: true },
+    { label: t('mkt.vignette.collectPhotos'), who: 'Aunt J', done: false },
   ]
 
   return (
     <>
       <div>
-        <Caption meta="15–17 August">Summer reunion</Caption>
+        {/* THE DATE RANGE IS COPY, for `DAYS`' reason above: there is no real date here to
+            hand a formatter. `mkt.vignette.reunionDates` carries the whole range, so a
+            language that writes the month first or the day first says so itself. */}
+        <Caption meta={t('mkt.vignette.reunionDates')}>
+          {t('mkt.vignette.reunionTitle')}
+        </Caption>
 
         <div className="mt-3 @[26rem]:mt-4">
           <div className="grid grid-cols-7 gap-1 text-center text-[9px] text-muted-foreground @[26rem]:text-[10px]">
@@ -238,8 +276,8 @@ function Gatherings() {
 
       <div>
         <div className="flex items-baseline justify-between text-[10px] text-muted-foreground @[26rem]:text-xs">
-          <span>Budget claimed</span>
-          <span>Reunion fund</span>
+          <span>{t('mkt.vignette.budgetClaimed')}</span>
+          <span>{t('mkt.vignette.reunionFund')}</span>
         </div>
         <div className="mt-1.5">
           <Bar pct={64} tone="bg-brand-primary" delay={3} />
@@ -253,22 +291,28 @@ function Gatherings() {
    Draws: dues coming in against what is outstanding, and the routing waterfall —
    the reunion fund filling first, the next one following, the third still short.
    All three are bullets. */
-function Treasury() {
+function Treasury({ t }: { t: T }) {
+  // FUND NAMES ARE TRANSLATED HERE AND WOULD NOT BE IN THE PRODUCT. A real family names its
+  // own funds and nothing translates what they typed; these three are illustrative labels
+  // standing in for what a family would write, so they read in the reader's language for the
+  // same reason the drawing's other captions do.
   const FUNDS = [
-    { name: 'Reunion fund', pct: 100, tone: 'bg-brand-affirm', full: true },
-    { name: 'Scholarship fund', pct: 58, tone: 'bg-brand-primary', full: false },
-    { name: 'Emergency fund', pct: 22, tone: 'bg-brand-warm', full: false },
+    { name: t('mkt.vignette.reunionFund'), pct: 100, tone: 'bg-brand-affirm', full: true },
+    { name: t('mkt.vignette.scholarshipFund'), pct: 58, tone: 'bg-brand-primary', full: false },
+    { name: t('mkt.vignette.emergencyFund'), pct: 22, tone: 'bg-brand-warm', full: false },
   ] as const
 
   return (
     <>
       <div>
-        <Caption meta="This year">Where the money went</Caption>
+        <Caption meta={t('mkt.vignette.thisYear')}>
+          {t('mkt.vignette.moneyWent')}
+        </Caption>
 
         <div className="mt-3 @[26rem]:mt-5">
           <div className="flex items-baseline justify-between text-[10px] @[26rem]:text-xs">
-            <span className="font-medium">Dues collected</span>
-            <span className="text-muted-foreground">against outstanding</span>
+            <span className="font-medium">{t('mkt.vignette.duesCollected')}</span>
+            <span className="text-muted-foreground">{t('mkt.vignette.againstOutstanding')}</span>
           </div>
           <div className="mt-1.5">
             <Bar pct={72} tone="bg-brand-accent" delay={1} />
@@ -278,7 +322,7 @@ function Treasury() {
 
       <div>
         <p className="text-[10px] text-muted-foreground @[26rem]:text-xs">
-          Routed automatically, in priority order
+          {t('mkt.vignette.routed')}
         </p>
         <ul className="mt-2 space-y-2.5 @[26rem]:mt-3 @[26rem]:space-y-4">
           {FUNDS.map((fund, i) => (
@@ -301,7 +345,7 @@ function Treasury() {
 
       <div className="flex items-center gap-2 border-t pt-3 text-[10px] text-muted-foreground @[26rem]:text-xs">
         <Wallet className="size-3.5 shrink-0 text-brand-accent @[26rem]:size-4" />
-        <span>Every contribution and disbursement on one ledger</span>
+        <span>{t('mkt.vignette.oneLedger')}</span>
       </div>
     </>
   )
@@ -316,7 +360,7 @@ function Treasury() {
    canvas draws real edges; a diagram that tried to reproduce them at this size would
    be a smudge, and an SVG would need its own viewBox arithmetic to stay aligned as
    the container query changes every gap around it. */
-function FamilyRecord() {
+function FamilyRecord({ t }: { t: T }) {
   const NODE =
     'flex items-center gap-1.5 truncate rounded-lg border bg-background px-2 py-1.5 text-[10px] @[26rem]:gap-2 @[26rem]:px-2.5 @[26rem]:py-2 @[26rem]:text-xs'
   const DROP = 'mx-auto block h-3.5 w-px bg-border @[26rem]:h-5'
@@ -332,7 +376,9 @@ function FamilyRecord() {
   // name would break.
   return (
     <>
-      <Caption meta="Three generations">The family record</Caption>
+      <Caption meta={t('mkt.vignette.threeGenerations')}>
+        {t('mkt.vignette.familyRecord')}
+      </Caption>
 
       <div className="mx-auto w-full max-w-[15rem] @[26rem]:max-w-[19rem]">
         {/* Grandparents. The rule between them is the marriage. */}

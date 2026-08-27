@@ -1527,6 +1527,127 @@ export const en: Catalogue = {
   // not. Which form a surface wants is a layout decision the surface makes.
   'bill.perMonthSlash': '{amount}/month',
 
+  // ── THE ORIENTATION PANELS BESIDE THE TWO FORMS ─────────────────────────────────
+  // `app/(auth)/login/page.tsx` and `app/(auth)/register/page.tsx`. The FORMS were keyed in
+  // Phase 5; the panels beside them were not, so a reader who had been on Spanish Home for
+  // four pages reached a Spanish form under an English explanation of what they were signing
+  // in to. Which is the audience these panels exist for — somebody who followed a relative's
+  // link and has never heard of the product.
+  //
+  // ── THE BRAND LEAD LINE IS INSIDE THE SENTENCE, NOT INTERPOLATED ────────────────
+  // `APP_LEAD` is 'Where every generation belongs.' — English prose in `lib/brand.ts`, which
+  // both pages rendered as `{APP_LEAD.toLowerCase()}` mid-sentence. Same decision `/about`
+  // took: a translator needs the finished sentence, not a constant to lower-case and splice.
+  // The product NAME is still never typed — it arrives as `{app}`.
+  // ── THE THREE AUTH PAGES' TITLES AND DESCRIPTIONS ───────────────────────────────
+  // These were static `metadata` exports, which cannot ask what language the reader is in —
+  // so `/es/login` served a Spanish page under an English tab, an English bookmark and an
+  // English link preview. Each page is a `generateMetadata` now.
+  //
+  // THE LENGTHS WERE ARGUED AT THE CALL SITES AND THOSE NOTES STILL HOLD: every title here
+  // renders around 40 characters once `title.template` appends the product name, against the
+  // ~60 a search result displays. A translation is longer than its English more often than
+  // not — check a new one rather than assuming, because a cut title is worse than a plain one.
+  'auth.meta.loginTitle': 'Sign In to Your Family Portal',
+  'auth.meta.loginDescription':
+    'Sign in to your {app} family portal to plan reunions, manage dues, share photos and '
+    + 'keep your family connected.',
+  // Matches the visible h1 in `LoginForm`, not the <title> — schema.org `name` is a claim
+  // about what the page IS, and the two must not disagree. See the call site.
+  'auth.meta.loginGraphName': 'Welcome back',
+  'auth.meta.registerTitle': 'Create Your Free Family Account',
+  'auth.meta.registerDescription':
+    'Create a free {app} account to join or start your family’s private site — reunions, '
+    + 'dues, photographs and the family tree, in one place.',
+  'auth.meta.registerGraphName': 'Create your account',
+  'auth.meta.inviteTitle': 'Accept Your Invitation',
+  'auth.meta.forgotTitle': 'Reset Your Family Portal Password',
+  'auth.meta.forgotDescription':
+    'Forgotten your {app} password? Enter the email address on your family account and we '
+    + 'will send you a link to set a new one.',
+
+  'auth.signInToYour': 'Sign in to your {app} account',
+  'reg.invitedToJoin': 'You have been invited to join',
+  'reg.joinOn': 'Join your family on {app}',
+  'reg.startOn': 'Start a new family on {app}',
+
+  'auth.aside.loginHeading': 'New here, or cannot get in?',
+  'auth.aside.whatItIs':
+    '{app} is a private site for one extended family — where every generation belongs. '
+    + 'Members plan reunions and gatherings together, keep track of dues and contributions, '
+    + 'share photographs, and build out the family tree in a place only the family can see. '
+    + 'There is no public profile, and one family cannot see another’s pages at all.',
+
+  // A TERM AND A BODY PER BULLET, and never one key with `<AsideTerm>` inside it: the
+  // catalogue holds strings and a translator who moved a tag would move markup.
+  'auth.aside.forgotTerm': 'Forgotten your password?',
+  'auth.aside.forgotLink': 'Ask for a reset link',
+  'auth.aside.forgotTail': 'and set a new one.',
+  'auth.aside.unconfirmedTerm': 'Never confirmed your email?',
+  'auth.aside.unconfirmedBody':
+    'Registering sends a confirmation link, and an account stays inactive until it is '
+    + 'opened. Look in your spam folder first — then sign in above, and the form will offer '
+    + 'to send the link again.',
+  'auth.aside.codeTerm': 'Joined with a family code?',
+  'auth.aside.codeBody':
+    'An administrator of that family admits new members. You can sign in while you wait — '
+    + 'you will see a holding page until they do.',
+  'auth.aside.invitedTerm': 'Invited by email?',
+  'auth.aside.invitedBody':
+    'Open the link in the invitation rather than signing in here. It knows which family you '
+    + 'are joining, and it will bring you back to the invitation once you have signed in.',
+  'auth.aside.wrongFamilyTerm': 'In the wrong family?',
+  'auth.aside.wrongFamilyBody':
+    'One account can belong to more than one — marriage puts most people in two. Sign in '
+    + 'with it as usual and switch families from the header.',
+
+  // ── A SENTENCE WITH TWO LINKS IN IT IS FIVE KEYS, AND THE PUNCTUATION IS IN THEM ─
+  // `, or` is its own entry because that comma belongs to English: Spanish writes `, o` and
+  // French `, ou`, and a language that wanted a semicolon or no comma at all could say so.
+  // Splitting the sentence in two would have been the other answer and changes the copy.
+  'auth.aside.noAccountLead': 'No account yet?',
+  'auth.aside.createFree': 'Create a free one',
+  'auth.aside.orSep': ', or',
+  'auth.aside.readWhatApp': 'read what {app} does',
+  'auth.aside.ifUnsure': 'if you were sent here and are not sure what this is.',
+
+  'auth.aside.joiningHeading': 'Joining {app}',
+  'auth.aside.joiningLede':
+    '{app} gives one extended family a private place of its own — where every generation '
+    + 'belongs. There is no public profile and nothing is shared outside the family you '
+    + 'join. Members can:',
+  'auth.aside.can1': 'Plan reunions and gatherings — who is doing what, and whether it is done.',
+  'auth.aside.can2': 'Track dues and contributions, so nobody is chasing receipts.',
+  'auth.aside.can3': 'Share photographs in collections the whole family can add to.',
+  'auth.aside.can4': 'Build the family tree, and keep the record of who belongs to whom.',
+  'auth.aside.nextHeading': 'What happens next',
+  'auth.aside.confirmTerm': 'Confirm your email.',
+  'auth.aside.confirmBody':
+    'We send a link as soon as you register, and the account stays inactive until you open it.',
+  'auth.aside.joiningTerm': 'Joining an existing family?',
+  'auth.aside.joiningBody':
+    'You need its family code — ask whoever invited you. Your request then waits for one of '
+    + 'that family’s administrators to admit you; you can sign in in the meantime.',
+  'auth.aside.startingTerm': 'Starting a new one?',
+  'auth.aside.startingBody':
+    'You are its first member, and you are given a six-character family code to pass around. '
+    + 'Anyone holding it can ask to join, and you decide who comes in.',
+  'auth.aside.freeForever':
+    'The free account is free forever — no card, no trial clock, and no charge per relative, '
+    + 'however many of you there are.',
+  'auth.aside.seeTiers': 'See what each tier includes',
+  'auth.aside.readHow': 'read how it works',
+  'auth.aside.first': 'first.',
+
+  // The one un-keyed run left in ForgotPasswordForm: the two states that page cannot
+  // detect and therefore has to name.
+  'auth.forgotNoAccount':
+    'Use the address you registered with. If you never finished creating an account, there '
+    + 'is nothing to reset —',
+  'auth.forgotSignUp': 'sign up',
+  'auth.forgotAskCode':
+    'instead, and ask your family for their code if you are joining an existing family.',
+
   // ── WHAT A FREE FAMILY'S GATHERING IS MISSING ───────────────────────────────────
   // `components/gatherings/PlanningUpsell.tsx`. The plan NAME is interpolated from
   // `TIER_LABEL` rather than typed, per that file's own header — a plan name is a

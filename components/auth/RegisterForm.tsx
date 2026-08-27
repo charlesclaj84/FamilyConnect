@@ -318,12 +318,15 @@ export function RegisterForm({
       <CardHeader>
         <CardTitle as="h1" className="text-2xl">{t('reg.createYours')}</CardTitle>
         <CardDescription>
+          {/* THE FAMILY NAME IS AN ELEMENT, so the invited case is two keys with the
+              name between them — a family typed its own name and nothing translates it,
+              and `<span>` cannot live inside a catalogue value. */}
           {inviteToken
-            ? <>You have been invited to join{' '}
+            ? <>{t('reg.invitedToJoin')}{' '}
                 <span className="font-medium">{invitedFamilyName}</span>.</>
             : mode === 'join'
-              ? `Join your family on ${APP_NAME}`
-              : `Start a new family on ${APP_NAME}`}
+              ? t('reg.joinOn', { app: APP_NAME })
+              : t('reg.startOn', { app: APP_NAME })}
         </CardDescription>
       </CardHeader>
       <CardContent>

@@ -6,7 +6,8 @@ import { StructuredData } from '@/components/marketing/StructuredData'
 import { MarketingHeader } from '@/components/marketing/MarketingHeader'
 import { MarketingFooter } from '@/components/marketing/MarketingFooter'
 import { MarketingLocaleProvider } from '@/components/marketing/MarketingLocale'
-import { marketingAlternates, marketingI18n } from '@/lib/marketing/locale'
+import { marketingI18n } from '@/lib/marketing/locale'
+import { localizedAlternates } from '@/lib/i18n/route-locale'
 import { localizedHref } from '@/lib/i18n/route-locale'
 import { FoundingFamily } from '@/components/marketing/FoundingFamily'
 import { LivingSitePreview } from '@/components/marketing/LivingSitePreview'
@@ -85,7 +86,7 @@ export async function generateMetadata(): Promise<Metadata> {
   // canonical in the root layout would tell Google that /login and /register are
   // duplicates of the homepage — which is the one mistake here worse than having
   // no canonical at all.
-    alternates: marketingAlternates('/', locale),
+    alternates: localizedAlternates('/', locale),
 
     // `description`, `openGraph` and `twitter` are deliberately NOT restated. The
     // root layout's are already written for this page — it is the one they describe

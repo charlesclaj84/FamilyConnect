@@ -1483,6 +1483,103 @@ export const es: Catalogue = {
   'bill.rateSentence': 'El plan {tier} cuesta {amount} al mes, mes a mes.',
   'bill.perMonthSlash': '{amount}/mes',
 
+  'auth.meta.loginTitle': 'Inicie sesión en el portal de su familia',
+  'auth.meta.loginDescription':
+    'Inicie sesión en el portal familiar de {app} para organizar reencuentros, gestionar '
+    + 'cuotas, compartir fotos y mantener conectada a su familia.',
+  'auth.meta.loginGraphName': 'Bienvenido de nuevo',
+  'auth.meta.registerTitle': 'Cree su cuenta familiar gratuita',
+  'auth.meta.registerDescription':
+    'Cree una cuenta gratuita de {app} para unirse al sitio privado de su familia o crearlo: '
+    + 'reencuentros, cuotas, fotografías y el árbol genealógico, todo en un solo lugar.',
+  'auth.meta.registerGraphName': 'Cree su cuenta',
+  'auth.meta.inviteTitle': 'Acepte su invitación',
+  'auth.meta.forgotTitle': 'Restablezca la contraseña del portal de su familia',
+  'auth.meta.forgotDescription':
+    '¿Olvidó su contraseña de {app}? Escriba la dirección de correo de la cuenta de su '
+    + 'familia y le enviaremos un enlace para elegir una nueva.',
+
+  'auth.signInToYour': 'Inicie sesión en su cuenta de {app}',
+  'reg.invitedToJoin': 'Le han invitado a unirse a',
+  'reg.joinOn': 'Únase a su familia en {app}',
+  'reg.startOn': 'Cree una familia nueva en {app}',
+
+  'auth.aside.loginHeading': '¿Es nuevo aquí o no puede entrar?',
+  'auth.aside.whatItIs':
+    '{app} es un sitio privado para una sola familia extensa, donde todas las generaciones '
+    + 'tienen su lugar. Sus miembros organizan juntos reencuentros y reuniones, llevan el '
+    + 'control de las cuotas y las aportaciones, comparten fotografías y construyen el árbol '
+    + 'genealógico en un espacio que solo la familia puede ver. No hay perfil público, y '
+    + 'ninguna familia puede ver las páginas de otra.',
+
+  'auth.aside.forgotTerm': '¿Olvidó su contraseña?',
+  'auth.aside.forgotLink': 'Pida un enlace para restablecerla',
+  'auth.aside.forgotTail': 'y elija una nueva.',
+  'auth.aside.unconfirmedTerm': '¿Nunca confirmó su correo?',
+  'auth.aside.unconfirmedBody':
+    'Al registrarse se envía un enlace de confirmación, y la cuenta permanece inactiva hasta '
+    + 'que se abre. Revise primero su carpeta de correo no deseado; después inicie sesión '
+    + 'arriba y el formulario le ofrecerá enviarle el enlace de nuevo.',
+  'auth.aside.codeTerm': '¿Se unió con un código de familia?',
+  'auth.aside.codeBody':
+    'Un administrador de esa familia admite a los nuevos miembros. Puede iniciar sesión '
+    + 'mientras espera: verá una pantalla de espera hasta que lo hagan.',
+  'auth.aside.invitedTerm': '¿Recibió una invitación por correo?',
+  'auth.aside.invitedBody':
+    'Abra el enlace de la invitación en lugar de iniciar sesión aquí. Ese enlace sabe a qué '
+    + 'familia se está uniendo y lo devolverá a la invitación una vez que haya iniciado sesión.',
+  'auth.aside.wrongFamilyTerm': '¿Está en la familia equivocada?',
+  'auth.aside.wrongFamilyBody':
+    'Una cuenta puede pertenecer a más de una: el matrimonio pone a casi todo el mundo en '
+    + 'dos. Inicie sesión con ella como siempre y cambie de familia desde la cabecera.',
+
+  'auth.aside.noAccountLead': '¿Aún no tiene cuenta?',
+  'auth.aside.createFree': 'Cree una gratis',
+  'auth.aside.orSep': ', o',
+  'auth.aside.readWhatApp': 'lea qué hace {app}',
+  'auth.aside.ifUnsure': 'si le enviaron aquí y no sabe bien qué es esto.',
+
+  'auth.aside.joiningHeading': 'Unirse a {app}',
+  'auth.aside.joiningLede':
+    '{app} le da a una familia extensa un lugar propio y privado, donde todas las '
+    + 'generaciones tienen su lugar. No hay perfil público y nada se comparte fuera de la '
+    + 'familia a la que se une. Sus miembros pueden:',
+  'auth.aside.can1':
+    'Organizar reencuentros y reuniones: quién hace qué, y si ya está hecho.',
+  'auth.aside.can2':
+    'Llevar el control de cuotas y aportaciones, para que nadie ande persiguiendo recibos.',
+  'auth.aside.can3':
+    'Compartir fotografías en colecciones a las que toda la familia puede añadir.',
+  'auth.aside.can4':
+    'Construir el árbol genealógico y conservar el registro de quién pertenece a quién.',
+  'auth.aside.nextHeading': 'Qué sucede después',
+  'auth.aside.confirmTerm': 'Confirme su correo electrónico.',
+  'auth.aside.confirmBody':
+    'Enviamos un enlace en cuanto se registra, y la cuenta permanece inactiva hasta que lo '
+    + 'abre.',
+  'auth.aside.joiningTerm': '¿Se une a una familia que ya existe?',
+  'auth.aside.joiningBody':
+    'Necesita su código de familia; pídalo a quien lo invitó. Su solicitud queda entonces a '
+    + 'la espera de que uno de los administradores de esa familia lo admita, y puede iniciar '
+    + 'sesión mientras tanto.',
+  'auth.aside.startingTerm': '¿Empieza una nueva?',
+  'auth.aside.startingBody':
+    'Usted es su primer miembro y recibe un código de familia de seis caracteres para '
+    + 'repartir. Cualquiera que lo tenga puede pedir unirse, y usted decide quién entra.',
+  'auth.aside.freeForever':
+    'La cuenta gratuita es gratis para siempre: sin tarjeta, sin reloj de prueba y sin cargo '
+    + 'por familiar, sean los que sean.',
+  'auth.aside.seeTiers': 'Vea qué incluye cada plan',
+  'auth.aside.readHow': 'lea cómo funciona',
+  'auth.aside.first': 'primero.',
+
+  'auth.forgotNoAccount':
+    'Use la dirección con la que se registró. Si nunca terminó de crear una cuenta, no hay '
+    + 'nada que restablecer:',
+  'auth.forgotSignUp': 'regístrese',
+  'auth.forgotAskCode':
+    'y pida a su familia su código si se está uniendo a una familia que ya existe.',
+
   'gath.upsell.inlineHave':
     'Con el plan {plan}, una reunión es una fecha, un lugar y una descripción.',
   'gath.upsell.inlineAdds':

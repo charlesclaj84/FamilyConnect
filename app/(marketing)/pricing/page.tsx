@@ -11,7 +11,8 @@ import { PageHero, SectionHeading, MoreLink } from '@/components/marketing/secti
 import { CtaBand } from '@/components/marketing/CtaBand'
 import { marketingPageGraph } from '@/lib/structured-data'
 import { localizedHref } from '@/lib/i18n/route-locale'
-import { marketingAlternates, marketingI18n } from '@/lib/marketing/locale'
+import { marketingI18n } from '@/lib/marketing/locale'
+import { localizedAlternates } from '@/lib/i18n/route-locale'
 // The shell catalogue, for the tier taglines only. `/features` carries the full note.
 import { tFor } from '@/lib/i18n/catalogues'
 import { type T } from '@/lib/i18n/t'
@@ -34,7 +35,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t('mkt.price.metaTitle'),
     description: t('mkt.price.metaDescription'),
-    alternates: marketingAlternates('/pricing', locale),
+    alternates: localizedAlternates('/pricing', locale),
   }
 }
 
@@ -665,7 +666,7 @@ export default async function PricingPage() {
               <div aria-hidden="true" className="h-1.5 w-full bg-brand-affirm" />
 
               <span className="absolute right-0 top-1.5 rounded-bl-xl bg-brand-affirm px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-on-affirm">
-                Available now
+                {t('mkt.price.availableNow')}
               </span>
 
               {/* `lg:` and not `md:`: the right-hand half carries two columns of
@@ -812,16 +813,8 @@ export default async function PricingPage() {
               <div className="inline-flex rounded-xl bg-brand-soft p-2.5">
                 <HeartHandshake className="h-6 w-6 text-brand-on-soft" aria-hidden="true" />
               </div>
-              <h3 className="text-xl">Why give the whole product away?</h3>
-              <p className="max-w-2xl text-muted-foreground">
-                Because a family portal with half the family in it is worth nothing, and a
-                per-member price guarantees half the family stays out. So getting everyone
-                in is free and always will be — the directory, the chat, the announcements
-                and the reunion on a shared calendar, for every relative, with no card. We
-                charge when a family starts being RUN rather than gathered: keeping the tree,
-                collecting dues, handing out the work — and, higher up, taking card payments,
-                electing officers and answering to a board.
-              </p>
+              <h3 className="text-xl">{t('mkt.price.whyFreeHeading')}</h3>
+              <p className="max-w-2xl text-muted-foreground">{t('mkt.price.whyFreeBody')}</p>
               <MoreLink href={localizedHref('/why-us', locale)}>
                 {t('mkt.price.compareLink')}
               </MoreLink>

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import { BASE_LOCALE, isSupportedLocale, LOCALES } from '@/lib/i18n/locales'
 
 /**
@@ -196,4 +197,36 @@ export function localeAlternates(path: string): Record<string, string> {
   const out: Record<string, string> = {}
   for (const { code } of LOCALES) out[code] = localizedHref(path, code)
   return out
+}
+
+/**
+ * The `alternates` block every localized page owes, for one unprefixed route.
+ *
+ * ── WHAT IT IS FOR, AND WHY EVERY PAGE NEEDS IT RATHER THAN THE LAYOUT ──────────────
+ * `hreflang` tells a crawler that three URLs are one page in three languages. Without it they
+ * are three unrelated pages competing with each other, and the thin one wins sometimes — which
+ * is the whole reason Home's language is in its URL (`route-locale.ts`) rather than negotiated.
+ *
+ * It cannot live in the marketing layout, because `canonical` is per PAGE: a layout has one
+ * `metadata` object for five routes, so it would name one of them as the canonical address of
+ * all five. So each page calls this with its own path, which is one line and is checked —
+ * `lib/marketing/locale.test.ts` walks `app/` and fails on a public page that does not.
+ *
+ * `x-default` is English, which is what a crawler serves a reader whose language matches none of
+ * the three. It is the same URL as `en` deliberately: they are different claims about one
+ * address rather than a duplicate, and omitting it leaves the fallback to be guessed.
+ *
+ * ── IT WAS `marketingAlternates` IN lib/marketing/locale.ts UNTIL 2026-08-27 ────────
+ * It moved when the SIGN-IN and SIGN-UP pages needed it. Those are in `LOCALIZED_ROOTS`
+ * above, they are indexed, and `/login` and `/es/login` are therefore two URLs a crawler
+ * has to be told are one page in two languages — the same obligation `/pricing` has. What
+ * they are not is marketing, and importing a `marketing*` helper into an auth page would
+ * say they were. The function was already generic; only its name was not.
+ */
+export function localizedAlternates(path: string, locale: string): Metadata['alternates'] {
+  const languages = localeAlternates(path)
+  return {
+    canonical: languages[locale] ?? path,
+    languages: { ...languages, 'x-default': languages[BASE_LOCALE] },
+  }
 }

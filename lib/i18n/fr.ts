@@ -1535,6 +1535,104 @@ export const fr: Catalogue = {
   'bill.rateSentence': 'Le forfait {tier} coûte {amount} par mois, sans engagement.',
   'bill.perMonthSlash': '{amount}/mois',
 
+  'auth.meta.loginTitle': 'Connectez-vous au portail de votre famille',
+  'auth.meta.loginDescription':
+    'Connectez-vous au portail familial {app} pour organiser des réunions, gérer les '
+    + 'cotisations, partager des photos et garder votre famille en lien.',
+  'auth.meta.loginGraphName': 'Bon retour',
+  'auth.meta.registerTitle': 'Créez votre compte familial gratuit',
+  'auth.meta.registerDescription':
+    'Créez un compte {app} gratuit pour rejoindre le site privé de votre famille ou le '
+    + 'créer — réunions, cotisations, photographies et arbre généalogique, en un seul lieu.',
+  'auth.meta.registerGraphName': 'Créez votre compte',
+  'auth.meta.inviteTitle': 'Acceptez votre invitation',
+  'auth.meta.forgotTitle': 'Réinitialisez le mot de passe du portail de votre famille',
+  'auth.meta.forgotDescription':
+    'Mot de passe {app} oublié ? Saisissez l’adresse électronique du compte de votre famille '
+    + 'et nous vous enverrons un lien pour en choisir un nouveau.',
+
+  'auth.signInToYour': 'Connectez-vous à votre compte {app}',
+  'reg.invitedToJoin': 'Vous avez été invité à rejoindre',
+  'reg.joinOn': 'Rejoignez votre famille sur {app}',
+  'reg.startOn': 'Créez une nouvelle famille sur {app}',
+
+  'auth.aside.loginHeading': 'Nouveau ici, ou impossible d’entrer ?',
+  'auth.aside.whatItIs':
+    '{app} est un site privé réservé à une seule famille élargie — où chaque génération a sa '
+    + 'place. Ses membres organisent ensemble réunions et rassemblements, suivent les '
+    + 'cotisations et les contributions, partagent des photographies et construisent l’arbre '
+    + 'généalogique dans un espace que seule la famille peut voir. Il n’y a pas de profil '
+    + 'public, et aucune famille ne peut voir les pages d’une autre.',
+
+  'auth.aside.forgotTerm': 'Mot de passe oublié ?',
+  'auth.aside.forgotLink': 'Demandez un lien de réinitialisation',
+  'auth.aside.forgotTail': 'et choisissez-en un nouveau.',
+  'auth.aside.unconfirmedTerm': 'Vous n’avez jamais confirmé votre adresse ?',
+  'auth.aside.unconfirmedBody':
+    'L’inscription envoie un lien de confirmation, et le compte reste inactif jusqu’à son '
+    + 'ouverture. Regardez d’abord dans vos courriers indésirables, puis connectez-vous '
+    + 'ci-dessus : le formulaire vous proposera de renvoyer le lien.',
+  'auth.aside.codeTerm': 'Vous avez rejoint avec un code de famille ?',
+  'auth.aside.codeBody':
+    'Un administrateur de cette famille admet les nouveaux membres. Vous pouvez vous '
+    + 'connecter en attendant — une page d’attente s’affichera jusqu’à ce qu’ils le fassent.',
+  'auth.aside.invitedTerm': 'Invité par courriel ?',
+  'auth.aside.invitedBody':
+    'Ouvrez le lien de l’invitation plutôt que de vous connecter ici. Ce lien sait quelle '
+    + 'famille vous rejoignez et vous y ramènera une fois connecté.',
+  'auth.aside.wrongFamilyTerm': 'Vous n’êtes pas dans la bonne famille ?',
+  'auth.aside.wrongFamilyBody':
+    'Un compte peut appartenir à plusieurs familles — le mariage en met la plupart des gens '
+    + 'dans deux. Connectez-vous comme d’habitude et changez de famille depuis l’en-tête.',
+
+  'auth.aside.noAccountLead': 'Pas encore de compte ?',
+  'auth.aside.createFree': 'Créez-en un gratuitement',
+  'auth.aside.orSep': ', ou',
+  'auth.aside.readWhatApp': 'lisez ce que fait {app}',
+  'auth.aside.ifUnsure': 'si l’on vous a envoyé ici et que vous ne savez pas bien de quoi il s’agit.',
+
+  'auth.aside.joiningHeading': 'Rejoindre {app}',
+  'auth.aside.joiningLede':
+    '{app} donne à une famille élargie un espace privé qui n’appartient qu’à elle — où '
+    + 'chaque génération a sa place. Il n’y a pas de profil public et rien n’est partagé en '
+    + 'dehors de la famille que vous rejoignez. Ses membres peuvent :',
+  'auth.aside.can1':
+    'Organiser réunions et rassemblements — qui fait quoi, et si c’est fait.',
+  'auth.aside.can2':
+    'Suivre les cotisations et les contributions, pour que personne ne court après les reçus.',
+  'auth.aside.can3':
+    'Partager des photographies dans des collections que toute la famille peut enrichir.',
+  'auth.aside.can4':
+    'Construire l’arbre généalogique et garder trace de qui appartient à qui.',
+  'auth.aside.nextHeading': 'Ce qui se passe ensuite',
+  'auth.aside.confirmTerm': 'Confirmez votre adresse.',
+  'auth.aside.confirmBody':
+    'Nous envoyons un lien dès votre inscription, et le compte reste inactif jusqu’à ce que '
+    + 'vous l’ouvriez.',
+  'auth.aside.joiningTerm': 'Vous rejoignez une famille existante ?',
+  'auth.aside.joiningBody':
+    'Il vous faut son code de famille — demandez-le à qui vous a invité. Votre demande '
+    + 'attend ensuite qu’un des administrateurs de cette famille vous admette ; vous pouvez '
+    + 'vous connecter entre-temps.',
+  'auth.aside.startingTerm': 'Vous en créez une nouvelle ?',
+  'auth.aside.startingBody':
+    'Vous en êtes le premier membre, et vous recevez un code de famille de six caractères à '
+    + 'faire circuler. Quiconque le détient peut demander à vous rejoindre, et c’est vous qui '
+    + 'décidez qui entre.',
+  'auth.aside.freeForever':
+    'Le compte gratuit est gratuit pour toujours — pas de carte, pas de compte à rebours '
+    + 'd’essai, et aucun frais par proche, quel que soit votre nombre.',
+  'auth.aside.seeTiers': 'Voyez ce que contient chaque forfait',
+  'auth.aside.readHow': 'lisez comment cela fonctionne',
+  'auth.aside.first': 'au préalable.',
+
+  'auth.forgotNoAccount':
+    'Utilisez l’adresse avec laquelle vous vous êtes inscrit. Si vous n’avez jamais terminé '
+    + 'la création d’un compte, il n’y a rien à réinitialiser —',
+  'auth.forgotSignUp': 'inscrivez-vous',
+  'auth.forgotAskCode':
+    'plutôt, et demandez à votre famille son code si vous rejoignez une famille existante.',
+
   'gath.upsell.inlineHave':
     'Avec le forfait {plan}, un rassemblement est une date, un lieu et une description.',
   'gath.upsell.inlineAdds':

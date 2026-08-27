@@ -124,12 +124,11 @@ export function ForgotPasswordForm() {
             will wait for an email that is never coming — and the screen after this one
             deliberately will not tell them which case they are in. */}
         <p className="text-muted-foreground">
-          Use the address you registered with. If you never finished creating an account,
-          there is nothing to reset —{' '}
+          {t('auth.forgotNoAccount')}{' '}
           <Link href="/register" className="font-medium text-primary hover:underline">
-            sign up
+            {t('auth.forgotSignUp')}
           </Link>{' '}
-          instead, and ask your family for their code if you are joining an existing family.
+          {t('auth.forgotAskCode')}
         </p>
         <Link href="/login" className="text-primary font-medium hover:underline">
           {t('auth.backToSignIn')}

@@ -1,5 +1,7 @@
+import type { Metadata } from 'next'
 import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
 import { APP_NAME } from '@/lib/brand'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * `noindex`, which is what app/sitemap.ts's intent already amounts to: it leaves
@@ -39,11 +41,24 @@ import { APP_NAME } from '@/lib/brand'
  * whole product under "Reset Password" describes a different page, and this string
  * is also what a link preview shows if anyone ever pastes the URL into a chat.
  */
-export const metadata = {
-  title: 'Reset Your Family Portal Password',
-  description:
-    `Forgotten your ${APP_NAME} password? Enter the email address on your family account and we will send you a link to set a new one.`,
-  robots: { index: false, follow: true },
+/**
+ * ── NO `alternates`, WHICH IS THE ONE DIFFERENCE FROM /login AND /register ─────────
+ * They carry `localizedAlternates` because they are indexed and their three addresses
+ * compete. This page is `noindex` — argued at length above — so there is nothing for
+ * `hreflang` to consolidate, and adding a canonical would contradict the robots tag,
+ * which is the first of the three declined findings up there.
+ *
+ * The TITLE and DESCRIPTION are still per-language, because `noindex` is about a search
+ * result and these two are also the browser tab, the history entry and the link preview
+ * — which is exactly the argument the note above makes for lengthening the title.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await callerI18n(null)
+  return {
+    title: t('auth.meta.forgotTitle'),
+    description: t('auth.meta.forgotDescription', { app: APP_NAME }),
+    robots: { index: false, follow: true },
+  }
 }
 
 export default function ForgotPasswordPage() {

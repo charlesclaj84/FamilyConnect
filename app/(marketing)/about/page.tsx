@@ -9,7 +9,8 @@ import { CtaBand } from '@/components/marketing/CtaBand'
 import { marketingPageGraph } from '@/lib/structured-data'
 import { APP_PUBLISHER, BRAND_MARK_SRC, APP_LOGO_ALT } from '@/lib/brand'
 import { localizedHref } from '@/lib/i18n/route-locale'
-import { marketingAlternates, marketingI18n } from '@/lib/marketing/locale'
+import { marketingI18n } from '@/lib/marketing/locale'
+import { localizedAlternates } from '@/lib/i18n/route-locale'
 import { type T } from '@/lib/i18n/t'
 import { MetaViewContent } from '@/components/meta/MetaViewContent'
 
@@ -25,7 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t('mkt.about.metaTitle'),
     description: t('mkt.about.metaDescription'),
-    alternates: marketingAlternates('/about', locale),
+    alternates: localizedAlternates('/about', locale),
   }
 }
 

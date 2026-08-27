@@ -3,7 +3,10 @@ import { LoginForm } from '@/components/auth/LoginForm'
 import { AuthAside, AsideTerm } from '@/components/auth/AuthAside'
 import { StructuredData } from '@/components/marketing/StructuredData'
 import { authPageGraph } from '@/lib/structured-data'
-import { APP_LEAD, APP_NAME } from '@/lib/brand'
+import type { Metadata } from 'next'
+import { APP_NAME } from '@/lib/brand'
+import { callerI18n } from '@/lib/i18n/server'
+import { localizedAlternates } from '@/lib/i18n/route-locale'
 
 /**
  * A self-referencing canonical, for the reason set out on the landing page: this
@@ -30,14 +33,26 @@ import { APP_LEAD, APP_NAME } from '@/lib/brand'
  * Still short enough not to be truncated: this renders at 39 characters against the
  * ~60 Google shows. Do not push it past 60 — a cut title is worse than a plain one.
  */
-const PAGE_NAME = 'Sign In to Your Family Portal'
-const PAGE_DESCRIPTION =
-  `Sign in to your ${APP_NAME} family portal to plan reunions, manage dues, share photos and keep your family connected.`
-
-export const metadata = {
-  title: PAGE_NAME,
-  description: PAGE_DESCRIPTION,
-  alternates: { canonical: '/login' },
+/**
+ * ── A `generateMetadata`, BECAUSE A STATIC EXPORT CANNOT ASK WHAT LANGUAGE THIS IS ─
+ * Both strings were module constants here, so `/es/login` served a Spanish page under an
+ * English tab title, an English bookmark and an English link preview. The lengths argued
+ * above still hold and are now a property of each translation rather than of one string —
+ * see `auth.meta.loginTitle` in the catalogue.
+ *
+ * `localizedAlternates` is the other half and is not optional here: `/login` is indexed
+ * (`app/sitemap.ts`), and `/login` and `/es/login` are two URLs a crawler must be told are
+ * one page in two languages. Without it they compete, and the thin one wins sometimes. It
+ * also keeps the self-referencing canonical the note above is about — per language now,
+ * which is what folds the `?next=` variants of each address rather than only English's.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const { t, locale } = await callerI18n(null)
+  return {
+    title: t('auth.meta.loginTitle'),
+    description: t('auth.meta.loginDescription', { app: APP_NAME }),
+    alternates: localizedAlternates('/login', locale),
+  }
 }
 
 /**
@@ -59,6 +74,10 @@ export default async function LoginPage({
   searchParams: Promise<{ error?: string; next?: string }>
 }) {
   const { error, next } = await searchParams
+  // `callerI18n(null)` resolves the ADDRESS BAR first, then the browser — see
+  // lib/auth/locale.ts. So `/es/login` gets Spanish even for a reader whose browser asks
+  // for English, which is the whole reason /login is in `LOCALIZED_ROOTS`.
+  const { t } = await callerI18n(null)
 
   return (
     <>
@@ -67,9 +86,11 @@ export default async function LoginPage({
           path: '/login',
           // Matches the visible h1 in LoginForm, not the <title>. schema.org `name` is a
           // claim about what the page IS, and the audit's "one H1 that states what the
-          // page is about" is the same claim in HTML — they must not disagree.
-          name: 'Welcome back',
-          description: PAGE_DESCRIPTION,
+          // page is about" is the same claim in HTML — they must not disagree. Which is
+          // why it is keyed and resolved HERE rather than being a constant: the h1 it has
+          // to match is whatever `LoginForm` renders in this reader's language.
+          name: t('auth.meta.loginGraphName'),
+          description: t('auth.meta.loginDescription', { app: APP_NAME }),
         })}
       />
       {/* The auth layout's <main> is `flex items-center justify-center`, which is a ROW.
@@ -98,27 +119,25 @@ export default async function LoginPage({
 
             No claim here that is not made somewhere it can be checked — the same rule
             lib/structured-data.ts is written to. */}
-        <AuthAside heading="New here, or cannot get in?">
-          <p>
-            {/* "reunions and events" until 2026-08-23 — the same retired product the
-                register page's bullet was selling, corrected in the same commit. Events
-                is gone (20260819000006) and Gatherings is what plans an occasion. Fixing
-                one of the two and not the other is how a claim comes to survive a
-                retirement in the first place. */}
-            {APP_NAME} is a private site for one extended family — {APP_LEAD.toLowerCase()}{' '}
-            Members plan reunions and gatherings together, keep track of dues and
-            contributions, share photographs, and build out the family tree in a place
-            only the family can see. There is no public profile, and one family cannot
-            see another&apos;s pages at all.
-          </p>
+        <AuthAside heading={t('auth.aside.loginHeading')}>
+          {/* "reunions and events" until 2026-08-23 — the same retired product the register
+              page's bullet was selling, corrected in the same commit. Events is gone
+              (20260819000006) and Gatherings is what plans an occasion. Fixing one of the two
+              and not the other is how a claim comes to survive a retirement in the first place.
+
+              THE BRAND LEAD LINE IS NOW INSIDE THE KEY. It was `{APP_LEAD.toLowerCase()}`
+              spliced mid-sentence — a finished English sentence from lib/brand.ts, lower-cased
+              at the call site. Same decision /about took: a translator needs the whole
+              sentence. The product NAME is still never typed; it arrives as `{app}`. */}
+          <p>{t('auth.aside.whatItIs', { app: APP_NAME })}</p>
 
           <ul className="list-disc space-y-1.5 pl-5">
             <li>
-              <AsideTerm>Forgotten your password?</AsideTerm>{' '}
+              <AsideTerm>{t('auth.aside.forgotTerm')}</AsideTerm>{' '}
               <Link href="/forgot-password" className="font-medium text-primary hover:underline">
-                Ask for a reset link
+                {t('auth.aside.forgotLink')}
               </Link>{' '}
-              and set a new one.
+              {t('auth.aside.forgotTail')}
             </li>
             <li>
               {/* "Look in your spam folder before trying again" until 2026-08-17, which
@@ -127,38 +146,37 @@ export default async function LoginPage({
                   refusal, so the bullet says where the offer appears. The spam advice
                   stays first: a link delivered and overlooked is the common case, and one
                   more email does not help with it. */}
-              <AsideTerm>Never confirmed your email?</AsideTerm> Registering sends a
-              confirmation link, and an account stays inactive until it is opened. Look in
-              your spam folder first — then sign in above, and the form will offer to send
-              the link again.
+              <AsideTerm>{t('auth.aside.unconfirmedTerm')}</AsideTerm>{' '}
+              {t('auth.aside.unconfirmedBody')}
             </li>
             <li>
-              <AsideTerm>Joined with a family code?</AsideTerm> An administrator of that
-              family admits new members. You can sign in while you wait — you will see a
-              holding page until they do.
+              <AsideTerm>{t('auth.aside.codeTerm')}</AsideTerm>{' '}
+              {t('auth.aside.codeBody')}
             </li>
             <li>
-              <AsideTerm>Invited by email?</AsideTerm> Open the link in the invitation
-              rather than signing in here. It knows which family you are joining, and it
-              will bring you back to the invitation once you have signed in.
+              <AsideTerm>{t('auth.aside.invitedTerm')}</AsideTerm>{' '}
+              {t('auth.aside.invitedBody')}
             </li>
             <li>
-              <AsideTerm>In the wrong family?</AsideTerm> One account can belong to more
-              than one — marriage puts most people in two. Sign in with it as usual and
-              switch families from the header.
+              <AsideTerm>{t('auth.aside.wrongFamilyTerm')}</AsideTerm>{' '}
+              {t('auth.aside.wrongFamilyBody')}
             </li>
           </ul>
 
+          {/* FIVE KEYS FOR ONE SENTENCE, and `auth.aside.orSep` carries its own comma —
+              that punctuation belongs to English, and Spanish writes `, o` where French
+              writes `, ou`. Splitting the sentence in two would have been the other answer
+              and would have changed the copy to make the code easier. */}
           <p>
-            No account yet?{' '}
+            {t('auth.aside.noAccountLead')}{' '}
             <Link href="/register" className="font-medium text-primary hover:underline">
-              Create a free one
+              {t('auth.aside.createFree')}
             </Link>
-            , or{' '}
+            {t('auth.aside.orSep')}{' '}
             <Link href="/" className="font-medium text-primary hover:underline">
-              read what {APP_NAME} does
+              {t('auth.aside.readWhatApp', { app: APP_NAME })}
             </Link>{' '}
-            if you were sent here and are not sure what this is.
+            {t('auth.aside.ifUnsure')}
           </p>
         </AuthAside>
       </div>

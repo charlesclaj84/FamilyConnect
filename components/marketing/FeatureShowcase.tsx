@@ -94,6 +94,7 @@ export async function FeatureShowcase() {
                     rounded card leaves a sliver of ground in each corner. */}
                 <PillarVignette
                   kind={pillar.vignette}
+                  t={t}
                   className="rounded-none border-0 border-b shadow-none"
                 />
 

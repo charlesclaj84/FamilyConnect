@@ -355,6 +355,54 @@ export const marketingFr: Catalogue = {
   'mkt.feat.screenOne': '1 écran',
   'mkt.feat.screenMany': '{n} écrans',
   'mkt.feat.onTheWay': '{n} à venir',
+  // L,M,M,J,V,S,D — la semaine commence le lundi, comme dans le dessin.
+  'mkt.vignette.dayLetters': 'L,M,M,J,V,S,D',
+  'mkt.vignette.reunionDates': '15–17 août',
+  'mkt.vignette.reunionTitle': 'Réunion d’été',
+  'mkt.vignette.bookHall': 'Réserver la salle',
+  'mkt.vignette.orderShirts': 'Commander les tee-shirts',
+  'mkt.vignette.collectPhotos': 'Rassembler les photographies',
+  'mkt.vignette.budgetClaimed': 'Budget engagé',
+  'mkt.vignette.reunionFund': 'Caisse de la réunion',
+  'mkt.vignette.scholarshipFund': 'Caisse des bourses',
+  'mkt.vignette.emergencyFund': 'Caisse d’urgence',
+  'mkt.vignette.thisYear': 'Cette année',
+  'mkt.vignette.moneyWent': 'Où est allé l’argent',
+  'mkt.vignette.duesCollected': 'Cotisations encaissées',
+  'mkt.vignette.againstOutstanding': 'par rapport au restant dû',
+  'mkt.vignette.routed': 'Réparti automatiquement, par ordre de priorité',
+  'mkt.vignette.oneLedger': 'Chaque contribution et chaque dépense dans un seul registre',
+  'mkt.vignette.threeGenerations': 'Trois générations',
+  'mkt.vignette.familyRecord': 'Le registre de la famille',
+
+  'mkt.quotes.eyebrow': 'Dans leurs mots',
+  'mkt.quotes.heading': 'Les familles ne reviennent pas en arrière',
+  'mkt.quotes.verbatim':
+    'Ces familles sont citées dans la langue dans laquelle elles ont écrit. Nous ne '
+    + 'traduisons pas un témoignage, car la traduction serait des mots qu’elles n’ont '
+    + 'jamais approuvés.',
+  'mkt.quotes.railLabel': 'Témoignages de familles, défilement possible',
+  'mkt.quotes.prev': 'Témoignage précédent',
+  'mkt.quotes.next': 'Témoignage suivant',
+
+  'mkt.social.follow': 'Suivez-nous',
+  'mkt.social.soon': 'Profils à venir.',
+
+  'mkt.price.availableNow': 'Disponible maintenant',
+  'mkt.ladder.bestFirstStep': 'Le meilleur premier pas',
+  'mkt.price.whyFreeHeading': 'Pourquoi donner tout le produit ?',
+  'mkt.price.whyFreeBody':
+    'Parce qu’un portail familial où ne figure que la moitié de la famille ne vaut rien, et '
+    + 'qu’un prix par membre garantit que l’autre moitié restera dehors. Réunir tout le monde '
+    + 'est donc gratuit et le restera toujours : l’annuaire, la messagerie, les annonces et la '
+    + 'réunion sur un calendrier partagé, pour chacun de vos proches et sans carte bancaire. '
+    + 'Nous facturons quand une famille commence à se DIRIGER plutôt qu’à simplement se '
+    + 'réunir : tenir l’arbre, encaisser les cotisations, répartir le travail — et, plus haut, '
+    + 'accepter les paiements par carte, élire des responsables et rendre compte à un conseil.',
+  'mkt.feat.spansPlans':
+    'Chacun de ces trois volets couvre plus d’un forfait. Ce qui suit est la réponse exacte, '
+    + 'écran par écran, avec le forfait auquel il appartient au-dessus de chaque groupe.',
+  'mkt.feat.seeCosts': 'Ou voyez ce que coûte chaque forfait',
   'mkt.feat.perMonth': '{amount} par mois',
   'mkt.feat.noCharge': 'Sans frais',
   'mkt.feat.seePlan': ' — voyez ce que contient le forfait {plan}',

@@ -325,6 +325,66 @@ export const marketingEn: Catalogue = {
   // The price beside a tier tag on a feature card, and the one on a /pricing card.
   // Both used to be English templates around a figure — see `bill.perMonth` in the shell
   // catalogue, which is the same rule for the signed-in surfaces.
+  // ── THE QUOTE CAROUSEL'S CHROME. THE QUOTES THEMSELVES ARE NOT HERE ──────────────
+  // And must never be. `lib/testimonials.ts` rule 4: a translated testimonial is a sentence
+  // the family did not say and did not approve, presented in quotation marks over their name.
+  // `mkt.quotes.verbatim` is the one line that explains their being in English, shown only to
+  // a reader who is not reading English.
+  // ── THE THREE PILLAR DRAWINGS ────────────────────────────────────────────────────
+  // `components/marketing/PillarVignette.tsx`. Every label in a drawing whose whole panel is
+  // `aria-hidden` — so this is visual copy only, and it is still copy: a Spanish reader
+  // looking at an English screenshot concludes the product is English.
+  //
+  // The PEOPLE in them are not here. Marcus, Dee, Rosa, Manuel, José, Amara and Tomás are
+  // names, and `jose` in the directory search box is a search STRING demonstrating that
+  // typing without the accent finds the name that has one — translating either would break
+  // what the drawing is showing.
+  'mkt.vignette.dayLetters': 'M,T,W,T,F,S,S',
+  'mkt.vignette.reunionDates': '15–17 August',
+  'mkt.vignette.reunionTitle': 'Summer reunion',
+  'mkt.vignette.bookHall': 'Book the hall',
+  'mkt.vignette.orderShirts': 'Order the shirts',
+  'mkt.vignette.collectPhotos': 'Collect the photographs',
+  'mkt.vignette.budgetClaimed': 'Budget claimed',
+  'mkt.vignette.reunionFund': 'Reunion fund',
+  'mkt.vignette.scholarshipFund': 'Scholarship fund',
+  'mkt.vignette.emergencyFund': 'Emergency fund',
+  'mkt.vignette.thisYear': 'This year',
+  'mkt.vignette.moneyWent': 'Where the money went',
+  'mkt.vignette.duesCollected': 'Dues collected',
+  'mkt.vignette.againstOutstanding': 'against outstanding',
+  'mkt.vignette.routed': 'Routed automatically, in priority order',
+  'mkt.vignette.oneLedger': 'Every contribution and disbursement on one ledger',
+  'mkt.vignette.threeGenerations': 'Three generations',
+  'mkt.vignette.familyRecord': 'The family record',
+
+  'mkt.quotes.eyebrow': 'In their words',
+  'mkt.quotes.heading': 'Families do not go back',
+  'mkt.quotes.verbatim':
+    'These families are quoted in the language they wrote in. We do not translate a '
+    + 'testimonial, because the translation would be words they never approved.',
+  'mkt.quotes.railLabel': 'Quotes from families, scrollable',
+  'mkt.quotes.prev': 'Previous quote',
+  'mkt.quotes.next': 'Next quote',
+
+  // The footer's social row.
+  'mkt.social.follow': 'Follow',
+  'mkt.social.soon': 'Profiles coming soon.',
+
+  'mkt.price.availableNow': 'Available now',
+  'mkt.ladder.bestFirstStep': 'Best first step',
+  'mkt.price.whyFreeHeading': 'Why give the whole product away?',
+  'mkt.price.whyFreeBody':
+    'Because a family portal with half the family in it is worth nothing, and a per-member '
+    + 'price guarantees half the family stays out. So getting everyone in is free and always '
+    + 'will be — the directory, the chat, the announcements and the reunion on a shared '
+    + 'calendar, for every relative, with no card. We charge when a family starts being RUN '
+    + 'rather than gathered: keeping the tree, collecting dues, handing out the work — and, '
+    + 'higher up, taking card payments, electing officers and answering to a board.',
+  'mkt.feat.spansPlans':
+    'Each of those three spans more than one plan. What follows is the exact answer, screen '
+    + 'by screen, with the plan it belongs to over each group.',
+  'mkt.feat.seeCosts': 'Or see what each tier costs',
   'mkt.feat.perMonth': '{amount} a month',
   'mkt.feat.noCharge': 'No charge',
   'mkt.feat.seePlan': ' — see what is in the {plan} plan',

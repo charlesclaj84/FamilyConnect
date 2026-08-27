@@ -1,11 +1,9 @@
 import { cache } from 'react'
 import { headers } from 'next/headers'
-import { type Metadata } from 'next'
 import { BASE_LOCALE, intlTagFor, isSupportedLocale } from '@/lib/i18n/locales'
 import {
   LOCALE_HEADER,
   LOCALE_PATH_HEADER,
-  localeAlternates,
   splitLocalePath,
 } from '@/lib/i18n/route-locale'
 import { marketingT } from '@/lib/marketing/strings'
@@ -93,27 +91,3 @@ export const marketingI18n = cache(async (): Promise<{ locale: string; t: T; int
   return { locale, t: marketingT(locale), intl: intlTagFor(locale) }
 })
 
-/**
- * The `alternates` block every public page owes, for one unprefixed route.
- *
- * ── WHAT IT IS FOR, AND WHY EVERY PAGE NEEDS IT RATHER THAN THE LAYOUT ──────────────
- * `hreflang` tells a crawler that three URLs are one page in three languages. Without it they
- * are three unrelated pages competing with each other, and the thin one wins sometimes — which
- * is the whole reason Home's language is in its URL (`route-locale.ts`) rather than negotiated.
- *
- * It cannot live in the marketing layout, because `canonical` is per PAGE: a layout has one
- * `metadata` object for five routes, so it would name one of them as the canonical address of
- * all five. So each page calls this with its own path, which is one line and is checked —
- * `lib/marketing/locale.test.ts` walks `app/` and fails on a public page that does not.
- *
- * `x-default` is English, which is what a crawler serves a reader whose language matches none of
- * the three. It is the same URL as `en` deliberately: they are different claims about one
- * address rather than a duplicate, and omitting it leaves the fallback to be guessed.
- */
-export function marketingAlternates(path: string, locale: string): Metadata['alternates'] {
-  const languages = localeAlternates(path)
-  return {
-    canonical: languages[locale] ?? path,
-    languages: { ...languages, 'x-default': languages[BASE_LOCALE] },
-  }
-}

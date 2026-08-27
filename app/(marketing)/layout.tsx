@@ -22,7 +22,7 @@ import { marketingLocale } from '@/lib/marketing/locale'
  * duplicates of one. That is the one metadata mistake worse than having none, and
  * `app/page.tsx` carries a comment saying so. That reason now covers `alternates` as well:
  * `hreflang` names a set of addresses for ONE page, so each page builds its own with
- * `marketingAlternates(path, locale)`.
+ * `localizedAlternates(path, locale)`.
  *
  * ── THE LANGUAGE IS RESOLVED HERE AND HANDED DOWN AS A STRING ───────────────────────
  * `MarketingLocaleProvider` is what `useMarketingT()` reads, and it is mounted at the layout

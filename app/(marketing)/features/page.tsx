@@ -29,7 +29,8 @@ import { isFeatureFuture, getFeature } from '@/lib/features'
 import { DEFAULT_TIER, TIERS, TIER_LABEL, tierTagline, type FamilyTier } from '@/lib/tiers'
 import { TIER_PRICE, formatPlanPrice } from '@/lib/plans'
 import { localizedHref } from '@/lib/i18n/route-locale'
-import { marketingAlternates, marketingI18n } from '@/lib/marketing/locale'
+import { marketingI18n } from '@/lib/marketing/locale'
+import { localizedAlternates } from '@/lib/i18n/route-locale'
 // ── THE SHELL CATALOGUE, ON A MARKETING PAGE, AND ONLY FOR THE TIER TAGLINES ────────
 // `tierTagline` reads `tier.tagline.<tier>`, which lives in the SHELL catalogue because the
 // signed-in surfaces need it — `/admin/settings`, `/upgrade` and `/register` all print it, and a
@@ -58,7 +59,7 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     title: t('mkt.feat.metaTitle'),
     description: t('mkt.feat.metaDescription'),
-    alternates: marketingAlternates('/features', locale),
+    alternates: localizedAlternates('/features', locale),
   }
 }
 
@@ -613,7 +614,7 @@ export default async function FeaturesPage() {
                         including the one rule for editing a vignette: it may only draw
                         what its pillar's bullets already claim. */}
                     <div className={cn(reversed ? 'lg:order-1' : 'lg:order-2')}>
-                      <PillarVignette kind={pillar.vignette} />
+                      <PillarVignette kind={pillar.vignette} t={t} />
                     </div>
                   </div>
                 </Reveal>
@@ -646,10 +647,9 @@ export default async function FeaturesPage() {
               this is a pointer, and it names no tier and no figure at all. */}
           <Reveal delay={200}>
             <p className="mx-auto mt-16 max-w-2xl text-center text-sm text-muted-foreground sm:mt-20">
-              Each of those three spans more than one plan. What follows is the exact
-              answer, screen by screen, with the plan it belongs to over each group.{' '}
+              {t('mkt.feat.spansPlans')}{' '}
               <Link href="/pricing" className="font-semibold text-brand-accent hover:text-brand-ink">
-                Or see what each tier costs
+                {t('mkt.feat.seeCosts')}
               </Link>
               .
             </p>
