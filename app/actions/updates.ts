@@ -10,6 +10,7 @@ import {
   UPDATES_MAX_PAGES,
 } from '@/lib/updates-archive'
 import { currentUser } from '@/lib/auth/current-user'
+import { SEARCH_CONFIG } from '@/lib/search-config'
 
 /**
  * `/community/updates` — the archive behind the dashboard's Recent Updates card.
@@ -162,7 +163,7 @@ export async function getUpdatesArchive(input?: {
           .order('created_at', { ascending: false })
           .limit(fetch)
         if (query) {
-          q = q.textSearch('search_vector', query, { type: 'websearch', config: 'english' })
+          q = q.textSearch('search_vector', query, { type: 'websearch', config: SEARCH_CONFIG })
         }
         return q
       })()
@@ -184,7 +185,7 @@ export async function getUpdatesArchive(input?: {
           .order('published_at', { ascending: false })
           .limit(fetch)
         if (query) {
-          q = q.textSearch('search_vector', query, { type: 'websearch', config: 'english' })
+          q = q.textSearch('search_vector', query, { type: 'websearch', config: SEARCH_CONFIG })
         }
         return q
       })()

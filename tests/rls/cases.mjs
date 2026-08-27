@@ -4691,24 +4691,49 @@ export const PENDING_CASES = [
   // the SHARED profile: it propagates to every family the caller belongs to, by design
   // (`people_sync_shared_profile`, 20260826000002), so a write reaching more than one family is
   // correct rather than a leak. The boundary that matters is the PERSON. So BRAVO's
-  // administrator writes their own locale, and the probe watches ALPHA's member's row: what must
+  // member writes their own locale, and the probe watches ANOTHER member's row: what must
   // hold is that one member's choice cannot land on another member's row, which is the
   // `.eq('user_id', user.id)` conjunct and the `people` UPDATE policy underneath it.
+  //
+  // ── `bravoOther`/`alphaOther`, AND NOT THE DEFAULT ACTORS. THIS COST TWELVE LINES ──────
+  // This case ran as `bravoAdmin` against `alphaMember` until 2026-08-27, which are the
+  // suite's DEFAULT attacker and default control. Both halves write a locale, so both rows
+  // came out of it holding `'fr'` — and `resolveLocale` reads `people.locale`, so every
+  // action either of them called for the rest of the run composed its refusal in FRENCH.
+  // Twelve later `expectRefusal` predicates match the message text, and all twelve went red
+  // together on `Point de contact introuvable`.
+  //
+  // That is AGENTS.md §8b's named trap: *a case whose positive control mutates a row a later
+  // case depends on — give it its own row, that is what `deletableChild` is for.* What made
+  // it arrive now is that the row gained a column nobody had when the case was written, and
+  // the tell was the shape of the failure: twelve unrelated modules, all in the `told` phase,
+  // all passing their probe. `alphaOther`/`bravoOther` exist for precisely this and
+  // `seed.mjs` says so — no case reads either as an actor.
+  //
+  // MUTATION-CHECKED, because a fixture fix is worth no more than a code fix without one:
+  // putting `bravoAdmin` and `alphaMember` back on these two lines takes the suite from
+  // 969/969 to 956, and the thirteenth red line is this case's own probe — which is the
+  // shape working, since the probe then watches a row the control no longer writes.
+  //
+  // GRANTS ARE IRRELEVANT HERE, which is why dropping the administrator costs nothing: this
+  // is a self-service action with no grant to refuse, so an attacker holding every permission
+  // their family can confer is no stronger than an ordinary member. The boundary is the
+  // PERSON.
   {
     kind: 'write',
     id: 'personal-info.setMyLocale (another member\'s row)',
     mod: 'app/actions/personal-info.ts', fn: 'setMyLocale',
-    attacker: 'bravoAdmin',
+    attacker: 'bravoOther',
     args: () => ['fr'],
-    // ALPHA's member — a row the attacker has no business touching. The projection is `locale`
+    // The CONTROL's row — a row the attacker has no business touching. The projection is `locale`
     // alone: everything else on the row is irrelevant here, and a wider one would move for
     // reasons other cases cause.
     probe: (db, fx) => snapshot('people', 'id, locale',
-      { id: fx.users.alphaMember.personId })(db),
+      { id: fx.users.alphaOther.personId })(db),
     // The control writes their OWN locale, so the probe DOES move — which is what rules out
     // this passing for an action that refuses everybody. Without it, a `setMyLocale` that
     // returned early for every caller would look perfectly isolated.
-    positiveActor: 'alphaMember',
+    positiveActor: 'alphaOther',
     positiveArgs: () => ['fr'],
   },
   {
@@ -4720,10 +4745,13 @@ export const PENDING_CASES = [
     // anything outside en/es/fr, and `isSupportedLocale` in the action is what turns that into a
     // sentence rather than a Postgres error a member cannot act on. Both layers are aimed at the
     // same string; this asserts the pair.
-    attacker: 'alphaMember',
+    // `alphaOther` for the case above's reason, even though this write is REFUSED and
+    // therefore poisons nothing: two cases about one column reading two different rows is
+    // the thing that makes the pair hard to reason about later.
+    attacker: 'alphaOther',
     args: () => ['klingon'],
     probe: (db, fx) => snapshot('people', 'id, locale',
-      { id: fx.users.alphaMember.personId })(db),
+      { id: fx.users.alphaOther.personId })(db),
     positive: 'not-applicable',
     why: 'the legitimate write is the case above; a control here would be sending the same '
       + 'unsupported code and expecting it to land, which is the thing being refused',

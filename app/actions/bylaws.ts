@@ -7,6 +7,7 @@ import { requireMember } from '@/lib/auth/guard'
 import { can, canAny } from '@/lib/auth/permissions'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { DOCUMENT_FORMATS, isAllowedUpload, uploadRejection } from '@/lib/upload-types'
+import { SEARCH_CONFIG } from '@/lib/search-config'
 
 /**
  * Bylaws — `/library/bylaws`. SCAFFOLDING.
@@ -133,7 +134,7 @@ export async function getBylaws(query?: string): Promise<Bylaw[]> {
 
   const search = (query ?? '').trim()
   if (search) {
-    q = q.textSearch('search_vector', search, { type: 'websearch', config: 'english' })
+    q = q.textSearch('search_vector', search, { type: 'websearch', config: SEARCH_CONFIG })
   }
 
   const { data, error } = await q.order('sort_order').order('created_at')
