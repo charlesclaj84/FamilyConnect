@@ -2244,8 +2244,9 @@ export const helpEs: Catalogue = {
     + 'Stripe guarda los datos bancarios que usted le da, y esta sección es para anotar los '
     + 'números que un tesorero tendría que buscar si no para un cheque o una transferencia.',
   // ──── PART 8 — Community (Chat, Directory, Updates) ───────────────────────────
-  'help.part.community.title': 'La comunidad',
-  'help.part.community.blurb': 'Cómo la familia se habla, se encuentra y decide.',
+  'help.part.community.title': 'Comunidad',
+  'help.part.community.blurb':
+    'Hablar con la familia, y llevar la cuenta de quién es cada persona.',
   'help.chat.title': 'Chat',
   'help.chat.summary':
     'La sala de la familia, los mensajes privados y los grupos que usted mismo crea.',
@@ -3245,4 +3246,1164 @@ export const helpEs: Catalogue = {
   'help.journal.editing.b5':
     'Si un cargo se retira de los cargos de la directiva de la familia, su cuaderno se va '
     + 'con él. No queda ningún cargo al que las notas puedan seguir.',
+  // ──── PART 9 — Gatherings (Documents, Bylaws, Gallery, Calendar) ──────────────
+  'help.part.gatherings.title': 'Reuniones',
+  'help.part.gatherings.blurb':
+    'Poner la reunión en el calendario, y repartir el trabajo que lleva.',
+  'help.documents.title': 'Documentos',
+  'help.documents.summary':
+    'Los registros archivados de la familia: qué se puede subir, cómo encontrar uno, y '
+    + 'quién puede quitarlo.',
+  'help.documents.what-it-is.heading': 'El archivador',
+  'help.documents.what-it-is.b0':
+    '[Documentos](/library/documents) es donde viven los registros de la familia: '
+    + 'formularios, presentaciones, copias firmadas. Se movió a **Biblioteca** el 22-08-2026, '
+    + 'al lado de los cuadernos que llevan sus cargos y de las actas y los estatutos de la '
+    + 'familia, porque quien quiere uno es quien quiere los otros.',
+  'help.documents.what-it-is.b1':
+    '**Solo Excel, Word, PDF o CSV**, de hasta 25 MB. Las dos generaciones de los formatos '
+    + 'de Office, porque un documento escrito en 2004 de verdad es un `.doc`. Una fotografía '
+    + 'va en la [Galería](/community/gallery), que hace álbumes y etiquetado que esta lista '
+    + 'nunca hará.',
+  'help.documents.uploading.heading': 'Archivar algo',
+  'help.documents.uploading.b0.i0': 'Pulse **Subir un documento**.',
+  'help.documents.uploading.b0.i1':
+    'Elija el archivo. El nombre se rellena solo con el nombre del archivo; cámbielo si '
+    + 'quiere.',
+  'help.documents.uploading.b0.i2': 'Añada una descripción si la necesita, y elija una categoría.',
+  'help.documents.uploading.b0.i3': 'Pulse **Subir**.',
+  'help.documents.uploading.b1':
+    '**Tres categorías: Estatutos, Formularios y Otros.** Había cinco. *Fotos* se fue '
+    + 'porque la [Galería](/community/gallery) es la pantalla para una imagen, y *Actas* se '
+    + 'fue porque [Actas](/library/meeting-minutes) es una pantalla de verdad ahora. Un PDF '
+    + 'con el acta de una reunión celebrada fuera del producto es **Otros**.',
+  'help.documents.uploading.b2':
+    'Un documento ya archivado en una de las categorías retiradas la conserva y sigue '
+    + 'mostrándola. Nada reescribe la decisión de archivo de otra persona.',
+  'help.documents.finding-and-removing.heading': 'Encontrar uno, y quitar uno',
+  'help.documents.finding-and-removing.b0':
+    'El cuadro de búsqueda coincide con el nombre y la descripción; el desplegable de '
+    + 'categoría reduce a un solo tipo. Pulsar el nombre de un documento lo abre.',
+  'help.documents.finding-and-removing.b1':
+    '**Quien subió un documento puede eliminarlo.** Eliminar el de cualquiera necesita el '
+    + 'permiso sin restricción: vea [Quién puede hacer qué](/help/who-can-do-what). El '
+    + 'archivo se quita junto con la fila.',
+  'help.bylaws.title': 'Estatutos',
+  'help.bylaws.summary':
+    'Las reglas por las que la familia acordó vivir, y buscar dentro de ellas, incluido lo '
+    + 'que la búsqueda todavía no alcanza.',
+  'help.bylaws.what-it-is.heading': 'Qué es esta pantalla',
+  'help.bylaws.what-it-is.b0':
+    '[Estatutos](/library/bylaws) contiene los documentos que rigen a la familia, artículo '
+    + 'por artículo, y permite a cualquiera buscarlos. Todos los integrantes aprobados pueden '
+    + 'leerlos: una regla que nadie puede leer no es una regla.',
+  'help.bylaws.what-it-is.b1':
+    'Un artículo tiene un número («Artículo IV»), un título, un resumen opcional, y o el '
+    + 'texto escrito, o un documento subido, o las dos cosas.',
+  'help.bylaws.not-finished.heading': 'Qué puede alcanzar la búsqueda y qué no',
+  'help.bylaws.not-finished.b0':
+    '**Esta pantalla es un andamiaje, y una parte de ella de verdad no está construida.** '
+    + 'Leer el texto de un PDF o de un archivo de Word no está implementado, así que:',
+  'help.bylaws.not-finished.b1.i0':
+    'Un artículo cuyo texto usted **escribió o pegó** es buscable palabra por palabra.',
+  'help.bylaws.not-finished.b1.i1':
+    'Un artículo que es **solo un PDF o un archivo de Word subido** es buscable por su '
+    + 'título, su número de artículo y su resumen, no por lo que hay dentro. Sigue subiéndose '
+    + 'y sigue descargándose.',
+  'help.bylaws.not-finished.b2':
+    'Todos los artículos llevan una marca que dice cuál de las dos cosas son, y una '
+    + 'búsqueda que no encontró nada también lo dice. Eso es deliberado: «sin resultado» y '
+    + '«no indexado» son datos distintos, y un lector que no puede distinguirlos concluye que '
+    + 'los estatutos no dicen algo que sí dicen.',
+  'help.bylaws.not-finished.b3':
+    'Hasta que eso esté construido, **pegar el texto es lo que hace que un artículo se '
+    + 'pueda encontrar**. El formulario lo dice donde de otro modo no se le ocurriría.',
+  'help.bylaws.searching.heading': 'Buscar',
+  'help.bylaws.searching.b0':
+    'Palabras completas, y entiende las terminaciones: buscar «reunión» encuentra '
+    + '«reuniones». Ponga una frase entre comillas para que coincida como una sola, y ponga '
+    + 'un menos delante de una palabra para excluirla.',
+  'help.bylaws.searching.b1':
+    'Deje el cuadro vacío y pulse **Limpiar** para volver a leerlos en orden, que es para '
+    + 'lo que sirve la numeración de la propia familia.',
+  'help.gallery.title': 'Galería',
+  'help.gallery.summary':
+    'Álbumes de las fotografías de la familia: subir un lote, etiquetar quién sale en cada '
+    + 'una, y volver a encontrarlas.',
+  'help.gallery.what-it-is.heading': 'Álbumes, no un montón',
+  'help.gallery.what-it-is.b0':
+    'La [Galería](/community/gallery) guarda las fotografías en **álbumes**: una reunión, '
+    + 'una boda, un año. Un álbum tiene un nombre, una descripción opcional, y cualquier '
+    + 'número de imágenes.',
+  'help.gallery.what-it-is.b1':
+    'Se llamaba Fotos y estaba en Recursos hasta el 22-08-2026. La misma pantalla, con más '
+    + 'cosas.',
+  'help.gallery.what-it-is.b2':
+    'Solo archivos de imagen: JPEG, PNG, WebP o GIF, de hasta 10 MB cada uno. Un HEIC '
+    + 'directo de un iPhone se rechaza, porque ningún navegador salvo Safari puede mostrar '
+    + 'uno; iOS convierte a JPEG cuando usted elige un archivo, así que en la práctica esto '
+    + 'solo afecta a un archivo que usted mismo haya copiado del teléfono.',
+  'help.gallery.uploading.heading': 'Añadir fotografías',
+  'help.gallery.uploading.b0.i0': 'Abra el álbum.',
+  'help.gallery.uploading.b0.i1': 'Pulse **Añadir fotografías**.',
+  'help.gallery.uploading.b0.i2':
+    'Pulse **Elegir archivos** y seleccione todos los que quiera a la vez.',
+  'help.gallery.uploading.b0.i3': 'Póngales un pie si comparten uno: se aplica a todo el lote.',
+  'help.gallery.uploading.b0.i4': 'Pulse **Subir**.',
+  'help.gallery.uploading.b1':
+    '**Un lote no es todo o nada.** Si un archivo es del tipo equivocado o demasiado '
+    + 'grande, el resto se sube igual y el panel nombra los que no lo hicieron, y por qué. No '
+    + 'tiene que encontrar el archivo ofensor y empezar de nuevo.',
+  'help.gallery.uploading.b2':
+    'El pie se aplica a todas las fotografías del lote, lo cual es correcto para «sábado, '
+    + 'en el lago» y equivocado para una imagen que necesita el suyo. Arregle una en concreto '
+    + 'después en la vista de lista: vea [cambiar un pie](#tidying).',
+  'help.gallery.tidying.heading': 'Pies, etiquetas y la vista de lista',
+  'help.gallery.tidying.b0':
+    'Hay dos formas de mirar un álbum, y el interruptor está encima. **Cuadrícula** es para '
+    + 'mirar: miniaturas cuadradas, y pulsar una la abre a tamaño completo. **Lista** es para '
+    + 'ordenar: imágenes más pequeñas, una por fila, con el pie y las etiquetas editables ahí '
+    + 'mismo.',
+  'help.gallery.tidying.b1':
+    '**Etiquetar** dice quién sale en una fotografía. Pulse **Etiquetar a alguien** en una '
+    + 'fila y busque en la familia; la búsqueda encuentra «José» si escribe «jose» y '
+    + '«O’Connor» si escribe «oconnor». Pulse la × de una etiqueta para quitarla.',
+  'help.gallery.tidying.b2':
+    'Ninguna de las dos vistas oculta nada: los filtros que están encima del álbum son los '
+    + 'que lo reducen, y reducen las dos. Vea [Encontrar una fotografía](#finding).',
+  'help.gallery.finding.heading': 'Encontrar una fotografía',
+  'help.gallery.finding.b0': 'Dos filtros están encima de un álbum, y reducen juntos.',
+  'help.gallery.finding.b1.i0.term': 'Buscar en los pies',
+  'help.gallery.finding.b1.i0.text':
+    'Escriba cualquier parte de un pie. Varias palabras coinciden en cualquier orden, así '
+    + 'que «reunión lago» encuentra «Tres días en el lago: reunión de 2026». Los acentos y la '
+    + 'puntuación se ignoran en los dos lados: «jose» encuentra «José» y «abuelas» encuentra '
+    + '«Abuela’s». Una fotografía sin pie nunca coincide con una búsqueda.',
+  'help.gallery.finding.b1.i1.term': 'Quién sale en ella',
+  'help.gallery.finding.b1.i1.text':
+    'Elija tantas personas etiquetadas como quiera. Una fotografía se muestra cuando tiene '
+    + 'a CUALQUIERA de ellas, así que elegir tres amplía el resultado en vez de reducirlo. El '
+    + 'botón lleva un recuento mientras el filtro está activo, y solo aparece cuando hay '
+    + 'alguien etiquetado en este álbum.',
+  'help.gallery.finding.b2':
+    'Una línea debajo de la barra dice cuántas de las fotografías del álbum se están '
+    + 'mostrando y por qué, con **Limpiar filtros** para volver a poner todas. Ninguno de los '
+    + 'dos filtros cambia nada para nadie más: es lo que usted está mirando, no lo que '
+    + 'contiene el álbum.',
+  'help.gallery.who-can-change-what.heading': 'Quién puede cambiar qué',
+  'help.gallery.who-can-change-what.b0':
+    '**Una fotografía pertenece a quien la subió.** Esa persona puede cambiar su pie y '
+    + 'eliminarla. Cualquier otra necesita el permiso sin restricción sobre la Galería: vea '
+    + '[Quién puede hacer qué](/help/who-can-do-what).',
+  'help.gallery.who-can-change-what.b1.i0.term': 'Pie',
+  'help.gallery.who-can-change-what.b1.i0.text':
+    'Quien la subió, o alguien con permiso para editar el de cualquiera.',
+  'help.gallery.who-can-change-what.b1.i1.term': 'Etiquetas',
+  'help.gallery.who-can-change-what.b1.i1.text':
+    'Cualquiera que pueda editar la galería. Etiquetar no es sobre de quién es la '
+    + 'fotografía: es sobre quién sale en ella, y la persona que reconoce a un primo a menudo '
+    + 'no es la que tomó la imagen.',
+  'help.gallery.who-can-change-what.b1.i2.term': 'Eliminar una fotografía',
+  'help.gallery.who-can-change-what.b1.i2.text':
+    'Quien la subió, o alguien con el permiso sin restricción. El archivo de imagen se '
+    + 'quita además de la fila.',
+  'help.gallery.who-can-change-what.b1.i3.term': 'Eliminar un álbum',
+  'help.gallery.who-can-change-what.b1.i3.text':
+    'Quien lo creó, o alguien con el permiso sin restricción, que es lo que tiene un '
+    + 'administrador. El control es la papelera en la esquina del mosaico del álbum en la '
+    + 'página de la Galería. Se lleva todas las fotografías del álbum, y los archivos de '
+    + 'imagen también; la confirmación dice cuántas antes de que usted se comprometa.',
+  'help.gallery.who-can-change-what.b2':
+    'Eliminar un álbum no es reversible ni parcialmente reversible. La advertencia cuenta '
+    + 'las fotografías exactamente por ese motivo.',
+  'help.calendar.title': 'Calendario',
+  'help.calendar.summary':
+    'La cuadrícula del mes que pone todas las reuniones, juntas y ventanas de elección en '
+    + 'el día en que caen, cómo moverse entre meses, y qué hace en un teléfono.',
+  'help.calendar.what-it-is.heading': 'Un mes a la vez',
+  'help.calendar.what-it-is.b0':
+    '[Calendario](/gatherings/calendar) es una cuadrícula de mes de verdad — semanas hacia '
+    + 'abajo, días de la semana a lo ancho, domingo primero — con tres cosas en los días en '
+    + 'que caen: las **reuniones** de la familia, las **juntas** a las que está convocado, y '
+    + 'las ventanas abiertas de **nominación y votación** de sus elecciones. No crea nada. '
+    + 'Todas las entradas son un enlace a la pantalla que las posee — '
+    + '[Reuniones](/gatherings), [Actas](/library/meeting-minutes) o '
+    + '[Elecciones](/community/elections) — que es donde vive y se edita la cosa en sí.',
+  'help.calendar.what-it-is.b1':
+    'La leyenda nombra solo lo que de hecho está en la cuadrícula este mes, y todas las '
+    + 'entradas dicen de qué tipo son con palabras además de con color, así que la distinción '
+    + 'sobrevive tanto a un lector de pantalla como a un lector que no puede separar los '
+    + 'tonos. **Reunión destacada** es dorada, **Reunión** es burdeos suave, **Junta** es '
+    + 'burdeos relleno, y una elección es terracota cálida: con contorno mientras las '
+    + '**Nominaciones** están abiertas, rellena en cuanto lo está la **Votación**. Había una '
+    + 'sexta para un Evento hasta el 19-08-2026; ese producto está retirado.',
+  'help.calendar.reading.heading': 'Leer un día',
+  'help.calendar.reading.b0':
+    'Hoy está marcado. **Cualquier cosa que corra a lo largo de varios días se dibuja como '
+    + 'una sola barra a lo largo de ellos**, con su nombre en el extremo izquierdo: una '
+    + 'reunión de tres días es una barra de tres días de ancho, y una quincena de votación es '
+    + 'una barra en cada una de las dos semanas que cruza. Ese es todo el motivo de que '
+    + 'exista una fecha de cierre. Una elección aporta dos barras en vez de una: la ventana '
+    + 'de nominación y, tras un hueco, la ventana de votación. Los días entre ellas están '
+    + 'deliberadamente vacíos, porque en esos días la lista está cerrada y no hay nada que '
+    + 'hacer todavía.',
+  'help.calendar.reading.b1':
+    '**Una barra con un extremo cuadrado está cortada, no terminada.** Una serie que cruza '
+    + 'un sábado tiene que dibujarse como una barra por semana, así que los bordes planos son '
+    + 'donde continúa hacia la fila de arriba o de abajo; los extremos redondeados son donde '
+    + 'la cosa en sí empieza y acaba.',
+  'help.calendar.reading.b2':
+    'La cuadrícula siempre muestra semanas completas, así que la primera y la última fila '
+    + 'llevan unos días de los meses de al lado. Esos días conservan sus entradas: una '
+    + 'reunión que empieza el día 1 se ve en la última fila del mes anterior, que es donde '
+    + 'uno la estaría buscando una semana antes.',
+  'help.calendar.reading.b3':
+    'Era una ficha por día hasta el 22-08-2026: una ventana de elección de dos días se leía '
+    + 'como dos cosas separadas con el mismo nombre.',
+  'help.calendar.moving.heading': 'Moverse entre meses',
+  'help.calendar.moving.b0':
+    'Los enlaces a cada lado del encabezado son el mes anterior y el mes siguiente, cada '
+    + 'uno nombrado, con **Este mes** entre ellos. Los tres son enlaces de verdad, así que '
+    + 'cmd-clic, clic con el botón central y copiar la dirección del enlace funcionan en '
+    + 'ellos.',
+  'help.calendar.moving.b1':
+    'El mes está en la dirección, lo que significa que un enlace a un mes es un enlace a '
+    + 'ese mes: [junio de 2027](/gatherings/calendar?month=2027-06) abre junio de 2027 para '
+    + 'cualquiera a quien se lo envíe, y se puede marcar. Una dirección que la página no '
+    + 'puede leer vuelve al mes actual en vez de dibujar un mes que no existe.',
+  'help.calendar.phone.heading': 'En un teléfono',
+  'help.calendar.phone.b0':
+    'Por debajo del ancho que necesita una cuadrícula de siete columnas, el calendario se '
+    + 'convierte en una lista de los días que tienen algo, en orden, con el día de la semana '
+    + 'y la fecha al lado de cada uno. Un día prestado de un mes vecino se etiqueta como '
+    + '**Mes anterior** o **Mes siguiente**, ya que ya no tiene una columna que lo diga.',
+  'help.calendar.phone.b1':
+    'Eso es una segunda vista del mismo mes y no un segundo calendario: las mismas '
+    + 'entradas, los mismos enlaces. Es una elección deliberada frente a apretar la '
+    + 'cuadrícula: al ancho de un teléfono un día es demasiado estrecho para contener una '
+    + 'fecha y un título, y un mes de celdas mayoritariamente vacías es una pantalla de nada '
+    + 'cuando la pregunta es qué viene.',
+  'help.calendar.phone.b2':
+    '**Una serie de días es una fila por día aquí, no una barra.** La lista no tiene un eje '
+    + 'de izquierda a derecha por el que una barra pueda estirarse, así que una reunión de '
+    + 'tres días aparece bajo cada una de sus tres fechas con su nombre en cada una, que es '
+    + 'lo que uno quiere de una lista de días.',
+  'help.calendar.missing.heading': 'Cuando algo no está en él',
+  'help.calendar.missing.b0':
+    'Aparece una línea encima de la cuadrícula cuando una de las tres fuentes falta en '
+    + 'ella, y nombra cuál: reuniones, juntas o elecciones. No puede decir POR QUÉ, y no lo '
+    + 'adivina: significa o que la pantalla no se ha compartido con usted, o que no se pudo '
+    + 'leer justo ahora.',
+  'help.calendar.missing.b1':
+    'En cualquier caso el mes que está viendo no es el mes completo, que es la razón de que '
+    + 'la línea exista: un agosto vacío sobre el que no se dice nada se lee como un dato '
+    + 'sobre la familia. Un mes que de verdad no tiene nada dice eso en su lugar.',
+  // ──── PART 9 — Gatherings (Gatherings) ────────────────────────────────────────
+  'help.gatherings.title': 'Reuniones',
+  'help.gatherings.summary':
+    'Qué es una reunión, cómo se programa una, cómo leer sus tareas y su presupuesto, y '
+    + 'dónde están sus propias tareas.',
+  'help.gatherings.what-it-is.heading': 'Una reunión, y en qué se diferencia de un evento',
+  'help.gatherings.what-it-is.b0':
+    '[Reuniones](/gatherings) es la familia organizando el trabajo de juntarse. Una reunión '
+    + 'es una ocasión con nombre — una reunión familiar, un homenaje, un banquete — '
+    + 'desglosada en los trabajos que hacen falta, con el nombre de un familiar al lado de '
+    + 'cada uno y una respuesta que alguien acepta. Su pregunta es quién hace qué, y si se ha '
+    + 'hecho y se ha aceptado.',
+  'help.gatherings.what-it-is.b1':
+    'La pantalla son dos paneles. **Reuniones** es todo lo que la familia está planeando, '
+    + 'cubierto por este capítulo; **Mis tareas** es su propia parte de ello, cubierta por '
+    + '[Mis tareas de la reunión](/help/gathering-tasks#what-it-is). Los dos se otorgan por '
+    + 'separado, así que una familia puede dar a alguien sus propias tareas sin darle la '
+    + 'lista de toda la familia.',
+  'help.gatherings.what-it-is.b2':
+    'Había un producto de Eventos aparte hasta el 19-08-2026 — confirmaciones de asistencia '
+    + 'por hogar, bloques de habitaciones de hotel y registro de entrada el día — y se ha '
+    + 'ido. Reuniones lo reemplazó, y esas tres cosas no están hoy en el producto: un paso de '
+    + 'una reunión puede PEDIR cualquiera de ellas a un familiar, pero no hay recuento de '
+    + 'asistentes, ni bloque de habitaciones, ni lista de registro. Todo lo que la familia '
+    + 'había registrado se conserva; no se le puede añadir nada nuevo.',
+  'help.gatherings.what-it-is.b3':
+    'Una reunión se puede construir a partir de una o más plantillas: una lista ordenada y '
+    + 'con nombre de pasos que alguien escribió una vez. Todos los pasos de todas las '
+    + 'plantillas de las que se construye se convierten en una tarea de la reunión, así que '
+    + 'nada se olvida de un año al siguiente. La biblioteca es [Plantillas de '
+    + 'reunión](/admin/gatherings/templates).',
+  'help.gatherings.what-it-is.b4':
+    'Una reunión sin plantilla es una fecha en [el calendario](/gatherings/calendar) con un '
+    + 'lugar y una descripción y ninguna tarea, que es todo lo que algunas ocasiones '
+    + 'necesitan, y es por donde a menudo se empieza. Quien organiza puede añadirle una '
+    + 'plantilla después, y los pasos se convierten en tareas entonces.',
+  'help.gatherings.what-it-is.b5':
+    'Cada una de esas plantillas es un **segmento**: una parte de la ocasión con su propio '
+    + 'día y su propio lugar. Eso es lo que permite que una reunión sea de tres días — la '
+    + 'Bienvenida el viernes por la tarde en una dirección, el Picnic el sábado en otra, la '
+    + 'Despedida el domingo por la mañana — en vez de un bloque de fechas con todo archivado '
+    + 'debajo. Una reunión que ocurre toda a la vez en un solo lugar simplemente no indica '
+    + 'ninguna de las dos cosas, y se lee como siempre.',
+  'help.gatherings.browsing.heading': 'Próximas, y ya celebradas',
+  'help.gatherings.browsing.b0':
+    'La página son dos listas. **Próximas** contiene todo lo que no ha terminado, de lo más '
+    + 'cercano a lo más lejano; **Ya celebradas** contiene el resto, de lo más reciente a lo '
+    + 'más antiguo. Una reunión que corre a lo largo de varios días se queda en Próximas '
+    + 'todos y cada uno de ellos y está marcada como **Ocurriendo ahora** mientras lo hace.',
+  'help.gatherings.browsing.b1':
+    'Cada tarjeta lleva las fechas, el lugar, lo que ha avanzado el trabajo — «4 de 9 '
+    + 'tareas aprobadas», o **Todavía sin tareas** para una reunión a la que no se ha añadido '
+    + 'nada — y un estado. El estado lo fija quien organiza en vez de deducirse del '
+    + 'calendario, porque una reunión se puede cancelar sin que sus fechas se muevan:',
+  'help.gatherings.browsing.b2.i0.term': 'En preparación',
+  'help.gatherings.browsing.b2.i0.text':
+    'Se está montando. Las fechas todavía pueden moverse. Solo una reunión construida a '
+    + 'partir de plantillas empieza aquí; una que es solo una fecha empieza en Programada, '
+    + 'porque no hay nada que preparar.',
+  'help.gatherings.browsing.b2.i1.term': 'Programada',
+  'help.gatherings.browsing.b2.i1.text': 'Fijada, y adelante.',
+  'help.gatherings.browsing.b2.i2.term': 'Completada',
+  'help.gatherings.browsing.b2.i2.text': 'Terminada, y declarada terminada por quien la dirigió.',
+  'help.gatherings.browsing.b2.i3.term': 'Cancelada',
+  'help.gatherings.browsing.b2.i3.text':
+    'Suspendida. No se elimina nada y se puede volver a activar.',
+  'help.gatherings.browsing.b3':
+    '**Destacada** marca una reunión que la familia debería ver primero: recibe una banda '
+    + 'en la parte superior de [el panel](/dashboard). Varias pueden llevar la marca a la '
+    + 'vez, y el panel muestra la más cercana que sigue por delante, así que la reunión del '
+    + 'año pasado nunca bloquea la de este año.',
+  'help.gatherings.scheduling.heading': 'Programar una',
+  'help.gatherings.scheduling.b0':
+    '**Programar una reunión** aparece cuando usted puede empezar una. El formulario pide '
+    + 'las plantillas antes del título, porque marcar una cambia para qué sirve el resto del '
+    + 'formulario:',
+  'help.gatherings.scheduling.b1.i0': 'Pulse **Programar una reunión**.',
+  'help.gatherings.scheduling.b1.i1':
+    'Marque las plantillas que quiera en **Construida a partir de**. Todos los pasos de '
+    + 'todas las que marque se convierten en una tarea, lista para repartir, y cada plantilla '
+    + 'que marque se convierte en un segmento de la reunión. No marque ninguna y la reunión '
+    + 'es una fecha sin tareas.',
+  'help.gatherings.scheduling.b1.i2': 'Rellene **Título**.',
+  'help.gatherings.scheduling.b1.i3':
+    'Rellene **Cuándo**: vea más abajo. Una fecha es todo lo que se exige.',
+  'help.gatherings.scheduling.b1.i4': '**Dónde** y **Qué es** son opcionales.',
+  'help.gatherings.scheduling.b1.i5':
+    'Pulse **Programar reunión**. Aterriza en la reunión en sí, donde le esperan las tareas '
+    + 'que acaba de crear.',
+  'help.gatherings.scheduling.b2':
+    'Cada plantilla decide por sí misma quién puede programar a partir de ella, así que la '
+    + 'lista que se ofrece aquí no es toda la biblioteca: una fijada solo para '
+    + 'Administradores no está en ella a menos que usted pueda gestionar reuniones, y una '
+    + 'plantilla archivada no puede empezar nada nuevo. Cuando no se ofrece nada en absoluto, '
+    + 'el formulario dice que la reunión será una fecha sin tareas y apunta a la biblioteca '
+    + 'para quien pueda escribir una: nada va mal con su acceso.',
+  'help.gatherings.when.heading': 'Cuándo ocurre',
+  'help.gatherings.when.b0':
+    '**Cuándo** es el mismo conjunto de controles en cualquier lugar donde se crea o se '
+    + 'edita una reunión. Una fecha es lo único en lo que insiste; todo lo demás está ahí '
+    + 'cuando lo necesita.',
+  'help.gatherings.when.b1.i0.term': 'Empieza',
+  'help.gatherings.when.b1.i0.text':
+    'El día en que empieza y — si quiere decirlo — la hora. Deje la hora vacía y la reunión '
+    + 'es simplemente «ese día», que es como se introducen la mayoría.',
+  'help.gatherings.when.b1.i1.term': 'Hora de fin',
+  'help.gatherings.when.b1.i1.text':
+    'Cuándo termina. En un solo día esto es una hora y nada más: un picnic que va de 11 a 4 '
+    + 'tiene hora de fin y no fecha de fin.',
+  'help.gatherings.when.b1.i2.term': 'Dura más de un día',
+  'help.gatherings.when.b1.i2.text':
+    'Marque esto y aparece una pregunta más, porque dos cosas muy distintas duran las dos '
+    + 'más de un día.',
+  'help.gatherings.when.b2': 'Esa pregunta es la importante:',
+  'help.gatherings.when.b3.i0.term': 'Un bloque continuo',
+  'help.gatherings.when.b3.i0.text':
+    'Una reunión desde el viernes por la tarde hasta el domingo a mediodía. Dé el día en '
+    + 'que termina y, si quiere, la hora. Se dibuja como una sola barra que abarca esos días '
+    + 'en [el calendario](/gatherings/calendar).',
+  'help.gatherings.when.b3.i1.term': 'Días separados, la misma reunión',
+  'help.gatherings.when.b3.i1.text':
+    'Una reunión de comisión tres sábados. Añada una fila por cada día, cada una con sus '
+    + 'propias horas. Cada una se dibuja como su propia entrada en el calendario, todas '
+    + 'llevando el título de esta reunión.',
+  'help.gatherings.when.b4':
+    'La diferencia importa más de lo que parece. Antes de que esto existiera, tres sábados '
+    + 'había que introducirlos como un primer día y un último día, lo que ponía una barra a '
+    + 'lo largo de toda la quincena y le decía a la familia que se estaban reuniendo dos '
+    + 'semanas. Los días separados dicen lo que de hecho está pasando.',
+  'help.gatherings.when.b5':
+    '**El fin nunca puede ir antes del inicio.** Los selectores de fecha atenúan los días '
+    + 'imposibles, y si usted llega ahí por otro camino el formulario lo dice en vez de '
+    + 'guardarlo. Lo mismo vale para las horas dentro de un día — de 2 de la tarde a 9 de la '
+    + 'mañana no es una reunión — mientras que a lo largo de varios días es perfectamente '
+    + 'ordinario, así que del viernes a las 6 de la tarde al domingo a las 11 de la mañana se '
+    + 'acepta.',
+  'help.gatherings.when.b6':
+    '**Ponga una hora y se le pregunta en qué huso horario está**, empezando por el suyo. '
+    + 'La hora se muestra después exactamente como usted la escribió, con ese huso nombrado '
+    + 'al lado: 11:00 CDT.',
+  'help.gatherings.when.b7':
+    'Nada se convierte nunca. Una hora aquí significa lo que dice donde está la reunión, '
+    + 'exactamente como lo haría en una invitación impresa, y todos los familiares ven la '
+    + 'misma cifra: el huso se nombra para que alguien de otro sitio sepa qué hacer con ella, '
+    + 'no para que el producto la mueva en silencio.',
+  'help.gatherings.the-page.heading': 'La página propia de una reunión',
+  'help.gatherings.the-page.b0':
+    'El título, las fechas, el lugar, y después **Tareas**: todos los trabajos de la '
+    + 'reunión, agrupados por el segmento al que pertenecen, en el orden en que se van a '
+    + 'repartir. Cada grupo lleva por encabezado el nombre de ese segmento, y debajo el '
+    + 'propio día y lugar del segmento cuando quien organiza los ha indicado; un segmento que '
+    + 'no indica ninguno de los dos lleva por encabezado solo su nombre. Una tarea cuya '
+    + 'plantilla se ha desvinculado desde entonces se agrupa en **Sin plantilla** en vez de '
+    + 'descartarse, porque sigue siendo algo que se le pidió a un familiar.',
+  'help.gatherings.the-page.b1':
+    'Cada fila da a la tarea su persona, su estado, su fecha límite, su partida de '
+    + 'presupuesto y la respuesta aceptada. En cuanto hay más de unas pocas, **Buscar una '
+    + 'tarea** reduce por trabajo o por nombre y **Mostrando** reduce a un solo estado.',
+  'help.gatherings.the-page.b2.i0.term': 'Sin empezar',
+  'help.gatherings.the-page.b2.i0.text': 'Nadie ha enviado nada todavía.',
+  'help.gatherings.the-page.b2.i1.term': 'Esperando revisión',
+  'help.gatherings.the-page.b2.i1.text': 'Hay una respuesta y nadie ha decidido sobre ella.',
+  'help.gatherings.the-page.b2.i2.term': 'Aprobada',
+  'help.gatherings.the-page.b2.i2.text':
+    'Aceptada. Esa respuesta es el registro que la familia tiene de ella y la persona que '
+    + 'la envió no puede cambiarla.',
+  'help.gatherings.the-page.b2.i3.term': 'Necesita otra mirada',
+  'help.gatherings.the-page.b2.i3.text':
+    'Devuelta con notas. Las notas están en la fila, y quien tiene la tarea las lee en [Mis '
+    + 'tareas de la reunión](/gatherings/my-tasks).',
+  'help.gatherings.the-page.b3':
+    '**Organizar esta reunión** aparece para alguien que puede dirigirla y lleva a la misma '
+    + 'reunión en [Gestión de reuniones](/admin/gatherings), donde el trabajo se reparte y se '
+    + 'decide sobre él. En el plan Gratis dice **Editar esta reunión** y va al mismo sitio: '
+    + 'no hay trabajo que repartir, así que la consola es donde se cambian el título, las '
+    + 'fechas, el lugar y el estado.',
+  'help.gatherings.free-plan.heading': 'Las reuniones en el plan Gratis',
+  'help.gatherings.free-plan.b0':
+    'Una reunión es una fecha, un lugar y una descripción en el plan Gratis, y eso es una '
+    + 'función completa: va a [el calendario](/gatherings/calendar), todos los familiares '
+    + 'pueden verla, y se puede editar o cancelar en cualquier momento.',
+  'help.gatherings.free-plan.b1':
+    'Lo que Gratis no incluye es la mitad de la planificación: las listas de comprobación a '
+    + 'partir de las cuales se construye una reunión, las tareas repartidas a familiares por '
+    + 'su nombre, y el presupuesto sacado de un fondo. Así que no hay estado **En '
+    + 'preparación**, ni **Segmentos**, ni **Tareas**, y nada que organizar; la página de la '
+    + 'reunión dice qué añadirían esas cosas en vez de mostrar paneles vacíos para ellas.',
+  'help.gatherings.free-plan.b2':
+    'No se pierde nada quedándose en Gratis y no se pierde nada al dejarlo. Una familia que '
+    + 'sube puede empezar a repartir trabajo en reuniones que ya tiene, y una que baja '
+    + 'conserva todas las tareas y respuestas ya registradas: simplemente no puede añadir '
+    + 'más.',
+  'help.gatherings.budget.heading': 'La banda de Presupuesto',
+  'help.gatherings.budget.b0':
+    'Una reunión puede llevar un presupuesto sacado de uno de los fondos de la familia. '
+    + 'Cuando lo lleva, la banda de **Presupuesto** está encima de las tareas con cuatro '
+    + 'cifras:',
+  'help.gatherings.budget.b1.i0.term': 'Presupuestado',
+  'help.gatherings.budget.b1.i0.text': 'Lo que esta reunión planea gastar en total.',
+  'help.gatherings.budget.b1.i1.term': 'Reclamado por las tareas',
+  'help.gatherings.budget.b1.i1.text':
+    'Las partidas de presupuesto de cada tarea sumadas: lo que se ha reservado para un '
+    + 'trabajo concreto.',
+  'help.gatherings.budget.b1.i2.term': 'Sin asignar',
+  'help.gatherings.budget.b1.i2.text':
+    'Presupuestado menos reclamado: lo que queda por repartir. Dice Por encima del '
+    + 'presupuesto en cuanto las partidas lo han superado.',
+  'help.gatherings.budget.b1.i3.term': 'En el fondo',
+  'help.gatherings.budget.b1.i3.text':
+    'Lo que el fondo tiene de hecho, y cuánto de eso están reclamando ya otras reuniones.',
+  'help.gatherings.budget.b2':
+    'Un presupuesto puede ser mayor que el fondo del que se saca, porque una familia planea '
+    + 'una reunión antes de haber recaudado el dinero para una. Cuando lo es, una línea roja '
+    + 'dice en cuánto; y aparece una segunda línea roja cuando esta reunión cabe en el fondo '
+    + 'por sí sola pero no una vez que se cuentan las otras reuniones que sacan del mismo '
+    + 'fondo. Ninguna de las dos es un rechazo. Son las cifras que dicen lo que cuesta el '
+    + 'plan.',
+  'help.gatherings.budget.b3':
+    'La línea más discreta de debajo es otra cosa y deliberadamente no es roja: dice que '
+    + 'las partidas de las tareas juntas reclaman más de lo que la reunión presupuestó. No se '
+    + 'ha gastado nada, y se resuelve subiendo el presupuesto o recortando una partida.',
+  'help.gatherings.budget.b4':
+    'La banda está ausente en algunas reuniones, y ausente no es vacía. Cuando el dinero de '
+    + 'una reunión no se ha compartido con usted no hay banda en absoluto, en vez de una '
+    + 'banda diciendo que está oculto, que es otra cosa distinta de una reunión que nadie ha '
+    + 'presupuestado; y esa muestra la banda sin nada en ella. Vea [Quién puede hacer '
+    + 'qué](/help/who-can-do-what#one-template).',
+  // ──── PART 9 — Gatherings (My Gathering Tasks) ────────────────────────────────
+  'help.gathering-tasks.title': 'Mis tareas de la reunión',
+  'help.gathering-tasks.summary':
+    'Las tareas de la reunión que se le han dado, el tipo de respuesta que pide cada una, y '
+    + 'qué hacer cuando una vuelve con notas.',
+  'help.gathering-tasks.what-it-is.heading': 'Su parte de una reunión',
+  'help.gathering-tasks.what-it-is.b0':
+    '**Mis tareas** es el segundo panel de [Reuniones](/gatherings), y es todo lo que '
+    + 'alguien le ha pedido hacer para una reunión, en todas las reuniones, con la fecha '
+    + 'límite más cercana primero; una tarea sin fecha límite va al final. La pestaña lleva '
+    + 'el recuento de lo que está esperando por usted, y la línea de arriba dice por separado '
+    + 'cuántas han vuelto para otra mirada.',
+  'help.gathering-tasks.what-it-is.b1':
+    'Tenía su propia fila de menú hasta el 19-08-2026 y ahora es un panel. La dirección '
+    + 'antigua sigue funcionando y aterriza en el panel, que es lo que mantiene un enlace de '
+    + 'una notificación antigua apuntando al lugar correcto. Una Acción rápida del '
+    + '[Panel](/dashboard) aparece cuando hay algo esperando por usted y desaparece cuando no '
+    + 'hay nada.',
+  'help.gathering-tasks.what-it-is.b2':
+    'Cada tarjeta nombra la reunión, la plantilla de la que vino la tarea, cuándo vence y '
+    + 'cuánto puede gastar. Una tarea pasada de su fecha límite está marcada en vez de '
+    + 'olvidarse en silencio. El texto de ayuda que llevara el paso se imprime debajo del '
+    + 'título: eso es la persona que lo escribió diciéndole qué cuenta como hecho.',
+  'help.gathering-tasks.what-it-is.b3':
+    'LO QUE HACE QUE UNA TAREA SEA DISTINTA DE UN FORMULARIO QUE USTED RELLENA es lo que '
+    + 'pasa después de que responde. Va a quien organiza, que la acepta o la devuelve con '
+    + 'notas; así que una tarea está terminada cuando alguien lo ha dicho, no cuando usted ha '
+    + 'escrito algo.',
+  'help.gathering-tasks.what-it-is.b4':
+    'El panel está siempre ahí y uno vacío dice que no se le ha asignado nada. Ese es el '
+    + 'estado previsto para la mayoría de los integrantes la mayor parte del tiempo, y no una '
+    + 'falla; y está siempre ahí para que una tarea que le den esta mañana se pueda encontrar '
+    + 'esta mañana.',
+  'help.gathering-tasks.answering.heading': 'Qué pide una tarea',
+  'help.gathering-tasks.answering.b0':
+    'Un paso dice qué tipo de respuesta quiere y usted recibe el campo que corresponde. No '
+    + 'hay barra libre: una respuesta que no encaja con el tipo se rechaza, con el motivo y '
+    + 'una línea que dice qué espera el campo.',
+  'help.gathering-tasks.answering.b1.i0.term': 'Respuesta corta',
+  'help.gathering-tasks.answering.b1.i0.text':
+    'Una línea: un nombre, un número de teléfono, un local.',
+  'help.gathering-tasks.answering.b1.i1.term': 'Respuesta larga',
+  'help.gathering-tasks.answering.b1.i1.text':
+    'Un párrafo: notas, una descripción, una explicación.',
+  'help.gathering-tasks.answering.b1.i2.term': 'Una fecha',
+  'help.gathering-tasks.answering.b1.i2.text': 'Una fecha del calendario, desde un campo de fecha.',
+  'help.gathering-tasks.answering.b1.i3.term': 'Una lista',
+  'help.gathering-tasks.answering.b1.i3.text':
+    'Cualquier número de líneas. El cuadro dice **Un elemento por línea**, y una línea '
+    + 'vacía se descarta en vez de registrarse como un elemento en blanco.',
+  'help.gathering-tasks.answering.b1.i4.term': 'Sí o no',
+  'help.gathering-tasks.answering.b1.i4.text':
+    'Una decisión, como un par de opciones. Tiene que elegir una: dejarlo en paz no es una '
+    + 'respuesta, y nada se lee como No de su parte.',
+  'help.gathering-tasks.answering.b1.i5.term': 'Un número',
+  'help.gathering-tasks.answering.b1.i5.text':
+    'Un recuento o una cantidad. Se permite una fracción, porque «cuántos kilos de brisket» '
+    + 'es una pregunta real.',
+  'help.gathering-tasks.answering.b1.i6.term': 'Una cantidad de dinero',
+  'help.gathering-tasks.answering.b1.i6.text':
+    'Una cantidad en dólares con los centavos después del punto: escriba 450.00 para '
+    + 'cuatrocientos cincuenta dólares. El cuadro lleva un signo de dólar delante, y uno '
+    + 'vacío está sin responder en vez de ser nada gastado.',
+  'help.gathering-tasks.answering.b2':
+    'Un campo vacío nunca se envía. Pulsar el botón sin nada en la respuesta dice que '
+    + 'todavía no hay nada que enviar, que es lo que evita que un cuadro de dinero sin tocar '
+    + 'se archive como cero y se lea como respondido en todas las pantallas de después.',
+  'help.gathering-tasks.sending.heading': 'Enviar una respuesta',
+  'help.gathering-tasks.sending.b0.i0': 'Rellene **Su respuesta**.',
+  'help.gathering-tasks.sending.b0.i1':
+    'Añada cualquier cosa que valga la pena decir en **¿Algo que decirle a quien '
+    + 'organiza?**. Es opcional, y viaja con la respuesta en vez de reemplazarla.',
+  'help.gathering-tasks.sending.b0.i2': 'Pulse **Enviar para revisión**.',
+  'help.gathering-tasks.sending.b1':
+    'Lo que envió se le muestra después encima del formulario, con el encabezado **Enviado '
+    + 'para revisión** y la fecha. Hasta que alguien decida sobre él puede enviar algo '
+    + 'distinto — el botón dice **Reemplazar mi respuesta** — y todas las versiones se '
+    + 'conservan, así que el intercambio se puede leer completo y no solo su última línea.',
+  'help.gathering-tasks.sending.b2':
+    'A quien pueda decidir sobre ella se le avisa en sus notificaciones en el momento en '
+    + 'que entra, así que usted no tiene que decírselo a nadie por separado.',
+  'help.gathering-tasks.sent-back.heading': 'Cuando vuelve',
+  'help.gathering-tasks.sent-back.b0':
+    'Una tarea se puede devolver, y su estado dice entonces **Necesita otra mirada**. Esa '
+    + 'formulación es deliberada: no es un rechazo ni una mancha contra usted, es la tarea '
+    + 'devuelta con instrucciones, y las instrucciones son todo el sentido de devolverla.',
+  'help.gathering-tasks.sent-back.b1':
+    'Aparecen en la parte superior de la tarjeta bajo **Qué pidió quien organiza**, encima '
+    + 'del formulario, así que las lee antes de escribir. Arregle lo que pidieron y pulse '
+    + '**Enviarla de nuevo**.',
+  'help.gathering-tasks.sent-back.b2':
+    'No hay límite en cuántas veces una tarea puede ir y volver, y una tarea que llevó dos '
+    + 'intentos es la misma tarea terminada que una que llevó uno. Volver a enviar es la '
+    + 'forma ordinaria en que esto funciona y no un fracaso que haya que evitar.',
+  'help.gathering-tasks.sent-back.b3':
+    'Nadie puede devolver una tarea sin decir qué tiene que cambiar: la pantalla que usan '
+    + 'no la envía de otro modo. Si alguna llega alguna vez sin notas, la tarjeta lo dice, y '
+    + 'lo que hay que hacer es preguntarles: de verdad no hay nada ahí sobre lo que actuar.',
+  'help.gathering-tasks.approved.heading': 'Una vez que está aprobada',
+  'help.gathering-tasks.approved.b0':
+    'Una respuesta aprobada es final por las dos partes. La tarjeta pasa a solo lectura y '
+    + 'muestra lo que se aceptó; no hay forma de enviar otra, e intentarlo se rechaza con esa '
+    + 'frase en vez de parecer que se guarda. También deja de estar atrasada, porque la fecha '
+    + 'límite ya no se aplica a nada.',
+  'help.gathering-tasks.approved.b1':
+    'Si una respuesta aprobada de verdad tiene que cambiar, pregunte a quien organiza la '
+    + 'reunión. Tienen un botón **Reabrir…** en su lado, y usarlo devuelve la tarea a sus '
+    + 'manos: vuelve al formulario ordinario con su última respuesta ya puesta, así que una '
+    + 'corrección de una palabra es una corrección de una palabra. Usted no puede hacerlo por '
+    + 'su cuenta, que es todo lo que significa «final por las dos partes».',
+  'help.gathering-tasks.approved.b2':
+    'Una tarea reabierta llega igual que una que se devolvió: en sus notificaciones, y en '
+    + 'la parte superior de [Mis tareas de la reunión](/gatherings/my-tasks), con el motivo '
+    + 'que hayan dado, si dieron uno. Nada de lo que envió se elimina por ello, y todas las '
+    + 'versiones siguen legibles.',
+  // ──── PART 9 — Gatherings (Meeting Minutes) ───────────────────────────────────
+  'help.meeting-minutes.title': 'Actas',
+  'help.meeting-minutes.summary':
+    'Programar una junta por directiva o por cargo, quién puede levantar el acta, y cómo '
+    + 'vota la sala sobre un tema.',
+  'help.meeting-minutes.what-it-is.heading': 'Qué es esta pantalla',
+  'help.meeting-minutes.what-it-is.b0':
+    '[Actas](/library/meeting-minutes) es el registro de la familia de aquello sobre lo que '
+    + 'se reunió y lo que decidió. Una junta tiene una fecha, una lista de quién se espera, '
+    + 'un **secretario** que la escribe, y cualquier número de **temas**, cada uno de los '
+    + 'cuales puede llevar notas y una votación.',
+  'help.meeting-minutes.what-it-is.b1':
+    '**Todas las personas de la familia pueden leer las actas.** Eso es deliberado y es lo '
+    + 'contrario del [cuaderno del cargo](/help/journal), que solo lee quien ocupa el cargo: '
+    + 'las actas son el registro de las decisiones que tomó la familia, así que alguien que '
+    + 'no estuvo en la sala también llega a saber qué se decidió.',
+  'help.meeting-minutes.what-it-is.b2':
+    'Formaba parte de [Notas del cargo](/library/officer-notes) hasta el 22-08-2026, como '
+    + 'un tipo de entrada de «reunión». Una junta se le quedó pequeña: pertenece a la familia '
+    + 'y no a un cargo, tiene un secretario, y tiene votos, y nada de eso lo puede expresar '
+    + 'un cuaderno.',
+  'help.meeting-minutes.scheduling.heading': 'Programar una',
+  'help.meeting-minutes.scheduling.b0':
+    'Son **tres pasos**, con **Siguiente** y **Atrás**, y nada se guarda hasta el último.',
+  'help.meeting-minutes.scheduling.b1.i0': 'Pulse **Programar una junta**.',
+  'help.meeting-minutes.scheduling.b1.i1':
+    '**Paso 1: lo básico.** Un título, una fecha, y **quién levanta el acta**. Eso último '
+    + 'empieza en usted, porque quien programa una junta normalmente la escribe; cámbielo a '
+    + 'otra persona si no. Solo el secretario puede escribir en la junta, y tiene que ser '
+    + 'adulto.',
+  'help.meeting-minutes.scheduling.b1.i2':
+    '**Paso 2: quién viene.** Diga primero qué tipo de junta es, y luego elija dentro de '
+    + 'ese tipo. Vea más abajo.',
+  'help.meeting-minutes.scheduling.b1.i3':
+    '**Paso 3: alguien más.** Añada personas individuales encima del cuerpo que eligió, y '
+    + 'compruebe el recuento de la sala.',
+  'help.meeting-minutes.scheduling.b1.i4': 'Pulse **Programar junta**.',
+  'help.meeting-minutes.scheduling.b2':
+    '**A todas las personas de la sala se les avisa y les aparece en su calendario.** Va '
+    + 'una notificación a cada asistente, y la junta aparece en [el '
+    + 'calendario](/gatherings/calendar) para ellos, no para toda la familia, porque una '
+    + 'reunión de comisión en el calendario de todo el mundo es un calendario que nadie lee. '
+    + 'La lista de asistentes es también lo que decide quién puede votar.',
+  'help.meeting-minutes.scheduling.b3':
+    'El secretario se añade a la sala automáticamente, lo haya marcado usted o no. Alguien '
+    + 'que levanta el acta estuvo ahí.',
+  'help.meeting-minutes.scheduling.b4':
+    '**Atrás nunca pierde nada.** Volver atrás para arreglar una fecha y regresar deja sus '
+    + 'elecciones donde estaban, con una excepción deliberada: cambie el TIPO de junta en el '
+    + 'paso 2 y la sala sigue al tipo nuevo, así que una directiva que marcó antes de pasar a '
+    + 'una junta de capítulo no viene en silencio detrás.',
+  'help.meeting-minutes.who-is-coming.heading': 'Quién viene: cinco tipos de junta',
+  'help.meeting-minutes.who-is-coming.b0':
+    'Una junta familiar es casi siempre una junta de un **cuerpo** y no una lista de once '
+    + 'nombres: toda la familia, un capítulo, la directiva nacional, todos los presidentes de '
+    + 'capítulo. Así que el paso 2 pregunta de qué tipo es, muestra solo las opciones de ese '
+    + 'tipo, y calcula quién está en el cuerpo cuando usted programa.',
+  'help.meeting-minutes.who-is-coming.b1.i0.term': 'Una junta general de la familia',
+  'help.meeting-minutes.who-is-coming.b1.i0.text':
+    'Todos los adultos de la familia. Nada que elegir: el paso le dice cuántas personas son '
+    + 'antes de que se comprometa.',
+  'help.meeting-minutes.who-is-coming.b1.i1.term': 'Una junta de capítulo',
+  'help.meeting-minutes.who-is-coming.b1.i1.text':
+    'Todas las personas registradas en un capítulo, ocupen un cargo o no. **Esta no es la '
+    + 'directiva del capítulo**; es el capítulo entero. Solo se ofrecen los capítulos con '
+    + 'alguien dentro.',
+  'help.meeting-minutes.who-is-coming.b1.i2.term': 'Una junta de directiva',
+  'help.meeting-minutes.who-is-coming.b1.i2.text':
+    'Todas las personas que ocupan un cargo en un nivel y en un lugar: **Directiva '
+    + 'nacional**, **Directiva de la región de Texas**, **Directiva del capítulo de Austin**. '
+    + 'Solo se enumeran las directivas en las que de hecho hay alguien, y el número al lado '
+    + 'de cada una dice cuántas personas son.',
+  'help.meeting-minutes.who-is-coming.b1.i3.term': 'Una junta de cargos',
+  'help.meeting-minutes.who-is-coming.b1.i3.text':
+    'Un solo cargo tomado en todas las regiones o capítulos que lo llenan. Elegir '
+    + '**Presidente de capítulo** invita al presidente de todos los capítulos a la vez.',
+  'help.meeting-minutes.who-is-coming.b1.i4.term': 'Solo las personas que yo nombre',
+  'help.meeting-minutes.who-is-coming.b1.i4.text':
+    'Nadie para empezar: para una comisión improvisada de tres, donde no hay ningún cuerpo '
+    + 'al que apuntar. Usted las añade en el paso 3.',
+  'help.meeting-minutes.who-is-coming.b2':
+    '**Un tipo sin nada que elegir no se puede elegir, y dice por qué.** Una familia que '
+    + 'todavía no ha configurado sus cargos no tiene directivas que invitar; esa fila está '
+    + 'atenuada con una frase que apunta a **Miembros → Organización** en vez de estar '
+    + 'oculta, así que queda claro que el producto lo puede hacer en cuanto la familia lo '
+    + 'haya hecho.',
+  'help.meeting-minutes.who-is-coming.b3':
+    '**Un cuerpo se resuelve cuando usted programa, no cuando se configuró.** Si el '
+    + 'capítulo de Austin elige un tesorero nuevo el mes que viene, la directiva que usted '
+    + 'eligió hoy invitó al tesorero que lo ocupaba hoy, que es lo correcto, porque la junta '
+    + 'es la que a esa persona se le comunicó. Lo mismo vale para un capítulo: es quien esté '
+    + 'registrado en él ese día.',
+  'help.meeting-minutes.who-is-coming.b4':
+    '**El paso 3 añade personas encima.** Sea lo que sea a lo que el cuerpo llegue, usted '
+    + 'puede nombrar más; las dos cosas se suman, y alguien que aparece en las dos es un solo '
+    + 'asistente. La línea debajo del selector cuenta la sala y la enumera detrás de **ver '
+    + 'quién**, así que puede comprobar qué acaba de añadir una elección antes de '
+    + 'comprometerse.',
+  'help.meeting-minutes.adults.heading': 'Solo adultos, y la única excepción',
+  'help.meeting-minutes.adults.b0':
+    '**El secretario tiene que ser adulto**, y también cualquiera que se añada a la sala '
+    + '**por su nombre**. Los dos selectores solo ofrecen adultos, y la acción rechaza uno de '
+    + 'todos modos si se le pide directamente.',
+  'help.meeting-minutes.adults.b1':
+    '**Una junta de capítulo y una junta general de la familia también son de adultos.** '
+    + 'Nadie menor de dieciocho está en ninguna de las dos, así que ninguna es una forma de '
+    + 'rodear la regla de arriba.',
+  'help.meeting-minutes.adults.b2':
+    '**Las personas invitadas como parte de una directiva o de un cargo no se comprueban '
+    + 'por edad**, y esa es la excepción. Alguien que ocupa un cargo es alguien a quien la '
+    + 'familia puso ahí, y sacarlo de la sala en silencio por un cumpleaños registrado sería '
+    + 'el producto pasando por encima de esa decisión en una lista que nadie vuelve a leer.',
+  'help.meeting-minutes.adults.b3':
+    'La edad se calcula a partir de la fecha de nacimiento del perfil de la persona, y un '
+    + 'integrante **sin** cumpleaños registrado cuenta como adulto. «Menor de dieciocho» es '
+    + 'algo que la familia ha escrito sobre alguien, no algo que suponer sobre un campo en '
+    + 'blanco.',
+  'help.meeting-minutes.writing.heading': 'Durante la junta',
+  'help.meeting-minutes.writing.b0':
+    '**Solo el secretario escribe.** Todos los demás leen. Añada un **tema** por cada cosa '
+    + 'que la sala trate, y luego escriba notas debajo a medida que avanza: la misma forma '
+    + 'que un cuaderno de cargo, un encabezado y un hilo debajo.',
+  'help.meeting-minutes.writing.b1':
+    'Las notas se muestran de la más antigua a la más nueva, cada una con la hora en que se '
+    + 'escribió, y una que se ha cambiado desde entonces lo dice.',
+  'help.meeting-minutes.writing.b2':
+    'Si usted es el secretario y faltan los controles, compruebe si la junta se ha cerrado. '
+    + 'Una junta cerrada es de solo lectura.',
+  'help.meeting-minutes.voting.heading': 'Votar sobre un tema',
+  'help.meeting-minutes.voting.b0':
+    'El secretario pulsa **Convocar una votación** en un tema. Todas las personas de la '
+    + 'lista de asistentes pueden responder entonces **A favor**, **En contra** o '
+    + '**Abstención**, y el recuento acumulado está en el tema.',
+  'help.meeting-minutes.voting.b1':
+    '**Un voto no lo puede cambiar ni retirar nadie.** Ni la persona que lo emitió, ni el '
+    + 'secretario, ni un administrador. Eso lo impone la base de datos y no la pantalla, y '
+    + 'por eso no hay ningún control que parezca que podría.',
+  'help.meeting-minutes.voting.b2':
+    '**Cómo votó cada persona está en el registro**, con su nombre. Un voto de junta no es '
+    + 'una votación secreta: las actas existen para decir quién decidió qué. Eso es distinto '
+    + 'de [Elecciones](/help/elections), donde el voto de un integrante es solo suyo.',
+  'help.meeting-minutes.voting.b3.i0.term': 'Solo votan los asistentes',
+  'help.meeting-minutes.voting.b3.i0.text':
+    'La lista que usted eligió al programar. Alguien que no está en ella puede leer el tema '
+    + 'y el recuento y no puede responder.',
+  'help.meeting-minutes.voting.b3.i1.term': 'Una votación cerrada se queda cerrada',
+  'help.meeting-minutes.voting.b3.i1.text':
+    'No se reabre. Si la pregunta hay que volver a hacerla, el secretario elimina el tema y '
+    + 'lo añade de nuevo, que es visible, mientras que reabrir una votación en silencio no lo '
+    + 'es.',
+  'help.meeting-minutes.voting.b3.i2.term': 'Eliminar un tema',
+  'help.meeting-minutes.voting.b3.i2.text':
+    'La única forma en que un voto se quita alguna vez, y quita la pregunta entera junto '
+    + 'con sus notas. La confirmación dice cuántos votos se van con ella.',
+  'help.meeting-minutes.voting.b4':
+    'Alguien que ya ha votado no se puede quitar de la lista de asistentes: su voto está en '
+    + 'el registro, así que quitarlo dejaría un voto emitido por alguien de quien el acta '
+    + 'dice que no estuvo.',
+  'help.meeting-minutes.closing.heading': 'Cerrar el acta',
+  'help.meeting-minutes.closing.b0':
+    '**Cerrar el acta** es lo que convierte una junta en un registro: no más temas, no más '
+    + 'notas, no más votos. Es lo que hace fiable aquello que la familia cite el año que '
+    + 'viene.',
+  'help.meeting-minutes.closing.b1':
+    'Se puede reabrir, por el secretario o por alguien con permiso para editar juntas: '
+    + 'cerrar demasiado pronto es un error ordinario y la alternativa es un registro '
+    + 'permanentemente equivocado. Reabrir no deshace nada de lo que se decidió: los votos se '
+    + 'quedan exactamente como están.',
+  // ──── PART 9 — Gatherings (Gathering Management) ──────────────────────────────
+  'help.gathering-management.title': 'Gestión de reuniones',
+  'help.gathering-management.summary':
+    'Programar una reunión, fijar su fondo y su presupuesto, repartir las tareas, decidir '
+    + 'sobre las respuestas que vuelven, y escribir las plantillas de las que todo se '
+    + 'construye.',
+  'help.gathering-management.what-it-is.heading': 'Tres paneles, y para qué sirven',
+  'help.gathering-management.what-it-is.b0':
+    '[Reuniones](/admin/gatherings) en Administración es el lado organizador de '
+    + '[Reuniones](/gatherings), en un menú con tres paneles:',
+  'help.gathering-management.what-it-is.b1.i0':
+    '**Reuniones**: todas las reuniones que tiene la familia, con sus fechas, su estado, su '
+    + 'presupuesto frente al fondo del que se saca, y cuánto de su trabajo se ha aprobado.',
+  'help.gathering-management.what-it-is.b1.i1':
+    '**Cola de revisión**: todas las respuestas que esperan una decisión, en todas las '
+    + 'reuniones a la vez. El panel lleva el recuento mientras algo espera.',
+  'help.gathering-management.what-it-is.b1.i2':
+    '**Plantillas**: la biblioteca de la que se construyen todas las reuniones, cubierta '
+    + 'por [Plantillas de reunión](/help/gathering-templates#what-it-is).',
+  'help.gathering-management.what-it-is.b2':
+    'Plantillas tenía su propia fila de menú hasta el 19-08-2026 y ahora es un panel de '
+    + 'aquí; su dirección antigua sigue funcionando y aterriza en el panel. Se otorga por '
+    + 'separado de los otros dos, así que una familia puede dejar que alguien escriba las '
+    + 'listas de comprobación sin dejarle comprometer a la familia con una reunión, o al '
+    + 'contrario, que es el arreglo más común.',
+  'help.gathering-management.creating.heading': 'Programar una reunión',
+  'help.gathering-management.creating.b0.i0': 'Pulse **Nueva reunión**.',
+  'help.gathering-management.creating.b0.i1':
+    'Marque las plantillas que quiera en **Construida a partir de**. Sus pasos se '
+    + 'convierten en sus tareas, en el orden en que se nombran las plantillas. No marque '
+    + 'ninguna y la reunión es una fecha sin tareas, a la que se le puede añadir una '
+    + 'plantilla después.',
+  'help.gathering-management.creating.b0.i2':
+    'Rellene **Título** y **Empieza**, y **Termina** solo si dura más de un día.',
+  'help.gathering-management.creating.b0.i3':
+    '**Lugar** y **Resumen** son opcionales: el resumen es lo que leerán las personas a las '
+    + 'que se les pida ayudar.',
+  'help.gathering-management.creating.b0.i4':
+    'Elija un **Fondo** y un **Presupuesto ($)** si va a gastar dinero, y marque **Mostrar '
+    + 'esto en la parte superior del Panel** si es la que la familia debería ver primero.',
+  'help.gathering-management.creating.b0.i5':
+    'Pulse **Crear reunión**, y después **Abrir la reunión** para empezar a repartir sus '
+    + 'tareas.',
+  'help.gathering-management.creating.b1':
+    'Cada plantilla que marque se convierte en un segmento de la reunión, que es la sección '
+    + 'siguiente. Una reunión sin ninguna es la ocasión en sí — sus fechas, su lugar y su '
+    + 'descripción — y es lo que el calendario de la familia muestra en cualquier caso.',
+  'help.gathering-management.segments.heading': 'Los segmentos, y sus días y lugares',
+  'help.gathering-management.segments.b0':
+    'Una reunión rara vez es una sola ocasión. Una reunión familiar es la Bienvenida, el '
+    + 'Picnic y la Despedida, en sus propios días y en sus propios lugares, y cada plantilla '
+    + 'de la que se construyó la reunión es una de esas partes. El panel **Segmentos** de la '
+    + 'página propia de una reunión es donde se enumeran, y donde se fijan el día y el lugar '
+    + 'de cada uno.',
+  'help.gathering-management.segments.b1.i0.term': 'Segmento',
+  'help.gathering-management.segments.b1.i0.text':
+    'La plantilla de la que vino esta parte, con cuántas tareas vinieron con ella.',
+  'help.gathering-management.segments.b1.i1.term': 'Día',
+  'help.gathering-management.segments.b1.i1.text':
+    'La fecha en que ocurre esta parte. Opcional: déjelo vacío para una reunión que ocurre '
+    + 'toda a la vez.',
+  'help.gathering-management.segments.b1.i2.term': 'Lugar',
+  'help.gathering-management.segments.b1.i2.text':
+    'Dónde se celebra esta parte. Opcional, y empieza vacío: una plantilla ya no indica uno '
+    + 'habitual.',
+  'help.gathering-management.segments.b1.i3.term': 'Tareas',
+  'help.gathering-management.segments.b1.i3.text':
+    'Cuántas de las tareas de la reunión vinieron de esa plantilla.',
+  'help.gathering-management.segments.b2':
+    'Escriba en cualquiera de los dos cuadros y aparece un botón **Guardar** en esa fila, '
+    + 'así que nada se escribe por pulsación de tecla y una fila que se guarda no bloquea las '
+    + 'demás. Las dos cosas son lo que de hecho leen los familiares a los que se les pide '
+    + 'ayudar: el día y el lugar de un segmento se imprimen debajo de su encabezado en la '
+    + 'página propia de la reunión.',
+  'help.gathering-management.segments.b3.i0': 'Elija una plantilla en **Añadir otro segmento**.',
+  'help.gathering-management.segments.b3.i1':
+    'Fije **Día** y **Lugar**, o deje cualquiera de los dos vacío.',
+  'help.gathering-management.segments.b3.i2':
+    'Pulse **Añadir sus pasos**. Todos los pasos de esa plantilla se convierten en una '
+    + 'tarea de esta reunión, y nada de las tareas que ya están ahí cambia.',
+  'help.gathering-management.segments.b4':
+    'Un día fuera de las fechas propias de la reunión **se guarda y se comenta en vez de '
+    + 'rechazarse**, y el comentario es una línea discreta en la fila y no una roja: no ha '
+    + 'fallado nada, simplemente hay una fecha que conciliar. Eso es deliberado: las fechas '
+    + 'se mueven, y a quien organiza y cambia el fin de semana no debería detenerle un '
+    + 'segmento que no estaba mirando. La línea aparece cuando el segmento se guarda, así que '
+    + 'una reunión cuyas fechas se movieron después merece un repaso de este panel.',
+  'help.gathering-management.segments.b5':
+    'El lugar de un segmento pertenece al segmento y a nada más. Las plantillas indicaban '
+    + 'antes un **Lugar habitual** que se copiaba en todos los segmentos construidos a partir '
+    + 'de ellas, y eso ya no existe (19-08-2026): un local pertenece a una sola ocasión, y '
+    + 'una plantilla que necesita uno lo pide con un paso del tipo **Un lugar**, entregado a '
+    + 'un familiar con nombre, con una fecha límite, y revisado como cualquier otra '
+    + 'respuesta.',
+  'help.gathering-management.premier.heading': 'La banda del Panel',
+  'help.gathering-management.premier.b0':
+    '**Mostrar esto en la parte superior del Panel** está en el panel **Banda del Panel** '
+    + 'de la página propia de una reunión. Una reunión marcada recibe la banda debajo del '
+    + 'saludo en [el panel](/dashboard): su título, sus fechas, dónde es, cuántas de sus '
+    + 'tareas están aprobadas, y una vía directa hacia ella.',
+  'help.gathering-management.premier.b1':
+    'Varias reuniones pueden estar marcadas a la vez, deliberadamente. El panel muestra la '
+    + 'más cercana que no ha terminado, así que la reunión del año pasado nunca bloquea la de '
+    + 'este año, y no aparece nada ahí en absoluto cuando ninguna reunión marcada sigue por '
+    + 'delante.',
+  'help.gathering-management.premier.b2':
+    '**Foto de la banda**, en el mismo panel, fija la imagen alrededor de la que se '
+    + 'construye la banda: una fotografía por reunión, recortada a la forma de la banda. '
+    + 'Elegir un archivo lo sube en el momento; **Quitar la foto** la retira. Sin una, la '
+    + 'banda dibuja el árbol de GENORRA, así que queda terminada en cualquier caso.',
+  'help.gathering-management.premier.b3':
+    'Una foto de banda subida la puede ver cualquiera que tenga su dirección, exactamente '
+    + 'como una fotografía de la [Galería](/community/gallery). Poner una aquí la publica '
+    + 'para quien alcance el enlace, así que elija una imagen que la familia estaría contenta '
+    + 'de compartir.',
+  'help.gathering-management.money.heading': 'El fondo, el presupuesto y la línea roja',
+  'help.gathering-management.money.b0':
+    'Un presupuesto siempre se saca de un fondo, y los dos se guardan juntos: limpiar el '
+    + 'fondo limpia el presupuesto con él, y el cuadro del importe no acepta una cifra hasta '
+    + 'que se elige un fondo. Los fondos se configuran en '
+    + '[Contabilidad](/admin/accounting?section=funds); vea '
+    + '[Contabilidad](/help/accounting#funds).',
+  'help.gathering-management.money.b1':
+    'Varias reuniones pueden sacar de un solo fondo, así que un saldo no es de una reunión '
+    + 'para gastarlo. La banda de cada reunión dice qué más lo está reclamando.',
+  'help.gathering-management.money.b2':
+    'Un presupuesto mayor que el fondo está permitido y no es un error. Las cifras lo dicen '
+    + 'con una línea roja en vez de rechazar el número, porque una familia planea una reunión '
+    + 'antes de haber recaudado el dinero para una: rechazarlo significaría que el plan no se '
+    + 'podría escribir en absoluto.',
+  'help.gathering-management.money.b3':
+    'Cada tarea puede llevar su propia **Partida de presupuesto ($)**, fijada en el cuadro '
+    + 'de esa tarea: lo que se espera que cueste ese único trabajo, con vacío queriendo decir '
+    + 'que no le cuesta nada a la familia. Las partidas juntas son lo que la banda compara '
+    + 'con el presupuesto, y el presupuesto sugerido de un paso de plantilla es solo la cifra '
+    + 'con la que una partida empieza. Cuando las partidas superan el presupuesto la banda lo '
+    + 'dice con un trato más discreto y deliberadamente distinto: no se ha gastado nada, y se '
+    + 'resuelve subiendo el presupuesto o recortando una partida.',
+  'help.gathering-management.assigning.heading': 'Repartir el trabajo',
+  'help.gathering-management.assigning.b0':
+    'Pulse **Gestionar** en una tarea — **Revisar** cuando algo espera en ella — y un solo '
+    + 'cuadro contiene todo sobre esa tarea.',
+  'help.gathering-management.assigning.b1.i0':
+    'Elija a alguien en **Asignada a**. El selector busca en cualquier parte de cualquier '
+    + 'nombre, que es lo que lo hace usable en una familia de ciento cuarenta personas.',
+  'help.gathering-management.assigning.b1.i1': 'Fije **Vence** si tiene fecha límite.',
+  'help.gathering-management.assigning.b1.i2': 'Pulse **Guardar quién y cuándo**.',
+  'help.gathering-management.assigning.b2':
+    'Cualquier persona que la familia haya aprobado puede tener una tarea tenga cuenta '
+    + 'propia o no, así que a un familiar registrado en el árbol sin inicio de sesión se le '
+    + 'puede pedir igualmente que traiga las fotografías. Alguien cuya membresía sigue '
+    + 'esperando no puede, y la pantalla lo dice en vez de fallar en silencio. **Dejarla sin '
+    + 'asignar** le quita una tarea a alguien.',
+  'help.gathering-management.assigning.b3':
+    'A la persona que usted asigna se le avisa en sus notificaciones, y la tarea aparece en '
+    + 'sus [Mis tareas de la reunión](/gatherings/my-tasks) con su fecha límite puesta.',
+  'help.gathering-management.reviewing.heading': 'Decidir sobre una respuesta',
+  'help.gathering-management.reviewing.b0':
+    'Una respuesta llega a la **Cola de revisión** con lo que se envió, cualquier nota que '
+    + 'añadiera quien la envió, quién la envió y cuándo. Hay dos decisiones:',
+  'help.gathering-management.reviewing.b1.i0':
+    '**Aprobar**: aceptada, y final. La respuesta pasa a ser el registro que la familia '
+    + 'tiene de ella y la persona que la envió no puede cambiarla después, y por eso se '
+    + 'confirma primero.',
+  'help.gathering-management.reviewing.b1.i1':
+    '**Devolver…**: devuelta con instrucciones. Abre **Qué tiene que cambiar**, y ese '
+    + 'cuadro es obligatorio: una tarea devuelta con nada dentro le dice a un familiar que su '
+    + 'respuesta no se aceptó mientras ninguna pantalla en ninguna parte dice qué hacer al '
+    + 'respecto. Lo que usted escriba se envía con la tarea y es lo primero que ven.',
+  'help.gathering-management.reviewing.b2':
+    'Una tarea devuelta dice **Necesita otra mirada** en todas las pantallas y se puede '
+    + 'responder de nuevo tantas veces como haga falta. Todos los envíos se conservan, así '
+    + 'que el intercambio entero se puede leer desde la tarea y no solo su última línea.',
+  'help.gathering-management.reviewing.b3':
+    'Una respuesta aprobada se puede retirar, y solo desde aquí. Abra la tarea y pulse '
+    + '**Reabrir…**, añada una línea en **Por qué, si quiere decirlo (opcional)** si hay algo '
+    + 'que explicar, y luego pulse **Reabrir** para confirmar. La tarea vuelve a la persona '
+    + 'que la tiene con su respuesta todavía puesta, se le avisa en sus notificaciones, y el '
+    + 'motivo viaja con ella. No se borra nada: la respuesta se queda como su punto de '
+    + 'partida y todos los envíos se quedan en el registro, incluida la aprobación que usted '
+    + 'acaba de retirar.',
+  'help.gathering-management.reviewing.b4':
+    'El motivo es opcional aquí y obligatorio en **Devolver…**, lo cual parece incoherente '
+    + 'y no lo es. Devolver trabajo sin instrucciones deja a un familiar sin nada sobre lo '
+    + 'que actuar; retirar su propia aprobación suele ser una corrección de su propia lectura '
+    + 'de ella, y a menudo no hay nada que decir más allá de que tiene que cambiar.',
+  'help.gathering-management.reviewing.b5':
+    'Reabrir es la única vuelta desde una aprobación, así que apruebe deliberadamente '
+    + 'aunque se pueda deshacer. La persona que envió la respuesta no puede reabrirla y no '
+    + 'puede reemplazarla mientras se mantenga: desde su lado, aprobada de verdad es final, y '
+    + 'todas las pantallas le dicen que acuda a usted.',
+  'help.gathering-management.changing.heading': 'Cambiar o terminar una',
+  'help.gathering-management.changing.b0':
+    '**Estado** se fija a mano — **En preparación**, **Programada**, **Completada** o '
+    + '**Cancelada** — porque ninguno de los cuatro es algo que el calendario sepa: una '
+    + 'reunión se puede cancelar sin que sus fechas se muevan, y terminada es la afirmación '
+    + 'de alguien y no una fecha que pasa. **Guardar cambios** lo confirma junto con el '
+    + 'título, las fechas y el lugar.',
+  'help.gathering-management.changing.b1':
+    '**Eliminar reunión** se rechaza en cuanto alguna de sus respuestas se ha aprobado. El '
+    + 'rechazo dice cuántas y ofrece Cancelada en su lugar, que no elimina nada y se puede '
+    + 'volver a activar.',
+  'help.gathering-management.changing.b2':
+    'Quitar un segmento — la papelera de su fila, confirmada como **Quitar plantilla** — se '
+    + 'rechaza de la misma forma en cuanto alguna tarea suya se ha asignado o respondido. Las '
+    + 'tareas que vinieron de una plantilla son lo que de hecho se les pidió a los familiares '
+    + 'y sobreviven al vínculo, así que desvincular una solo limpia alguna vez las tareas que '
+    + 'nadie ha tocado.',
+  // ──── PART 9 — Gatherings (Gathering Templates) ───────────────────────────────
+  'help.gathering-templates.title': 'Plantillas de reunión',
+  'help.gathering-templates.summary':
+    'Escribir las listas paso a paso de las que se construye una reunión, incluido un paso '
+    + 'que es otra plantilla, decidir quién puede programar a partir de una, y archivar una '
+    + 'que ya se ha usado.',
+  'help.gathering-templates.what-it-is.heading': 'Qué es una plantilla',
+  'help.gathering-templates.what-it-is.b0':
+    'El panel **Plantillas** de [Reuniones](/admin/gatherings) en Administración es la '
+    + 'biblioteca de la que se construye una reunión. Una plantilla es un nombre y una lista '
+    + 'ordenada de pasos — uno por cada cosa que alguien tiene que hacer o decidir — y '
+    + 'programar una reunión a partir de ella convierte todos los pasos en una tarea que '
+    + 'espera para entregarse a un familiar.',
+  'help.gathering-templates.what-it-is.b1':
+    'Tenía su propia fila de menú hasta el 19-08-2026 y ahora es un panel. La dirección '
+    + 'antigua sigue funcionando y aterriza en él.',
+  'help.gathering-templates.what-it-is.b2':
+    'Editar una plantilla nunca cambia una reunión ya construida a partir de ella. Todas '
+    + 'las tareas conservan su propia copia de lo que pedían, así que un paso renombrado aquí '
+    + 'alcanza la reunión familiar del año que viene y no la que está en marcha, y la '
+    + 'respuesta de nadie se reescribe nunca por debajo. Eso es lo que hace que la biblioteca '
+    + 'sea segura de seguir ordenando, y la tarjeta lo dice.',
+  'help.gathering-templates.adding.heading': 'Añadir una plantilla',
+  'help.gathering-templates.adding.b0.i0':
+    'Pulse **Añadir plantilla** en la parte superior del panel.',
+  'help.gathering-templates.adding.b0.i1':
+    'Póngale un **Nombre de plantilla**: nómbrela por la ocasión, «Reunión familiar», '
+    + '«Homenaje», «Banquete de becas».',
+  'help.gathering-templates.adding.b0.i2':
+    'Escriba una **Descripción** si quiere una, y elija **Quién puede programar a partir de '
+    + 'esto**.',
+  'help.gathering-templates.adding.b0.i3': 'Pulse **Añadir plantilla**.',
+  'help.gathering-templates.adding.b0.i4':
+    'La tarjeta que aparece está cerrada. Pulse su nombre para abrirla, y luego déle un '
+    + 'paso por cada cosa que alguien tiene que hacer.',
+  'help.gathering-templates.adding.b1':
+    '**Todas las tarjetas de plantilla están cerradas hasta que usted las abre.** Abierta, '
+    + 'una tarjeta muestra la descripción, quién puede programar a partir de ella, y una fila '
+    + 'por paso, que es una página entera en cuanto una familia tiene media docena. Cerrada, '
+    + 'cada una muestra su nombre y cuántos pasos tiene, así que la biblioteca se lee como '
+    + 'una lista de lo que se tiene y no como todo sobre todo. Pulse un nombre para abrirla; '
+    + 'pulse de nuevo para cerrarla.',
+  'help.gathering-templates.adding.b2':
+    '**En nada de una tarjeta se escribe directamente.** La tarjeta dice qué es la '
+    + 'plantilla; **Editar** al lado de su nombre abre un cuadro que contiene el nombre, la '
+    + 'descripción y quién puede programar, y todos los pasos tienen su propio botón '
+    + '**Editar**. Eso es lo que mantiene la biblioteca legible: una pantalla de cien cuadros '
+    + 'activos no se puede repasar de un vistazo, y repasar de un vistazo es para lo que '
+    + 'sirve esta página.',
+  'help.gathering-templates.adding.b3':
+    'Un cuadro abierto o se guarda o se descarta, así que no existe tal cosa como una '
+    + 'plantilla guardada a medias. Pulse **Cancelar** o **Escape** y no cambió nada.',
+  'help.gathering-templates.adding.b4':
+    'Un nombre tiene que ser único dentro de la familia, así que una segunda «Reunión '
+    + 'familiar» se rechaza en vez de añadirse en silencio al lado de la primera. La '
+    + 'descripción es lo que lee quien organiza antes de programar a partir de ella, y se '
+    + 'muestra al lado de la plantilla cuando eligen una.',
+  'help.gathering-templates.adding.b5':
+    'Aquí había un campo de **Lugar habitual** hasta el 19-08-2026 y ahora no lo hay. Una '
+    + 'plantilla que indicaba dónde se celebran habitualmente sus reuniones era un autor '
+    + 'adivinando un dato que pertenece a una sola ocasión, y la adivinanza había que '
+    + 'corregirla después en todos los segmentos a los que se copiaba. Pida el local en su '
+    + 'lugar: un paso del tipo **Un lugar**, entregado a un familiar con nombre y con una '
+    + 'fecha límite.',
+  'help.gathering-templates.steps.heading': 'Los pasos',
+  'help.gathering-templates.steps.b0.i0': 'Pulse **Añadir paso** al lado del encabezado de Pasos.',
+  'help.gathering-templates.steps.b0.i1':
+    'Escriba la etiqueta en **Paso**: «Reservar el local», «Recuento de asistentes», '
+    + '«Catering».',
+  'help.gathering-templates.steps.b0.i2':
+    'Elija **Qué pide**. La línea debajo del selector dice qué se le dará a rellenar a la '
+    + 'persona que tenga la tarea.',
+  'help.gathering-templates.steps.b0.i3':
+    'Ponga cualquier cosa que necesiten saber en **Texto de ayuda**: a quién llamar, qué '
+    + 'cuenta como hecho. Lo leen debajo de la tarea en sí.',
+  'help.gathering-templates.steps.b0.i4':
+    'Marque **Obligatorio** si la reunión no está terminada hasta que este paso se responda '
+    + 'y se apruebe.',
+  'help.gathering-templates.steps.b0.i5':
+    'Fije un **Presupuesto sugerido ($)** si el trabajo cuesta dinero.',
+  'help.gathering-templates.steps.b0.i6': 'Pulse **Añadir paso**.',
+  'help.gathering-templates.steps.b1':
+    'Hay nueve tipos de paso. Ocho de ellos deciden qué se le da a la persona que responde:',
+  'help.gathering-templates.steps.b2.i0.term': 'Respuesta corta',
+  'help.gathering-templates.steps.b2.i0.text':
+    'Una línea: un nombre, un número de teléfono, una respuesta en unas pocas palabras.',
+  'help.gathering-templates.steps.b2.i1.term': 'Respuesta larga',
+  'help.gathering-templates.steps.b2.i1.text':
+    'Un párrafo: notas, una descripción, una explicación.',
+  'help.gathering-templates.steps.b2.i2.term': 'Una fecha',
+  'help.gathering-templates.steps.b2.i2.text':
+    'Una sola fecha del calendario, elegida en un campo de fecha.',
+  'help.gathering-templates.steps.b2.i3.term': 'Un lugar',
+  'help.gathering-templates.steps.b2.i3.text':
+    'Un local, una dirección, una sala. Una línea, y un teléfono ofrecerá las direcciones '
+    + 'que ya conoce.',
+  'help.gathering-templates.steps.b2.i4.term': 'Una lista',
+  'help.gathering-templates.steps.b2.i4.text':
+    'Cualquier número de líneas, un elemento cada una, añadidas y quitadas a medida que '
+    + 'avanzan.',
+  'help.gathering-templates.steps.b2.i5.term': 'Sí o no',
+  'help.gathering-templates.steps.b2.i5.text':
+    'Una decisión. Tienen que elegir; dejarlo en blanco no es una respuesta.',
+  'help.gathering-templates.steps.b2.i6.term': 'Un número',
+  'help.gathering-templates.steps.b2.i6.text':
+    'Un recuento o una cantidad. El dinero tiene su propio tipo: use ese para el dinero.',
+  'help.gathering-templates.steps.b2.i7.term': 'Una cantidad de dinero',
+  'help.gathering-templates.steps.b2.i7.text': 'Una cantidad en dólares, registrada al centavo.',
+  'help.gathering-templates.steps.b3':
+    'El noveno es el que se sale de la norma y es la sección siguiente.',
+  'help.gathering-templates.steps.b4':
+    'Cada fila dice qué es el paso: su etiqueta, su texto de ayuda debajo, qué pide, si es '
+    + 'obligatorio y qué sugiere gastar. Para cambiar cualquiera de esas cosas, pulse el '
+    + 'lápiz de la fila y se abre el mismo cuadro con el paso dentro.',
+  'help.gathering-templates.steps.b5':
+    'Las flechas de una fila mueven un paso antes o después, y ese orden es el orden en que '
+    + 'se reparten las tareas. Eliminar un paso deja todas las tareas ya creadas a partir de '
+    + 'él exactamente donde están.',
+  'help.gathering-templates.steps.b6':
+    'Un presupuesto sugerido es solo una cifra de partida copiada en la tarea. Se puede '
+    + 'cambiar en la reunión, y lo que cuenta contra el fondo es el presupuesto propio de la '
+    + 'reunión: vea [Gestión de reuniones](/help/gathering-management#money).',
+  'help.gathering-templates.nested.heading': 'Un paso que es otra plantilla',
+  'help.gathering-templates.nested.b0':
+    'El noveno tipo es **Otra plantilla**, y nadie lo responde. Elija una plantilla y todos '
+    + 'los pasos de ESA plantilla se convierten en una tarea propia, en ese punto de la '
+    + 'lista, cada vez que se construye una reunión a partir de esta.',
+  'help.gathering-templates.nested.b1':
+    'Es para la lista de comprobación que su familia usa dentro de varias ocasiones '
+    + 'distintas. Escriba los cinco pasos de «Catering» una vez, y luego dé a «Reunión '
+    + 'familiar», «Homenaje» y «Banquete de becas» un paso de Catering cada uno; y corregir '
+    + 'la lista de catering el año que viene corrige las tres.',
+  'help.gathering-templates.nested.b2.i0':
+    'Pulse **Añadir paso**, y escriba una etiqueta: no encabeza nada por sí sola, así que '
+    + 'nómbrela por lo que debería ver quien lea esta plantilla, «La lista de catering».',
+  'help.gathering-templates.nested.b2.i1': 'Elija **Otra plantilla** en **Qué pide**.',
+  'help.gathering-templates.nested.b2.i2':
+    'Elija la que hay que incluir en **Plantilla que incluir**.',
+  'help.gathering-templates.nested.b2.i3': 'Pulse **Añadir paso**.',
+  'help.gathering-templates.nested.b3':
+    '**Texto de ayuda**, **Obligatorio** y **Presupuesto sugerido** no se ofrecen para este '
+    + 'tipo y eso es deliberado: nadie va a responderlo, así que no hay nadie a quien '
+    + 'aconsejar, nada que exigir y ningún trabajo único al que ponerle precio. Los pasos que '
+    + 'trae llevan los suyos.',
+  'help.gathering-templates.nested.b4':
+    'Una plantilla no se puede incluir a sí misma, y no puede incluir nada que lleve de '
+    + 'vuelta a ella: A dentro de B dentro de A se rechaza con una frase que lo dice. Solo se '
+    + 'ofrecen las otras plantillas de la familia, y una archivada se puede seguir '
+    + 'incluyendo: archivar significa «no empezar nada NUEVO a partir de esto», que es sobre '
+    + 'programar una reunión y no sobre componer una lista de comprobación.',
+  'help.gathering-templates.nested.b5':
+    'Editar la plantilla incluida cambia lo que recibe la reunión SIGUIENTE y nunca una '
+    + 'reunión ya en marcha: la misma regla que siguen todos los demás pasos, por el mismo '
+    + 'motivo. Así que esto es seguro de seguir ordenando, y corregir una lista de '
+    + 'comprobación compartida de verdad alcanza todas las plantillas que la incluyen.',
+  'help.gathering-templates.who-may-schedule.heading': 'Quién puede programar a partir de esto',
+  'help.gathering-templates.who-may-schedule.b0':
+    '**Quién puede programar a partir de esto** se fija por plantilla, y es lo único de '
+    + 'esta pantalla que un integrante fuera de las páginas de administración llega a notar '
+    + 'alguna vez:',
+  'help.gathering-templates.who-may-schedule.b1.i0.term': 'Solo administradores',
+  'help.gathering-templates.who-may-schedule.b1.i0.text':
+    'Solo alguien que puede gestionar reuniones puede empezar una a partir de esta '
+    + 'plantilla.',
+  'help.gathering-templates.who-may-schedule.b1.i1.term': 'Cualquier integrante',
+  'help.gathering-templates.who-may-schedule.b1.i1.text':
+    'Cualquier integrante que pueda programar una reunión puede empezar una a partir de '
+    + 'esta plantilla. Sigue sin poder editar la plantilla en sí.',
+  'help.gathering-templates.who-may-schedule.b2':
+    'Cambiar una plantilla es un trabajo de administración, cualquiera de las dos opciones '
+    + 'que esté fijada. Así que una familia puede repartir «cualquiera puede organizar un '
+    + 'cumpleaños» sin repartir también «cualquiera puede cambiar en qué consiste un '
+    + 'cumpleaños», que es el motivo de que el ajuste esté en la plantilla y no en la '
+    + 'persona.',
+  'help.gathering-templates.archiving.heading': 'Archivar, y eliminar',
+  'help.gathering-templates.archiving.b0':
+    '**Archivar** saca una plantilla de la lista de las que se puede programar y deja todas '
+    + 'las reuniones construidas a partir de ella exactamente como están. Nada en marcha '
+    + 'cambia y no se elimina nada; la tarjeta dice que está archivada y que no se puede '
+    + 'empezar nada nuevo a partir de ella, y **Restaurar** la devuelve.',
+  'help.gathering-templates.archiving.b1':
+    'Una plantilla a partir de la que se construyó una reunión no se puede eliminar. El '
+    + 'rechazo dice cuántas reuniones la usaron y ofrece archivarla en su lugar, con un botón '
+    + '**Archivarla en su lugar** al lado del mensaje. El motivo es el registro: las tareas '
+    + 'de esas reuniones dicen de qué plantilla vinieron, y eliminarla se llevaría eso. Una '
+    + 'plantilla que nada ha usado todavía se elimina sin problema, junto con sus pasos.',
+  'help.gathering-templates.archiving.b2':
+    'El recuento de usos se imprime en la tarjeta al lado del control de eliminar, así que '
+    + 'el rechazo rara vez es una sorpresa. Llegó con la página, eso sí, y una reunión '
+    + 'programada desde entonces no estará en él: el rechazo en sí es lo que decide.',
 }

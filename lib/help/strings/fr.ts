@@ -2337,8 +2337,9 @@ export const helpFr: Catalogue = {
     + 'cette section sert à noter les numéros qu’un trésorier devrait sinon aller chercher '
     + 'pour un chèque ou un virement.',
   // ──── PART 8 — Community (Chat, Directory, Updates) ───────────────────────────
-  'help.part.community.title': 'La communauté',
-  'help.part.community.blurb': 'Comment la famille se parle, se retrouve et décide.',
+  'help.part.community.title': 'Communauté',
+  'help.part.community.blurb':
+    'Parler à la famille, et savoir qui est chacun.',
   'help.chat.title': 'Chat',
   'help.chat.summary':
     'Le salon de la famille, les messages privés, et les groupes que vous créez vous-même.',
@@ -3372,4 +3373,1194 @@ export const helpFr: Catalogue = {
   'help.journal.editing.b5':
     'Si une fonction est retirée des postes au conseil de la famille, son carnet part avec '
     + 'elle. Il ne reste aucune fonction que les notes puissent suivre.',
+  // ──── PART 9 — Gatherings (Documents, Bylaws, Gallery, Calendar) ──────────────
+  'help.part.gatherings.title': 'Rassemblements',
+  'help.part.gatherings.blurb':
+    'Mettre le rassemblement au calendrier, et faire répartir le travail qu’il demande.',
+  'help.documents.title': 'Documents',
+  'help.documents.summary':
+    'Les archives classées de la famille — ce qui peut être téléversé, comment en trouver '
+    + 'un, et qui peut le retirer.',
+  'help.documents.what-it-is.heading': 'Le classeur',
+  'help.documents.what-it-is.b0':
+    '[Documents](/library/documents) est là où les archives de la famille vivent — '
+    + 'formulaires, dépôts, copies signées. Cela a été déplacé sous **Bibliothèque** le '
+    + '22-08-2026, à côté des carnets que ses titulaires tiennent et des procès-verbaux et '
+    + 'statuts de la famille, car le lecteur qui veut l’un est le lecteur qui veut les '
+    + 'autres.',
+  'help.documents.what-it-is.b1':
+    '**Excel, Word, PDF ou CSV seulement**, jusqu’à 25 Mo. Les deux générations des formats '
+    + 'Office, car un document écrit en 2004 est réellement un `.doc`. Une photographie va '
+    + 'dans la [Galerie](/community/gallery), qui fait des albums et de l’étiquetage que '
+    + 'cette liste ne fera jamais.',
+  'help.documents.uploading.heading': 'Classer quelque chose',
+  'help.documents.uploading.b0.i0': 'Appuyez sur **Téléverser un document**.',
+  'help.documents.uploading.b0.i1':
+    'Choisissez le fichier. Le nom se remplit de lui-même à partir du nom du fichier ; '
+    + 'changez-le si vous voulez.',
+  'help.documents.uploading.b0.i2':
+    'Ajoutez une description si nécessaire, et choisissez une catégorie.',
+  'help.documents.uploading.b0.i3': 'Appuyez sur **Téléverser**.',
+  'help.documents.uploading.b1':
+    '**Trois catégories : Statuts, Formulaires et Autres.** Il y en avait cinq. *Photos* '
+    + 'est partie car la [Galerie](/community/gallery) est l’écran pour une image, et '
+    + '*Procès-verbaux* est parti car [Procès-verbaux](/library/meeting-minutes) est un vrai '
+    + 'écran maintenant. Un PDF du procès-verbal d’une réunion tenue en dehors du produit est '
+    + '**Autres**.',
+  'help.documents.uploading.b2':
+    'Un document déjà classé sous une des catégories retirées la garde et l’affiche '
+    + 'toujours. Rien ne réécrit la décision de classement de quelqu’un d’autre.',
+  'help.documents.finding-and-removing.heading': 'En trouver un, et en retirer un',
+  'help.documents.finding-and-removing.b0':
+    'Le champ de recherche correspond au nom et à la description ; la liste déroulante de '
+    + 'catégorie restreint à une seule sorte. Appuyer sur le nom d’un document l’ouvre.',
+  'help.documents.finding-and-removing.b1':
+    '**Quiconque a téléversé un document peut le supprimer.** Supprimer celui de n’importe '
+    + 'qui demande l’autorisation sans restriction — voyez [Qui peut faire '
+    + 'quoi](/help/who-can-do-what). Le fichier est retiré en même temps que la ligne.',
+  'help.bylaws.title': 'Statuts',
+  'help.bylaws.summary':
+    'Les règles que la famille a convenu de suivre, et la recherche à l’intérieur — y '
+    + 'compris ce que la recherche ne peut pas encore atteindre.',
+  'help.bylaws.what-it-is.heading': 'Ce qu’est cet écran',
+  'help.bylaws.what-it-is.b0':
+    '[Statuts](/library/bylaws) contient les documents qui régissent la famille, article '
+    + 'par article, et permet à quiconque de les chercher. Chaque membre approuvé peut les '
+    + 'lire — une règle que personne ne peut lire n’en est pas une.',
+  'help.bylaws.what-it-is.b1':
+    'Un article a un numéro (« Article IV »), un titre, un résumé facultatif, et soit le '
+    + 'texte saisi, soit un document téléversé, soit les deux.',
+  'help.bylaws.not-finished.heading': 'Ce que la recherche peut atteindre et ne peut pas',
+  'help.bylaws.not-finished.b0':
+    '**Cet écran est un échafaudage, et une partie de lui n’est réellement pas '
+    + 'construite.** Lire le texte d’un PDF ou d’un fichier Word n’est pas implémenté, donc :',
+  'help.bylaws.not-finished.b1.i0':
+    'Un article dont vous avez **saisi ou collé** le texte est cherchable mot par mot.',
+  'help.bylaws.not-finished.b1.i1':
+    'Un article qui n’est **qu’un PDF ou un fichier Word téléversé** est cherchable par son '
+    + 'titre, son numéro d’article et son résumé — non par ce qu’il contient. Il se téléverse '
+    + 'toujours et se télécharge toujours.',
+  'help.bylaws.not-finished.b2':
+    'Chaque article porte une mention disant lequel des deux il est, et une recherche qui '
+    + 'n’a rien trouvé le dit aussi. C’est délibéré : « aucun résultat » et « non indexé » '
+    + 'sont des faits différents, et un lecteur qui ne peut les distinguer conclut que les '
+    + 'statuts ne disent pas une chose qu’ils disent.',
+  'help.bylaws.not-finished.b3':
+    'Jusqu’à ce que cela soit construit, **coller le texte est ce qui rend un article '
+    + 'trouvable**. Le formulaire le dit là où vous n’y penseriez pas autrement.',
+  'help.bylaws.searching.heading': 'Chercher',
+  'help.bylaws.searching.b0':
+    'Des mots entiers, et il comprend les terminaisons — chercher « réunion » trouve « '
+    + 'réunions ». Mettez une expression entre guillemets pour qu’elle corresponde d’un bloc, '
+    + 'et mettez un moins devant un mot pour l’exclure.',
+  'help.bylaws.searching.b1':
+    'Laissez le champ vide et appuyez sur **Effacer** pour les relire dans l’ordre, ce à '
+    + 'quoi la numérotation propre à la famille sert.',
+  'help.gallery.title': 'Galerie',
+  'help.gallery.summary':
+    'Des albums des photographies de la famille — téléverser un lot, étiqueter qui est sur '
+    + 'chacune, et les retrouver.',
+  'help.gallery.what-it-is.heading': 'Des albums, non un tas',
+  'help.gallery.what-it-is.b0':
+    'La [Galerie](/community/gallery) garde les photographies dans des **albums** — un '
+    + 'rassemblement, un mariage, une année. Un album a un nom, une description facultative, '
+    + 'et un nombre quelconque d’images.',
+  'help.gallery.what-it-is.b1':
+    'Elle s’appelait Photos et se trouvait sous Ressources jusqu’au 22-08-2026. Le même '
+    + 'écran, avec davantage dedans.',
+  'help.gallery.what-it-is.b2':
+    'Uniquement des fichiers image : JPEG, PNG, WebP ou GIF, jusqu’à 10 Mo chacun. Un HEIC '
+    + 'sorti tout droit d’un iPhone est refusé, car aucun navigateur sauf Safari ne peut en '
+    + 'afficher un — iOS convertit en JPEG lorsque vous choisissez un fichier, donc en '
+    + 'pratique cela ne gêne qu’un fichier que vous avez copié du téléphone vous-même.',
+  'help.gallery.uploading.heading': 'Ajouter des photographies',
+  'help.gallery.uploading.b0.i0': 'Ouvrez l’album.',
+  'help.gallery.uploading.b0.i1': 'Appuyez sur **Ajouter des photographies**.',
+  'help.gallery.uploading.b0.i2':
+    'Appuyez sur **Choisir des fichiers** et sélectionnez-en autant que vous voulez d’un '
+    + 'coup.',
+  'help.gallery.uploading.b0.i3':
+    'Donnez-leur une légende si elles en partagent une — elle s’applique à tout le lot.',
+  'help.gallery.uploading.b0.i4': 'Appuyez sur **Téléverser**.',
+  'help.gallery.uploading.b1':
+    '**Un lot n’est pas tout ou rien.** Si un fichier est du mauvais type ou trop gros, le '
+    + 'reste se téléverse tout de même et le panneau nomme ceux qui ne l’ont pas fait, et '
+    + 'pourquoi. Vous n’avez pas à trouver le fichier fautif et à recommencer.',
+  'help.gallery.uploading.b2':
+    'La légende s’applique à chaque photographie du lot, ce qui convient pour « samedi, au '
+    + 'lac » et ne convient pas à une image qui a besoin de la sienne. Corrigez-en une en '
+    + 'particulier ensuite dans la vue en liste — voyez [changer une légende](#tidying).',
+  'help.gallery.tidying.heading': 'Légendes, étiquettes, et la vue en liste',
+  'help.gallery.tidying.b0':
+    'Il y a deux façons de regarder un album, et l’interrupteur est au-dessus. **Grille** '
+    + 'est pour regarder : des vignettes carrées, et appuyer sur l’une l’ouvre en pleine '
+    + 'taille. **Liste** est pour ranger : des images plus petites, une par ligne, avec la '
+    + 'légende et les étiquettes modifiables sur place.',
+  'help.gallery.tidying.b1':
+    '**Étiqueter** dit qui est sur une photographie. Appuyez sur **Étiqueter quelqu’un** '
+    + 'sur une ligne et cherchez dans la famille ; la recherche trouve « José » si vous '
+    + 'saisissez « jose » et « O’Connor » si vous saisissez « oconnor ». Appuyez sur le × '
+    + 'd’une étiquette pour la retirer.',
+  'help.gallery.tidying.b2':
+    'Aucune des deux vues ne masque quoi que ce soit : les filtres au-dessus de l’album '
+    + 'sont ce qui le restreint, et ils restreignent les deux — voyez [Trouver une '
+    + 'photographie](#finding).',
+  'help.gallery.finding.heading': 'Trouver une photographie',
+  'help.gallery.finding.b0':
+    'Deux filtres se trouvent au-dessus d’un album, et ils restreignent ensemble.',
+  'help.gallery.finding.b1.i0.term': 'Chercher dans les légendes',
+  'help.gallery.finding.b1.i0.text':
+    'Saisissez n’importe quelle partie d’une légende. Plusieurs mots correspondent dans '
+    + 'n’importe quel ordre : « rassemblement lac » trouve donc « Trois jours au lac — '
+    + 'rassemblement 2026 ». Les accents et la ponctuation sont ignorés des deux côtés : « '
+    + 'jose » trouve « José » et « grand-meres » trouve « Grand-mère ». Une photographie sans '
+    + 'légende ne correspond jamais à une recherche.',
+  'help.gallery.finding.b1.i1.term': 'Qui est dessus',
+  'help.gallery.finding.b1.i1.text':
+    'Choisissez autant de personnes étiquetées que vous voulez. Une photographie s’affiche '
+    + 'quand N’IMPORTE LAQUELLE d’entre elles y figure : en choisir trois élargit donc le '
+    + 'résultat plutôt que de le restreindre. Le bouton porte un décompte tant que le filtre '
+    + 'est actif, et n’apparaît que lorsque quelqu’un est étiqueté dans cet album.',
+  'help.gallery.finding.b2':
+    'Une ligne sous la barre dit combien des photographies de l’album s’affichent et '
+    + 'pourquoi, avec **Effacer les filtres** pour toutes les remettre. Aucun des deux '
+    + 'filtres ne change quoi que ce soit pour quiconque d’autre — c’est ce que vous '
+    + 'regardez, non ce que l’album contient.',
+  'help.gallery.who-can-change-what.heading': 'Qui peut changer quoi',
+  'help.gallery.who-can-change-what.b0':
+    '**Une photographie appartient à celui qui l’a téléversée.** Il peut changer sa légende '
+    + 'et la supprimer. Quiconque d’autre a besoin de l’autorisation sans restriction sur la '
+    + 'Galerie — voyez [Qui peut faire quoi](/help/who-can-do-what).',
+  'help.gallery.who-can-change-what.b1.i0.term': 'Légende',
+  'help.gallery.who-can-change-what.b1.i0.text':
+    'Celui qui l’a téléversée, ou quelqu’un ayant l’autorisation de modifier celle de '
+    + 'n’importe qui.',
+  'help.gallery.who-can-change-what.b1.i1.term': 'Étiquettes',
+  'help.gallery.who-can-change-what.b1.i1.text':
+    'Quiconque peut modifier la galerie. Étiqueter ne porte pas sur à qui la photographie '
+    + 'appartient — cela porte sur qui est dessus, et la personne qui reconnaît un cousin '
+    + 'n’est souvent pas celle qui a pris l’image.',
+  'help.gallery.who-can-change-what.b1.i2.term': 'Supprimer une photographie',
+  'help.gallery.who-can-change-what.b1.i2.text':
+    'Celui qui l’a téléversée, ou quelqu’un ayant l’autorisation sans restriction. Le '
+    + 'fichier image est retiré en plus de la ligne.',
+  'help.gallery.who-can-change-what.b1.i3.term': 'Supprimer un album',
+  'help.gallery.who-can-change-what.b1.i3.text':
+    'Celui qui l’a créé, ou quelqu’un ayant l’autorisation sans restriction — ce qu’un '
+    + 'administrateur détient. La commande est la corbeille dans le coin de la tuile de '
+    + 'l’album sur la page de la Galerie. Elle emporte chaque photographie de l’album, et les '
+    + 'fichiers image aussi ; la confirmation dit combien avant que vous ne vous engagiez.',
+  'help.gallery.who-can-change-what.b2':
+    'Supprimer un album n’est pas réversible ni partiellement réversible. L’avertissement '
+    + 'compte les photographies pour exactement cette raison.',
+  'help.calendar.title': 'Calendrier',
+  'help.calendar.summary':
+    'La grille du mois qui place chaque rassemblement, réunion et fenêtre d’élection au '
+    + 'jour où il tombe, comment passer d’un mois à l’autre, et ce qu’elle fait sur un '
+    + 'téléphone.',
+  'help.calendar.what-it-is.heading': 'Un mois à la fois',
+  'help.calendar.what-it-is.b0':
+    '[Calendrier](/gatherings/calendar) est une vraie grille de mois — les semaines vers le '
+    + 'bas, les jours de la semaine en travers, dimanche en premier — avec trois choses aux '
+    + 'jours où elles tombent : les **rassemblements** de la famille, les **réunions** '
+    + 'auxquelles vous êtes convié, et les fenêtres ouvertes de **nomination et de vote** de '
+    + 'ses élections. Elle ne crée rien. Chaque entrée est un lien vers l’écran qui la '
+    + 'détient — [Rassemblements](/gatherings), [Procès-verbaux](/library/meeting-minutes) ou '
+    + '[Élections](/community/elections) — là où la chose elle-même vit et se modifie.',
+  'help.calendar.what-it-is.b1':
+    'La légende ne nomme que ce qui est effectivement sur la grille ce mois-ci, et chaque '
+    + 'entrée dit de quelle sorte elle est en mots autant qu’en couleur — la distinction '
+    + 'survit donc à la fois à un lecteur d’écran et à un lecteur qui ne peut pas séparer les '
+    + 'teintes. **Rassemblement à la une** est doré, **Rassemblement** est bordeaux doux, '
+    + '**Réunion** est bordeaux plein, et une élection est terre cuite chaude : en contour '
+    + 'tant que les **Nominations** sont ouvertes, pleine dès que le **Vote** l’est. Il y en '
+    + 'avait une sixième pour un Événement jusqu’au 19-08-2026 ; ce produit est retiré.',
+  'help.calendar.reading.heading': 'Lire une journée',
+  'help.calendar.reading.b0':
+    'Aujourd’hui est marqué. **Tout ce qui court sur plusieurs jours est dessiné comme une '
+    + 'seule barre à travers eux**, avec son nom à l’extrémité gauche — un rassemblement de '
+    + 'trois jours est une barre de trois jours de large, et une quinzaine de vote est une '
+    + 'barre dans chacune des deux semaines qu’elle traverse. C’est toute la raison de '
+    + 'l’existence d’une date de fermeture. Une élection apporte deux barres plutôt qu’une : '
+    + 'la fenêtre de nomination et, après un intervalle, la fenêtre de vote. Les jours entre '
+    + 'elles sont délibérément vides, car ces jours-là la liste est close et il n’y a rien '
+    + 'encore à faire.',
+  'help.calendar.reading.b1':
+    '**Une barre à l’extrémité carrée est coupée, non terminée.** Une série qui traverse un '
+    + 'samedi doit être dessinée comme une barre par semaine : les bords plats sont donc là '
+    + 'où elle se poursuit dans la rangée du dessus ou du dessous ; les extrémités arrondies '
+    + 'sont là où la chose elle-même commence et s’arrête.',
+  'help.calendar.reading.b2':
+    'La grille montre toujours des semaines entières : la première et la dernière rangée '
+    + 'portent donc quelques jours des mois voisins. Ces jours gardent leurs entrées — un '
+    + 'rassemblement commençant le 1er est visible dans la dernière rangée du mois précédent, '
+    + 'là où vous le chercheriez une semaine plus tôt.',
+  'help.calendar.reading.b3':
+    'C’était une puce par jour jusqu’au 22-08-2026 — une fenêtre d’élection de deux jours '
+    + 'se lisait comme deux choses distinctes portant le même nom.',
+  'help.calendar.moving.heading': 'Passer d’un mois à l’autre',
+  'help.calendar.moving.b0':
+    'Les liens de part et d’autre du titre sont le mois précédent et le mois suivant, '
+    + 'chacun nommé, avec **Ce mois-ci** entre eux. Les trois sont de vrais liens : cmd-clic, '
+    + 'clic du bouton central et copier l’adresse du lien fonctionnent donc dessus.',
+  'help.calendar.moving.b1':
+    'Le mois est dans l’adresse, ce qui veut dire qu’un lien vers un mois est un lien vers '
+    + 'ce mois — [juin 2027](/gatherings/calendar?month=2027-06) ouvre juin 2027 pour '
+    + 'quiconque vous l’envoyez, et il peut être mis en signet. Une adresse que la page ne '
+    + 'peut pas lire retombe sur le mois en cours plutôt que de dessiner un mois qui n’existe '
+    + 'pas.',
+  'help.calendar.phone.heading': 'Sur un téléphone',
+  'help.calendar.phone.b0':
+    'En dessous de la largeur qu’une grille de sept colonnes exige, le calendrier devient '
+    + 'une liste des jours qui portent quelque chose, dans l’ordre, avec le jour de la '
+    + 'semaine et la date à côté de chacun. Un jour emprunté à un mois voisin est étiqueté '
+    + '**Mois précédent** ou **Mois suivant**, puisqu’il n’a plus de colonne pour le dire.',
+  'help.calendar.phone.b1':
+    'C’est une seconde vue du même mois plutôt qu’un second calendrier — les mêmes entrées, '
+    + 'les mêmes liens. C’est un choix délibéré face au fait de comprimer la grille : à la '
+    + 'largeur d’un téléphone un jour est trop étroit pour contenir une date et un titre, et '
+    + 'un mois de cellules majoritairement vides est un écran de rien quand la question est '
+    + 'ce qui arrive.',
+  'help.calendar.phone.b2':
+    '**Une série de jours est une ligne par jour ici, non une barre.** La liste n’a pas '
+    + 'd’axe de gauche à droite le long duquel une barre pourrait s’étirer : un rassemblement '
+    + 'de trois jours apparaît donc sous chacune de ses trois dates avec son nom sur chacune '
+    + '— ce que l’on attend d’une liste de jours.',
+  'help.calendar.missing.heading': 'Quand quelque chose n’y est pas',
+  'help.calendar.missing.b0':
+    'Une ligne apparaît au-dessus de la grille lorsque l’une des trois sources y manque, et '
+    + 'elle nomme laquelle — rassemblements, réunions ou élections. Elle ne peut pas dire '
+    + 'POURQUOI, et ne le devine pas : cela veut dire soit que l’écran ne vous a pas été '
+    + 'partagé, soit qu’il n’a pas pu être lu à l’instant.',
+  'help.calendar.missing.b1':
+    'Dans les deux cas le mois que vous regardez n’est pas le mois entier, et c’est la '
+    + 'raison même de la présence de cette ligne — un août vide dont rien n’est dit se lit '
+    + 'comme un fait sur la famille. Un mois qui n’a réellement rien le dit à la place.',
+  // ──── PART 9 — Gatherings (Gatherings) ────────────────────────────────────────
+  'help.gatherings.title': 'Rassemblements',
+  'help.gatherings.summary':
+    'Ce qu’est un rassemblement, comment on en programme un, comment lire ses tâches et son '
+    + 'budget, et où sont vos propres tâches.',
+  'help.gatherings.what-it-is.heading': 'Un rassemblement, et en quoi il diffère d’un événement',
+  'help.gatherings.what-it-is.b0':
+    '[Rassemblements](/gatherings) est la famille qui organise le travail de se réunir. Un '
+    + 'rassemblement est une occasion nommée — une retrouvaille, un hommage, un banquet — '
+    + 'décomposée en les travaux qu’elle demande, avec le nom d’un proche en face de chacun '
+    + 'et une réponse que quelqu’un accepte. Sa question est qui fait quoi, et si cela a été '
+    + 'fait et accepté.',
+  'help.gatherings.what-it-is.b1':
+    'L’écran comporte deux panneaux. **Rassemblements** est tout ce que la famille '
+    + 'organise, traité par ce chapitre ; **Mes tâches** est votre propre part, traitée par '
+    + '[Mes tâches de rassemblement](/help/gathering-tasks#what-it-is). Les deux s’accordent '
+    + 'séparément : une famille peut donc donner à quelqu’un ses propres tâches sans lui '
+    + 'donner la liste de toute la famille.',
+  'help.gatherings.what-it-is.b2':
+    'Il y avait un produit Événements distinct jusqu’au 19-08-2026 — des confirmations de '
+    + 'présence par foyer, des blocs de chambres d’hôtel et un pointage le jour même — et il '
+    + 'a disparu. Rassemblements l’a remplacé, et ces trois choses ne sont pas dans le '
+    + 'produit aujourd’hui : une étape d’un rassemblement peut DEMANDER n’importe laquelle '
+    + 'd’entre elles à un proche, mais il n’y a ni décompte de présents, ni bloc de chambres, '
+    + 'ni liste de pointage. Tout ce que la famille avait enregistré est conservé ; rien de '
+    + 'nouveau ne peut y être ajouté.',
+  'help.gatherings.what-it-is.b3':
+    'Un rassemblement peut être bâti à partir d’un ou plusieurs modèles — une liste '
+    + 'ordonnée et nommée d’étapes que quelqu’un a rédigée une fois. Chaque étape de chaque '
+    + 'modèle dont il est bâti devient une tâche du rassemblement : rien n’est donc oublié '
+    + 'd’une année à l’autre. La bibliothèque est [Modèles de '
+    + 'rassemblement](/admin/gatherings/templates).',
+  'help.gatherings.what-it-is.b4':
+    'Un rassemblement sans modèle est une date sur [le calendrier](/gatherings/calendar) '
+    + 'avec un lieu et une description et aucune tâche — ce dont certaines occasions ont '
+    + 'uniquement besoin, et c’est souvent là qu’on commence. Un organisateur peut lui '
+    + 'ajouter un modèle plus tard, et les étapes deviennent alors des tâches.',
+  'help.gatherings.what-it-is.b5':
+    'Chacun de ces modèles est un **segment** : une partie de l’occasion avec son propre '
+    + 'jour et son propre lieu. C’est ce qui permet à un rassemblement d’être une '
+    + 'retrouvaille de trois jours — l’Accueil le vendredi soir à une adresse, le Pique-nique '
+    + 'le samedi à une autre, les Adieux le dimanche matin — plutôt qu’un bloc de dates avec '
+    + 'tout classé dessous. Un rassemblement qui a lieu d’un seul coup en un seul endroit '
+    + 'n’indique simplement ni l’un ni l’autre, et se lit comme il l’a toujours fait.',
+  'help.gatherings.browsing.heading': 'À venir, et déjà tenus',
+  'help.gatherings.browsing.b0':
+    'La page comporte deux listes. **À venir** contient tout ce qui n’est pas terminé, du '
+    + 'plus proche au plus lointain ; **Déjà tenus** contient le reste, du plus récent au '
+    + 'plus ancien. Un rassemblement qui court sur plusieurs jours reste sous À venir chacun '
+    + 'de ces jours et est marqué **En cours** tant qu’il l’est.',
+  'help.gatherings.browsing.b1':
+    'Chaque carte porte les dates, le lieu, l’avancement du travail — « 4 tâches sur 9 '
+    + 'approuvées », ou **Aucune tâche pour l’instant** pour un rassemblement auquel rien n’a '
+    + 'été ajouté — et un statut. Le statut est fixé par l’organisateur plutôt que déduit du '
+    + 'calendrier, car un rassemblement peut être annulé sans que ses dates bougent :',
+  'help.gatherings.browsing.b2.i0.term': 'En préparation',
+  'help.gatherings.browsing.b2.i0.text':
+    'Il se met en place. Les dates peuvent encore bouger. Seul un rassemblement bâti à '
+    + 'partir de modèles commence ici — un rassemblement qui n’est qu’une date commence à '
+    + 'Programmé, car il n’y a rien à préparer.',
+  'help.gatherings.browsing.b2.i1.term': 'Programmé',
+  'help.gatherings.browsing.b2.i1.text': 'Arrêté, et il aura lieu.',
+  'help.gatherings.browsing.b2.i2.term': 'Terminé',
+  'help.gatherings.browsing.b2.i2.text': 'Achevé, et déclaré achevé par la personne qui l’a mené.',
+  'help.gatherings.browsing.b2.i3.term': 'Annulé',
+  'help.gatherings.browsing.b2.i3.text': 'Décommandé. Rien n’est supprimé et cela peut être remis.',
+  'help.gatherings.browsing.b3':
+    '**À la une** marque un rassemblement que la famille devrait voir en premier : il '
+    + 'reçoit un bandeau en haut du [tableau de bord](/dashboard). Plusieurs peuvent porter '
+    + 'la marque à la fois, et le tableau de bord affiche le plus proche encore à venir — la '
+    + 'retrouvaille de l’an dernier ne bloque donc jamais celle de cette année.',
+  'help.gatherings.scheduling.heading': 'En programmer un',
+  'help.gatherings.scheduling.b0':
+    '**Programmer un rassemblement** apparaît lorsque vous pouvez en démarrer un. Le '
+    + 'formulaire demande les modèles avant le titre, car en cocher un change ce à quoi le '
+    + 'reste du formulaire sert :',
+  'help.gatherings.scheduling.b1.i0': 'Appuyez sur **Programmer un rassemblement**.',
+  'help.gatherings.scheduling.b1.i1':
+    'Cochez les modèles que vous voulez sous **Bâti à partir de**. Chaque étape de chacun '
+    + 'que vous cochez devient une tâche, prête à répartir, et chaque modèle coché devient un '
+    + 'segment du rassemblement. N’en cochez aucun et le rassemblement est une date sans '
+    + 'tâches.',
+  'help.gatherings.scheduling.b1.i2': 'Remplissez **Titre**.',
+  'help.gatherings.scheduling.b1.i3':
+    'Remplissez **Quand** — voyez ci-dessous. Une date est tout ce qui est exigé.',
+  'help.gatherings.scheduling.b1.i4': '**Où** et **Ce que c’est** sont facultatifs.',
+  'help.gatherings.scheduling.b1.i5':
+    'Appuyez sur **Programmer le rassemblement**. Vous arrivez sur le rassemblement '
+    + 'lui-même, où les tâches qu’il vient de créer vous attendent.',
+  'help.gatherings.scheduling.b2':
+    'Chaque modèle décide lui-même qui peut programmer à partir de lui : la liste proposée '
+    + 'ici n’est donc pas toute la bibliothèque — un modèle réservé aux Administrateurs n’y '
+    + 'figure pas à moins que vous puissiez gérer les rassemblements, et un modèle archivé ne '
+    + 'peut rien démarrer de nouveau. Là où rien n’est proposé du tout, le formulaire dit que '
+    + 'le rassemblement sera une date sans tâches et renvoie à la bibliothèque pour qui peut '
+    + 'en rédiger un : rien ne va mal avec votre accès.',
+  'help.gatherings.when.heading': 'Quand cela a lieu',
+  'help.gatherings.when.b0':
+    '**Quand** est le même ensemble de commandes partout où un rassemblement est créé ou '
+    + 'modifié. Une date est la seule chose sur laquelle il insiste ; tout le reste est là '
+    + 'quand vous en avez besoin.',
+  'help.gatherings.when.b1.i0.term': 'Commence',
+  'help.gatherings.when.b1.i0.text':
+    'Le jour où il commence et — si vous voulez le dire — l’heure. Laissez l’heure vide et '
+    + 'le rassemblement est simplement « ce jour-là », ce qui est la façon dont la plupart '
+    + 'sont saisis.',
+  'help.gatherings.when.b1.i1.term': 'Heure de fin',
+  'help.gatherings.when.b1.i1.text':
+    'Quand il se termine. Sur une seule journée c’est une heure et rien d’autre : un '
+    + 'pique-nique qui va de 11 h à 16 h a une heure de fin et aucune date de fin.',
+  'help.gatherings.when.b1.i2.term': 'S’étend sur plus d’une journée',
+  'help.gatherings.when.b1.i2.text':
+    'Cochez ceci et une question de plus apparaît, car deux choses très différentes '
+    + 'prennent toutes deux plus d’une journée.',
+  'help.gatherings.when.b2': 'Cette question est celle qui compte :',
+  'help.gatherings.when.b3.i0.term': 'Un bloc continu',
+  'help.gatherings.when.b3.i0.text':
+    'Une retrouvaille du vendredi soir au dimanche midi. Donnez le jour où il se termine '
+    + 'et, si vous voulez, l’heure. Cela se dessine comme une seule barre couvrant ces jours '
+    + 'sur [le calendrier](/gatherings/calendar).',
+  'help.gatherings.when.b3.i1.term': 'Des jours séparés, le même rassemblement',
+  'help.gatherings.when.b3.i1.text':
+    'Une réunion de commission trois samedis. Ajoutez une ligne pour chaque jour, chacune '
+    + 'avec ses propres horaires. Chacune se dessine comme sa propre entrée sur le '
+    + 'calendrier, toutes portant le titre de ce rassemblement.',
+  'help.gatherings.when.b4':
+    'La différence compte plus qu’il n’y paraît. Avant que cela n’existe, trois samedis '
+    + 'devaient être saisis comme un premier jour et un dernier jour — ce qui posait une '
+    + 'barre sur toute la quinzaine et disait à la famille qu’elle se réunissait pendant deux '
+    + 'semaines. Les jours séparés disent ce qui se passe réellement.',
+  'help.gatherings.when.b5':
+    '**La fin ne peut jamais précéder le début.** Les sélecteurs de date grisent les jours '
+    + 'impossibles, et si vous y arrivez autrement le formulaire le dit plutôt que de '
+    + 'l’enregistrer. Cela vaut aussi pour les horaires à l’intérieur d’une journée — 14 h à '
+    + '9 h n’est pas un rassemblement — alors que sur plusieurs jours c’est parfaitement '
+    + 'ordinaire : vendredi 18 h à dimanche 11 h est donc accepté.',
+  'help.gatherings.when.b6':
+    '**Donnez une heure et il vous est demandé dans quel fuseau horaire elle est**, en '
+    + 'commençant par le vôtre. L’heure est ensuite affichée exactement comme vous l’avez '
+    + 'saisie, avec ce fuseau nommé à côté — 11 h 00 CDT.',
+  'help.gatherings.when.b7':
+    'Rien n’est jamais converti. Une heure ici veut dire ce qu’elle dit là où le '
+    + 'rassemblement a lieu, exactement comme sur une invitation imprimée, et chaque proche '
+    + 'voit le même chiffre — le fuseau est nommé pour que quelqu’un d’ailleurs sache quoi en '
+    + 'faire, non pour que le produit le déplace discrètement.',
+  'help.gatherings.the-page.heading': 'La page propre à un rassemblement',
+  'help.gatherings.the-page.b0':
+    'Le titre, les dates, le lieu, puis **Tâches** : chaque travail du rassemblement, '
+    + 'groupé par le segment auquel il appartient, dans l’ordre où ils seront répartis. '
+    + 'Chaque groupe est coiffé du nom de ce segment, et sous lui le jour et le lieu propres '
+    + 'au segment là où l’organisateur les a indiqués ; un segment qui n’indique ni l’un ni '
+    + 'l’autre est coiffé de son nom seul. Une tâche dont le modèle a depuis été détaché est '
+    + 'groupée sous **Sans modèle** plutôt que d’être écartée, car c’est toujours quelque '
+    + 'chose qui a été demandé à un proche.',
+  'help.gatherings.the-page.b1':
+    'Chaque ligne donne à la tâche sa personne, son statut, sa date d’échéance, sa ligne '
+    + 'budgétaire et la réponse acceptée. Dès qu’il y en a plus d’une poignée, **Trouver une '
+    + 'tâche** restreint par travail ou par nom, et **Affichage** restreint à un seul statut.',
+  'help.gatherings.the-page.b2.i0.term': 'Pas commencée',
+  'help.gatherings.the-page.b2.i0.text': 'Personne n’a encore rien envoyé.',
+  'help.gatherings.the-page.b2.i1.term': 'En attente d’examen',
+  'help.gatherings.the-page.b2.i1.text': 'Une réponse est là et personne ne l’a tranchée.',
+  'help.gatherings.the-page.b2.i2.term': 'Approuvée',
+  'help.gatherings.the-page.b2.i2.text':
+    'Acceptée. Cette réponse est le relevé qu’en garde la famille et la personne qui l’a '
+    + 'envoyée ne peut pas la changer.',
+  'help.gatherings.the-page.b2.i3.term': 'À revoir',
+  'help.gatherings.the-page.b2.i3.text':
+    'Renvoyée avec des notes. Les notes sont sur la ligne, et la personne qui tient la '
+    + 'tâche les lit sur [Mes tâches de rassemblement](/gatherings/my-tasks).',
+  'help.gatherings.the-page.b3':
+    '**Organiser ce rassemblement** apparaît pour quelqu’un qui peut le mener et conduit au '
+    + 'même rassemblement sur [Gestion des rassemblements](/admin/gatherings), là où le '
+    + 'travail se répartit et se tranche. Sur le forfait Gratuit il indique **Modifier ce '
+    + 'rassemblement** et mène au même endroit — il n’y a pas de travail à répartir, donc la '
+    + 'console est là où le titre, les dates, le lieu et le statut se changent.',
+  'help.gatherings.free-plan.heading': 'Les rassemblements sur le forfait Gratuit',
+  'help.gatherings.free-plan.b0':
+    'Un rassemblement est une date, un lieu et une description sur le forfait Gratuit, et '
+    + 'c’est une fonctionnalité complète : il va sur [le calendrier](/gatherings/calendar), '
+    + 'chaque proche peut le voir, et il peut être modifié ou annulé à tout moment.',
+  'help.gatherings.free-plan.b1':
+    'Ce que Gratuit n’inclut pas, c’est la moitié organisation — les listes de contrôle à '
+    + 'partir desquelles un rassemblement est bâti, les tâches réparties à des proches '
+    + 'nommément, et le budget tiré d’un fonds. Il n’y a donc pas de statut **En '
+    + 'préparation**, pas de **Segments**, pas de **Tâches**, et rien à organiser ; la page '
+    + 'du rassemblement dit ce que celles-ci apporteraient plutôt que d’afficher des panneaux '
+    + 'vides pour elles.',
+  'help.gatherings.free-plan.b2':
+    'Rien n’est perdu en restant sur Gratuit et rien n’est perdu en le quittant. Une '
+    + 'famille qui monte peut commencer à répartir du travail sur des rassemblements qu’elle '
+    + 'a déjà, et une famille qui redescend garde chaque tâche et chaque réponse déjà '
+    + 'enregistrées — elle ne peut simplement plus en ajouter.',
+  'help.gatherings.budget.heading': 'Le bandeau Budget',
+  'help.gatherings.budget.b0':
+    'Un rassemblement peut porter un budget tiré de l’un des fonds de la famille. Là où '
+    + 'c’est le cas, le bandeau **Budget** se place au-dessus des tâches avec quatre chiffres '
+    + ':',
+  'help.gatherings.budget.b1.i0.term': 'Budgété',
+  'help.gatherings.budget.b1.i0.text': 'Ce que ce rassemblement prévoit de dépenser en tout.',
+  'help.gatherings.budget.b1.i1.term': 'Réclamé par les tâches',
+  'help.gatherings.budget.b1.i1.text':
+    'Les lignes budgétaires de chaque tâche additionnées — ce qui a été réservé pour un '
+    + 'travail particulier.',
+  'help.gatherings.budget.b1.i2.term': 'Non affecté',
+  'help.gatherings.budget.b1.i2.text':
+    'Budgété moins réclamé : ce qu’il reste à répartir. Il indique Au-delà du budget dès '
+    + 'que les lignes l’ont dépassé.',
+  'help.gatherings.budget.b1.i3.term': 'Dans le fonds',
+  'help.gatherings.budget.b1.i3.text':
+    'Ce que le fonds détient réellement, et quelle part d’entre elle d’autres '
+    + 'rassemblements réclament déjà.',
+  'help.gatherings.budget.b2':
+    'Un budget peut être plus grand que le fonds dont il est tiré, car une famille organise '
+    + 'une retrouvaille avant d’avoir réuni l’argent pour une. Quand c’est le cas, une ligne '
+    + 'rouge dit de combien — et une seconde ligne rouge apparaît là où ce rassemblement '
+    + 'tient dans le fonds à lui seul mais plus une fois comptés les autres rassemblements '
+    + 'tirant du même fonds. Aucune des deux n’est un refus. Ce sont les chiffres qui disent '
+    + 'ce que le plan coûte.',
+  'help.gatherings.budget.b3':
+    'La ligne plus discrète en dessous est autre chose et n’est délibérément pas rouge : '
+    + 'elle dit que les lignes des tâches réclament ensemble plus que le rassemblement n’a '
+    + 'budgété. Rien n’a été dépensé, et cela se règle en augmentant le budget ou en rognant '
+    + 'une ligne.',
+  'help.gatherings.budget.b4':
+    'Le bandeau est absent sur certains rassemblements, et absent n’est pas vide. Là où '
+    + 'l’argent d’un rassemblement ne vous a pas été partagé, il n’y a aucun bandeau du tout '
+    + 'plutôt qu’un bandeau disant qu’il est masqué — ce qui est autre chose qu’un '
+    + 'rassemblement que personne n’a budgété, et celui-là affiche le bandeau sans rien '
+    + 'dedans. Voyez [Qui peut faire quoi](/help/who-can-do-what#one-template).',
+  // ──── PART 9 — Gatherings (My Gathering Tasks) ────────────────────────────────
+  'help.gathering-tasks.title': 'Mes tâches de rassemblement',
+  'help.gathering-tasks.summary':
+    'Les tâches de rassemblement qui vous ont été confiées, le genre de réponse que chacune '
+    + 'demande, et quoi faire quand l’une revient avec des notes.',
+  'help.gathering-tasks.what-it-is.heading': 'Votre part d’un rassemblement',
+  'help.gathering-tasks.what-it-is.b0':
+    '**Mes tâches** est le second panneau des [Rassemblements](/gatherings), et c’est tout '
+    + 'ce que quiconque vous a demandé de faire pour un rassemblement, tous rassemblements '
+    + 'confondus, échéance la plus proche en premier — une tâche sans échéance se place en '
+    + 'bas. L’onglet porte le décompte de ce qui vous attend, et la ligne du haut dit '
+    + 'séparément combien sont revenues pour être revues.',
+  'help.gathering-tasks.what-it-is.b1':
+    'Il avait sa propre rangée de menu jusqu’au 19-08-2026 et est un panneau maintenant. '
+    + 'L’ancienne adresse fonctionne toujours et arrive sur le panneau, et c’est ce qui garde '
+    + 'un lien d’une ancienne notification pointant au bon endroit. Une Action rapide du '
+    + '[Tableau de bord](/dashboard) apparaît quand quelque chose vous attend et disparaît '
+    + 'quand il n’y a rien.',
+  'help.gathering-tasks.what-it-is.b2':
+    'Chaque carte nomme le rassemblement, le modèle dont la tâche est venue, quand elle est '
+    + 'due et ce qu’elle peut dépenser. Une tâche dont l’échéance est passée est signalée '
+    + 'plutôt que discrètement oubliée. Le texte d’aide que l’étape portait est imprimé sous '
+    + 'le titre : c’est la personne qui l’a rédigé qui vous dit ce qui compte comme fait.',
+  'help.gathering-tasks.what-it-is.b3':
+    'CE QUI REND UNE TÂCHE DIFFÉRENTE D’UN FORMULAIRE QUE VOUS REMPLISSEZ, c’est ce qui se '
+    + 'passe après votre réponse. Elle va à l’organisateur, qui l’accepte ou la renvoie avec '
+    + 'des notes — une tâche est donc terminée quand quelqu’un l’a dit, non quand vous avez '
+    + 'saisi quelque chose.',
+  'help.gathering-tasks.what-it-is.b4':
+    'Le panneau est toujours là et un panneau vide dit que rien ne vous est assigné. C’est '
+    + 'l’état prévu pour la plupart des membres la plupart du temps plutôt qu’un défaut — et '
+    + 'il est toujours là pour qu’une tâche confiée ce matin puisse être trouvée ce matin.',
+  'help.gathering-tasks.answering.heading': 'Ce qu’une tâche demande',
+  'help.gathering-tasks.answering.b0':
+    'Une étape dit quel genre de réponse elle veut et vous recevez le champ qui correspond. '
+    + 'Il n’y a pas de champ libre pour tout : une réponse qui ne convient pas au genre est '
+    + 'refusée, avec le motif et une ligne disant ce que le champ attend.',
+  'help.gathering-tasks.answering.b1.i0.term': 'Réponse courte',
+  'help.gathering-tasks.answering.b1.i0.text':
+    'Une ligne — un nom, un numéro de téléphone, une salle.',
+  'help.gathering-tasks.answering.b1.i1.term': 'Réponse longue',
+  'help.gathering-tasks.answering.b1.i1.text':
+    'Un paragraphe — des notes, une description, une explication.',
+  'help.gathering-tasks.answering.b1.i2.term': 'Une date',
+  'help.gathering-tasks.answering.b1.i2.text': 'Une date du calendrier, depuis un champ de date.',
+  'help.gathering-tasks.answering.b1.i3.term': 'Une liste',
+  'help.gathering-tasks.answering.b1.i3.text':
+    'Un nombre quelconque de lignes. Le champ indique **Un élément par ligne**, et une '
+    + 'ligne vide est écartée plutôt qu’enregistrée comme un élément vierge.',
+  'help.gathering-tasks.answering.b1.i4.term': 'Oui ou non',
+  'help.gathering-tasks.answering.b1.i4.text':
+    'Une décision, sous forme de deux choix. Vous devez en choisir un — ne rien toucher '
+    + 'n’est pas une réponse, et rien n’est lu comme Non à votre place.',
+  'help.gathering-tasks.answering.b1.i5.term': 'Un nombre',
+  'help.gathering-tasks.answering.b1.i5.text':
+    'Un décompte ou une quantité. Une fraction est permise, car « combien de kilos de '
+    + 'brisket » est une vraie question.',
+  'help.gathering-tasks.answering.b1.i6.term': 'Une somme d’argent',
+  'help.gathering-tasks.answering.b1.i6.text':
+    'Une somme en dollars avec les cents après le point : saisissez 450.00 pour quatre cent '
+    + 'cinquante dollars. Le champ est précédé d’un signe dollar, et un champ vide est sans '
+    + 'réponse plutôt que rien de dépensé.',
+  'help.gathering-tasks.answering.b2':
+    'Un champ vide n’est jamais envoyé. Appuyer sur le bouton sans rien dans la réponse dit '
+    + 'qu’il n’y a encore rien à envoyer, et c’est ce qui empêche un champ d’argent non '
+    + 'touché d’être classé comme zéro et de se lire comme répondu sur tous les écrans '
+    + 'ensuite.',
+  'help.gathering-tasks.sending.heading': 'Envoyer une réponse',
+  'help.gathering-tasks.sending.b0.i0': 'Remplissez **Votre réponse**.',
+  'help.gathering-tasks.sending.b0.i1':
+    'Ajoutez ce qui vaut la peine d’être dit sous **Quelque chose à dire à l’organisateur '
+    + '?**. C’est facultatif, et cela voyage avec la réponse plutôt que de la remplacer.',
+  'help.gathering-tasks.sending.b0.i2': 'Appuyez sur **Envoyer pour examen**.',
+  'help.gathering-tasks.sending.b1':
+    'Ce que vous avez envoyé vous est ensuite montré au-dessus du formulaire, coiffé de '
+    + '**Envoyé pour examen** avec la date. Jusqu’à ce que quelqu’un le tranche vous pouvez '
+    + 'envoyer autre chose — le bouton indique **Remplacer ma réponse** — et chaque version '
+    + 'est conservée : l’échange peut donc être relu en entier plutôt que seulement sa '
+    + 'dernière ligne.',
+  'help.gathering-tasks.sending.b2':
+    'La personne qui peut la trancher en est informée dans ses notifications à l’instant où '
+    + 'elle entre : vous n’avez donc à le dire à personne séparément.',
+  'help.gathering-tasks.sent-back.heading': 'Quand elle revient',
+  'help.gathering-tasks.sent-back.b0':
+    'Une tâche peut être renvoyée, et son statut indique alors **À revoir**. Cette '
+    + 'formulation est délibérée : ce n’est pas un rejet ni une marque contre vous, c’est la '
+    + 'tâche renvoyée avec des consignes, et les consignes sont tout l’intérêt du renvoi.',
+  'help.gathering-tasks.sent-back.b1':
+    'Elles apparaissent en haut de la carte sous **Ce que l’organisateur a demandé**, '
+    + 'au-dessus du formulaire, pour que vous les lisiez avant de saisir. Corrigez ce qu’ils '
+    + 'ont demandé et appuyez sur **La renvoyer**.',
+  'help.gathering-tasks.sent-back.b2':
+    'Il n’y a pas de limite au nombre d’allers-retours d’une tâche, et une tâche qui a pris '
+    + 'deux essais est la même tâche achevée qu’une qui en a pris un. Renvoyer est la façon '
+    + 'ordinaire dont cela fonctionne plutôt qu’un échec à éviter.',
+  'help.gathering-tasks.sent-back.b3':
+    'Personne ne peut renvoyer une tâche sans dire ce qui doit changer — l’écran qu’ils '
+    + 'utilisent ne l’envoie pas autrement. Si l’une arrive un jour sans notes, la carte le '
+    + 'dit, et la chose à faire est de leur demander : il n’y a réellement rien là sur quoi '
+    + 'agir.',
+  'help.gathering-tasks.approved.heading': 'Une fois qu’elle est approuvée',
+  'help.gathering-tasks.approved.b0':
+    'Une réponse approuvée est définitive des deux côtés. La carte passe en lecture seule '
+    + 'et montre ce qui a été accepté ; il n’y a aucun moyen d’en envoyer une autre, et '
+    + 'essayer est refusé avec cette phrase plutôt que de sembler s’enregistrer. Elle cesse '
+    + 'aussi d’être en retard, car l’échéance ne s’applique plus à rien.',
+  'help.gathering-tasks.approved.b1':
+    'Si une réponse approuvée doit vraiment changer, demandez à l’organisateur du '
+    + 'rassemblement. Il a un bouton **Réouvrir…** de son côté, et l’utiliser remet la tâche '
+    + 'entre vos mains : elle revient au formulaire ordinaire avec votre dernière réponse '
+    + 'déjà dedans, de sorte qu’une correction d’un mot est une correction d’un mot. Vous ne '
+    + 'pouvez pas le faire vous-même, et c’est tout ce que « définitive des deux côtés » veut '
+    + 'dire.',
+  'help.gathering-tasks.approved.b2':
+    'Une tâche réouverte arrive de la même façon qu’une tâche renvoyée — dans vos '
+    + 'notifications, et en haut de [Mes tâches de rassemblement](/gatherings/my-tasks) — '
+    + 'avec le motif qu’il a donné, s’il en a donné un. Rien de ce que vous avez envoyé n’en '
+    + 'est supprimé, et chaque version reste lisible.',
+  // ──── PART 9 — Gatherings (Meeting Minutes) ───────────────────────────────────
+  'help.meeting-minutes.title': 'Procès-verbaux',
+  'help.meeting-minutes.summary':
+    'Programmer une réunion par conseil ou par fonction, qui peut rédiger le procès-verbal, '
+    + 'et comment la salle vote sur un sujet.',
+  'help.meeting-minutes.what-it-is.heading': 'Ce qu’est cet écran',
+  'help.meeting-minutes.what-it-is.b0':
+    '[Procès-verbaux](/library/meeting-minutes) est le relevé par la famille de ce dont '
+    + 'elle a débattu et de ce qu’elle a décidé. Une réunion a une date, une liste de qui est '
+    + 'attendu, un **secrétaire** qui la rédige, et un nombre quelconque de **sujets**, '
+    + 'chacun pouvant porter des notes et un vote.',
+  'help.meeting-minutes.what-it-is.b1':
+    '**Chaque personne de la famille peut lire les procès-verbaux.** C’est délibéré et '
+    + 'c’est l’inverse du [carnet de fonction](/help/journal), que seul le titulaire lit : '
+    + 'les procès-verbaux sont le relevé des décisions que la famille a prises, donc '
+    + 'quelqu’un qui n’était pas dans la salle apprend tout de même ce qui a été décidé.',
+  'help.meeting-minutes.what-it-is.b2':
+    'Cela faisait partie des [Notes de fonction](/library/officer-notes) jusqu’au '
+    + '22-08-2026, comme un genre d’entrée « réunion ». Une réunion a débordé de ce cadre : '
+    + 'elle appartient à la famille plutôt qu’à une fonction, elle a un secrétaire, et elle a '
+    + 'des votes — rien de quoi un carnet ne peut exprimer.',
+  'help.meeting-minutes.scheduling.heading': 'En programmer une',
+  'help.meeting-minutes.scheduling.b0':
+    'Cela se fait en **trois étapes**, avec **Suivant** et **Retour**, et rien n’est '
+    + 'enregistré avant la dernière.',
+  'help.meeting-minutes.scheduling.b1.i0': 'Appuyez sur **Programmer une réunion**.',
+  'help.meeting-minutes.scheduling.b1.i1':
+    '**Étape 1 — les bases.** Un titre, une date, et **qui rédige le procès-verbal**. Ce '
+    + 'dernier commence sur vous, car la personne qui programme une réunion la rédige '
+    + 'd’ordinaire ; changez-le pour quelqu’un d’autre sinon. Seul le secrétaire peut écrire '
+    + 'dans la réunion, et il doit être adulte.',
+  'help.meeting-minutes.scheduling.b1.i2':
+    '**Étape 2 — qui vient.** Dites d’abord quel genre de réunion c’est, puis choisissez au '
+    + 'sein de ce genre. Voyez ci-dessous.',
+  'help.meeting-minutes.scheduling.b1.i3':
+    '**Étape 3 — quelqu’un d’autre.** Ajoutez des personnes individuelles par-dessus le '
+    + 'corps que vous avez choisi, et vérifiez le décompte de la salle.',
+  'help.meeting-minutes.scheduling.b1.i4': 'Appuyez sur **Programmer la réunion**.',
+  'help.meeting-minutes.scheduling.b2':
+    '**Chaque personne dans la salle est prévenue et l’a sur son calendrier.** Une '
+    + 'notification part à chaque participant, et la réunion apparaît sur [le '
+    + 'calendrier](/gatherings/calendar) pour eux — non pour toute la famille, car une '
+    + 'réunion de commission sur le calendrier de tout le monde est un calendrier que '
+    + 'personne ne lit. La liste des participants est aussi ce qui décide qui peut voter.',
+  'help.meeting-minutes.scheduling.b3':
+    'Le secrétaire est ajouté à la salle automatiquement, que vous l’ayez coché ou non. '
+    + 'Quelqu’un qui rédige le procès-verbal y était.',
+  'help.meeting-minutes.scheduling.b4':
+    '**Retour ne perd jamais rien.** Revenir en arrière pour corriger une date puis '
+    + 'repartir laisse vos choix là où ils étaient — avec une exception délibérée : changez '
+    + 'le GENRE de réunion à l’étape 2 et la salle suit le nouveau genre, de sorte qu’un '
+    + 'conseil coché avant de passer à une réunion de section ne suit pas discrètement.',
+  'help.meeting-minutes.who-is-coming.heading': 'Qui vient : cinq genres de réunion',
+  'help.meeting-minutes.who-is-coming.b0':
+    'Une réunion familiale est presque toujours une réunion de **corps** plutôt qu’une '
+    + 'liste de onze noms — toute la famille, une section, le conseil national, tous les '
+    + 'présidents de section. L’étape 2 demande donc de quel genre il s’agit, ne montre que '
+    + 'les options de ce genre, et calcule qui est dans le corps au moment où vous '
+    + 'programmez.',
+  'help.meeting-minutes.who-is-coming.b1.i0.term': 'Une réunion générale de la famille',
+  'help.meeting-minutes.who-is-coming.b1.i0.text':
+    'Chaque adulte de la famille. Rien à choisir — l’étape vous dit combien de personnes '
+    + 'cela représente avant que vous ne vous y engagiez.',
+  'help.meeting-minutes.who-is-coming.b1.i1.term': 'Une réunion de section',
+  'help.meeting-minutes.who-is-coming.b1.i1.text':
+    'Toutes les personnes enregistrées dans une section, titulaires ou non. **Ce n’est pas '
+    + 'le conseil de la section** ; c’est la section entière. Seules les sections où '
+    + 'quelqu’un se trouve sont proposées.',
+  'help.meeting-minutes.who-is-coming.b1.i2.term': 'Une réunion de conseil',
+  'help.meeting-minutes.who-is-coming.b1.i2.text':
+    'Toutes les personnes occupant une fonction à un niveau en un lieu — **Conseil '
+    + 'national**, **Conseil de la région du Texas**, **Conseil de la section d’Austin**. '
+    + 'Seuls les conseils où quelqu’un siège réellement sont listés, et le nombre à côté de '
+    + 'chacun dit combien de personnes cela représente.',
+  'help.meeting-minutes.who-is-coming.b1.i3.term': 'Une réunion de fonctions',
+  'help.meeting-minutes.who-is-coming.b1.i3.text':
+    'Une seule fonction prise dans chaque région ou section qui la pourvoit. Choisir '
+    + '**Président de section** invite le président de chaque section d’un coup.',
+  'help.meeting-minutes.who-is-coming.b1.i4.term': 'Seulement les personnes que je nomme',
+  'help.meeting-minutes.who-is-coming.b1.i4.text':
+    'Personne au départ — pour une commission improvisée de trois, où il n’y a aucun corps '
+    + 'à viser. Vous les ajoutez à l’étape 3.',
+  'help.meeting-minutes.who-is-coming.b2':
+    '**Un genre sans rien à choisir ne peut pas être choisi, et dit pourquoi.** Une famille '
+    + 'qui n’a pas encore mis ses fonctions en place n’a aucun conseil à inviter ; cette '
+    + 'ligne est grisée avec une phrase renvoyant à **Membres → Organisation** plutôt que '
+    + 'masquée, pour qu’il soit clair que le produit peut le faire dès que la famille l’aura '
+    + 'fait.',
+  'help.meeting-minutes.who-is-coming.b3':
+    '**Un corps est résolu au moment où vous programmez, non au moment où il a été mis en '
+    + 'place.** Si la section d’Austin élit un nouveau trésorier le mois prochain, le conseil '
+    + 'que vous avez choisi aujourd’hui a invité le trésorier qui l’occupait aujourd’hui — ce '
+    + 'qui est juste, car la réunion est celle dont on l’a informé. Il en va de même pour une '
+    + 'section : c’est qui y est enregistré ce jour-là.',
+  'help.meeting-minutes.who-is-coming.b4':
+    '**L’étape 3 ajoute des personnes par-dessus.** Quoi que le corps donne, vous pouvez en '
+    + 'nommer davantage ; les deux s’additionnent, et quelqu’un qui apparaît dans les deux '
+    + 'est un seul participant. La ligne sous le sélecteur compte la salle et la liste '
+    + 'derrière **voir qui**, pour que vous puissiez vérifier ce qu’un choix vient d’ajouter '
+    + 'avant de vous engager.',
+  'help.meeting-minutes.adults.heading': 'Adultes seulement, et l’unique exception',
+  'help.meeting-minutes.adults.b0':
+    '**Le secrétaire doit être adulte**, et toute personne ajoutée à la salle **nommément** '
+    + 'aussi. Les deux sélecteurs ne proposent que des adultes, et l’action en refuse un de '
+    + 'toute façon si elle en est chargée directement.',
+  'help.meeting-minutes.adults.b1':
+    '**Une réunion de section et une réunion générale de la famille sont d’adultes aussi.** '
+    + 'Personne de moins de dix-huit ans n’est dans l’une ou l’autre : aucune n’est donc un '
+    + 'moyen de contourner la règle ci-dessus.',
+  'help.meeting-minutes.adults.b2':
+    '**Les personnes invitées au titre d’un conseil ou d’une fonction ne sont pas vérifiées '
+    + 'quant à l’âge**, et c’est l’exception. Quelqu’un qui occupe une fonction est quelqu’un '
+    + 'que la famille y a placé, et le retirer discrètement de la salle à cause d’une date de '
+    + 'naissance enregistrée serait le produit passant outre cette décision, dans une liste '
+    + 'que personne ne relit.',
+  'help.meeting-minutes.adults.b3':
+    'L’âge est calculé à partir de la date de naissance du profil de la personne, et un '
+    + 'membre **sans** date de naissance enregistrée compte comme adulte. « Moins de dix-huit '
+    + 'ans » est quelque chose que la famille a noté sur quelqu’un, non quelque chose à '
+    + 'supposer sur un champ vide.',
+  'help.meeting-minutes.writing.heading': 'Pendant la réunion',
+  'help.meeting-minutes.writing.b0':
+    '**Seul le secrétaire écrit.** Tous les autres lisent. Ajoutez un **sujet** pour chaque '
+    + 'chose que la salle aborde, puis écrivez des notes en dessous à mesure — la même forme '
+    + 'qu’un carnet de fonction : un titre, et un fil en dessous.',
+  'help.meeting-minutes.writing.b1':
+    'Les notes s’affichent de la plus ancienne à la plus récente, chacune avec l’heure à '
+    + 'laquelle elle a été écrite, et une note modifiée depuis le dit.',
+  'help.meeting-minutes.writing.b2':
+    'Si vous êtes le secrétaire et que les commandes manquent, vérifiez si la réunion a été '
+    + 'close. Une réunion close est en lecture seule.',
+  'help.meeting-minutes.voting.heading': 'Voter sur un sujet',
+  'help.meeting-minutes.voting.b0':
+    'Le secrétaire appuie sur **Appeler un vote** sur un sujet. Chaque personne de la liste '
+    + 'des participants peut alors répondre **Pour**, **Contre** ou **Abstention**, et le '
+    + 'décompte courant est sur le sujet.',
+  'help.meeting-minutes.voting.b1':
+    '**Un vote ne peut être ni changé ni retiré par quiconque.** Ni par la personne qui l’a '
+    + 'exprimé, ni par le secrétaire, ni par un administrateur. C’est la base de données qui '
+    + 'l’impose plutôt que l’écran, et c’est pourquoi il n’y a aucune commande qui semble '
+    + 'pouvoir le faire.',
+  'help.meeting-minutes.voting.b2':
+    '**Comment chaque personne a voté figure au relevé**, nommément. Un vote de réunion '
+    + 'n’est pas un scrutin secret — les procès-verbaux existent pour dire qui a décidé quoi. '
+    + 'C’est différent des [Élections](/help/elections), où le vote d’un membre n’appartient '
+    + 'qu’à lui.',
+  'help.meeting-minutes.voting.b3.i0.term': 'Seuls les participants votent',
+  'help.meeting-minutes.voting.b3.i0.text':
+    'La liste que vous avez choisie en programmant. Quelqu’un qui n’y est pas peut lire le '
+    + 'sujet et le décompte et ne peut pas répondre.',
+  'help.meeting-minutes.voting.b3.i1.term': 'Un vote clos reste clos',
+  'help.meeting-minutes.voting.b3.i1.text':
+    'Il n’est pas réouvert. Si la question doit être reposée, le secrétaire supprime le '
+    + 'sujet et le rajoute — ce qui est visible, là où réouvrir discrètement un scrutin ne '
+    + 'l’est pas.',
+  'help.meeting-minutes.voting.b3.i2.term': 'Supprimer un sujet',
+  'help.meeting-minutes.voting.b3.i2.text':
+    'La seule façon dont un vote soit jamais retiré, et cela retire la question entière '
+    + 'avec ses notes. La confirmation dit combien de votes partent avec elle.',
+  'help.meeting-minutes.voting.b4':
+    'Quelqu’un qui a déjà voté ne peut pas être retiré de la liste des participants — son '
+    + 'bulletin est au relevé, donc le retirer laisserait un vote exprimé par quelqu’un dont '
+    + 'le procès-verbal dit qu’il n’était pas là.',
+  'help.meeting-minutes.closing.heading': 'Clore le procès-verbal',
+  'help.meeting-minutes.closing.b0':
+    '**Clore le procès-verbal** est ce qui transforme une réunion en relevé : plus de '
+    + 'sujets, plus de notes, plus de votes. C’est ce qui rend digne de foi la chose que la '
+    + 'famille citera l’an prochain.',
+  'help.meeting-minutes.closing.b1':
+    'Il peut être réouvert, par le secrétaire ou par quelqu’un ayant l’autorisation de '
+    + 'modifier les réunions — clore trop tôt est une erreur ordinaire et l’alternative est '
+    + 'un relevé définitivement faux. Réouvrir ne défait rien de ce qui a été décidé : les '
+    + 'votes restent exactement tels qu’ils sont.',
+  // ──── PART 9 — Gatherings (Gathering Management) ──────────────────────────────
+  'help.gathering-management.title': 'Gestion des rassemblements',
+  'help.gathering-management.summary':
+    'Programmer un rassemblement, fixer son fonds et son budget, répartir les tâches, '
+    + 'trancher les réponses qui reviennent, et rédiger les modèles dont tout est bâti.',
+  'help.gathering-management.what-it-is.heading': 'Trois panneaux, et à quoi ils servent',
+  'help.gathering-management.what-it-is.b0':
+    '[Rassemblements](/admin/gatherings) sous Administration est le côté organisateur des '
+    + '[Rassemblements](/gatherings), sur un menu à trois panneaux :',
+  'help.gathering-management.what-it-is.b1.i0':
+    '**Rassemblements** — chaque rassemblement que la famille a, avec ses dates, son '
+    + 'statut, son budget face au fonds dont il est tiré, et la part de son travail qui a été '
+    + 'approuvée.',
+  'help.gathering-management.what-it-is.b1.i1':
+    '**File d’examen** — chaque réponse en attente d’une décision, tous rassemblements '
+    + 'confondus. Le panneau porte le décompte tant que quelque chose attend.',
+  'help.gathering-management.what-it-is.b1.i2':
+    '**Modèles** — la bibliothèque dont chaque rassemblement est bâti, traitée par [Modèles '
+    + 'de rassemblement](/help/gathering-templates#what-it-is).',
+  'help.gathering-management.what-it-is.b2':
+    'Modèles avait sa propre rangée de menu jusqu’au 19-08-2026 et est un panneau ici '
+    + 'maintenant ; son ancienne adresse fonctionne toujours et arrive sur le panneau. Il '
+    + 's’accorde séparément des deux autres : une famille peut donc laisser quelqu’un rédiger '
+    + 'les listes de contrôle sans le laisser engager la famille dans un rassemblement — ou '
+    + 'l’inverse, qui est l’arrangement le plus courant.',
+  'help.gathering-management.creating.heading': 'Programmer un rassemblement',
+  'help.gathering-management.creating.b0.i0': 'Appuyez sur **Nouveau rassemblement**.',
+  'help.gathering-management.creating.b0.i1':
+    'Cochez les modèles que vous voulez sous **Bâti à partir de**. Leurs étapes deviennent '
+    + 'ses tâches, dans l’ordre où les modèles sont nommés. N’en cochez aucun et le '
+    + 'rassemblement est une date sans tâches, à laquelle un modèle peut être ajouté plus '
+    + 'tard.',
+  'help.gathering-management.creating.b0.i2':
+    'Remplissez **Titre** et **Commence**, et **Se termine** seulement s’il dure plus d’une '
+    + 'journée.',
+  'help.gathering-management.creating.b0.i3':
+    '**Lieu** et **Résumé** sont facultatifs — le résumé est ce que liront les personnes à '
+    + 'qui l’on demandera d’aider.',
+  'help.gathering-management.creating.b0.i4':
+    'Choisissez un **Fonds** et un **Budget ($)** s’il dépense de l’argent, et cochez '
+    + '**Afficher ceci en haut du Tableau de bord** s’il est celui que la famille devrait '
+    + 'voir en premier.',
+  'help.gathering-management.creating.b0.i5':
+    'Appuyez sur **Créer le rassemblement**, puis **Ouvrir le rassemblement** pour '
+    + 'commencer à répartir ses tâches.',
+  'help.gathering-management.creating.b1':
+    'Chaque modèle que vous cochez devient un segment du rassemblement, ce qui est la '
+    + 'section suivante. Un rassemblement sans aucun est l’occasion elle-même — ses dates, '
+    + 'son lieu et sa description — et c’est ce que le calendrier de la famille affiche dans '
+    + 'les deux cas.',
+  'help.gathering-management.segments.heading': 'Les segments, et leurs jours et lieux',
+  'help.gathering-management.segments.b0':
+    'Un rassemblement est rarement une seule occasion. Une retrouvaille est l’Accueil, le '
+    + 'Pique-nique et les Adieux, à leurs propres jours dans leurs propres lieux, et chaque '
+    + 'modèle dont le rassemblement a été bâti est l’une de ces parties. Le panneau '
+    + '**Segments** de la page propre à un rassemblement est là où ils sont listés, et où le '
+    + 'jour et le lieu de chacun se fixent.',
+  'help.gathering-management.segments.b1.i0.term': 'Segment',
+  'help.gathering-management.segments.b1.i0.text':
+    'Le modèle dont cette partie est venue, avec combien de tâches sont venues avec lui.',
+  'help.gathering-management.segments.b1.i1.term': 'Jour',
+  'help.gathering-management.segments.b1.i1.text':
+    'La date à laquelle cette partie a lieu. Facultatif — laissez-le vide pour un '
+    + 'rassemblement qui a lieu d’un seul coup.',
+  'help.gathering-management.segments.b1.i2.term': 'Lieu',
+  'help.gathering-management.segments.b1.i2.text':
+    'Où cette partie se tient. Facultatif, et cela commence vide — un modèle n’indique plus '
+    + 'de lieu habituel.',
+  'help.gathering-management.segments.b1.i3.term': 'Tâches',
+  'help.gathering-management.segments.b1.i3.text':
+    'Combien des tâches du rassemblement sont venues de ce modèle.',
+  'help.gathering-management.segments.b2':
+    'Saisissez dans l’un ou l’autre champ et un bouton **Enregistrer** apparaît sur cette '
+    + 'ligne, de sorte que rien n’est écrit à chaque frappe et qu’une ligne qui s’enregistre '
+    + 'ne bloque pas les autres. Les deux sont ce que les proches à qui l’on demande d’aider '
+    + 'lisent réellement : le jour et le lieu d’un segment sont imprimés sous son titre sur '
+    + 'la page propre au rassemblement.',
+  'help.gathering-management.segments.b3.i0':
+    'Choisissez un modèle sous **Ajouter un autre segment**.',
+  'help.gathering-management.segments.b3.i1':
+    'Fixez **Jour** et **Lieu**, ou laissez l’un ou l’autre vide.',
+  'help.gathering-management.segments.b3.i2':
+    'Appuyez sur **Ajouter ses étapes**. Chaque étape de ce modèle devient une tâche de ce '
+    + 'rassemblement, et rien des tâches déjà présentes ne change.',
+  'help.gathering-management.segments.b4':
+    'Un jour hors des dates propres au rassemblement **est enregistré et signalé plutôt que '
+    + 'refusé**, et la remarque est une ligne discrète sur la ligne et non une rouge : rien '
+    + 'n’a échoué, il y a simplement une date à rapprocher. C’est délibéré — les dates '
+    + 'bougent, et un organisateur qui décale le week-end ne devrait pas être arrêté par un '
+    + 'segment qu’il ne regardait pas. La ligne apparaît quand le segment est enregistré : un '
+    + 'rassemblement dont les dates ont bougé ensuite mérite donc un coup d’œil à ce panneau.',
+  'help.gathering-management.segments.b5':
+    'Le lieu d’un segment appartient au segment et à rien d’autre. Les modèles indiquaient '
+    + 'auparavant un **Lieu habituel** recopié sur chaque segment bâti à partir d’eux, et '
+    + 'cela n’existe plus (19-08-2026) : une salle appartient à une seule occasion, et un '
+    + 'modèle qui en a besoin la demande avec une étape du genre **Un lieu** — confiée à un '
+    + 'proche nommé, avec une échéance, et examinée comme toute autre réponse.',
+  'help.gathering-management.premier.heading': 'Le bandeau du Tableau de bord',
+  'help.gathering-management.premier.b0':
+    '**Afficher ceci en haut du Tableau de bord** se trouve sur le panneau **Bandeau du '
+    + 'Tableau de bord** de la page propre à un rassemblement. Un rassemblement marqué reçoit '
+    + 'le bandeau sous le message d’accueil du [tableau de bord](/dashboard) — son titre, ses '
+    + 'dates, son lieu, combien de ses tâches sont approuvées, et un accès direct.',
+  'help.gathering-management.premier.b1':
+    'Plusieurs rassemblements peuvent être marqués à la fois, délibérément. Le tableau de '
+    + 'bord affiche le plus proche qui n’est pas terminé — la retrouvaille de l’an dernier ne '
+    + 'bloque donc jamais celle de cette année, et rien n’y apparaît du tout quand aucun '
+    + 'rassemblement marqué n’est encore à venir.',
+  'help.gathering-management.premier.b2':
+    '**Photo du bandeau**, sur le même panneau, fixe l’image autour de laquelle le bandeau '
+    + 'est bâti — une photographie par rassemblement, recadrée à la forme du bandeau. Choisir '
+    + 'un fichier le téléverse aussitôt ; **Retirer la photo** l’enlève. Sans elle, le '
+    + 'bandeau dessine l’arbre GENORRA : il paraît donc fini dans les deux cas.',
+  'help.gathering-management.premier.b3':
+    'Une photo de bandeau téléversée peut être vue par quiconque a son adresse, exactement '
+    + 'comme une photographie de la [Galerie](/community/gallery). En mettre une ici la '
+    + 'publie auprès de quiconque le lien atteint : choisissez donc une image que la famille '
+    + 'serait heureuse de partager.',
+  'help.gathering-management.money.heading': 'Le fonds, le budget et la ligne rouge',
+  'help.gathering-management.money.b0':
+    'Un budget est toujours tiré d’un fonds, et les deux s’enregistrent ensemble — effacer '
+    + 'le fonds efface le budget avec lui, et le champ du montant n’accepte pas de chiffre '
+    + 'avant qu’un fonds soit choisi. Les fonds se mettent en place dans '
+    + '[Comptabilité](/admin/accounting?section=funds) ; voyez '
+    + '[Comptabilité](/help/accounting#funds).',
+  'help.gathering-management.money.b1':
+    'Plusieurs rassemblements peuvent tirer d’un seul fonds : un solde n’est donc pas à un '
+    + 'rassemblement seul de le dépenser. Le bandeau de chaque rassemblement dit ce qui '
+    + 'd’autre le réclame.',
+  'help.gathering-management.money.b2':
+    'Un budget plus grand que le fonds est permis et n’est pas une erreur. Les chiffres le '
+    + 'disent par une ligne rouge plutôt qu’en refusant le nombre, car une famille organise '
+    + 'une retrouvaille avant d’avoir réuni l’argent pour une — le refuser voudrait dire que '
+    + 'le plan ne pourrait pas être écrit du tout.',
+  'help.gathering-management.money.b3':
+    'Chaque tâche peut porter sa propre **Ligne budgétaire ($)**, fixée dans la boîte de '
+    + 'cette tâche : ce que ce seul travail est censé coûter, un champ vide voulant dire '
+    + 'qu’il ne coûte rien à la famille. Les lignes ensemble sont ce que le bandeau compare '
+    + 'au budget, et le budget suggéré d’une étape de modèle n’est que le chiffre auquel une '
+    + 'ligne commence. Lorsque les lignes dépassent le budget, le bandeau le dit dans un '
+    + 'traitement plus discret et délibérément différent — rien n’a été dépensé, et cela se '
+    + 'règle en augmentant le budget ou en rognant une ligne.',
+  'help.gathering-management.assigning.heading': 'Répartir le travail',
+  'help.gathering-management.assigning.b0':
+    'Appuyez sur **Gérer** sur une tâche — **Examiner** quand quelque chose y attend — et '
+    + 'une seule boîte contient tout au sujet de cette tâche.',
+  'help.gathering-management.assigning.b1.i0':
+    'Choisissez quelqu’un sous **Assignée à**. Le sélecteur cherche dans n’importe quelle '
+    + 'partie de n’importe quel nom, et c’est ce qui le rend utilisable dans une famille de '
+    + 'cent quarante personnes.',
+  'help.gathering-management.assigning.b1.i1': 'Fixez **Échéance** si elle a une date limite.',
+  'help.gathering-management.assigning.b1.i2': 'Appuyez sur **Enregistrer qui et quand**.',
+  'help.gathering-management.assigning.b2':
+    'Toute personne que la famille a approuvée peut tenir une tâche, qu’elle ait un compte '
+    + 'propre ou non : on peut donc tout de même demander à un proche inscrit sur l’arbre '
+    + 'sans identifiants d’apporter les photographies. Quelqu’un dont l’adhésion est encore '
+    + 'en attente ne peut pas, et l’écran le dit plutôt que d’échouer en silence. **La '
+    + 'laisser non assignée** retire une tâche à quelqu’un.',
+  'help.gathering-management.assigning.b3':
+    'La personne que vous assignez est prévenue dans ses notifications, et la tâche '
+    + 'apparaît dans ses [Mes tâches de rassemblement](/gatherings/my-tasks) avec votre '
+    + 'échéance dessus.',
+  'help.gathering-management.reviewing.heading': 'Trancher une réponse',
+  'help.gathering-management.reviewing.b0':
+    'Une réponse arrive dans la **File d’examen** avec ce qui a été envoyé, toute note que '
+    + 'l’expéditeur a ajoutée, qui l’a envoyée et quand. Il y a deux décisions :',
+  'help.gathering-management.reviewing.b1.i0':
+    '**Approuver** — acceptée, et définitive. La réponse devient le relevé qu’en garde la '
+    + 'famille et la personne qui l’a envoyée ne peut plus la changer, et c’est pourquoi cela '
+    + 'est confirmé d’abord.',
+  'help.gathering-management.reviewing.b1.i1':
+    '**Renvoyer…** — renvoyée avec des consignes. Cela ouvre **Ce qui doit changer**, et ce '
+    + 'champ est obligatoire : une tâche renvoyée avec rien dedans dit à un proche que sa '
+    + 'réponse n’a pas été acceptée alors qu’aucun écran nulle part ne dit quoi en faire. Ce '
+    + 'que vous écrivez est envoyé avec la tâche et est la première chose qu’il voit.',
+  'help.gathering-management.reviewing.b2':
+    'Une tâche renvoyée indique **À revoir** sur chaque écran et peut être répondue de '
+    + 'nouveau autant de fois qu’il le faut. Chaque envoi est conservé : l’échange entier est '
+    + 'donc lisible depuis la tâche plutôt que seulement sa dernière ligne.',
+  'help.gathering-management.reviewing.b3':
+    'Une réponse approuvée peut être reprise, et seulement d’ici. Ouvrez la tâche et '
+    + 'appuyez sur **Réouvrir…**, ajoutez une ligne sous **Pourquoi, si vous voulez le dire '
+    + '(facultatif)** s’il y a quelque chose à expliquer, puis appuyez sur **Réouvrir** pour '
+    + 'confirmer. La tâche retourne à la personne qui la tient avec sa réponse encore dessus, '
+    + 'elle est prévenue dans ses notifications, et le motif voyage avec elle. Rien n’est '
+    + 'effacé : la réponse reste son point de départ et chaque envoi reste au relevé, y '
+    + 'compris l’approbation que vous venez de reprendre.',
+  'help.gathering-management.reviewing.b4':
+    'Le motif est facultatif ici et obligatoire sur **Renvoyer…**, ce qui paraît incohérent '
+    + 'et ne l’est pas. Renvoyer du travail sans consignes ne laisse à un proche rien sur '
+    + 'quoi agir ; reprendre votre propre approbation est d’ordinaire une correction de votre '
+    + 'propre lecture, et il n’y a souvent rien à dire au-delà du fait que cela doit changer.',
+  'help.gathering-management.reviewing.b5':
+    'Réouvrir est le seul retour depuis une approbation : approuvez donc délibérément même '
+    + 'si cela peut être défait. La personne qui a envoyé la réponse ne peut pas la réouvrir '
+    + 'et ne peut pas la remplacer tant qu’elle tient — de son côté, approuvée est réellement '
+    + 'définitive, et chaque écran lui dit de venir vous voir.',
+  'help.gathering-management.changing.heading': 'En modifier une ou y mettre fin',
+  'help.gathering-management.changing.b0':
+    '**Statut** se fixe à la main — **En préparation**, **Programmé**, **Terminé** ou '
+    + '**Annulé** — car aucun des quatre n’est quelque chose que le calendrier sache : un '
+    + 'rassemblement peut être annulé sans que ses dates bougent, et terminé est '
+    + 'l’affirmation de quelqu’un plutôt qu’une date qui passe. **Enregistrer les '
+    + 'modifications** le valide en même temps que le titre, les dates et le lieu.',
+  'help.gathering-management.changing.b1':
+    '**Supprimer le rassemblement** est refusé dès qu’une de ses réponses a été approuvée. '
+    + 'Le refus dit combien et propose Annulé à la place, ce qui ne supprime rien et peut '
+    + 'être remis.',
+  'help.gathering-management.changing.b2':
+    'Retirer un segment — la corbeille sur sa ligne, confirmée comme **Retirer le modèle** '
+    + '— est refusé de la même façon dès qu’une tâche venue de lui a été assignée ou '
+    + 'répondue. Les tâches venues d’un modèle sont ce qui a réellement été demandé aux '
+    + 'proches et elles survivent au lien : détacher un modèle n’efface donc jamais que les '
+    + 'tâches que personne n’a touchées.',
+  // ──── PART 9 — Gatherings (Gathering Templates) ───────────────────────────────
+  'help.gathering-templates.title': 'Modèles de rassemblement',
+  'help.gathering-templates.summary':
+    'Rédiger les listes pas à pas dont un rassemblement est bâti, y compris une étape qui '
+    + 'est un autre modèle, décider qui peut programmer à partir de l’un, et archiver un '
+    + 'modèle déjà utilisé.',
+  'help.gathering-templates.what-it-is.heading': 'Ce qu’est un modèle',
+  'help.gathering-templates.what-it-is.b0':
+    'Le panneau **Modèles** des [Rassemblements](/admin/gatherings) sous Administration est '
+    + 'la bibliothèque dont un rassemblement est bâti. Un modèle est un nom et une liste '
+    + 'ordonnée d’étapes — une par chose que quelqu’un doit faire ou décider — et programmer '
+    + 'un rassemblement à partir de lui transforme chaque étape en une tâche en attente '
+    + 'd’être confiée à un proche.',
+  'help.gathering-templates.what-it-is.b1':
+    'Il avait sa propre rangée de menu jusqu’au 19-08-2026 et est un panneau maintenant. '
+    + 'L’ancienne adresse fonctionne toujours et y arrive.',
+  'help.gathering-templates.what-it-is.b2':
+    'Modifier un modèle ne change jamais un rassemblement déjà bâti à partir de lui. Chaque '
+    + 'tâche garde sa propre copie de ce qu’elle demandait : une étape renommée ici atteint '
+    + 'donc la retrouvaille de l’an prochain et non celle en cours, et la réponse de personne '
+    + 'n’est jamais réécrite sous ses yeux. C’est ce qui rend la bibliothèque sûre à '
+    + 'continuer de ranger, et la carte le dit.',
+  'help.gathering-templates.adding.heading': 'Ajouter un modèle',
+  'help.gathering-templates.adding.b0.i0': 'Appuyez sur **Ajouter un modèle** en haut du panneau.',
+  'help.gathering-templates.adding.b0.i1':
+    'Donnez-lui un **Nom de modèle** — nommez-le d’après l’occasion : « Retrouvailles '
+    + 'familiales », « Hommage », « Banquet des bourses ».',
+  'help.gathering-templates.adding.b0.i2':
+    'Écrivez une **Description** si vous en voulez une, et choisissez **Qui peut programmer '
+    + 'à partir de ceci**.',
+  'help.gathering-templates.adding.b0.i3': 'Appuyez sur **Ajouter le modèle**.',
+  'help.gathering-templates.adding.b0.i4':
+    'La carte qui apparaît est fermée. Appuyez sur son nom pour l’ouvrir, puis donnez-lui '
+    + 'une étape par chose que quelqu’un doit faire.',
+  'help.gathering-templates.adding.b1':
+    '**Chaque carte de modèle est fermée jusqu’à ce que vous l’ouvriez.** Ouverte, une '
+    + 'carte montre la description, qui peut programmer à partir d’elle, et une ligne par '
+    + 'étape — ce qui fait une page entière dès qu’une famille en a une demi-douzaine. '
+    + 'Fermée, chacune montre son nom et combien d’étapes elle a, de sorte que la '
+    + 'bibliothèque se lit comme une liste de ce que vous avez plutôt que comme tout sur '
+    + 'tout. Appuyez sur un nom pour l’ouvrir ; appuyez de nouveau pour la fermer.',
+  'help.gathering-templates.adding.b2':
+    '**On ne saisit directement dans rien sur une carte.** La carte dit ce qu’est le modèle '
+    + '; **Modifier** à côté de son nom ouvre une boîte contenant le nom, la description et '
+    + 'qui peut programmer, et chaque étape a son propre bouton **Modifier**. C’est ce qui '
+    + 'garde la bibliothèque lisible — un écran de cent champs actifs ne se parcourt pas d’un '
+    + 'regard, et parcourir d’un regard est à quoi cette page sert.',
+  'help.gathering-templates.adding.b3':
+    'Une boîte ouverte s’enregistre ou est abandonnée : il n’existe donc pas de modèle à '
+    + 'demi enregistré. Appuyez sur **Annuler** ou **Échap** et rien n’a changé.',
+  'help.gathering-templates.adding.b4':
+    'Un nom doit être unique dans la famille : une seconde « Retrouvailles familiales » est '
+    + 'donc refusée plutôt qu’ajoutée discrètement à côté de la première. La description est '
+    + 'ce qu’un organisateur lit avant de programmer à partir d’elle, et elle est montrée à '
+    + 'côté du modèle lorsqu’il en choisit un.',
+  'help.gathering-templates.adding.b5':
+    'Il y avait ici un champ **Lieu habituel** jusqu’au 19-08-2026 et il n’y en a plus. Un '
+    + 'modèle qui indiquait où ses rassemblements se tiennent d’habitude était un auteur '
+    + 'devinant un fait qui appartient à une seule occasion, et la devinette devait ensuite '
+    + 'être corrigée sur chaque segment où elle avait été recopiée. Demandez plutôt la salle '
+    + ': une étape du genre **Un lieu**, confiée à un proche nommé avec une échéance.',
+  'help.gathering-templates.steps.heading': 'Les étapes',
+  'help.gathering-templates.steps.b0.i0':
+    'Appuyez sur **Ajouter une étape** à côté du titre Étapes.',
+  'help.gathering-templates.steps.b0.i1':
+    'Saisissez le libellé sous **Étape** — « Réserver la salle », « Décompte des présents '
+    + '», « Traiteur ».',
+  'help.gathering-templates.steps.b0.i2':
+    'Choisissez **Ce qu’elle demande**. La ligne sous le sélecteur dit ce que la personne '
+    + 'qui tient la tâche recevra à remplir.',
+  'help.gathering-templates.steps.b0.i3':
+    'Mettez tout ce qu’il doit savoir dans **Texte d’aide** — qui appeler, ce qui compte '
+    + 'comme fait. Il le lit sous la tâche elle-même.',
+  'help.gathering-templates.steps.b0.i4':
+    'Cochez **Obligatoire** si le rassemblement n’est pas terminé avant que celle-ci soit '
+    + 'répondue et approuvée.',
+  'help.gathering-templates.steps.b0.i5':
+    'Fixez un **Budget suggéré ($)** si le travail coûte de l’argent.',
+  'help.gathering-templates.steps.b0.i6': 'Appuyez sur **Ajouter l’étape**.',
+  'help.gathering-templates.steps.b1':
+    'Il y a neuf genres d’étape. Huit d’entre eux décident ce que la personne qui répond '
+    + 'reçoit :',
+  'help.gathering-templates.steps.b2.i0.term': 'Réponse courte',
+  'help.gathering-templates.steps.b2.i0.text':
+    'Une ligne — un nom, un numéro de téléphone, une réponse en quelques mots.',
+  'help.gathering-templates.steps.b2.i1.term': 'Réponse longue',
+  'help.gathering-templates.steps.b2.i1.text':
+    'Un paragraphe — des notes, une description, une explication.',
+  'help.gathering-templates.steps.b2.i2.term': 'Une date',
+  'help.gathering-templates.steps.b2.i2.text':
+    'Une seule date du calendrier, choisie dans un champ de date.',
+  'help.gathering-templates.steps.b2.i3.term': 'Un lieu',
+  'help.gathering-templates.steps.b2.i3.text':
+    'Une salle, une adresse, une pièce. Une ligne, et un téléphone proposera les adresses '
+    + 'qu’il connaît déjà.',
+  'help.gathering-templates.steps.b2.i4.term': 'Une liste',
+  'help.gathering-templates.steps.b2.i4.text':
+    'Un nombre quelconque de lignes, un élément chacune, ajoutées et retirées à mesure.',
+  'help.gathering-templates.steps.b2.i5.term': 'Oui ou non',
+  'help.gathering-templates.steps.b2.i5.text':
+    'Une décision. Il doit choisir ; laisser vide n’est pas une réponse.',
+  'help.gathering-templates.steps.b2.i6.term': 'Un nombre',
+  'help.gathering-templates.steps.b2.i6.text':
+    'Un décompte ou une quantité. L’argent a son propre genre — utilisez celui-là pour '
+    + 'l’argent.',
+  'help.gathering-templates.steps.b2.i7.term': 'Une somme d’argent',
+  'help.gathering-templates.steps.b2.i7.text': 'Une somme en dollars, enregistrée au cent près.',
+  'help.gathering-templates.steps.b3':
+    'Le neuvième est celui qui sort du lot et fait l’objet de la section suivante.',
+  'help.gathering-templates.steps.b4':
+    'Chaque ligne dit ce qu’est l’étape : son libellé, son texte d’aide en dessous, ce '
+    + 'qu’elle demande, si elle est obligatoire et ce qu’elle suggère de dépenser. Pour '
+    + 'changer l’un de ces éléments, appuyez sur le crayon de la ligne et la même boîte '
+    + 's’ouvre avec l’étape dedans.',
+  'help.gathering-templates.steps.b5':
+    'Les flèches d’une ligne déplacent une étape plus tôt ou plus tard, et cet ordre est '
+    + 'l’ordre dans lequel les tâches sont réparties. Supprimer une étape laisse chaque tâche '
+    + 'déjà créée à partir d’elle exactement là où elle est.',
+  'help.gathering-templates.steps.b6':
+    'Un budget suggéré n’est qu’un chiffre de départ recopié sur la tâche. Il peut être '
+    + 'changé sur le rassemblement, et ce qui compte face au fonds est le budget propre au '
+    + 'rassemblement — voyez [Gestion des rassemblements](/help/gathering-management#money).',
+  'help.gathering-templates.nested.heading': 'Une étape qui est un autre modèle',
+  'help.gathering-templates.nested.b0':
+    'Le neuvième genre est **Un autre modèle**, et personne n’y répond. Choisissez un '
+    + 'modèle et chaque étape de CE modèle devient une tâche à part entière, à cet endroit de '
+    + 'la liste, chaque fois qu’un rassemblement est bâti à partir de celui-ci.',
+  'help.gathering-templates.nested.b1':
+    'C’est pour la liste de contrôle que votre famille utilise à l’intérieur de plusieurs '
+    + 'occasions différentes. Rédigez les cinq étapes de « Traiteur » une fois, puis donnez à '
+    + '« Retrouvailles familiales », « Hommage » et « Banquet des bourses » une étape '
+    + 'Traiteur chacun — et corriger la liste du traiteur l’an prochain corrige les trois.',
+  'help.gathering-templates.nested.b2.i0':
+    'Appuyez sur **Ajouter une étape**, et saisissez un libellé — il ne coiffe rien par '
+    + 'lui-même, donc nommez-le d’après ce que le lecteur de ce modèle devrait voir : « La '
+    + 'liste du traiteur ».',
+  'help.gathering-templates.nested.b2.i1':
+    'Choisissez **Un autre modèle** sous **Ce qu’elle demande**.',
+  'help.gathering-templates.nested.b2.i2': 'Choisissez celui à inclure sous **Modèle à inclure**.',
+  'help.gathering-templates.nested.b2.i3': 'Appuyez sur **Ajouter l’étape**.',
+  'help.gathering-templates.nested.b3':
+    '**Texte d’aide**, **Obligatoire** et **Budget suggéré** ne sont pas proposés pour ce '
+    + 'genre et c’est délibéré : personne n’y répondra, donc il n’y a personne à conseiller, '
+    + 'rien à exiger et aucun travail unique à chiffrer. Les étapes qu’il apporte portent les '
+    + 'leurs.',
+  'help.gathering-templates.nested.b4':
+    'Un modèle ne peut pas s’inclure lui-même, et il ne peut pas inclure quelque chose qui '
+    + 'y ramène — A dans B dans A est refusé avec une phrase le disant. Seuls les autres '
+    + 'modèles de la famille sont proposés, et un modèle archivé peut tout de même être '
+    + 'inclus : archiver veut dire « ne rien démarrer de NOUVEAU à partir de ceci », ce qui '
+    + 'porte sur la programmation d’un rassemblement et non sur la composition d’une liste de '
+    + 'contrôle.',
+  'help.gathering-templates.nested.b5':
+    'Modifier le modèle inclus change ce que le PROCHAIN rassemblement reçoit et jamais un '
+    + 'rassemblement déjà en cours — la même règle que suit chaque autre étape, pour la même '
+    + 'raison. Ceci est donc sûr à continuer de ranger, et corriger une liste de contrôle '
+    + 'partagée atteint réellement chaque modèle qui l’inclut.',
+  'help.gathering-templates.who-may-schedule.heading': 'Qui peut programmer à partir de ceci',
+  'help.gathering-templates.who-may-schedule.b0':
+    '**Qui peut programmer à partir de ceci** se fixe par modèle, et c’est la seule chose '
+    + 'sur cet écran qu’un membre en dehors des pages d’administration ressente jamais :',
+  'help.gathering-templates.who-may-schedule.b1.i0.term': 'Administrateurs seulement',
+  'help.gathering-templates.who-may-schedule.b1.i0.text':
+    'Seule une personne qui peut gérer les rassemblements peut en démarrer un à partir de '
+    + 'ce modèle.',
+  'help.gathering-templates.who-may-schedule.b1.i1.term': 'N’importe quel membre',
+  'help.gathering-templates.who-may-schedule.b1.i1.text':
+    'Tout membre qui peut programmer un rassemblement peut en démarrer un à partir de ce '
+    + 'modèle. Il ne peut toujours pas modifier le modèle lui-même.',
+  'help.gathering-templates.who-may-schedule.b2':
+    'Modifier un modèle est un travail d’administration quelle que soit celle des deux qui '
+    + 'est fixée. Une famille peut donc distribuer « n’importe qui peut organiser un '
+    + 'anniversaire » sans distribuer aussi « n’importe qui peut changer en quoi consiste un '
+    + 'anniversaire », et c’est la raison pour laquelle le réglage se trouve sur le modèle '
+    + 'plutôt que sur la personne.',
+  'help.gathering-templates.archiving.heading': 'Archiver, et supprimer',
+  'help.gathering-templates.archiving.b0':
+    '**Archiver** retire un modèle de la liste de ceux à partir desquels on peut programmer '
+    + 'et laisse chaque rassemblement bâti à partir de lui exactement tel qu’il est. Rien en '
+    + 'cours ne change et rien n’est supprimé ; la carte dit qu’il est archivé et que rien de '
+    + 'nouveau ne peut être démarré à partir de lui, et **Restaurer** le remet.',
+  'help.gathering-templates.archiving.b1':
+    'Un modèle à partir duquel un rassemblement a été bâti ne peut pas être supprimé. Le '
+    + 'refus dit combien de rassemblements l’ont utilisé et propose de l’archiver à la place, '
+    + 'avec un bouton **L’archiver plutôt** à côté du message. La raison est le relevé : les '
+    + 'tâches de ces rassemblements disent de quel modèle elles sont venues, et le supprimer '
+    + 'emporterait cela. Un modèle que rien n’a encore utilisé se supprime proprement, avec '
+    + 'ses étapes.',
+  'help.gathering-templates.archiving.b2':
+    'Le décompte des usages est imprimé sur la carte à côté de la commande de suppression : '
+    + 'le refus est donc rarement une surprise. Il est arrivé avec la page, cela dit, et un '
+    + 'rassemblement programmé depuis n’y figurera pas — c’est le refus lui-même qui décide.',
 }
