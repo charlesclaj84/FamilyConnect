@@ -785,6 +785,39 @@ If it is ever automated, it has to be ordered AFTER the Vercel alias moves — w
   in them is now a second copy. Change wording in `lib/email/auth-mail.ts`; delete the HTML
   once the hook has been on for long enough that turning it off is not the plan.
 
+## BUILD: the sitemap lists one URL per route, and there are now three
+
+**Action:** emit `alternates.languages` on every entry in `app/sitemap.ts`. Recorded
+2026-08-27, when the public site became three sites.
+
+`/es/pricing` and `/fr/pricing` are real, indexed, canonical addresses — `LOCALIZED_ROOTS`
+and `localizedAlternates` are what made them so — and `app/sitemap.ts` names neither. It maps
+`MARKETING_ROUTES` to one English URL each, which is what it did when there was one language.
+
+**IT IS NOT BROKEN, WHICH IS WHY THIS IS A BUILD AND NOT A BUG.** Every localized page carries
+its own `hreflang` set in the head, naming all three, and that is sufficient for a crawler to
+discover and consolidate them — the head and the sitemap are two ways to say one thing, and the
+page-level one is the one Google documents as adequate on its own. So the Spanish and French
+pages are findable today; they are simply found by following a link rather than by being
+announced.
+
+What emitting them buys is discovery for a page nothing links to yet, and a slightly faster
+first crawl of a new locale. Next supports it directly on a sitemap entry:
+
+```ts
+...MARKETING_ROUTES.map(route => ({
+  url: `${SITE_URL}${route.href}`,
+  alternates: { languages: localizedAlternates(route.href, BASE_LOCALE).languages },
+  lastModified, changeFrequency: route.changeFrequency, priority: route.priority,
+})),
+```
+
+**Two things to get right, and the second is the trap.** The x-default entry must point at the
+unprefixed English URL, which is what `localizedAlternates` already returns rather than
+something to hand-write. And `npm run sitemap:check` compares a DATE against the newest commit
+touching the public pages — it says nothing about which URLs are listed, so it will stay green
+through this whole item and cannot be the thing that tells you it is done.
+
 ## BUILD: greet a relative on their birthday, and make it feel like a celebration
 
 **Action:** decide what "automatic" means here, then build it. Recorded 2026-08-25, out of the

@@ -63,12 +63,26 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // by the Meta view-content tags, which a reader does NOT see — but the
   // pricing change alone earns the bump.
   //
+  // ── 2026-08-23 -> 2026-08-27 ──────────────────────────────────────────────
+  // Reader-visible on every public page, and in a way no refactor could be: the
+  // whole site reads in three languages now, and `/es/…` and `/fr/…` are real
+  // addresses with their own hreflang rather than a client-side swap. Prices are
+  // formatted in the reader's own conventions, the plan cards and the four tier
+  // taglines are keyed, and the founder's letter on /about is translated.
+  //
+  // WHAT IS DELIBERATELY NOT HERE YET: the localized URLs themselves. Every page
+  // carries its own `alternates.languages` through `localizedAlternates`, which is
+  // enough for a crawler to find and consolidate all three, so this file still
+  // lists one URL per route. Emitting the other two (Next supports
+  // `alternates.languages` on a sitemap entry) is the stronger signal and is owed —
+  // TODO.md carries it.
+  //
   // ONE DATE FOR EVERY URL, and it is a deliberate simplification rather than
   // an oversight: `/about` has not changed since before the old stamp, so this
   // overstates its freshness by a few days. `lastModified` is a hint crawlers
   // weigh, not a claim they audit, and six per-route dates in
   // `lib/marketing-nav.ts` would be six things to forget instead of one.
-  const lastModified = new Date('2026-08-23')
+  const lastModified = new Date('2026-08-27')
 
   return [
     {
