@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useEffect, useRef, useTransition } from 'react'
+import { formatTimeAgo } from '@/lib/i18n/catalogues'
+import { useLocale, useT } from '@/components/layout/LocaleProvider'
 import { useRouter } from 'next/navigation'
 import { Bell, UserCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -38,6 +40,8 @@ interface Props {
 }
 
 export function NotificationBell({ initialNotifications, personId, pendingQueues = [] }: Props) {
+  const t = useT()
+  const locale = useLocale()
   const router = useRouter()
   const [notifications, setNotifications] = useState(initialNotifications)
   const [open, setOpen] = useState(false)
@@ -167,7 +171,7 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
         // `--brand-ink` is the strong brand text role and the sand well is the same
         // resting surface the account menu beside it hovers to.
         className="relative rounded-lg p-1.5 text-brand-ink transition-colors hover:bg-brand-soft/60"
-        aria-label="Notifications"
+        aria-label={t('bell.label')}
       >
         <Bell className="h-5 w-5" />
         {badgeCount > 0 && (
@@ -186,21 +190,21 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
               is a full-width sheet under the header below sm now; see header-panel.ts. */}
           <div ref={panel} className={cn(HEADER_PANEL_CLASS, 'sm:w-80')}>
             <div className="flex shrink-0 items-center justify-between px-4 py-3 border-b">
-              <span className="font-semibold text-sm">Notifications</span>
+              <span className="font-semibold text-sm">{t('bell.heading')}</span>
               {unreadNotifications > 0 && (
                 <button
                   onClick={handleMarkAllRead}
                   disabled={isPending}
                   className="text-xs text-primary hover:underline"
                 >
-                  Mark all read
+                  {t('bell.markAll')}
                 </button>
               )}
             </div>
 
             {notifications.length === 0 && queues.length === 0 ? (
               <div className="px-4 py-8 text-center text-sm text-muted-foreground">
-                No notifications yet.
+                {t('bell.empty')}
               </div>
             ) : (
               /* The panel owns the height cap now (header-panel.ts), so the list takes
@@ -275,7 +279,7 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
                       <div className={!n.read_at ? '' : 'pl-3.5'}>
                         <p className="text-xs font-medium leading-snug">{n.title}</p>
                         {n.body && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>}
-                        <p className="text-[10px] text-muted-foreground/60 mt-1">{timeAgo(n.created_at)}</p>
+                        <p className="text-[10px] text-muted-foreground/60 mt-1">{formatTimeAgo(timeAgo(n.created_at), locale)}</p>
                       </div>
                     </div>
                   </li>

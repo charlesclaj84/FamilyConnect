@@ -1,6 +1,7 @@
 import { MessageCircle, Users, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RoomWithMeta } from '@/app/actions/chat'
+import { useT } from '@/components/layout/LocaleProvider'
 
 interface Props {
   room: RoomWithMeta
@@ -11,15 +12,16 @@ interface Props {
 }
 
 export function RoomListItem({ room, currentUserId, isActive, onClick, onDelete }: Props) {
+  const t = useT()
   const label =
     room.kind === 'family'
-      ? 'Family Chat'
+      ? t('chat.familyChat')
       : room.kind === 'group'
       ? (room.name ?? 'Group')
       : (() => {
           const other = room.participants.find(p => p.user_id !== currentUserId)
-          if (!other) return 'Direct Message'
-          return [other.first_name, other.last_name].filter(Boolean).join(' ') || 'Family Member'
+          if (!other) return t('chat.directMessage')
+          return [other.first_name, other.last_name].filter(Boolean).join(' ') || t('chat.familyMember')
         })()
 
   return (
@@ -44,7 +46,7 @@ export function RoomListItem({ room, currentUserId, isActive, onClick, onDelete 
           <span className="text-xs opacity-60 shrink-0">ended</span>
         )}
         {room.has_unread && (
-          <span className="h-2 w-2 rounded-full bg-brand-accent shrink-0" aria-label="Unread messages" />
+          <span className="h-2 w-2 rounded-full bg-brand-accent shrink-0" aria-label={t('chat.unread')} />
         )}
       </button>
 

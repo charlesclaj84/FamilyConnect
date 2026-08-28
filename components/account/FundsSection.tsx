@@ -7,6 +7,7 @@ import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { type FundWithStats } from '@/app/actions/funds'
 import { formatCurrency as fmt } from '@/lib/currency-utils'
+import { useT } from '@/components/layout/LocaleProvider'
 
 // Member-initiated "open contributions" was removed along with the contributeToFund
 // server action it called. The action was live, unpermissioned service-role code that
@@ -33,6 +34,7 @@ function pctLabel(bps: number) {
 }
 
 export function FundsSection({ funds, canManage }: Props) {
+  const t = useT()
   const [expanded, setExpanded] = useState<string | null>(null)
 
   // Nothing to show and nothing to do about it. Somebody who CAN set funds up still
@@ -45,22 +47,38 @@ export function FundsSection({ funds, canManage }: Props) {
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
         <CardTitle className="text-base flex items-center gap-2">
           <Award className="h-4 w-4 text-primary" />
-          Family Funds
+          {t('funds.title')}
         </CardTitle>
         {canManage && (
           <Link href="/admin/accounting?section=funds" className={buttonVariants({ size: 'sm', variant: 'outline' })}>
-            Manage Funds
+            {t('funds.manage')}
           </Link>
         )}
       </CardHeader>
       <CardContent className="space-y-2">
         {funds.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No funds set up yet.</p>
+          <p className="text-sm text-muted-foreground">{t('funds.none')}</p>
         ) : (
           funds.map(fund => {
-            // Status bar = money currently IN the fund (balance) toward its target
-            // (the goal if set, otherwise the minimum balance).
-            const target = fund.goal_cents ?? (fund.minimum_cents > 0 ? fund.minimum_cents : null)
+            // ── THE TARGET IS THE MINIMUM, AND `goal_cents` IS NOT CONSULTED ──────
+            // It read `goal_cents ?? minimum_cents` and labelled the result "goal" or
+            // "minimum" accordingly, which was wrong in the way a stale column always is:
+            // `createFund` stopped ASKING for a goal when the create form swapped that
+            // field for a minimum, so the only funds carrying one are those made before
+            // the swap. Those went on reporting "of $1,000 goal" — a figure nothing in the
+            // product reads, on a bar drawn against a target nobody could edit any more,
+            // beside an Accounting screen showing a different number for the same fund.
+            //
+            // `minimum_cents` is the figure that MEANS something: `routeContribution`
+            // fills each fund up to it in priority order, so a bar drawn against it is
+            // progress toward the thing the waterfall is actually doing. A fund with no
+            // minimum has no target, so it draws no bar and states its balance — which is
+            // the honest answer rather than a bar against nothing.
+            //
+            // The column itself is left alone. Dropping it is a migration, and
+            // `dues_schedules.goal_cents` — a genuinely live figure on a donation drive —
+            // is a different column with the same name.
+            const target = fund.minimum_cents > 0 ? fund.minimum_cents : null
             const pct = target
               ? Math.max(0, Math.min(100, Math.round((fund.balance_cents / target) * 100)))
               : null
@@ -89,7 +107,7 @@ export function FundsSection({ funds, canManage }: Props) {
                   <div className="text-right shrink-0 text-xs text-muted-foreground">
                     <p className="font-medium text-sm text-foreground">{fmt(fund.balance_cents)}</p>
                     <p>balance</p>
-                    {target && <p>of {fmt(target)} {fund.goal_cents ? 'goal' : 'minimum'}</p>}
+                    {target && <p>of {fmt(target)} minimum</p>}
                   </div>
                   {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
                 </button>

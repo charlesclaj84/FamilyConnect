@@ -17,28 +17,50 @@ import { Reveal } from '@/components/marketing/Reveal'
 import { StructuredData } from '@/components/marketing/StructuredData'
 import { LivingSitePreview } from '@/components/marketing/LivingSitePreview'
 import {
-  PageHero, SectionHeading, CtaBand, MoreLink, ComingSoonBadge,
+  PageHero, SectionHeading, MoreLink, ComingSoonBadge,
 } from '@/components/marketing/sections'
-import { PILLARS } from '@/components/marketing/pillars'
+import { CtaBand } from '@/components/marketing/CtaBand'
+import { pillars } from '@/components/marketing/pillars'
 import { PillarVignette } from '@/components/marketing/PillarVignette'
 import { TIER_ACCENT } from '@/components/marketing/tier-accent'
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
 import { isFeatureFuture, getFeature } from '@/lib/features'
-import { DEFAULT_TIER, TIERS, TIER_LABEL, TIER_TAGLINE, type FamilyTier } from '@/lib/tiers'
+import { DEFAULT_TIER, TIERS, TIER_LABEL, tierTagline, type FamilyTier } from '@/lib/tiers'
 import { TIER_PRICE, formatPlanPrice } from '@/lib/plans'
-import { APP_NAME } from '@/lib/brand'
+import { localizedHref } from '@/lib/i18n/route-locale'
+import { marketingI18n } from '@/lib/marketing/locale'
+import { localizedAlternates } from '@/lib/i18n/route-locale'
+// ── THE SHELL CATALOGUE, ON A MARKETING PAGE, AND ONLY FOR THE TIER TAGLINES ────────
+// `tierTagline` reads `tier.tagline.<tier>`, which lives in the SHELL catalogue because the
+// signed-in surfaces need it — `/admin/settings`, `/upgrade` and `/register` all print it, and a
+// key can only live in one bundle (`i18n:check`'s DUPLICATE-KEY). So this page reads the shell
+// `t` for that one lookup and the marketing `t` for everything else.
+//
+// IT COSTS THE BROWSER NOTHING, which is the whole reason it is allowed. This page is a server
+// component, so `lib/i18n/catalogues` is resolved during the render and never shipped — the
+// 1,763 keys it holds do not reach Home's bundle. The rule that would be broken is a CLIENT
+// marketing component importing it; `i18n:check`'s CLIENT-BUNDLE check is what watches for that.
+//
+// The alternative was a second set of `mkt.tier.*.tagline` keys, which is a second wording of
+// one sentence — and these four taglines were already hand-copied into `PLANS[]` on this site
+// once, which is the drift `TIER_TAGLINE` was created to prevent.
+import { tFor } from '@/lib/i18n/catalogues'
+import { type T } from '@/lib/i18n/t'
 import { cn } from '@/lib/utils'
 import { MetaViewContent } from '@/components/meta/MetaViewContent'
 
-const PAGE_TITLE = 'Everything Your Family Organization Runs On'
-const PAGE_DESCRIPTION =
-  `Reunion planning, dues and treasury, family tree, photos, elections and chat — every tool a family organization needs, in one private ${APP_NAME} portal.`
-
-export const metadata: Metadata = {
-  title: PAGE_TITLE,
-  description: PAGE_DESCRIPTION,
-  alternates: { canonical: '/features' },
+/**
+ * ── `generateMetadata`, FOR THE REASON /how-it-works CARRIES AT LENGTH ──────────────
+ * Per-language title, description and `hreflang` set. It costs one request-cached header read.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const { t, locale } = await marketingI18n()
+  return {
+    title: t('mkt.feat.metaTitle'),
+    description: t('mkt.feat.metaDescription'),
+    alternates: localizedAlternates('/features', locale),
+  }
 }
 
 /**
@@ -111,10 +133,21 @@ export const metadata: Metadata = {
  * whoever adds it should read the paragraph above first: a hand-typed tier beside a real route
  * is exactly the drift that put a stale `'Free' | 'Plus'` tag on this grid for months.
  */
-const ALSO: readonly {
+/**
+ * ── THE COPY IS KEYED ON THE ROUTE, AND THE ROUTE WAS ALREADY THE IDENTITY ──────────
+ * `title` and `blurb` left this array when the public site learned Spanish and French; the
+ * catalogue holds them as `mkt.also.<route>.title` and `.blurb`. Keying on the route rather than
+ * on an index is not a style choice — this file's own header says the route is what makes the
+ * grid unable to disagree with `lib/features.ts`, and it is what decides which BAND a card lands
+ * in. An index would renumber every card below any insertion, which in three catalogues at once
+ * is how a Spanish blurb ends up under a French title.
+ *
+ * The forty-two comments below are kept exactly as they were. They are the argument for what is
+ * and is not on this grid — including the fourteen that were missing until 2026-08-22 — and none
+ * of it is affected by where the words live.
+ */
+const ALSO_SHAPES: readonly {
   icon: LucideIcon
-  title: string
-  blurb: string
   /**
    * Route in `lib/features.ts` whose status AND tier decide both badges. Never linked.
    *
@@ -156,27 +189,27 @@ const ALSO: readonly {
 
   // Standard — the tier this omission was costing, so it leads the band in the order it is
   // actually sold in: the record, then the money, then the work.
-  { icon: Network, route: '/community/family-tree', title: 'The family tree', blurb: 'Every branch traced back through the generations, with blood and marriage told apart, and a relative who has no email yet recorded exactly like everybody else.' },
-  { icon: HandCoins, route: '/accounting/dues-and-donations', title: 'Dues and donation drives', blurb: 'What you owe this year and what you have paid, and the drives the family is running — the member’s own side of the ledger.' },
-  { icon: ScrollText, route: '/accounting/transactions', title: 'The full ledger', blurb: 'Every contribution recorded and every disbursement paid, on one ledger, with who entered it and when.' },
-  { icon: SlidersHorizontal, route: '/admin/accounting', title: 'Set up how the money works', blurb: 'Dues at any cadence with installment plans, the funds your family keeps, and the routing that fills the reunion fund before the college fund.' },
-  { icon: Wallet, route: '/accounting/summary', title: 'Where you stand', blurb: 'Your dues, your donations and what is still to pay, with the family’s fund balances beside them.' },
-  { icon: FileStack, route: '/admin/gatherings/templates', title: 'The checklist, written once', blurb: 'Author the list of steps your family runs every year. Schedule a gathering from it and every step becomes somebody’s job with a date on it.' },
-  { icon: ClipboardCheck, route: '/gatherings/my-tasks', title: 'The jobs you were given', blurb: 'Every step of a gathering that is yours, what it is asking for, and whether the answer you sent came back accepted or with notes.' },
-  { icon: PiggyBank, route: '/gatherings/budget', title: 'What the gathering is costing', blurb: 'A budget drawn on one of your funds, what each task has claimed against it, and a marker the moment it is over either one.' },
+  { icon: Network, route: '/community/family-tree' },
+  { icon: HandCoins, route: '/accounting/dues-and-donations' },
+  { icon: ScrollText, route: '/accounting/transactions' },
+  { icon: SlidersHorizontal, route: '/admin/accounting' },
+  { icon: Wallet, route: '/accounting/summary' },
+  { icon: FileStack, route: '/admin/gatherings/templates' },
+  { icon: ClipboardCheck, route: '/gatherings/my-tasks' },
+  { icon: PiggyBank, route: '/gatherings/budget' },
 
   // Free — the band that has to do the converting, and the directory is its first promise.
-  { icon: BookUser, route: '/community/directory', title: 'The family directory', blurb: 'Everybody in one searchable list with the contact details you actually need — and search that handles real names, accents and all.' },
-  { icon: PartyPopper, route: '/gatherings', title: 'Every gathering, on one page', blurb: 'What the family has coming up, with the date, the place and the details — and one flagged premier across the top of everybody’s dashboard.' },
-  { icon: CalendarPlus, route: '/admin/gatherings', title: 'Put a gathering on the calendar', blurb: 'Schedule it, give it its dates and its place, and see what has come back on it. Free needs no checklist — a date, a place and a description is a gathering.' },
-  { icon: IdCard, route: '/personal-info', title: 'Your own record, kept by you', blurb: 'Contact details, birthday, t-shirt size — what the family needs about you, maintained by you rather than by whoever is keeping the list.' },
-  { icon: UserCheck, route: '/admin/members/approvals', title: 'Nobody gets in until you let them', blurb: 'Every request to join waits in a queue until somebody admits it, and sees nothing of the family in the meantime.' },
+  { icon: BookUser, route: '/community/directory' },
+  { icon: PartyPopper, route: '/gatherings' },
+  { icon: CalendarPlus, route: '/admin/gatherings' },
+  { icon: IdCard, route: '/personal-info' },
+  { icon: UserCheck, route: '/admin/members/approvals' },
 
   // Plus.
-  { icon: LineChart, route: '/reporting/pl-summary', title: 'A profit and loss for your treasurer', blurb: 'Money in against money out, straight from the ledger, in the statement the board asks for.' },
+  { icon: LineChart, route: '/reporting/pl-summary' },
 
-  { icon: MessagesSquare, route: '/community/chat', title: 'Family chat', blurb: 'Group threads and private messages, so the family keeps talking between gatherings.' },
-  { icon: Megaphone, route: '/community/announcements', title: 'Announcements', blurb: 'Anyone can share news; administrators pin what matters to the top of everyone’s dashboard.' },
+  { icon: MessagesSquare, route: '/community/chat' },
+  { icon: Megaphone, route: '/community/announcements' },
   // ── THE FIRST PREMIUM CARD ON THIS GRID, 2026-08-22 ──────────────────────────────────
   // It sits directly under Announcements because the two are the pair a buyer is comparing:
   // one waits on a dashboard to be found, the other arrives in an inbox. The tier tag beside
@@ -187,7 +220,7 @@ const ALSO: readonly {
   // three is built. It names the one thing that is actually the feature — the audience being
   // the membership rather than a list somebody maintains — which is also the claim
   // `/pricing`'s Premium card has been making since it existed.
-  { icon: Send, route: '/community/distributions', title: 'Email the whole family', blurb: 'One message to everyone, or to one region or chapter, drawn straight from your membership — nobody is missed, nobody gets it twice, and you can see exactly who it reached.' },
+  { icon: Send, route: '/community/distributions' },
   // ── SAFETY CHECK-INS, AND THE BLURB IS THE MOST CAREFULLY BOUNDED ONE ON THIS GRID ───
   // It sits beside Distributions because they are the two ways the product reaches the whole
   // family at once, and its tier tag reads FREE because `lib/features.ts` says so — argued at
@@ -203,7 +236,7 @@ const ALSO: readonly {
   //     the ROSTER — knowing who has answered — which is the half that is genuinely built.
   //   * that anybody is TRACKED. Nothing here records where a relative is; it records what they
   //     said when they were asked.
-  { icon: ShieldAlert, route: '/community/safety-check-ins', title: 'Check that everyone is safe', blurb: 'When a storm or a fire hits, ask the relatives in that region — or a list you pick yourself — one question. They answer with a tap, and you see who is safe, who needs help, and who has not answered yet.' },
+  { icon: ShieldAlert, route: '/community/safety-check-ins' },
   // ── THE FAMILY TREE CARD WAS REMOVED AND IS BACK, WITHIN THE SAME DAY ────────────────
   // It went on the argument that it duplicated the family-record PILLAR 400px above it, and
   // that "Everything ELSE it does" meant other than the three pillars. Both were true. What
@@ -222,21 +255,21 @@ const ALSO: readonly {
     // "family-wide" WENT ON 2026-08-21, and it is a correction rather than a trim: an election
   // now belongs to the whole family, one region or one chapter, so the old blurb was false
   // for two of the three. The window sentence is the other half of what changed.
-  { icon: Vote, route: '/community/elections', title: 'Officer elections', blurb: 'Nominate somebody, accept or decline your own nomination, then vote — inside the nomination and voting windows your family set, with results tallied when the poll closes.' },
-  { icon: Images, route: '/community/gallery', title: 'Gallery', blurb: 'Albums for every gathering, uploaded in a batch, with tagging that finds the right cousin out of a hundred.' },
-  { icon: FileText, route: '/library/documents', title: 'Documents', blurb: 'Forms, filings and records in one shared place that does not live in an inbox.' },
+  { icon: Vote, route: '/community/elections' },
+  { icon: Images, route: '/community/gallery' },
+  { icon: FileText, route: '/library/documents' },
   // TRIMMED 2026-08-21 for the same reason: board positions have their own card now, and this
   // one is about the family's GEOGRAPHY. The two share a screen (Organization is one pane over
   // two grants — see AGENTS.md) and they are two different jobs, which is exactly why they are
   // two keys and now two cards.
-  { icon: MapPinned, route: '/admin/members/organization', title: 'Regions and chapters', blurb: 'Split a large family into regions and chapters, each with its own membership and its own leadership.' },
+  { icon: MapPinned, route: '/admin/members/organization' },
   // REPOINTED 2026-08-20: `/admin/reports` is deleted, and a `route` naming a path this
   // registry no longer has does not fail — `getFeature()` longest-prefix-matches, so it
   // would have resolved to the `/admin` catch-all and printed a Coming Soon pill and a Free
   // tag over a Plus screen that ships. The blurb was rewritten with it: the old one sold
   // "membership over time", and nothing in this product has ever recorded a membership
   // figure over time.
-  { icon: BarChart3, route: '/reporting/membership', title: 'Leadership reports', blurb: 'Members by region and chapter, how many have finished joining, and adults against minors.' },
+  { icon: BarChart3, route: '/reporting/membership' },
   // ── FOUR ADDED 2026-08-21, after checking this grid against the registry rather than
   // against memory. `lib/features.ts` carries 34 live features; the three pillars and the seven
   // cards above named every one of them EXCEPT these four, and none of the four is a detail of
@@ -251,16 +284,16 @@ const ALSO: readonly {
   // Tier and Coming Soon are derived for all four, like every other row here. The check is one
   // script away from being mechanical and is not written; the header above says why a hand-typed
   // tier is the thing that rots, and the same is true of a hand-remembered inventory.
-  { icon: Bell, route: '/community/updates', title: 'The updates archive', blurb: 'Everything the family has ever announced, and everything sent to you, searchable long after it scrolled off the dashboard.' },
-  { icon: ReceiptText, route: '/reporting/payment-history', title: 'Your own payment history', blurb: 'Every payment recorded against you, with its date, amount, method and status — so nobody has to take the treasurer’s word for it.' },
-  { icon: TrendingUp, route: '/reporting/dues-projections', title: 'Dues projections', blurb: 'What the family should collect this year, what has come in, and who still owes — counting relatives who never finished registering.' },
-  { icon: ArrowLeftRight, route: '/accounting/transactions/fund-transfers', title: 'Transfers between funds', blurb: 'Move money from one fund to another and keep both sides of it on the record.' },
+  { icon: Bell, route: '/community/updates' },
+  { icon: ReceiptText, route: '/reporting/payment-history' },
+  { icon: TrendingUp, route: '/reporting/dues-projections' },
+  { icon: ArrowLeftRight, route: '/accounting/transactions/fund-transfers' },
   // MOVED HERE 2026-08-21 from the privacy card below, which had sold it untagged under a
   // heading about family isolation. Isolation is universal and enforced by the database on
   // every query; this is Standard. Conflating the two promised a Free family a screen they
   // cannot open — and putting it here is what makes the promise carry its price, because this
   // grid derives every tag from `lib/features.ts` and cannot disagree with it.
-  { icon: ShieldCheck, route: '/admin/members/templates', title: 'Who may do what', blurb: 'A grid of per-feature permissions, so recording dues is not the same as paying money out — and administrators decide who sees the treasury.' },
+  { icon: ShieldCheck, route: '/admin/members/templates' },
   // ── BROKEN OUT 2026-08-21 ────────────────────────────────────────────────────────
   // Both were sold obliquely, inside a neighbouring card's blurb, and both are a screen with
   // their own rail item and their own grant at the same tier as the card that was carrying
@@ -270,11 +303,11 @@ const ALSO: readonly {
   // Each of the two host blurbs was trimmed in the same edit rather than left to overlap: two
   // cards saying the same sentence is how a catalogue stops being readable, and the sentence
   // belongs with whichever card's reader would act on it.
-  { icon: Award, route: '/admin/members/board-positions', title: 'The offices your family keeps', blurb: 'Define the positions your family actually has — national, regional or per chapter — and record who holds each one. It starts empty on purpose: no two families keep the same board.' },
+  { icon: Award, route: '/admin/members/board-positions' },
   // Rewritten 2026-08-21 with the feature. The old blurb sold "take it through to a result",
   // which was a description of the three buttons an organizer had to press; the dates run it
   // now. The LEVEL is the other half and is new — see lib/features.ts.
-  { icon: ClipboardList, route: '/admin/elections', title: 'Running the election', blurb: 'Set when nominations and voting open and close, and they run themselves. Choose whether the whole family votes or just one region or chapter. Positions pull from your board roster at the matching level.' },
+  { icon: ClipboardList, route: '/admin/elections' },
   // ── ELEVEN ADDED 2026-08-22, and this time by a SCRIPT rather than by reading ──────
   // `npm run marketing:check` walks the registry against this grid and the pillars and fails
   // on anything live that neither names. Its first run reported eleven, which is the whole
@@ -292,29 +325,29 @@ const ALSO: readonly {
   // Each tier tag below is derived, like every other row here. Nothing is hand-typed.
 
   // The Library — Documents is above, and had been the only one of the four on this page.
-  { icon: NotebookPen, route: '/library/officer-notes', title: 'The office keeps its own notebook', blurb: 'Working notes that stay with the ROLE, not the person: three treasurers from now, whoever holds it opens the same notebook. Only the officers who hold that office can read it — not even an administrator.' },
-  { icon: Gavel, route: '/library/meeting-minutes', title: 'Minutes, and how the room voted', blurb: 'Schedule a meeting, name its secretary, and pick who is coming by BODY — the national board, one chapter’s board — rather than by ticking eleven names. Topics get put to a vote, and a recorded vote can never be edited by anybody.' },
-  { icon: Scale, route: '/library/bylaws', title: 'Your bylaws, searchable', blurb: 'The rules the family agreed to live by, kept by article with the amendments that changed them. Plain-text uploads are searchable word by word; a PDF is searchable by title, article and summary, and every entry says which it is.' },
+  { icon: NotebookPen, route: '/library/officer-notes' },
+  { icon: Gavel, route: '/library/meeting-minutes' },
+  { icon: Scale, route: '/library/bylaws' },
 
   // The reports. "Leadership reports" above is the MEMBERSHIP one; these four are the rest,
   // and none of them is about money — which is what made them invisible to a page whose
   // reporting story was the treasury pillar.
-  { icon: ListChecks, route: '/reporting/gatherings', title: 'Is the reunion work actually done', blurb: 'Every gathering with how much of its work has come back, what is overdue, who is helping, and what the tasks have claimed against the budget.' },
-  { icon: PieChart, route: '/reporting/elections', title: 'Turnout worth calling a mandate', blurb: 'How many voted in each election, how many stood, and which offices nobody put a name forward for.' },
-  { icon: Users2, route: '/reporting/meetings', title: 'How often you actually meet', blurb: 'Meetings held, how big each room was, how many decisions were put to a vote, and who answers when one is called. It counts who was asked and who voted, and refuses to call either attendance — nothing in the product records who walked in.' },
-  { icon: Landmark, route: '/reporting/board', title: 'Which offices are standing empty', blurb: 'Every office your family has defined, who holds it, and the vacancies — which is the one thing a roster of what exists cannot tell you.' },
+  { icon: ListChecks, route: '/reporting/gatherings' },
+  { icon: PieChart, route: '/reporting/elections' },
+  { icon: Users2, route: '/reporting/meetings' },
+  { icon: Landmark, route: '/reporting/board' },
 
   // Free, and all three were unsold.
-  { icon: CalendarDays, route: '/gatherings/calendar', title: 'One calendar, not three', blurb: 'A real month grid carrying every gathering on the days it runs, the meetings you are down for, and the days nominations and voting are open. A three-day reunion fills three days.' },
-  { icon: LifeBuoy, route: '/help', title: 'A manual, written for your relatives', blurb: 'Every screen explained by name — the buttons, the columns, what each control does and where to look when something is missing. A question mark in the top bar opens the page for wherever you are standing.' },
-  { icon: UsersRound, route: '/my-families', title: 'One login, more than one family', blurb: 'Married into a second family, or keeping your father’s and your mother’s side both? One account belongs to as many as you like, and switching between them changes everything on screen at once.' },
-  { icon: UserCog, route: '/admin/members', title: 'Look after the roster', blurb: 'Fix a relative’s record, send somebody a password reset, or switch a member off without deleting a thing they ever did.' },
+  { icon: CalendarDays, route: '/gatherings/calendar' },
+  { icon: LifeBuoy, route: '/help' },
+  { icon: UsersRound, route: '/my-families' },
+  { icon: UserCog, route: '/admin/members' },
   // ADDED 2026-08-22 with the sub-key that carries its tier. Profile pictures had been sold on
   // the Standard card and shipped free to every family since the tiers were set — the oldest
   // open item in FutureFeature.md — and `lib/features.ts` could not express it because the
   // upload lives on `/personal-info`, which is Free. It has its own registry row now, so this
   // card's tier tag is derived like every other and the claim finally carries its price.
-  { icon: UserRound, route: '/personal-info/photo', title: 'A face against every name', blurb: 'A photograph beside each relative — in the directory, on the family tree, in the top bar and on every screen they are listed. Without one they get their initials.' },
+  { icon: UserRound, route: '/personal-info/photo' },
 ]
 
 /**
@@ -324,6 +357,22 @@ const ALSO: readonly {
  * that item gone there is one shape and one source, which is what makes the pill on this grid
  * trustworthy rather than merely present.
  */
+
+/**
+ * The grid's cards, in the reader's language.
+ *
+ * One `t` lookup per field per card. `marketing:check` still walks the ROUTES rather than the
+ * words, so its coverage rule is untouched by this — it asks whether every live feature has a
+ * card, and a card is a route.
+ */
+function also(t: T): readonly { icon: LucideIcon; route: string; title: string; blurb: string }[] {
+  return ALSO_SHAPES.map(shape => ({
+    ...shape,
+    title: t(`mkt.also.${shape.route}.title`),
+    blurb: t(`mkt.also.${shape.route}.blurb`),
+  }))
+}
+
 function isComingSoon(item: { route: string }) {
   return isFeatureFuture(item.route)
 }
@@ -401,80 +450,53 @@ const TIER_GLYPH: Record<FamilyTier, LucideIcon> = {
  * mechanical can check this one — `npm run marketing:check` reads `route:` and these have
  * none — so an edit to a paid card's promise is an edit here too.
  */
-const ROADMAP: readonly {
-  icon: LucideIcon
-  title: string
-  blurb: string
-  tier: FamilyTier
-}[] = [
-  {
-    icon: CreditCard,
-    tier: 'plus',
-    title: 'Take payment the way your family pays',
-    blurb:
-      'Card, debit, PayPal, Apple Pay, Google Pay and Cash App, routed into your funds the moment they land. Until this ships, the ledger records the cash and cheques you collect the way you collect them now.',
-  },
-  {
-    icon: CalendarClock,
-    tier: 'premium',
-    title: 'Stop chasing relatives for their dues',
-    blurb:
-      'A reminder goes out as each installment falls due, and stops the moment it is paid — so nobody is chased for money they already sent.',
-  },
-  {
-    icon: BellRing,
-    tier: 'premium',
-    title: 'News that arrives, instead of waiting to be found',
-    blurb:
-      'Notifications on the phone and in the browser for announcements, messages and the tasks you have been given, rather than a dashboard somebody has to remember to open.',
-  },
-  {
-    icon: Smartphone,
-    tier: 'premium',
-    title: 'The family in everybody’s pocket',
-    blurb:
-      'Apps for iPhone and Android, signed in to the same family account, showing the same family you see here.',
-  },
+/**
+ * The promised ones, per tier — the answer to "what does this plan buy me later".
+ *
+ * ── NO `route`, WHICH IS WHY THE TIER IS TYPED HERE AND NOWHERE ELSE ON THIS PAGE ───
+ * Every other tier tag on this page is DERIVED from `lib/features.ts`, and this table is the one
+ * exception because there is nothing to derive from: these have no registry entry, which is
+ * exactly what makes them promises. `isComingSoon` must not be consulted for them (it asks the
+ * registry); the badge is unconditional because the table is, by definition, the unshipped half.
+ *
+ * The copy is keyed on the INDEX here rather than on a route, because there is no route to key
+ * on. That is the weaker scheme and it is bounded: four entries, and the day one ships it moves
+ * into `ALSO` with a route and picks up the route-keyed scheme with everything else.
+ */
+const ROADMAP_SHAPES: readonly { icon: LucideIcon; tier: FamilyTier }[] = [
+  { icon: CreditCard, tier: 'plus' },
+  { icon: CalendarClock, tier: 'premium' },
+  { icon: BellRing, tier: 'premium' },
+  { icon: Smartphone, tier: 'premium' },
 ]
 
-/**
- * The grid, cut into one band per tier — **derived, not authored.**
- *
- * ── WHY GROUPED, 2026-08-22 ──────────────────────────────────────────────────────────
- * It was one 28-card grid with a tier pill on each card, which asks a reader to hold the whole
- * grid in their head and sort it themselves: the question somebody brings to a pricing decision
- * is "what do I get for $5" and the answer was scattered across four rows. Grouping answers it
- * by position, and the band heading can then carry the price and the tagline that a 10px pill
- * never could.
- *
- * ── THE GROUPING IS THE SAME DERIVATION THE PILL WAS, WHICH IS THE WHOLE POINT ────────
- * Nothing here assigns a card to a band. `TIERS` gives the order (that array IS the tier
- * semantics — `TIER_RANK`, `tierMeets` and `tiersIncludedIn` all read it), and `tierOf()` reads
- * `lib/features.ts`. So moving a route between tiers moves its card between bands with no edit
- * to this file, exactly as it used to change the pill — and the per-card pill is therefore
- * REMOVED rather than kept beside a heading that says the same word twice.
- *
- * That is the one thing to preserve if this is ever rearranged again: the reason a hand-typed
- * `'Free' | 'Plus'` was taken off this grid in 2026-08-20 applies with equal force to a
- * hand-assigned group.
- *
- * `.filter()` drops a band with nothing in it AT ALL, live or promised. It used to drop a band
- * with no live route, which was written when Premium had none — and that was the page choosing
- * silence over an honest "not yet": a tier priced at the top of the card stack, with no answer
- * anywhere on the catalogue for what it buys. `ROADMAP` is that answer now, and the filter has
- * to count both halves or the band it was written about disappears again the day its one
- * shipped screen moves.
- */
-const ALSO_BY_TIER = TIERS
-  .map(tier => ({
-    tier,
-    items: ALSO.filter(item => tierOf(item) === tier),
-    // The shipped cards first, then what the plan is still going to be. Sorting them the
-    // other way round would put a promise above a fact on a page whose argument is that it
-    // does not confuse the two.
-    soon: ROADMAP.filter(item => item.tier === tier),
+function roadmap(t: T): readonly {
+  icon: LucideIcon
+  tier: FamilyTier
+  title: string
+  blurb: string
+}[] {
+  return ROADMAP_SHAPES.map((shape, i) => ({
+    ...shape,
+    title: t(`mkt.feat.soon${i}.title`),
+    blurb: t(`mkt.feat.soon${i}.blurb`),
   }))
-  .filter(band => band.items.length + band.soon.length > 0)
+}
+
+function alsoByTier(t: T) {
+  const ALSO = also(t)
+  const ROADMAP = roadmap(t)
+  return TIERS
+    .map(tier => ({
+      tier,
+      items: ALSO.filter(item => tierOf(item) === tier),
+      // The shipped cards first, then what the plan is still going to be. Sorting them the
+      // other way round would put a promise above a fact on a page whose argument is that it
+      // does not confuse the two.
+      soon: ROADMAP.filter(item => item.tier === tier),
+    }))
+    .filter(band => band.items.length + band.soon.length > 0)
+}
 
 /*
  * `STANDARD_RATE` WAS HERE, and its removal is the point rather than a tidy-up.
@@ -488,37 +510,37 @@ const ALSO_BY_TIER = TIERS
  * and `lib/plans.ts` is the only place any of them is written down.
  */
 
-export default function FeaturesPage() {
+export default async function FeaturesPage() {
+  const { t, locale, intl } = await marketingI18n()
+  // The shell translator, for the tier taglines only. See the note on the import.
+  const shellT = tFor(locale)
+  const ALSO_BY_TIER = alsoByTier(t)
+  const PILLARS = pillars(t)
+
   return (
     <>
       <MetaViewContent content="features" />
       <StructuredData
         graph={marketingPageGraph({
           path: '/features',
-          name: PAGE_TITLE,
-          description: PAGE_DESCRIPTION,
+          name: t('mkt.feat.graphName'),
+          description: t('mkt.feat.metaDescription'),
         })}
       />
 
       <PageHero
-        eyebrow="Features"
-        title={<>Everything your family organization runs on</>}
-        lede={
-          <>
-            Most families are running a reunion out of a group text, a treasury out of a
-            spreadsheet and a family tree out of one relative&apos;s memory. {APP_NAME}{' '}
-            replaces all three — and keeps them in the same private place.
-          </>
-        }
+        eyebrow={t('mkt.feat.eyebrow')}
+        title={t('mkt.feat.title')}
+        lede={t('mkt.feat.lede')}
       >
-        <Link href={ACCOUNT_ROUTES.register}>
+        <Link href={localizedHref(ACCOUNT_ROUTES.register, locale)}>
           <Button size="lg" className="w-full bg-brand-legacy px-8 text-base text-brand-on-legacy hover:opacity-90 sm:w-auto">
-            Start Free
+            {t('mkt.feat.heroPrimary')}
           </Button>
         </Link>
-        <Link href="/pricing">
+        <Link href={localizedHref('/pricing', locale)}>
           <Button size="lg" className="w-full border-brand-on-primary/40 bg-transparent px-8 text-base text-brand-on-primary hover:bg-brand-on-primary/10 sm:w-auto">
-            See pricing
+            {t('mkt.feat.heroSecondary')}
           </Button>
         </Link>
       </PageHero>
@@ -528,9 +550,9 @@ export default function FeaturesPage() {
         <div className="mx-auto max-w-6xl">
           <SectionHeading
             id="pillars-heading"
-            eyebrow="The core"
-            title="Three jobs, done properly"
-            lede="Not thirty half-features. The three things a family organization actually lives or dies on."
+            eyebrow={t('mkt.feat.coreEyebrow')}
+            title={t('mkt.feat.coreTitle')}
+            lede={t('mkt.feat.coreLede')}
           />
 
           {/* Alternating rows rather than the three stacked cards this was, because the
@@ -557,7 +579,7 @@ export default function FeaturesPage() {
                         <span className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-accent">
                           {pillar.eyebrow}
                         </span>
-                        {isFeatureFuture(pillar.route) && <ComingSoonBadge />}
+                        {isFeatureFuture(pillar.route) && <ComingSoonBadge label={t('mkt.comingSoon')} />}
                       </div>
                       <h3 className="text-2xl sm:text-3xl">{pillar.title}</h3>
                       <p className="text-base leading-relaxed text-muted-foreground">
@@ -592,7 +614,7 @@ export default function FeaturesPage() {
                         including the one rule for editing a vignette: it may only draw
                         what its pillar's bullets already claim. */}
                     <div className={cn(reversed ? 'lg:order-1' : 'lg:order-2')}>
-                      <PillarVignette kind={pillar.vignette} />
+                      <PillarVignette kind={pillar.vignette} t={t} />
                     </div>
                   </div>
                 </Reveal>
@@ -625,10 +647,9 @@ export default function FeaturesPage() {
               this is a pointer, and it names no tier and no figure at all. */}
           <Reveal delay={200}>
             <p className="mx-auto mt-16 max-w-2xl text-center text-sm text-muted-foreground sm:mt-20">
-              Each of those three spans more than one plan. What follows is the exact
-              answer, screen by screen, with the plan it belongs to over each group.{' '}
+              {t('mkt.feat.spansPlans')}{' '}
               <Link href="/pricing" className="font-semibold text-brand-accent hover:text-brand-ink">
-                Or see what each tier costs
+                {t('mkt.feat.seeCosts')}
               </Link>
               .
             </p>
@@ -646,9 +667,9 @@ export default function FeaturesPage() {
               itself, and it is the heading that told a reader the tree was elsewhere. */}
           <SectionHeading
             id="also-heading"
-            eyebrow="Screen by screen"
-            title="Everything it does, and the plan it is on"
-            lede="Every screen in the product, cut by plan, so you can read one band and stop. A solid card ships today; a dashed one is a promise the plan makes and says so on its face. The tier a card sits under is read from the same registry the product gates itself with."
+            eyebrow={t('mkt.feat.gridEyebrow')}
+            title={t('mkt.feat.gridTitle')}
+            lede={t('mkt.feat.gridLede')}
           />
 
           {/* ONE BAND PER TIER, in `TIERS` order and derived — see the note on
@@ -674,7 +695,7 @@ export default function FeaturesPage() {
                         As a filled panel in the tier's own hue it is a landmark you
                         can find by scrolling, and it has room for what a 10px pill
                         never could — the tier's one-line pitch and its price.
-                        `TIER_TAGLINE` and `TIER_PRICE` are both read rather than
+                        `tierTagline` and `TIER_PRICE` are both read rather than
                         typed; a price in prose is still a price, and `lib/plans.ts`
                         is the one place any of them is written down.
 
@@ -698,17 +719,22 @@ export default function FeaturesPage() {
                                     cards themselves make. The word stays SCREENS for
                                     the live count and never covers the promises — a
                                     roadmap item is not a screen until it is one. */}
+                                {/* One key per grammatical number rather than a
+                                    ternary over two English words — see the catalogue.
+                                    Spanish and French both agree with English here and
+                                    a fourth language may not, which is the reason the
+                                    plural is a key and not a suffix. */}
                                 {items.length > 0 && (
-                                  <>
-                                    {items.length} {items.length === 1 ? 'screen' : 'screens'}
-                                  </>
+                                  items.length === 1
+                                    ? t('mkt.feat.screenOne')
+                                    : t('mkt.feat.screenMany', { n: items.length })
                                 )}
                                 {items.length > 0 && soon.length > 0 && ' · '}
-                                {soon.length > 0 && `${soon.length} on the way`}
+                                {soon.length > 0 && t('mkt.feat.onTheWay', { n: soon.length })}
                               </span>
                             </h3>
                             <p className="mt-0.5 max-w-xl text-sm text-muted-foreground">
-                              {TIER_TAGLINE[tier]}
+                              {tierTagline(shellT, tier)}
                             </p>
                           </div>
                         </div>
@@ -722,12 +748,18 @@ export default function FeaturesPage() {
                           href="/pricing"
                           className="group/price inline-flex items-center gap-1.5 text-sm font-semibold text-brand-accent hover:text-brand-ink"
                         >
-                          {price ? `${formatPlanPrice(price.monthlyCents)} a month` : 'No charge'}
+                          {price
+                            ? t('mkt.feat.perMonth', {
+                                amount: formatPlanPrice(price.monthlyCents, intl),
+                              })
+                            : t('mkt.feat.noCharge')}
                           <ArrowRight
                             aria-hidden="true"
                             className="h-4 w-4 transition-transform duration-300 group-hover/price:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover/price:translate-x-0"
                           />
-                          <span className="sr-only"> — see what is in the {TIER_LABEL[tier]} plan</span>
+                          <span className="sr-only">
+                            {t('mkt.feat.seePlan', { plan: TIER_LABEL[tier] })}
+                          </span>
                         </Link>
                       </div>
                     </div>
@@ -784,7 +816,7 @@ export default function FeaturesPage() {
                           <h4 className="text-base font-semibold">{item.title}</h4>
                           {/* Its own line, under the title, rather than crowded into
                               the header row: there is not room beside the chip. */}
-                          {isComingSoon(item) && <ComingSoonBadge className="mt-2" />}
+                          {isComingSoon(item) && <ComingSoonBadge label={t('mkt.comingSoon')} className="mt-2" />}
                           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                             {item.blurb}
                           </p>
@@ -829,7 +861,7 @@ export default function FeaturesPage() {
                             <item.icon className="h-5 w-5" aria-hidden="true" />
                           </div>
                           <h4 className="text-base font-semibold">{item.title}</h4>
-                          <ComingSoonBadge className="mt-2" />
+                          <ComingSoonBadge label={t('mkt.comingSoon')} className="mt-2" />
                           <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
                             {item.blurb}
                           </p>
@@ -854,12 +886,10 @@ export default function FeaturesPage() {
                 </div>
                 <div>
                   <h2 id="privacy-heading" className="text-2xl">
-                    One family cannot see another. Ever.
+                    {t('mkt.feat.privacyTitle')}
                   </h2>
                   <p className="mt-3 text-base leading-relaxed text-muted-foreground">
-                    Family separation is not a setting — it is enforced by the database on
-                    every single query, and every action that reads or writes family data
-                    has a test that tries to break in from another family and must fail.
+                    {t('mkt.feat.privacyLede')}
                   </p>
                   <ul className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
                     {[
@@ -871,9 +901,9 @@ export default function FeaturesPage() {
                       // card headed "One family cannot see another. Ever." told a Free family
                       // they had something they do not. The grid derives its tier tags, so the
                       // claim now carries its own price wherever it is read.
-                      'New members reviewed before they see anything',
-                      'Email-verified accounts',
-                      'Never shared, never sold, no advertising',
+                      t('mkt.feat.privacy0'),
+                      t('mkt.feat.privacy1'),
+                      t('mkt.feat.privacy2'),
                     ].map(item => (
                       <li key={item} className="flex gap-2.5">
                         <Users className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" aria-hidden="true" />
@@ -882,7 +912,9 @@ export default function FeaturesPage() {
                     ))}
                   </ul>
                   <div className="mt-5">
-                    <MoreLink href="/why-us">Why families choose us over the alternatives</MoreLink>
+                    <MoreLink href={localizedHref('/why-us', locale)}>
+                      {t('mkt.feat.whyUsLink')}
+                    </MoreLink>
                   </div>
                 </div>
               </div>

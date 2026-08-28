@@ -9,6 +9,8 @@ import {
   archiveFetchCount, archiveWantCount, clampPages, mergeArchivePage, sanitizeUpdatesQuery,
   UPDATES_MAX_PAGES,
 } from '@/lib/updates-archive'
+import { currentUser } from '@/lib/auth/current-user'
+import { SEARCH_CONFIG } from '@/lib/search-config'
 
 /**
  * `/community/updates` — the archive behind the dashboard's Recent Updates card.
@@ -127,7 +129,7 @@ export async function getUpdatesArchive(input?: {
   pages?: number
 }): Promise<UpdatesArchive> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return EMPTY
 
   // THE ACTION GATES ITSELF, whatever the page did — a `'use server'` export is a public HTTP
@@ -161,7 +163,7 @@ export async function getUpdatesArchive(input?: {
           .order('created_at', { ascending: false })
           .limit(fetch)
         if (query) {
-          q = q.textSearch('search_vector', query, { type: 'websearch', config: 'english' })
+          q = q.textSearch('search_vector', query, { type: 'websearch', config: SEARCH_CONFIG })
         }
         return q
       })()
@@ -183,7 +185,7 @@ export async function getUpdatesArchive(input?: {
           .order('published_at', { ascending: false })
           .limit(fetch)
         if (query) {
-          q = q.textSearch('search_vector', query, { type: 'websearch', config: 'english' })
+          q = q.textSearch('search_vector', query, { type: 'websearch', config: SEARCH_CONFIG })
         }
         return q
       })()

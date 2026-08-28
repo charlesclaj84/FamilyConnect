@@ -2,6 +2,7 @@ import {
   UsersRound, HandCoins, UserPlus, MessageCircle, ClipboardCheck, CalendarDays, Vote,
   type LucideIcon,
 } from 'lucide-react'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * What every tile and quick action on the Dashboard points at, and which grant decides
@@ -123,13 +124,21 @@ export interface TileMeta {
  * resource — the same rule the permission grid follows. "Family Members" leads to Member
  * Directory; "Dues Collected" leads to the Transactions dues ledger.
  */
-export const TILE_META: Record<TileId, TileMeta> = {
-  members:    { label: 'Family Members',       href: '/community/directory',                           linkLabel: 'View directory', accent: 'primary', icon: UsersRound },
-  approvals:  { label: 'Pending Approval',     href: '/admin/members?tab=approvals',         linkLabel: 'Review queue',   accent: 'warm',    icon: ClipboardCheck },
-  // `affirm` is Growth olive, which is the kit's own `#62642F` chip for this tile, and the
-  // captions are the kit's too — "View calendar" under the count, because the figure is a
-  // count of gatherings and the way through is the calendar that shows them beside events.
-  gatherings: { label: 'Upcoming Gatherings',  href: '/gatherings/calendar',                          linkLabel: 'View calendar',  accent: 'affirm',  icon: CalendarDays },
+/**
+ * ── A FUNCTION, NOT A `Record`, SINCE THE CAPTIONS ARE TRANSLATED ─────────────────
+ * The same conversion `lib/marketing-nav.ts` and `components/marketing/pillars.ts` took: a
+ * module-level literal cannot call `t`, and the IDS are the contract rather than the words.
+ * `TILE_RESOURCE` above stays a `Record`, because a permission key is not copy.
+ */
+export function tileMeta(t: T): Record<TileId, TileMeta> {
+  return {
+    members:    { label: t('dash.familyMembers'),       href: '/community/directory',                           linkLabel: 'View directory', accent: 'primary', icon: UsersRound },
+    approvals:  { label: t('dash.pendingApproval'),     href: '/admin/members?tab=approvals',         linkLabel: 'Review queue',   accent: 'warm',    icon: ClipboardCheck },
+    // `affirm` is Growth olive, which is the kit's own `#62642F` chip for this tile, and the
+    // captions are the kit's too — "View calendar" under the count, because the figure is a
+    // count of gatherings and the way through is the calendar that shows them beside events.
+    gatherings: { label: t('dash.upcomingGatherings'),  href: '/gatherings/calendar',                          linkLabel: 'View calendar',  accent: 'affirm',  icon: CalendarDays },
+    }
 }
 
 /** A tile with its value resolved, which is all the component ever sees. */
@@ -190,29 +199,31 @@ export interface QuickActionMeta {
   icon: LucideIcon
 }
 
-export const QUICK_ACTION_META: Record<QuickActionId, QuickActionMeta> = {
-  // `href` IS NOT NAVIGATED TO for this one, since 2026-08-13 — Add Member opens
-  // InviteMemberDialog in place rather than sending the member to Members to look for the
-  // button themselves. It is kept because it is still the true answer to "where does this
-  // job live", which is what the row menu and the permission grid both reflect, and
-  // because dropping it would make this the one entry with a different shape.
-  'add-member':     { label: 'Add Member',     href: '/admin/members',                       accent: 'primary', icon: UserPlus },
-  'record-payment': { label: 'Record Payment', href: '/accounting/transactions?ledger=dues-payments', accent: 'affirm',  icon: HandCoins },
-  'send-message':   { label: 'Send Message',   href: '/community/chat',                              accent: 'warm',    icon: MessageCircle },
-  // The pane, not the old route: `/gatherings/my-tasks` redirects to it, and a Quick Action
-  // that goes through a redirect is a Back button that walks through one.
-  'my-gathering-tasks': { label: 'My Tasks', href: '/gatherings?pane=my-tasks', accent: 'legacy', icon: ClipboardCheck },
-  // ── THE ONLY ENTRY WHOSE LABEL AND HREF ARE BOTH PLACEHOLDERS ──────────────────────
-  // Added 2026-08-21. The page overrides both through `ResolvedQuickAction`, because an
-  // election's caption is what there is to DO in it — "Nominate" or "Vote" — and its
-  // destination is one particular ballot. What is written here is the fallback and the
-  // ACCENT, which is not dynamic.
-  //
-  // The values are not arbitrary even so: they are what the button would say if the override
-  // were ever dropped, so the failure mode is a correct link with a vaguer caption rather
-  // than a broken one. That is the `ROUTE_OVERRIDE` lesson — an entry resolving to
-  // `undefined` took the whole Dashboard down once.
-  'election': { label: 'Elections', href: '/community/elections', accent: 'primary', icon: Vote },
+export function quickActionMeta(t: T): Record<QuickActionId, QuickActionMeta> {
+  return {
+    // `href` IS NOT NAVIGATED TO for this one, since 2026-08-13 — Add Member opens
+    // InviteMemberDialog in place rather than sending the member to Members to look for the
+    // button themselves. It is kept because it is still the true answer to "where does this
+    // job live", which is what the row menu and the permission grid both reflect, and
+    // because dropping it would make this the one entry with a different shape.
+    'add-member':     { label: t('dash.addMember'),     href: '/admin/members',                       accent: 'primary', icon: UserPlus },
+    'record-payment': { label: t('dash.recordPayment'), href: '/accounting/transactions?ledger=dues-payments', accent: 'affirm',  icon: HandCoins },
+    'send-message':   { label: t('dash.sendMessage'),   href: '/community/chat',                              accent: 'warm',    icon: MessageCircle },
+    // The pane, not the old route: `/gatherings/my-tasks` redirects to it, and a Quick Action
+    // that goes through a redirect is a Back button that walks through one.
+    'my-gathering-tasks': { label: t('dash.myTasks'), href: '/gatherings?pane=my-tasks', accent: 'legacy', icon: ClipboardCheck },
+    // ── THE ONLY ENTRY WHOSE LABEL AND HREF ARE BOTH PLACEHOLDERS ──────────────────────
+    // Added 2026-08-21. The page overrides both through `ResolvedQuickAction`, because an
+    // election's caption is what there is to DO in it — "Nominate" or "Vote" — and its
+    // destination is one particular ballot. What is written here is the fallback and the
+    // ACCENT, which is not dynamic.
+    //
+    // The values are not arbitrary even so: they are what the button would say if the override
+    // were ever dropped, so the failure mode is a correct link with a vaguer caption rather
+    // than a broken one. That is the `ROUTE_OVERRIDE` lesson — an entry resolving to
+    // `undefined` took the whole Dashboard down once.
+    'election': { label: 'Elections', href: '/community/elections', accent: 'primary', icon: Vote },
+  }
 }
 
 /**

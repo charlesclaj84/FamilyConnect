@@ -1,9 +1,9 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { can, requireView } from '@/lib/auth/permissions'
 import { getMyDuesSummary, getMyPaymentHistory, getDonationProgress } from '@/app/actions/dues'
 import { getFunds } from '@/app/actions/funds'
+import { getDuesOnlineStatus } from '@/app/actions/pay-dues'
 import { DonationsSection } from '@/components/account/DonationsSection'
 import { FundsSection } from '@/components/account/FundsSection'
 import { NextInstallmentsCard } from '@/components/account/NextInstallmentsCard'
@@ -11,6 +11,8 @@ import { PaidThisYearCard } from '@/components/account/PaidThisYearCard'
 import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
 import { PageShell } from '@/components/layout/PageShell'
 import { cn } from '@/lib/utils'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 // "Summary", not "My Summary" — see the note on the FEATURES entry in lib/features.ts.
 // The route and the resource key both stay `account-summary`.
@@ -53,11 +55,12 @@ export const metadata = { title: 'Summary' }
  * entry — and this sub-key is where that would attach if the answer ever changes.
  */
 export default async function AccountSummaryPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'accounting/summary')
+
+  const { t, intl } = await callerI18n(user.id)
 
   const [canDues, canHistory, canDonations, canFunds] = await Promise.all([
     can(user.id, 'accounting/dues-and-donations', 'view'),
@@ -72,7 +75,7 @@ export default async function AccountSummaryPage() {
     can(user.id, 'accounting/summary/funds', 'view'),
   ])
 
-  const [duesSummary, paymentHistory, donations, funds, canManageFunds] = await Promise.all([
+  const [duesSummary, paymentHistory, donations, funds, canManageFunds, online] = await Promise.all([
     canDues ? getMyDuesSummary() : [],
     canHistory ? getMyPaymentHistory() : [],
     canDonations ? getDonationProgress() : [],
@@ -81,6 +84,11 @@ export default async function AccountSummaryPage() {
     // so it is that section's own view grant that decides whether to offer it. Anything
     // looser renders a link that 404s for the person who follows it.
     can(user.id, 'admin/accounting/funds', 'view'),
+    // GATED ON THE DRIVES GRANT (§5), because the only thing it feeds is the Give button on
+    // one. A member who cannot see the drives has no button for this to decide about, and
+    // the empty shape is what `getDuesOnlineStatus` returns for every failure path anyway —
+    // so the fallback needs no second branch downstream.
+    canDonations ? getDuesOnlineStatus() : { chargesReady: false, autopay: [] },
   ])
 
   // OPEN DRIVES ONLY, and the closed ones are counted rather than dropped. A digest is
@@ -101,19 +109,15 @@ export default async function AccountSummaryPage() {
   if (!canDues && !canHistory && !canDonations && !canFunds) {
     return (
       <PageShell className="space-y-8">
-        <h1 className="text-3xl font-bold">Summary</h1>
-        <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-          None of the sections of Summary have been shared with you. Ask an administrator
-          for access to the ones you need — your dues, the donation drives, your payment
-          history and the family&apos;s funds are each granted separately.
-        </div>
+        <h1 className="text-3xl font-bold">{t('page./accounting/summary.title')}</h1>
+        <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">{t('acct.noneSectionsSummaryBeen')}</div>
       </PageShell>
     )
   }
 
   return (
     <PageShell className="space-y-10">
-      <h1 className="text-3xl font-bold">Summary</h1>
+      <h1 className="text-3xl font-bold">{t('page./accounting/summary.title')}</h1>
 
       {cardCount > 0 && (
         <div className={cn(
@@ -126,30 +130,17 @@ export default async function AccountSummaryPage() {
               until the next edit to one of them. No `showViewLink`: the section heading
               below carries the way through to /dues, so a button here would be a second
               one saying the same thing. */}
-          {canDues && <DuesBalanceKpi summary={duesSummary} />}
-          {canDues && <NextInstallmentsCard summary={duesSummary} />}
-          {canHistory && <PaidThisYearCard history={paymentHistory} />}
+          {canDues && <DuesBalanceKpi summary={duesSummary} intl={intl} />}
+          {canDues && <NextInstallmentsCard summary={duesSummary} intl={intl} />}
+          {canHistory && <PaidThisYearCard history={paymentHistory} intl={intl} />}
         </div>
       )}
 
       {(canDues || canHistory) && (
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
-          {canDues && <Link href="/accounting/dues-and-donations">See all your dues</Link>}
-          {canHistory && <Link href="/reporting/payment-history">See your full payment history</Link>}
+          {canDues && <Link href="/accounting/dues-and-donations">{t('acct.seeAllDues')}</Link>}
+          {canHistory && <Link href="/reporting/payment-history">{t('acct.seeFullPaymentHistory')}</Link>}
         </div>
-      )}
-
-      {canDonations && openDrives.length > 0 && (
-        <section className="space-y-3">
-          <SectionHeading title="Open donation drives" href="/accounting/dues-and-donations?pane=donations" linkLabel="All drives" />
-          <DonationsSection donations={openDrives} />
-          {closedCount > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {closedCount} closed drive{closedCount === 1 ? ' is' : 's are'} not shown here —
-              {' '}<Link href="/accounting/dues-and-donations?pane=donations">see Donations</Link> for the full record.
-            </p>
-          )}
-        </section>
       )}
 
       {canFunds && (
@@ -158,6 +149,29 @@ export default async function AccountSummaryPage() {
               Manage Funds link. A heading above it would be the third thing on screen
               naming the same list. */}
           <FundsSection funds={funds} canManage={canManageFunds} />
+        </section>
+      )}
+
+      {/* ── DRIVES COME AFTER THE FUNDS, since 2026-08-26 ─────────────────────────
+          Both are the family's money rather than the reader's, and of the two the funds
+          are the standing answer — where the family's money lives and what the waterfall
+          is filling — while a drive is a thing currently being asked for. Reading the
+          pots first and then what is being raised into one is the order somebody thinks
+          in; the reverse asked them to take an appeal in before they knew what it fed. */}
+      {canDonations && openDrives.length > 0 && (
+        <section className="space-y-3">
+          <SectionHeading title={t('acct.openDonationDrives')} href="/accounting/dues-and-donations?pane=donations" linkLabel="All drives" />
+          {/* `chargesReady` so a drive carries a real Give button here as well as on
+              [Dues & Donations](/accounting/dues-and-donations?pane=donations). A digest that
+              shows the ask and cannot take the gift sends somebody to another screen to press
+              the same button. */}
+          <DonationsSection donations={openDrives} chargesReady={online.chargesReady} intl={intl} />
+          {closedCount > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {closedCount} closed drive{closedCount === 1 ? ' is' : 's are'} not shown here —
+              {' '}<Link href="/accounting/dues-and-donations?pane=donations">see Donations</Link> for the full record.
+            </p>
+          )}
         </section>
       )}
     </PageShell>

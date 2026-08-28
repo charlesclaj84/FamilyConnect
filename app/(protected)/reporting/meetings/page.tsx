@@ -1,7 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Gavel } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import { getMeetingsReport } from '@/app/actions/activity-reports'
 import { cn } from '@/lib/utils'
@@ -9,6 +8,8 @@ import { formatDate } from '@/lib/date-utils'
 import { PageShell } from '@/components/layout/PageShell'
 import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Meetings Report' }
 
@@ -27,11 +28,12 @@ export const metadata = { title: 'Meetings Report' }
  * the kind of number that gets quoted in a meeting a year later.
  */
 export default async function MeetingsReportPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'reporting/meetings')
+
+  const { t, intl } = await callerI18n(user.id)
   if (!(await canAny(user.id, 'reporting/meetings', 'view'))) notFound()
 
   const report = await getMeetingsReport()
@@ -42,11 +44,7 @@ export default async function MeetingsReportPage() {
   return (
     <PageShell className="space-y-8">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Meetings</h1>
-        <p className="text-muted-foreground">
-          How often the family meets, how big each room was, and how much of it answered when a
-          vote was called.
-        </p>
+        <h1 className="text-3xl font-bold">{t('page./reporting/meetings.title')}</h1>
       </div>
 
       <ReportStats stats={[
@@ -62,7 +60,7 @@ export default async function MeetingsReportPage() {
           value: totals.topics,
           hint: `${totals.votedTopics} reached a vote`,
         },
-        { label: 'Votes cast', value: totals.ballots, hint: 'one per topic answered' },
+        { label: t('rep.votesCast'), value: totals.ballots, hint: 'one per topic answered' },
       ]} />
 
       {rows.length === 0 ? (
@@ -74,20 +72,16 @@ export default async function MeetingsReportPage() {
       ) : (
         <>
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Every meeting
-            </h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('rep.everyMeeting')}</h2>
             <div className="overflow-hidden rounded-xl border">
               <table className="w-full border-collapse text-sm">
-                <caption className="sr-only">
-                  Every meeting, most recent first, with its room size, topics and votes.
-                </caption>
+                <caption className="sr-only">{t('rep.everyMeetingMostRecent')}</caption>
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <th scope="col" className="px-3 py-2">Meeting</th>
                     <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Date</th>
-                    <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Minutes by</th>
-                    <th scope="col" className="px-3 py-2 text-right">In the room</th>
+                    <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>{t('rep.minutes')}</th>
+                    <th scope="col" className="px-3 py-2 text-right">{t('rep.room')}</th>
                     <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>
                       Topics
                     </th>
@@ -110,7 +104,7 @@ export default async function MeetingsReportPage() {
                           </span>
                         )}
                         <RowMeta>
-                          <span>{formatDate(row.meetsOn)}</span>
+                          <span>{formatDate(row.meetsOn, intl)}</span>
                           {row.secretaryName && (
                             <>
                               <MetaDot />
@@ -124,7 +118,7 @@ export default async function MeetingsReportPage() {
                         </RowMeta>
                       </td>
                       <td className={cn('px-3 py-2 tabular-nums', COLLAPSING_CELL)}>
-                        {formatDate(row.meetsOn)}
+                        {formatDate(row.meetsOn, intl)}
                       </td>
                       <td className={cn('px-3 py-2', COLLAPSING_CELL)}>
                         {row.secretaryName ?? <span className="text-muted-foreground">—</span>}
@@ -149,22 +143,17 @@ export default async function MeetingsReportPage() {
           </section>
 
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Who takes part
-            </h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('rep.whoTakesPart')}</h2>
             {/* TWO COLUMNS, NEVER ONE CALLED "ATTENDANCE" — see the header. `Asked` is the
                 attendee list and `Voted in` is the only positive evidence anybody was there. */}
             <div className="overflow-hidden rounded-xl border">
               <table className="w-full border-collapse text-sm">
-                <caption className="sr-only">
-                  Every relative who has been asked to a meeting, with how many they were asked
-                  to, how many they voted in, and how many they took the minutes of.
-                </caption>
+                <caption className="sr-only">{t('rep.everyRelativeWhoBeen')}</caption>
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <th scope="col" className="px-3 py-2">Relative</th>
-                    <th scope="col" className="px-3 py-2 text-right">Asked to</th>
-                    <th scope="col" className="px-3 py-2 text-right">Voted in</th>
+                    <th scope="col" className="px-3 py-2 text-right">{t('rep.asked')}</th>
+                    <th scope="col" className="px-3 py-2 text-right">{t('rep.voted')}</th>
                     <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>
                       Minuted
                     </th>
@@ -197,7 +186,7 @@ export default async function MeetingsReportPage() {
       )}
 
       <p className="text-xs text-muted-foreground">
-        <strong>Asked to</strong> is the attendee list, and <strong>voted in</strong> is how
+        <strong>{t('rep.asked')}</strong> is the attendee list, and <strong>voted in</strong> is how
         many of those meetings the person answered a vote in. Neither is attendance — nothing in
         GENORRA records who actually turned up, so this reports what it can count rather than
         estimating what it cannot.

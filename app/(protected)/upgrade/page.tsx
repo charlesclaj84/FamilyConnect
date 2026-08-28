@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { can } from '@/lib/auth/permissions'
 import { describeFeature, requiredTier } from '@/lib/features'
 import { getMyFamilyTier } from '@/lib/auth/tier'
 import { TIER_LABEL } from '@/lib/tiers'
 import { UpgradeScreen } from '@/components/features/UpgradeScreen'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Where `requireTier()` sends a member reaching for a page their family's plan does not
@@ -50,8 +51,9 @@ export async function generateMetadata({ searchParams }: Props): Promise<Metadat
 }
 
 export default async function UpgradePage({ searchParams }: Props) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
+
+  const { t, intl } = await callerI18n(user?.id)
   if (!user) redirect('/login')
 
   const { from } = await searchParams
@@ -78,6 +80,8 @@ export default async function UpgradePage({ searchParams }: Props) {
 
   return (
     <UpgradeScreen
+      t={t}
+      intl={intl}
       label={label}
       blurb={blurb}
       currentTier={currentTier}

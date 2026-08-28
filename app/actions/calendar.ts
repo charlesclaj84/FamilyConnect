@@ -4,6 +4,8 @@ import { requireRead } from '@/lib/auth/guard'
 import { can } from '@/lib/auth/permissions'
 import { isFeatureLive } from '@/lib/features'
 import { createClient } from '@/lib/supabase/server'
+import { readOccurrences } from '@/lib/gathering-when-write'
+import { whenToCalendarSpans } from '@/lib/gathering-when'
 import { isValidMonth, type CalendarEntry } from '@/lib/calendar'
 import { electionWindows } from '@/lib/election-calendar'
 import { getElectionsForMember } from '@/app/actions/elections'
@@ -175,6 +177,7 @@ interface GatheringRow {
   title: string
   starts_on: string
   ends_on: string | null
+  is_continuous: boolean
   is_premier: boolean
 }
 
@@ -223,7 +226,7 @@ export async function getCalendarMonth(month: string): Promise<CalendarMonthData
   const gatheringRes = mayGatherings
     ? await supabase
       .from('gatherings')
-      .select('id, title, starts_on, ends_on, is_premier')
+      .select('id, title, starts_on, ends_on, is_continuous, is_premier')
       // The far side of the overlap, in SQL, because it is a pure narrowing: a gathering
       // starting after the window ends cannot touch it. The near side needs the
       // `ends_on`-or-`starts_on` coalesce and is applied in TypeScript below by `overlaps` —
@@ -246,17 +249,72 @@ export async function getCalendarMonth(month: string): Promise<CalendarMonthData
       )
       sources.gatherings = false
     } else {
-      for (const row of (gatheringRes.data ?? []) as unknown as GatheringRow[]) {
-        if (!row.starts_on || !overlaps(row.starts_on, row.ends_on ?? null, from, to)) continue
-        entries.push({
-          id:        row.id,
-          title:     row.title,
-          startsOn:  row.starts_on,
-          endsOn:    row.ends_on ?? null,
-          kind:      'gathering',
-          href:      `/gatherings/${row.id}`,
-          isPremier: row.is_premier,
-        })
+      const rows = (gatheringRes.data ?? []) as unknown as GatheringRow[]
+
+      // ── ONE ENTRY PER OCCASION, NOT PER GATHERING (2026-08-26) ──────────────────
+      // A three-day reunion is one bar across three days. A committee meeting on three
+      // Saturdays is three chips, all carrying the gathering's title — and until the
+      // occurrences existed the grid drew the second as a bar across a fortnight, claiming a
+      // fortnight the family was not gathering for. `whenToCalendarSpans` is the whole of that
+      // decision and is tested by value.
+      //
+      // THE READ IS SCOPED BY THE ROWS ALREADY IN HAND, so it inherits their narrowing: the
+      // gathering list came back through RLS on the user client, and the occurrences are read
+      // on the same client with `.eq('family_code', …)` beside `.in('gathering_id', …)`. A
+      // gathering the caller may not see contributes no id, so no occurrence of it is asked
+      // for — which is stricter than the occurrence policy alone and costs nothing.
+      const spanning = rows.filter(r => !r.is_continuous)
+      const byGathering = spanning.length > 0
+        ? await readOccurrences(supabase, g.familyCode, spanning.map(r => r.id))
+        : new Map()
+
+      // §8: a refused occurrence read must not silently redraw every series as a single chip on
+      // its envelope's first day. The source is marked withheld, so the page says something is
+      // missing rather than presenting a wrong month as a fact.
+      if (byGathering === null) {
+        sources.gatherings = false
+      } else {
+        for (const row of rows) {
+          if (!row.starts_on) continue
+
+          const when = {
+            isContinuous: row.is_continuous !== false,
+            occurrences: byGathering.get(row.id) ?? [{
+              // THE ENVELOPE AS THE FALLBACK, which covers two cases: a continuous gathering,
+              // whose occurrences were never asked for, and a series whose children could not
+              // be found. The second draws as one chip on its first day — an approximation
+              // rather than an invention, and the honest degradation when the detail is absent.
+              startsOn: row.starts_on,
+              startTime: null,
+              endsOn: row.ends_on ?? null,
+              endTime: null,
+            }],
+            // NO ZONE, deliberately: `whenToCalendarSpans` answers which DAYS a gathering
+            // covers, and a zone changes no date here — the dates are wall-clock labels and
+            // are not converted. Threading one through would imply otherwise.
+            timeZone: null,
+          }
+
+          for (const span of whenToCalendarSpans(row.id, when)) {
+            if (!overlaps(span.startsOn, span.endsOn, from, to)) continue
+            entries.push({
+              // ONE SPAN'S OWN ID. `buildCalendarMonth` keys a chip on `${day}:${entry.id}`, so
+              // two occasions of one gathering sharing an id would be a duplicate React key —
+              // `whenToCalendarSpans` suffixes them and leaves a continuous gathering's bare,
+              // so nothing about the single-span case changes.
+              id:        span.id,
+              title:     row.title,
+              startsOn:  span.startsOn,
+              endsOn:    span.endsOn,
+              kind:      'gathering',
+              // THE GATHERING'S id, never the span's. Every occasion of one gathering is the
+              // same gathering, and a link carrying `g1:2` would 404.
+              href:      `/gatherings/${row.id}`,
+              isPremier: row.is_premier,
+              ...(span.timeLabel ? { timeLabel: span.timeLabel } : {}),
+            })
+          }
+        }
       }
     }
   }

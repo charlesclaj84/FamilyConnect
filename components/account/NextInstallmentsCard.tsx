@@ -4,6 +4,7 @@ import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { isOutstanding } from '@/lib/dues-utils'
 import type { DuesSummary } from '@/app/actions/dues'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * What the member pays next, across every schedule that has a date.
@@ -27,11 +28,14 @@ import type { DuesSummary } from '@/app/actions/dues'
  * one date and had to infer that the other two existed. It lists each schedule's own
  * next date, and says "Installments" when it means more than one.
  */
-export function NextInstallmentsCard({ summary, className }: {
+export function NextInstallmentsCard({ summary, className, intl }: {
+  /** The reader's `Intl` tag. A prop — this is a Server Component. */
+  intl: string
   summary: DuesSummary[]
   /** Sizing from the parent — a grid cell in every current call site. */
   className?: string
 }) {
+  const t = useT()
   // `isOutstanding`, not `!paid`: a due the member has DECLINED is neither paid nor
   // owed, and counting it here would put a figure on the card against something they
   // have already said no to.
@@ -50,7 +54,7 @@ export function NextInstallmentsCard({ summary, className }: {
   // installment while the row beside it asked for more is the disagreement this
   // replaced.
   const upcomingTotalCents = upcoming.reduce((sum, s) => sum + s.nextInstallmentCents, 0)
-  const fmtDate = (s: string) => formatDate(s) ?? ''
+  const fmtDate = (s: string) => formatDate(s, intl) ?? ''
 
   return (
     <div className={cn('rounded-2xl border bg-card p-5 space-y-2', className)}>
@@ -64,10 +68,10 @@ export function NextInstallmentsCard({ summary, className }: {
         </span>
       </div>
       <p className="text-2xl font-bold leading-tight">
-        {upcoming.length > 0 ? formatCurrency(upcomingTotalCents) : '—'}
+        {upcoming.length > 0 ? formatCurrency(upcomingTotalCents, intl) : '—'}
       </p>
       {upcoming.length === 0 ? (
-        <p className="text-xs text-muted-foreground">No upcoming dues</p>
+        <p className="text-xs text-muted-foreground">{t('cards.noUpcoming')}</p>
       ) : (
         /* TWO LINES PER SCHEDULE: the name, then when it is due and for how much.
            One line held all three and the name was the part that lost — it truncated
@@ -84,7 +88,7 @@ export function NextInstallmentsCard({ summary, className }: {
               <p className="text-muted-foreground">
                 due {fmtDate(s.nextInstallmentDate!)}
                 {' · '}
-                <span className="font-medium text-foreground">{formatCurrency(s.nextInstallmentCents)}</span>
+                <span className="font-medium text-foreground">{formatCurrency(s.nextInstallmentCents, intl)}</span>
               </p>
               {/* THE SECOND LINE IS THE ANSWER TO "why is this more than my
                   installment". A catch-up figure with nothing explaining it reads as an
@@ -96,7 +100,7 @@ export function NextInstallmentsCard({ summary, className }: {
                 <p className="text-muted-foreground/80">
                   covers {s.periodsElapsed} earlier installment{s.periodsElapsed === 1 ? '' : 's'}
                   {' · then '}
-                  {formatCurrency(s.followingInstallmentCents)} from {fmtDate(s.followingInstallmentDate)}
+                  {formatCurrency(s.followingInstallmentCents, intl)} from {fmtDate(s.followingInstallmentDate)}
                 </p>
               )}
             </li>

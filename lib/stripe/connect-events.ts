@@ -2,6 +2,7 @@ import type Stripe from 'stripe'
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { routePaidPayment } from '@/lib/dues-routing'
+import type { ScheduleKind } from '@/lib/dues-utils'
 
 /**
  * A relative paying their family's dues with a card — the only place a `source = 'stripe'`
@@ -108,7 +109,17 @@ async function onCheckoutSession(
   }
 
   const meta = session.metadata ?? {}
-  if (meta.genorra_flow !== 'dues') return IGNORED
+  // ── WHICH LEDGER THIS CHARGE BELONGS IN, DECIDED BEFORE ANYTHING IS READ ──────────
+  // `'dues'` is money a member OWED; `'donation'` is money they CHOSE to give. They post to
+  // the same table and route completely differently — a due goes through the family's fund
+  // waterfall, a gift goes whole into the Donations fund — so the kind cannot be inferred
+  // afterwards from whatever the schedule row happens to say. It is declared by the action
+  // that created the session and ASSERTED against the schedule below.
+  const kind: ScheduleKind | null =
+    meta.genorra_flow === 'dues' ? 'dues'
+      : meta.genorra_flow === 'donation' ? 'donation'
+        : null
+  if (!kind) return IGNORED
 
   // ── THE METADATA IS OURS AND IS STILL CHECKED AGAINST THE ACCOUNT ─────────────────
   // A mismatch cannot happen through the product — `startDuesCheckout` stamps the family it
@@ -123,12 +134,28 @@ async function onCheckoutSession(
   }
 
   const personId = typeof meta.genorra_person_id === 'string' ? meta.genorra_person_id : null
-  const scheduleId = typeof meta.genorra_schedule_id === 'string' ? meta.genorra_schedule_id : null
-  if (!personId || !scheduleId) {
-    return { handled: false, detail: `session ${session.id} names no member or schedule` }
+  if (!personId) {
+    return { handled: false, detail: `session ${session.id} names no member` }
   }
+  // ── THE SCHEDULE IS NOT ALWAYS ON THE SESSION, AND THAT IS THE BATCH ──────────────
+  // A combined one-off payment names its dues in `genorra_alloc_*` and carries no single
+  // `genorra_schedule_id`, so demanding one here would refuse every combined payment before
+  // the allocation was ever read. Autopay still requires it — one arrangement is one schedule
+  // by construction — and the one-off path treats it as the fallback for a session created
+  // before the allocation keys existed.
+  const scheduleId = typeof meta.genorra_schedule_id === 'string' ? meta.genorra_schedule_id : null
 
   if (session.mode === 'subscription') {
+    if (!scheduleId) {
+      return { handled: false, detail: `subscription session ${session.id} names no schedule` }
+    }
+    // NOTHING RECURS ON A DRIVE. `startDonationCheckout` creates no subscription, and a gift
+    // that renewed itself would be this product deciding that agreeing to give once was
+    // agreeing to give every month. Refused rather than recorded, so a subscription created
+    // outside the product cannot quietly acquire a standing arrangement here.
+    if (kind !== 'dues') {
+      return { handled: false, detail: `session ${session.id} is a recurring ${kind}, which does not exist` }
+    }
     // Autopay was set up. The first charge arrives as `invoice.paid`, which is what posts the
     // money; this only records the arrangement so the member's screen can show it and so
     // `cancelDuesAutopay` has something to cancel.
@@ -146,18 +173,128 @@ async function onCheckoutSession(
   const amount = session.amount_total ?? 0
   if (amount <= 0) return { handled: true, detail: `session ${session.id} carried no money` }
 
-  return postDuesPayment(admin, {
-    familyCode,
-    personId,
-    scheduleId,
-    amountCents: amount,
-    // The CHARGE, so a redelivery years later still collides on the unique index. Falling back
-    // to the session id keeps the row postable rather than dropping a real payment.
-    processorRef: idOf(session.payment_intent) ?? session.id,
-    paidAtSeconds: session.created ?? null,
-    planId: null,
-    note: 'One-off card payment',
-  })
+  // The CHARGE, so a redelivery years later still collides on the unique index. Falling back
+  // to the session id keeps the row postable rather than dropping a real payment.
+  const charge = idOf(session.payment_intent) ?? session.id
+
+  // ── HOW THIS CHARGE SPLITS ACROSS THE MEMBER'S DUES ───────────────────────────────
+  // One line per due since 2026-08-25, because "pay everything due now" is one card payment
+  // over several schedules. `readAllocations` answers the single-due shape too, from the same
+  // keys, so there is one path here rather than a batch path beside a legacy one — and it
+  // falls back to `genorra_schedule_id` for a session that was created before the allocation
+  // keys existed and was still sitting on Stripe's hosted page at deploy time.
+  const allocations = readAllocations(meta, scheduleId, amount)
+  if (!allocations) {
+    return { handled: false, detail: `session ${session.id} carries an allocation that cannot be read` }
+  }
+
+  // ── THE SPLIT MUST ADD UP TO WHAT STRIPE ACTUALLY TOOK ────────────────────────────
+  // Nothing in this flow adds tax, shipping or a discount, so `amount_total` IS the sum of the
+  // line items this product created. A disagreement therefore means the metadata was edited
+  // after the session was made — the same thing the family-code check above refuses, and
+  // refused the same way rather than reconciled. Scaling the allocation to fit would be this
+  // code inventing which due somebody paid.
+  const allocated = allocations.reduce((sum, a) => sum + a.amountCents, 0)
+  if (allocated !== amount) {
+    return {
+      handled: false,
+      detail: `session ${session.id} allocates ${allocated}c of a ${amount}c charge`,
+    }
+  }
+
+  // Sequentially, not in parallel: `postDuesPayment` routes each payment through the family's
+  // fund waterfall, which reads a fund balance and writes against it. Two of those racing over
+  // one fund is the shape `claim_distribution_recipients` is one statement to avoid.
+  const posted: string[] = []
+  for (const alloc of allocations) {
+    const result = await postDuesPayment(admin, {
+      familyCode,
+      personId,
+      scheduleId: alloc.scheduleId,
+      amountCents: alloc.amountCents,
+      // ONE REF PER ROW, because `(source, processor_ref)` is unique and a combined payment
+      // posts several rows from one charge. Derived from the charge and the schedule rather
+      // than from a counter, so a redelivery of the same event produces the same refs and
+      // collides row for row — which is the whole idempotency guarantee, kept intact.
+      //
+      // A single-due payment keeps the BARE charge id, which is what every row posted before
+      // 2026-08-25 carries. Suffixing those too would make a redelivery of an old event look
+      // like a new payment.
+      processorRef: allocations.length === 1 ? charge : `${charge}#${alloc.scheduleId}`,
+      paidAtSeconds: session.created ?? null,
+      planId: null,
+      expectKind: kind,
+      note: kind === 'donation'
+        ? 'Card donation'
+        : allocations.length === 1
+          ? 'One-off card payment'
+          : 'One-off card payment (part of a combined payment)',
+    })
+    // A PARTIAL FAILURE IS A FAILURE (§8b's rule, on the webhook path). Answering `handled`
+    // over a charge that credited two of four dues would lose the other two permanently, so
+    // this reports and lets Stripe redeliver — the rows that DID post collide on their refs
+    // second time round and are skipped, which is what makes the retry safe.
+    if (!result.handled) return result
+    posted.push(result.detail ?? alloc.scheduleId)
+  }
+
+  return {
+    handled: true,
+    detail: allocations.length === 1
+      ? posted[0]
+      : `${familyCode}: ${amount}c posted across ${allocations.length} dues — ${posted.join('; ')}`,
+  }
+}
+
+/**
+ * The `genorra_alloc_*` metadata, as a list of dues and cents.
+ *
+ * Returns null rather than a partial list: a count that names more keys than are present, an
+ * unparseable pair, or an amount that is not a positive integer all mean the split cannot be
+ * trusted, and a partial answer here posts a charge against the wrong dues. The caller refuses
+ * the event, which is what `postDuesPayment` already does for every other id it cannot verify.
+ *
+ * THE SCHEDULE IDS ARE NOT VALIDATED HERE, deliberately — `postDuesPayment` re-reads each one
+ * with `.eq('family_code', …)` beside it (§4), which is the check that matters and the one
+ * place it should live.
+ */
+function readAllocations(
+  meta: Stripe.Metadata,
+  fallbackScheduleId: string | null,
+  fallbackAmountCents: number,
+): { scheduleId: string; amountCents: number }[] | null {
+  const raw = meta.genorra_alloc_count
+  // A session from before the allocation keys existed. One due, the whole charge — and null
+  // where there is no `genorra_schedule_id` either, because then the session names no due at
+  // all and the caller refuses it rather than posting the money against nothing.
+  if (typeof raw !== 'string') {
+    return fallbackScheduleId
+      ? [{ scheduleId: fallbackScheduleId, amountCents: fallbackAmountCents }]
+      : null
+  }
+
+  const count = Number(raw)
+  if (!Number.isInteger(count) || count < 1 || count > 50) return null
+
+  const out: { scheduleId: string; amountCents: number }[] = []
+  for (let i = 0; i < count; i++) {
+    const value = meta[`genorra_alloc_${i}`]
+    if (typeof value !== 'string') return null
+    // The schedule id is a uuid and carries no colon, so the LAST colon separates the two
+    // halves either way — split on the last rather than the first, and a label creeping into
+    // this field one day cannot silently truncate an id.
+    const cut = value.lastIndexOf(':')
+    if (cut <= 0) return null
+    const scheduleId = value.slice(0, cut)
+    const amountCents = Number(value.slice(cut + 1))
+    if (!scheduleId) return null
+    if (!Number.isInteger(amountCents) || amountCents <= 0) return null
+    // A repeated schedule would post two rows, and the second's ref would collide with the
+    // first's and be discarded as a duplicate — money taken and credited once.
+    if (out.some(a => a.scheduleId === scheduleId)) return null
+    out.push({ scheduleId, amountCents })
+  }
+  return out
 }
 
 // ── Recurring dues: one settled period ──────────────────────────────────────────────
@@ -212,6 +349,10 @@ async function onInvoicePaid(
     processorRef: invoice.id ?? `inv_${subscriptionId}_${invoice.period_end ?? 0}`,
     paidAtSeconds: invoice.created ?? null,
     planId: null,
+    // DUES BY CONSTRUCTION. `startDuesAutopay` refuses a donation schedule and the guard
+    // trigger on `dues_autopay` refuses one underneath it, so a row reaching this line names
+    // a due. Stated rather than inferred, because that is the whole point of the parameter.
+    expectKind: 'dues',
     note: 'Automatic card payment',
   })
 
@@ -304,12 +445,20 @@ async function onAccountUpdated(
  * are read back with the family conjunct beside them, which is what `belongsToFamily` does in
  * an action and what has to be done by hand on a path with no caller.
  *
- * ── AND THE SCHEDULE MUST BE DUES ──────────────────────────────────────────────────
- * `dues_schedules` holds donation drives too. A card payment posted against a drive by this
- * path would route the whole amount into the Donations fund and appear in a member's dues
- * history as a due they settled. `startDuesCheckout` refuses one, and so does this: the
- * action in front of an endpoint is a convenience, and this is not even an endpoint a caller
- * reaches.
+ * ── AND THE SCHEDULE MUST BE THE KIND THE SESSION DECLARED ────────────────────────
+ * `dues_schedules` holds donation drives as well as dues, and both are payable by card since
+ * 2026-08-26 — so this is no longer "refuse anything that is not dues". It is stricter than
+ * that sounds: `expectKind` comes from `genorra_flow`, which the ACTION stamped, and a
+ * mismatch means the session was created for one kind of thing and is being posted against
+ * the other. That is refused rather than reconciled.
+ *
+ * Getting it wrong in either direction is silent and expensive. A due posted as a gift routes
+ * whole into the Donations fund instead of down the family's waterfall; a gift posted as a due
+ * appears in somebody's dues history as a due they settled and is split across funds nobody
+ * gave it to. Neither shows up as an error anywhere.
+ *
+ * `routePaidPayment` is then given the SAME value, so the ledger row and the fund it lands in
+ * cannot disagree about what kind of money it was.
  */
 async function postDuesPayment(admin: AdminClient, input: {
   familyCode: string
@@ -319,6 +468,8 @@ async function postDuesPayment(admin: AdminClient, input: {
   processorRef: string
   paidAtSeconds: number | null
   planId: string | null
+  /** What the session said this was. The schedule is refused if it says otherwise. */
+  expectKind: ScheduleKind
   note: string
 }): Promise<HandledEvent> {
   const [personRes, scheduleRes] = await Promise.all([
@@ -333,8 +484,11 @@ async function postDuesPayment(admin: AdminClient, input: {
   if (!scheduleRes.data) {
     return { handled: false, detail: `schedule ${input.scheduleId} is not in ${input.familyCode}` }
   }
-  if (scheduleRes.data.kind !== 'dues') {
-    return { handled: false, detail: `schedule ${input.scheduleId} is a ${scheduleRes.data.kind}, not dues` }
+  if (scheduleRes.data.kind !== input.expectKind) {
+    return {
+      handled: false,
+      detail: `schedule ${input.scheduleId} is a ${scheduleRes.data.kind}, not a ${input.expectKind}`,
+    }
   }
 
   const paymentDate = input.paidAtSeconds
@@ -372,7 +526,12 @@ async function postDuesPayment(admin: AdminClient, input: {
   // The same waterfall a hand-keyed payment goes through, from the same module — the whole
   // reason `lib/dues-routing.ts` exists. `recordedBy` is null for the reason above; the funds
   // do not care who keyed it, and `fund_contributions.recorded_by` is nullable.
-  await routePaidPayment(admin, input.familyCode, payment, null, 'dues')
+  //
+  // THE KIND IS THE ONE ASSERTED ABOVE, not a literal. `routePaidPayment` sends a donation
+  // whole into the family's Donations fund and a due down the priority waterfall, so passing
+  // `'dues'` unconditionally — which this did while dues were the only thing payable by card —
+  // would split every gift across funds nobody gave it to.
+  await routePaidPayment(admin, input.familyCode, payment, null, input.expectKind)
 
   return {
     handled: true,

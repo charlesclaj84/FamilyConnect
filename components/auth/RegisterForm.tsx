@@ -16,25 +16,47 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { FieldError, FormError } from '@/components/ui/form-message'
 import { APP_NAME } from '@/lib/brand'
+import { TIER_IS_SOLD, TIER_PRICE, formatPlanPrice } from '@/lib/plans'
+import { TIERS, TIER_LABEL, tierTagline, type FamilyTier } from '@/lib/tiers'
+import { cn } from '@/lib/utils'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 type Mode = 'join' | 'create'
 
-const schema = z
+/**
+ * The plans this form may offer: Free, plus every tier that is actually on sale.
+ *
+ * DERIVED FROM `TIER_IS_SOLD` rather than listed, so a tier going on or off sale changes
+ * one boolean in `lib/plans.ts` and this form follows. A hand-written list here is how
+ * Premium comes to be offered on the signup screen months before anything can deliver it.
+ *
+ * THE PRICE IS CHECKED TOO, because a sold tier with no figure is a card with a blank
+ * where the amount goes — `lib/plans.test.ts` asserts that combination cannot exist, and
+ * this is the render-time half of the same rule.
+ */
+const PLAN_CHOICES: readonly FamilyTier[] = TIERS.filter(
+  t => t === 'free' || (TIER_IS_SOLD[t] && TIER_PRICE[t] != null),
+)
+
+// A FACTORY, not a constant: the messages are copy and a schema built at module load
+// cannot reach the reader's catalogue. `FormData` is inferred from the RETURN type.
+const schema = (t: T) => z
   .object({
-    firstName: z.string().min(1, 'First name is required'),
-    lastName: z.string().min(1, 'Last name is required'),
-    email: z.string().email('Enter a valid email address'),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    firstName: z.string().min(1, t('reg.needFirstName')),
+    lastName: z.string().min(1, t('reg.needLastName')),
+    email: z.string().email(t('auth.badEmail')),
+    password: z.string().min(8, t('auth.tooShort')),
     confirmPassword: z.string(),
     familyCode: z.string().optional(),
     familyName: z.string().optional(),
   })
   .refine((d) => d.password === d.confirmPassword, {
-    message: 'Passwords do not match',
+    message: t('auth.noMatch'),
     path: ['confirmPassword'],
   })
 
-type FormData = z.infer<typeof schema>
+type FormData = z.infer<ReturnType<typeof schema>>
 
 /**
  * `invite` turns this into a third mode that is not on the toggle.
@@ -55,10 +77,19 @@ export function RegisterForm({
   invitedFamilyName,
   invitedFirstName,
   invitedLastName,
+  plan,
 }: {
   inviteToken?: string
   invitedEmail?: string
   invitedFamilyName?: string
+  /**
+   * The plan `/pricing` sent them here for, already narrowed by `sellablePlanParam` on
+   * the server — so it is a tier that exists AND is on sale, or null.
+   *
+   * PRESELECTS, NEVER COMMITS. It also flips the mode toggle to Create, because somebody
+   * who pressed "Start with Plus" is not here to join a family that already has a plan.
+   */
+  plan?: FamilyTier | null
   /**
    * The name on the invitation (20260813000002), used ONLY to prefill.
    *
@@ -71,12 +102,28 @@ export function RegisterForm({
   invitedFirstName?: string
   invitedLastName?: string
 } = {}) {
+  const t = useT()
+  const intl = useIntlTag()
   const router = useRouter()
-  const [mode, setMode] = useState<Mode>('join')
+  // A plan can only be bought by the family that is being created, so arriving with one
+  // opens on Create. Without this the pricing page's button lands on a family-code field,
+  // which asks somebody buying a plan for a code they were never given.
+  const [mode, setMode] = useState<Mode>(plan ? 'create' : 'join')
   const [serverError, setServerError] = useState('')
   const [success, setSuccess] = useState(false)
   const [newFamilyCode, setNewFamilyCode] = useState('')
   const [autoSignedIn, setAutoSignedIn] = useState(false)
+  /**
+   * Which plan the new family is being started on. `null` is Free.
+   *
+   * LOCAL STATE SEEDED FROM A PROP, which is the shape "Switching family remounts the
+   * page" is about — and it is safe here for the reason that section gives about
+   * `[id]` routes: this component is not inside `<main key={familyCode}>`, there is no
+   * family to switch, and the whole form unmounts on success.
+   */
+  const [chosenPlan, setChosenPlan] = useState<FamilyTier | null>(plan ?? null)
+  /** The plan actually recorded against the family, as the SERVER reported it. */
+  const [recordedPlan, setRecordedPlan] = useState<FamilyTier | null>(null)
 
   const {
     register,
@@ -84,7 +131,7 @@ export function RegisterForm({
     setError,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema(t)),
     defaultValues: {
       ...(invitedEmail ? { email: invitedEmail } : {}),
       ...(invitedFirstName ? { firstName: invitedFirstName } : {}),
@@ -103,11 +150,11 @@ export function RegisterForm({
 
     // Neither family question applies to an invitation — the token answers both.
     if (!inviteToken && mode === 'join' && !data.familyCode?.trim()) {
-      setError('familyCode', { message: 'Family code is required' })
+      setError('familyCode', { message: t('reg.needCode') })
       return
     }
     if (!inviteToken && mode === 'create' && !data.familyName?.trim()) {
-      setError('familyName', { message: 'Family name is required' })
+      setError('familyName', { message: t('reg.needFamilyName') })
       return
     }
 
@@ -120,6 +167,9 @@ export function RegisterForm({
       familyCode: data.familyCode,
       familyName: data.familyName,
       inviteToken,
+      // Sent only in create mode. `registerUser` drops it for a join or an invitation
+      // anyway — this is the convenience half of that, not the control.
+      plan: !inviteToken && mode === 'create' && chosenPlan ? chosenPlan : undefined,
     })
 
     if (!result.success) {
@@ -180,6 +230,10 @@ export function RegisterForm({
     }
 
     if (result.familyCode) setNewFamilyCode(result.familyCode)
+    // THE SERVER'S ANSWER, not what was asked for. A plan it declined to record — one we
+    // do not sell, or a write that failed — must not leave the screen below promising a
+    // checkout that will never be offered.
+    setRecordedPlan(result.plan ?? null)
     setSuccess(true)
   }
 
@@ -187,22 +241,39 @@ export function RegisterForm({
     return (
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle as="h1" className="text-2xl text-primary">Family created!</CardTitle>
+          <CardTitle as="h1" className="text-2xl text-primary">{t('reg.familyCreated')}</CardTitle>
           <CardDescription>
-            Share this code with family members so they can join.
+            {t('reg.shareCode')}
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col items-center gap-3">
           <div className="w-full rounded-lg border-2 border-primary/30 bg-primary/5 px-8 py-5 text-center">
-            <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">Your Family Code</p>
+            <p className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">{t('reg.yourCode')}</p>
             <p className="text-4xl font-bold tracking-widest text-primary">{newFamilyCode}</p>
           </div>
           <p className="text-center text-sm text-muted-foreground">
-            Write this down — you&apos;ll need it to invite family members.
+            {t('reg.writeDown')}
           </p>
           {!autoSignedIn && (
             <p className="text-center text-sm text-muted-foreground">
-              We also sent a confirmation link to your inbox. Click it to activate your account.
+              {t('reg.alsoSent')}
+            </p>
+          )}
+          {/* ── THE PLAN IS WAITING, AND THIS SAYS SO IN THOSE WORDS ──────────────
+              Somebody who chose Plus on the pricing page has pressed a button
+              captioned "Start with Plus" and then been handed a family code — so
+              without this line the reasonable conclusion is that the plan was
+              forgotten, or worse, that they have already been charged for it.
+
+              IT READS OFF `recordedPlan`, the server's answer, so a plan that was
+              not recorded says nothing at all rather than promising a checkout
+              nobody will offer. And it never claims a payment has been taken: the
+              family is on Free until Stripe says otherwise. */}
+          {recordedPlan && (
+            <p className="text-center text-sm text-brand-on-soft">
+              {t('reg.startsOn')} <span className="font-medium">Free</span>. Nothing has
+              been charged — sign in and {APP_NAME} will ask you to set up{' '}
+              <span className="font-medium">{TIER_LABEL[recordedPlan]}</span>.
             </p>
           )}
         </CardContent>
@@ -212,11 +283,11 @@ export function RegisterForm({
               href="/dashboard"
               className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/80 transition-colors"
             >
-              Go to Dashboard →
+              {t('reg.goToDashboard')}
             </Link>
           ) : (
             <Link href="/login" className="text-sm font-medium text-primary hover:underline">
-              Back to sign in
+              {t('auth.backToSignIn')}
             </Link>
           )}
         </CardFooter>
@@ -228,14 +299,14 @@ export function RegisterForm({
     return (
       <Card className="w-full max-w-md text-center">
         <CardHeader>
-          <CardTitle as="h1" className="text-2xl text-primary">Check your email</CardTitle>
+          <CardTitle as="h1" className="text-2xl text-primary">{t('reg.checkEmail')}</CardTitle>
           <CardDescription>
-            We sent a confirmation link to your inbox. Click it to activate your account, then sign in.
+            {t('reg.confirmSent')}
           </CardDescription>
         </CardHeader>
         <CardFooter className="justify-center">
           <Link href="/login" className="text-sm font-medium text-primary hover:underline">
-            Back to sign in
+            {t('auth.backToSignIn')}
           </Link>
         </CardFooter>
       </Card>
@@ -245,14 +316,17 @@ export function RegisterForm({
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle as="h1" className="text-2xl">Create your account</CardTitle>
+        <CardTitle as="h1" className="text-2xl">{t('reg.createYours')}</CardTitle>
         <CardDescription>
+          {/* THE FAMILY NAME IS AN ELEMENT, so the invited case is two keys with the
+              name between them — a family typed its own name and nothing translates it,
+              and `<span>` cannot live inside a catalogue value. */}
           {inviteToken
-            ? <>You have been invited to join{' '}
+            ? <>{t('reg.invitedToJoin')}{' '}
                 <span className="font-medium">{invitedFamilyName}</span>.</>
             : mode === 'join'
-              ? `Join your family on ${APP_NAME}`
-              : `Start a new family on ${APP_NAME}`}
+              ? t('reg.joinOn', { app: APP_NAME })
+              : t('reg.startOn', { app: APP_NAME })}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -268,7 +342,7 @@ export function RegisterForm({
                 : 'text-brand-ink hover:bg-brand-primary/10'
             }`}
           >
-            Join a Family
+            {t('reg.joinFamily')}
           </button>
           <button
             type="button"
@@ -279,26 +353,26 @@ export function RegisterForm({
                 : 'text-brand-ink hover:bg-brand-primary/10'
             }`}
           >
-            Start a New Family
+            {t('reg.startFamily')}
           </button>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="firstName">First name</Label>
-              <Input id="firstName" placeholder="Jane" autoComplete="given-name" {...register('firstName')} />
+              <Label htmlFor="firstName">{t('field.firstNameLower')}</Label>
+              <Input id="firstName" placeholder={t('reg.firstNamePh')} autoComplete="given-name" {...register('firstName')} />
               <FieldError message={errors.firstName?.message} />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="lastName">Last name</Label>
-              <Input id="lastName" placeholder="Doe" autoComplete="family-name" {...register('lastName')} />
+              <Label htmlFor="lastName">{t('field.lastNameLower')}</Label>
+              <Input id="lastName" placeholder={t('reg.lastNamePh')} autoComplete="family-name" {...register('lastName')} />
               <FieldError message={errors.lastName?.message} />
             </div>
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">{t('field.email')}</Label>
             {/* readOnly for an invitation, because only this address can redeem it —
                 registering under another one would create an account the redemption
                 then refuses. A courtesy for the browser only: registerUser compares the
@@ -306,7 +380,7 @@ export function RegisterForm({
             <Input
               id="email"
               type="email"
-              placeholder="you@example.com"
+              placeholder={t('field.ph.email')}
               autoComplete="email"
               readOnly={Boolean(inviteToken)}
               className={inviteToken ? 'bg-muted' : undefined}
@@ -314,59 +388,127 @@ export function RegisterForm({
             />
             {inviteToken && (
               <p className="text-xs text-muted-foreground">
-                The address your invitation was sent to.
+                {t('reg.invitedAddress')}
               </p>
             )}
             <FieldError message={errors.email?.message} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="password">Password</Label>
-            <Input id="password" type="password" placeholder="Min. 8 characters" autoComplete="new-password" {...register('password')} />
+            <Label htmlFor="password">{t('auth.password')}</Label>
+            <Input id="password" type="password" placeholder={t('security.ph.minChars')} autoComplete="new-password" {...register('password')} />
             <FieldError message={errors.password?.message} />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="confirmPassword">Confirm password</Label>
+            <Label htmlFor="confirmPassword">{t('reg.confirmPassword')}</Label>
             <Input id="confirmPassword" type="password" placeholder="••••••••" autoComplete="new-password" {...register('confirmPassword')} />
             <FieldError message={errors.confirmPassword?.message} />
           </div>
 
           {!inviteToken && mode === 'join' && (
             <div className="space-y-1.5">
-              <Label htmlFor="familyCode">Family Code</Label>
+              <Label htmlFor="familyCode">{t('fam.codeHeading')}</Label>
               <Input
                 id="familyCode"
-                placeholder="e.g. ABC123"
+                placeholder={t('reg.codePh')}
                 autoComplete="off"
                 className="uppercase"
                 {...register('familyCode')}
               />
-              <p className="text-xs text-muted-foreground">Enter the code shared with you by your family.</p>
+              <p className="text-xs text-muted-foreground">{t('reg.codeShared')}</p>
               <FieldError message={errors.familyCode?.message} />
             </div>
           )}
 
           {!inviteToken && mode === 'create' && (
             <div className="space-y-1.5">
-              <Label htmlFor="familyName">Family name</Label>
+              <Label htmlFor="familyName">{t('set.familyName')}</Label>
               <Input
                 id="familyName"
-                placeholder="e.g. The Smiths"
+                placeholder={t('reg.familyNamePh')}
                 autoComplete="off"
                 {...register('familyName')}
               />
-              <p className="text-xs text-muted-foreground">A unique family code will be generated for you to share.</p>
+              <p className="text-xs text-muted-foreground">{t('reg.codeGenerated')}</p>
               <FieldError message={errors.familyName?.message} />
             </div>
+          )}
+
+          {/* ── WHICH PLAN TO START ON ────────────────────────────────────────────
+              CREATE MODE ONLY. A plan belongs to the family, so the question is only
+              answerable by the person making one — a member joining an existing
+              family cannot commit it to a bill, and `registerUser` drops the
+              parameter for them regardless.
+
+              NOTHING IS CHARGED ON THIS SCREEN and the caption says so. There is no
+              family yet to be the Stripe customer and no session yet to authorize a
+              checkout, so what this collects is a CHOICE that is recorded and offered
+              back once both exist. Promising otherwise here would be the "the button
+              press is not the payment" rule broken at the very first press.
+
+              REAL RADIOS IN A FIELDSET, not divs with click handlers. A screen reader
+              gets the group name, the count and the current selection for free, and
+              arrow keys work — none of which a `role`-less clickable card provides.
+              Same argument MainRail makes for refusing `role="tablist"`. */}
+          {!inviteToken && mode === 'create' && (
+            <fieldset className="space-y-1.5">
+              <legend className="text-sm font-medium">{t('set.pane.plan')}</legend>
+              <div className="space-y-2">
+                {PLAN_CHOICES.map(tier => {
+                  const price = TIER_PRICE[tier]
+                  const selected = (chosenPlan ?? 'free') === tier
+                  return (
+                    <label
+                      key={tier}
+                      className={cn(
+                        'flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors',
+                        selected
+                          ? 'border-brand-primary bg-brand-soft'
+                          : 'border-border hover:bg-muted',
+                      )}
+                    >
+                      <input
+                        type="radio"
+                        name="plan"
+                        value={tier}
+                        checked={selected}
+                        onChange={() => setChosenPlan(tier === 'free' ? null : tier)}
+                        className="mt-1 accent-[var(--brand-primary)]"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-baseline justify-between gap-x-2">
+                          <span className={cn('text-sm font-medium', selected && 'text-brand-on-soft')}>
+                            {TIER_LABEL[tier]}
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {price
+                              ? t('bill.perMonthSlash', { amount: formatPlanPrice(price.monthlyCents, intl) })
+                              : t('reg.freeForever')}
+                          </span>
+                        </span>
+                        <span className="mt-0.5 block text-xs text-muted-foreground">
+                          {tierTagline(t, tier)}
+                        </span>
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {chosenPlan
+                  ? `Nothing is charged now. Once your family exists you will be asked to set up payment for ${TIER_LABEL[chosenPlan]}, and you can stay on Free instead.`
+                  : t('reg.canMove')}
+              </p>
+            </fieldset>
           )}
 
           <FormError message={serverError} />
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting
-              ? mode === 'join' ? 'Joining…' : 'Creating family…'
-              : mode === 'join' ? 'Join Family' : 'Create Family'}
+              ? mode === 'join' ? t('reg.joining') : t('reg.creatingFamily')
+              : mode === 'join' ? t('reg.joinAction') : t('reg.createAction')}
           </Button>
         </form>
       </CardContent>
@@ -385,7 +527,7 @@ export function RegisterForm({
           invitation instead of being stranded on the dashboard. */}
       <CardFooter className="text-sm">
         <p>
-          <span className="text-muted-foreground">Already have an account?&nbsp;</span>
+          <span className="text-muted-foreground">{t('reg.haveAccount')}</span>
           {/* An invited visitor who turns out to have an account already must come back to
               the invitation after signing in, or the token is simply lost and they are in
               no family. Plain /login would strand them on the dashboard. */}
@@ -397,7 +539,7 @@ export function RegisterForm({
             }
             className="font-medium text-primary hover:underline"
           >
-            Sign in
+            {t('auth.signIn')}
           </Link>
         </p>
       </CardFooter>

@@ -1,5 +1,4 @@
 import { redirect, notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { requireView, can, canAny } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
 import {
@@ -9,6 +8,7 @@ import { getGatheringTemplates } from '@/app/actions/admin/gathering-templates'
 import { getSchedulableTemplates } from '@/app/actions/gatherings'
 import { AdminGatheringDetailClient } from '@/components/admin/AdminGatheringDetailClient'
 import { PageShell } from '@/components/layout/PageShell'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Gathering — Admin' }
 
@@ -63,8 +63,7 @@ export default async function AdminGatheringDetailPage({
 }) {
   const { id } = await params
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'admin/gatherings')
@@ -130,6 +129,12 @@ export default async function AdminGatheringDetailPage({
         mayManageBudget={mayManageBudget}
         mayViewMemberPage={mayViewMemberPage}
         mayViewAccounting={mayViewAccounting}
+        /* WHETHER THE PLANNING HALF IS IN THE FAMILY'S PLAN AT ALL. `templatesInPlan` already
+           withheld the two template FETCHES above, which left this screen rendering a Segments
+           panel with nothing addable and a Tasks panel saying "add a template above" —
+           instructions for a control that is not there. This flag is what lets the client
+           replace both with the one honest sentence. Same key, one question. */
+        plansGatherings={templatesInPlan}
       />
     </PageShell>
   )

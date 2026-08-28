@@ -14,12 +14,13 @@ import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
 import { MainRail } from '@/components/layout/MainRail'
 import { useServerState } from '@/lib/use-server-state'
-import { formatDate } from '@/lib/date-utils'
+import { formatInstantDate } from '@/lib/tz'
 import {
   addJournalEntry, addJournalNote, deleteJournalEntry, deleteJournalNote, getJournalEntries,
   updateJournalEntry, updateJournalNote,
   type JournalEntry, type JournalNote, type JournalOffice,
 } from '@/app/actions/journal'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Officer Notes, for whoever holds the office.
@@ -63,6 +64,15 @@ interface Props {
   offices: JournalOffice[]
   initialOffice: string
   initialEntries: JournalEntry[]
+  /**
+   * The reader's timezone, resolved once by the page (`resolveZone`).
+   *
+   * Every `created_at` on this screen is an INSTANT and has no calendar date of its
+   * own — `formatDate` on one printed the UTC day, so anything entered after 7pm
+   * Central was filed a day late. The DATE columns beside them are wall-clock labels
+   * and deliberately still go through `formatDate`. See lib/tz.ts.
+   */
+  zone: string
 }
 
 /** The composer, for a new topic or for retitling one that exists. */
@@ -83,8 +93,9 @@ interface NoteDraft {
 }
 
 export function OfficerNotesClient({
-  offices, initialOffice, initialEntries,
+  offices, initialOffice, initialEntries, zone,
 }: Props) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [active, setActive] = useState(initialOffice)
@@ -134,7 +145,7 @@ export function OfficerNotesClient({
   function saveEntry() {
     if (!entryDraft) return
     const draft = entryDraft
-    if (!draft.title.trim()) { setDialogError('Give the entry a title.'); return }
+    if (!draft.title.trim()) { setDialogError(t('notes.needTitle')); return }
     setDialogError('')
     startTransition(async () => {
       if (!draft.entry) {
@@ -143,7 +154,7 @@ export function OfficerNotesClient({
           firstNote: draft.firstNote,
         })
         if (!result.success) {
-          setDialogError(result.message ?? 'That entry could not be saved.')
+          setDialogError(result.message ?? t('notes.saveFailed'))
           // REFETCHED EVEN ON FAILURE, because `addJournalEntry` reports a PARTIAL success:
           // the topic can exist while its first note did not save. Left alone, the officer
           // would read a refusal over a topic that is really there.
@@ -153,7 +164,7 @@ export function OfficerNotesClient({
       } else {
         const result = await updateJournalEntry(draft.entry.id, draft.title)
         if (!result.success) {
-          setDialogError(result.message ?? 'That entry could not be saved.')
+          setDialogError(result.message ?? t('notes.saveFailed'))
           return
         }
       }
@@ -164,10 +175,10 @@ export function OfficerNotesClient({
 
   async function removeEntry(entry: JournalEntry) {
     const ok = await confirm({
-      title: 'Delete this entry',
+      title: t('notes.deleteEntryTitle'),
       description: `Delete “${entry.title}”? Every note under it goes too, for everybody who `
         + 'holds this office, now and later. This cannot be undone.',
-      confirmLabel: 'Delete entry',
+      confirmLabel: t('notes.deleteEntry'),
       destructive: true,
     })
     if (!ok) return
@@ -175,7 +186,7 @@ export function OfficerNotesClient({
     startTransition(async () => {
       const result = await deleteJournalEntry(entry.id)
       if (!result.success) {
-        setError(result.message ?? 'That entry could not be removed.')
+        setError(result.message ?? t('notes.deleteEntryFailed'))
         return
       }
       reload()
@@ -195,14 +206,14 @@ export function OfficerNotesClient({
   function saveNote() {
     if (!noteDraft) return
     const draft = noteDraft
-    if (!draft.body.trim()) { setDialogError('Write something first.'); return }
+    if (!draft.body.trim()) { setDialogError(t('notes.writeFirst')); return }
     setDialogError('')
     startTransition(async () => {
       const result = draft.note
         ? await updateJournalNote(draft.note.id, draft.body)
         : await addJournalNote(draft.entryId, draft.body)
       if (!result.success) {
-        setDialogError(result.message ?? 'That note could not be saved.')
+        setDialogError(result.message ?? t('notes.noteSaveFailed'))
         return
       }
       setNoteDraft(null)
@@ -212,9 +223,9 @@ export function OfficerNotesClient({
 
   async function removeNote(note: JournalNote) {
     const ok = await confirm({
-      title: 'Delete this note',
-      description: 'Delete this note? The rest of the entry stays. This cannot be undone.',
-      confirmLabel: 'Delete note',
+      title: t('notes.deleteThisNote'),
+      description: t('notes.deleteNoteBody'),
+      confirmLabel: t('notes.deleteNote'),
       destructive: true,
     })
     if (!ok) return
@@ -222,7 +233,7 @@ export function OfficerNotesClient({
     startTransition(async () => {
       const result = await deleteJournalNote(note.id)
       if (!result.success) {
-        setError(result.message ?? 'That note could not be removed.')
+        setError(result.message ?? t('notes.deleteNoteFailed'))
         return
       }
       reload()
@@ -236,7 +247,7 @@ export function OfficerNotesClient({
   // secretary, an attendee list and votes rather than a kind of journal entry.
   const newControls = (
     <Button size="sm" variant="affirm" onClick={openNewEntry} disabled={isPending}>
-      <Plus /> New entry
+      <Plus /> {t('notes.new')}
     </Button>
   )
 
@@ -254,7 +265,7 @@ export function OfficerNotesClient({
           assignment, so the three surfaces cannot word one office three ways. */}
       {offices.length > 1 && (
         <MainRail
-          label="Offices you hold"
+          label={t('notes.officesRail')}
           items={offices.map(o => ({ id: o.role_id, label: o.title }))}
           active={active}
           onSelect={loadOffice}
@@ -265,7 +276,7 @@ export function OfficerNotesClient({
       {offices.length === 1 && (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-muted-foreground">
-            The journal for <span className="font-medium text-foreground">{activeOffice?.title}</span>.
+            {t('notes.journalFor')} <span className="font-medium text-foreground">{activeOffice?.title}</span>.
           </p>
           {newControls}
         </div>
@@ -283,7 +294,7 @@ export function OfficerNotesClient({
           succession, which is the other half and is true of all of them. */}
       {activeOffice && activeOffice.scope !== 'national' && (
         <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-          Everyone holding <span className="font-medium text-foreground">{activeOffice.name}</span>{' '}
+          {t('notes.everyoneHolding')} <span className="font-medium text-foreground">{activeOffice.name}</span>{' '}
           reads this journal, whichever{' '}
           {activeOffice.scope === 'chapter' ? 'chapter' : 'region'} they hold it for.
         </p>
@@ -298,7 +309,7 @@ export function OfficerNotesClient({
             Nothing recorded for {activeOffice?.title ?? 'this office'} yet.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Whatever you write here stays with the office. Whoever holds it next will read it.
+            {t('notes.staysWithOffice')}
           </p>
         </div>
       ) : (
@@ -308,6 +319,7 @@ export function OfficerNotesClient({
               key={entry.id}
               entry={entry}
               busy={isPending}
+              zone={zone}
               onAddNote={() => openNewNote(entry.id)}
               onEdit={() => openEditEntry(entry)}
               onDelete={() => removeEntry(entry)}
@@ -323,25 +335,25 @@ export function OfficerNotesClient({
         open={entryDraft !== null}
         onClose={() => setEntryDraft(null)}
         title={entryDraft?.entry
-          ? 'Rename entry'
+          ? t('notes.renameEntry')
           : `New entry${activeOffice ? ` — ${activeOffice.title}` : ''}`}
         description={entryDraft?.entry
-          ? 'Only you can change what you recorded, and only while you hold this office.'
-          : 'This stays with the office. Whoever holds it next will read it.'}
+          ? t('notes.onlyYouRecorded')
+          : t('notes.staysWithOfficeShort')}
         className="sm:max-w-xl"
       >
         {entryDraft && (
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="journal-title" required>Title</Label>
+              <Label htmlFor="journal-title" required>{t('field.title')}</Label>
               <Input
                 id="journal-title"
                 value={entryDraft.title}
                 onChange={e => setEntryDraft({ ...entryDraft, title: e.target.value })}
-                placeholder="How the bank reconciliation works"
+                placeholder={t('notes.titlePh')}
               />
               <p className="text-xs text-muted-foreground">
-                What the list shows. Everything else goes in notes underneath it.
+                {t('notes.titleHint')}
               </p>
             </div>
 
@@ -350,16 +362,16 @@ export function OfficerNotesClient({
                 belongs to whoever wrote it. */}
             {!entryDraft.entry && (
               <div className="space-y-1.5">
-                <Label htmlFor="journal-first-note">First note</Label>
+                <Label htmlFor="journal-first-note">{t('notes.firstNote')}</Label>
                 <Textarea
                   id="journal-first-note"
                   rows={8}
                   value={entryDraft.firstNote}
                   onChange={e => setEntryDraft({ ...entryDraft, firstNote: e.target.value })}
-                  placeholder="Optional — you can add notes to this entry later."
+                  placeholder={t('notes.firstNotePh')}
                 />
                 <p className="text-xs text-muted-foreground">
-                  You can add more notes to this entry whenever there is something to add.
+                  {t('notes.moreLater')}
                 </p>
               </div>
             )}
@@ -371,14 +383,14 @@ export function OfficerNotesClient({
 
             <div className="flex items-center justify-end gap-2">
               <Button variant="ghost" onClick={() => setEntryDraft(null)} disabled={isPending}>
-                Cancel
+                {t('action.cancel')}
               </Button>
               <Button
                 variant="affirm"
                 onClick={saveEntry}
                 disabled={isPending || !entryDraft.title.trim()}
               >
-                {isPending ? 'Saving…' : entryDraft.entry ? 'Save changes' : 'Add entry'}
+                {isPending ? t('action.saving') : entryDraft.entry ? t('action.saveChanges') : t('notes.addEntry')}
               </Button>
             </div>
           </div>
@@ -389,16 +401,16 @@ export function OfficerNotesClient({
       <Dialog
         open={noteDraft !== null}
         onClose={() => setNoteDraft(null)}
-        title={noteDraft?.note ? 'Edit note' : 'Add a note'}
+        title={noteDraft?.note ? t('notes.editNote') : t('notes.addNote')}
         description={noteDraft?.note
-          ? 'Only you can change what you wrote, and only while you hold this office.'
-          : 'It goes at the end of this entry, under your name.'}
+          ? t('notes.onlyYouWrote')
+          : t('notes.atTheEnd')}
         className="sm:max-w-xl"
       >
         {noteDraft && (
           <div className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="journal-note" required>Note</Label>
+              <Label htmlFor="journal-note" required>{t('notes.note')}</Label>
               <Textarea
                 id="journal-note"
                 rows={10}
@@ -411,14 +423,14 @@ export function OfficerNotesClient({
 
             <div className="flex items-center justify-end gap-2">
               <Button variant="ghost" onClick={() => setNoteDraft(null)} disabled={isPending}>
-                Cancel
+                {t('action.cancel')}
               </Button>
               <Button
                 variant="affirm"
                 onClick={saveNote}
                 disabled={isPending || !noteDraft.body.trim()}
               >
-                {isPending ? 'Saving…' : noteDraft.note ? 'Save changes' : 'Add note'}
+                {isPending ? t('action.saving') : noteDraft.note ? t('action.saveChanges') : t('notes.addNoteAction')}
               </Button>
             </div>
           </div>
@@ -451,16 +463,19 @@ export function OfficerNotesClient({
  * implemented.
  */
 function EntryCard({
-  entry, busy, onAddNote, onEdit, onDelete, onEditNote, onDeleteNote,
+  entry, busy, zone, onAddNote, onEdit, onDelete, onEditNote, onDeleteNote,
 }: {
   entry: JournalEntry
   busy: boolean
+  /** The reader's timezone — every timestamp on a note is an instant. See lib/tz.ts. */
+  zone: string
   onAddNote: () => void
   onEdit: () => void
   onDelete: () => void
   onEditNote: (note: JournalNote) => void
   onDeleteNote: (note: JournalNote) => void
 }) {
+  const t = useT()
   // COLLAPSED BY DEFAULT, always " including for a topic somebody has just opened. The
   // alternative (expand the newest, or expand a topic with one note) is a rule the reader
   // has to infer from behaviour, and it makes the page a different shape every visit.
@@ -493,7 +508,7 @@ function EntryCard({
                 the office keeps the record when its author leaves the family, and "Unknown"
                 would make that read like data loss rather than like a record outliving the
                 person who wrote it. */}
-            Started by {entry.author_name ?? 'a former officer'} · {formatDate(entry.created_at)}
+            Started by {entry.author_name ?? 'a former officer'} · {formatInstantDate(entry.created_at, zone)}
           </p>
         </div>
 
@@ -501,13 +516,13 @@ function EntryCard({
           <div className="flex shrink-0 gap-1">
             <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
               onClick={onEdit} disabled={busy}
-              aria-label={`Rename “${entry.title}”`} title="Rename">
+              aria-label={`Rename “${entry.title}”`} title={t('action.rename')}>
               <Pencil className="h-3.5 w-3.5" />
             </Button>
             <Button size="sm" variant="ghost"
               className="h-7 w-7 p-0 text-destructive hover:text-destructive"
               onClick={onDelete} disabled={busy}
-              aria-label={`Delete “${entry.title}”`} title="Delete">
+              aria-label={`Delete “${entry.title}”`} title={t('action.delete')}>
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           </div>
@@ -522,7 +537,7 @@ function EntryCard({
               both have written in it. */}
           {noteCount === 0 ? (
             <p className="mt-4 border-t pt-3 text-sm text-muted-foreground">
-              Nothing written under this yet.
+              {t('notes.nothingUnder')}
             </p>
           ) : (
             <ul className="mt-4 space-y-3 border-t pt-3">
@@ -534,22 +549,22 @@ function EntryCard({
                         silently destroy the structure of every list anybody wrote. */}
                     <p className="whitespace-pre-wrap text-sm text-muted-foreground">{note.body}</p>
                     <p className="mt-1 text-xs text-muted-foreground">
-                      {note.author_name ?? 'A former officer'} · {formatDate(note.created_at)}
+                      {note.author_name ?? 'A former officer'} · {formatInstantDate(note.created_at, zone)}
                       {note.updated_at !== note.created_at
-                        && ` · edited ${formatDate(note.updated_at)}`}
+                        && ` · edited ${formatInstantDate(note.updated_at, zone)}`}
                     </p>
                   </div>
                   {note.mine && (
                     <div className="flex shrink-0 gap-1">
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
                         onClick={() => onEditNote(note)} disabled={busy}
-                        aria-label="Edit this note" title="Edit">
+                        aria-label={t('notes.editThisNote')} title={t('action.edit')}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
                       <Button size="sm" variant="ghost"
                         className="h-7 w-7 p-0 text-destructive hover:text-destructive"
                         onClick={() => onDeleteNote(note)} disabled={busy}
-                        aria-label="Delete this note" title="Delete">
+                        aria-label={t('notes.deleteThisNote')} title={t('action.delete')}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     </div>
@@ -564,7 +579,7 @@ function EntryCard({
               what they wrote instead of opening a rival topic. */}
           <div className="mt-3">
             <Button size="sm" variant="outline" onClick={onAddNote} disabled={busy}>
-              <Plus /> Add a note
+              <Plus /> {t('notes.addNote')}
             </Button>
           </div>
         </>

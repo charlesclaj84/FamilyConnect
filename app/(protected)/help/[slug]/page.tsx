@@ -2,14 +2,17 @@ import Link from 'next/link'
 import { notFound, redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { requireViewOrPending } from '@/lib/auth/permissions'
 import { resolveHelpAvailability } from '@/lib/help/availability'
 import { getHelpChapter, getHelpPart, helpNeighbours } from '@/lib/help/content'
+import { localizeChapter } from '@/lib/help/keys'
+import { helpT } from '@/lib/help/strings'
 import { stripInline } from '@/lib/help/inline'
 import { HelpBlocks } from '@/components/help/HelpProse'
 import { HelpAvailabilityNote } from '@/components/help/HelpAvailabilityBadge'
 import { PageShell } from '@/components/layout/PageShell'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 interface Props {
   params: Promise<{ slug: string }>
@@ -34,8 +37,14 @@ interface Props {
  * next door is `wide` for exactly the same reason it is a grid of cards.
  */
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const chapter = getHelpChapter((await params).slug)
-  if (!chapter) return { title: 'Help' }
+  const raw = getHelpChapter((await params).slug)
+  if (!raw) return { title: 'Help' }
+  // THE TAB TITLE AND THE DESCRIPTION ARE THE READER'S. This is the one `generateMetadata` in
+  // the product that translates, and it costs nothing extra: `callerI18n(null)` falls through to
+  // `Accept-Language` and needs no session, which is right here because the manual is the same
+  // document for everybody — there is no per-caller data in it to get wrong.
+  const { locale } = await callerI18n(null)
+  const chapter = localizeChapter(raw, helpT(locale))
   // No product-name suffix by hand — `app/layout.tsx` sets a `title.template` and appends
   // it. Writing it here renders it twice.
   return { title: `${chapter.title} — Help`, description: stripInline(chapter.summary) }
@@ -46,14 +55,18 @@ export default async function HelpChapterPage({ params }: Props) {
 
   // BEFORE the session is resolved, deliberately: a slug that names no chapter is a 404
   // whoever asks, and there is nothing to authorize on a document that does not exist.
-  const chapter = getHelpChapter(slug)
-  if (!chapter) notFound()
+  const raw = getHelpChapter(slug)
+  if (!raw) notFound()
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
   if (!user) redirect('/login')
 
   const gate = await requireViewOrPending(user.id, 'help')
+
+  const { locale } = await callerI18n(user.id)
+  const help = helpT(locale)
+  const chapter = localizeChapter(raw, help)
 
   const part = getHelpPart(slug)
   const { previous, next } = helpNeighbours(slug)
@@ -72,9 +85,7 @@ export default async function HelpChapterPage({ params }: Props) {
           href="/help"
           className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />
-          All help
-        </Link>
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" />{t('hlp.allHelp')}</Link>
 
         {part && (
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -88,10 +99,8 @@ export default async function HelpChapterPage({ params }: Props) {
       <HelpAvailabilityNote availability={availability} />
 
       {showContents && (
-        <nav aria-label="On this page" className="rounded-xl border bg-card px-4 py-3">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-            On this page
-          </p>
+        <nav aria-label={t('hlp.page')} className="rounded-xl border bg-card px-4 py-3">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">{t('hlp.page')}</p>
           <ul className="space-y-1 text-sm">
             {chapter.sections.map(section => (
               <li key={section.id}>
@@ -114,7 +123,7 @@ export default async function HelpChapterPage({ params }: Props) {
       {/* The manual reads front to back, so these cross part boundaries rather than
           stopping at the end of each one. */}
       {(previous || next) && (
-        <nav aria-label="More of the manual" className="flex flex-wrap gap-3 border-t pt-6">
+        <nav aria-label={t('hlp.moreManual')} className="flex flex-wrap gap-3 border-t pt-6">
           {previous && (
             <Link
               href={`/help/${previous.slug}`}

@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Clock } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { requireViewOrPending } from '@/lib/auth/permissions'
 import { getPersonalInfo } from '@/app/actions/personal-info'
 import { getMyRoles } from '@/app/actions/admin/users'
@@ -9,10 +8,12 @@ import { formatRoleTitle } from '@/lib/role-utils'
 import { getChapters } from '@/app/actions/admin/chapters'
 import { getViewingMembership } from '@/lib/auth/family'
 import { familyShowsPhotos } from '@/lib/auth/tier'
-import { getMySmsSettings } from '@/app/actions/sms-consent'
+import { getMyNotificationSettings } from '@/app/actions/notification-prefs'
 import { PersonalInfoForm } from '@/components/personal-info/PersonalInfoForm'
 import { resolveProfileSection } from '@/components/personal-info/profile-sections'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'My Profile' }
 
@@ -21,9 +22,9 @@ export default async function PersonalInfoPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
+  const { t } = await callerI18n(user.id)
 
   // Resolved server-side so the first paint already shows the right section, and so the
   // client's initial state matches the server HTML exactly — which is what keeps this
@@ -55,7 +56,7 @@ export default async function PersonalInfoPage({
   // pending member too — a plan is a fact about the family, not about how far through joining
   // somebody is — and it costs nothing, since `getMyFamilyTier` is cache()d per request and the
   // layout has already resolved it.
-  const [existing, myRoles, chapters, membership, photosAllowed, smsSettings] =
+  const [existing, myRoles, chapters, membership, photosAllowed, notificationSettings] =
     await Promise.all([
       getPersonalInfo(),
       pending ? Promise.resolve([]) : getMyRoles(),
@@ -63,17 +64,18 @@ export default async function PersonalInfoPage({
       getViewingMembership(user.id),
       familyShowsPhotos(user.id),
       // NOT skipped for a pending member, unlike the two above. An applicant may edit their own
-      // profile (AGENTS.md §2's one exception to `requireMember`), and the action refuses them on
-      // its own membership check anyway — so this returns the conservative empty shape rather
-      // than needing a branch here. The two above are skipped because a pending caller has no
-      // roles and no chapter list to be shown.
-      getMySmsSettings(),
+      // profile (AGENTS.md §2's one exception to `requireMember`), and a safety check-in is
+      // exactly the thing somebody should be able to opt out of before their membership is
+      // decided — so the action answers the conservative empty shape rather than needing a
+      // branch here. The two above are skipped because a pending caller has no roles and no
+      // chapter list to be shown.
+      getMyNotificationSettings(),
     ])
 
   return (
     <PageShell>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">My Profile</h1>
+        <h1 className="text-3xl font-bold mb-1">{t('page./personal-info.title')}</h1>
         {myRoles.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-2 mb-1">
             {myRoles.map((r, i) => (
@@ -90,9 +92,9 @@ export default async function PersonalInfoPage({
           <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             {gate.membership.status === 'rejected'
-              ? <>Your request to join <span className="font-medium">{gate.membership.familyName}</span>{' '}
+              ? <>{t('prof.requestJoin')}<span className="font-medium">{gate.membership.familyName}</span>{' '}
                   was declined. You can still keep your profile up to date.</>
-              : <>Your membership of <span className="font-medium">{gate.membership.familyName}</span>{' '}
+              : <>{t('prof.membership')}<span className="font-medium">{gate.membership.familyName}</span>{' '}
                   is waiting for approval. Filling this in helps them recognise you —{' '}
                   <Link href="/dashboard" className="text-primary hover:underline">check the status</Link>.</>}
           </p>
@@ -102,16 +104,16 @@ export default async function PersonalInfoPage({
       {/* signInEmail is auth.users.email — the account's identity, not the profile's
           primary_email. Passed from here rather than read in the client so the Sign-in &
           Security section paints with it already resolved. */}
-      {/* smsSettings is the caller's OWN text-message state, resolved here for
-          `photosAllowed`'s reason: the form is a client component and every field of it is a
-          database fact. It also means the panel paints with a real answer rather than flashing
-          "no number on file" at somebody who has one — which on a consent screen would look
-          like the product having forgotten their choice.
+      {/* notificationSettings is the caller's OWN grid — which notifications they want, down
+          which channel — resolved here for `photosAllowed`'s reason: the form is a client
+          component and every field of it is a database fact. It also means the grid paints with
+          real answers rather than flashing a row of defaults at somebody who has already set
+          them, which on a consent screen looks like the product having forgotten their choice.
 
-          NO GATE IN FRONT OF IT. `getMySmsSettings` is `requireMember()` and the caller's own
-          person id, and it is deliberately not tier-checked: managing your own consent is not a
-          paid capability, and a family that lapses from Premium must not lose the ability to
-          WITHDRAW it. See app/actions/sms-consent.ts. */}
+          NO GATE IN FRONT OF IT. `getMyNotificationSettings` is `requireMember()` and the
+          caller's own person id, and it is deliberately not tier-checked: managing your own
+          consent is not a paid capability, and a family that lapses from Premium must not lose
+          the ability to turn a notification OFF. See app/actions/notification-prefs.ts. */}
       <PersonalInfoForm
         existing={existing}
         chapters={chapters}
@@ -119,7 +121,7 @@ export default async function PersonalInfoPage({
         photosAllowed={photosAllowed}
         initialSection={initialSection}
         signInEmail={user.email ?? ''}
-        smsSettings={smsSettings}
+        notificationSettings={notificationSettings}
       />
     </PageShell>
   )

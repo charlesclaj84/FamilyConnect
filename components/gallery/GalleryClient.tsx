@@ -13,6 +13,7 @@ import {
   createCollection, deleteCollection, getPhotoCollections,
   type GalleryRights, type PhotoCollection,
 } from '@/app/actions/gallery'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The Gallery's index: every album the family keeps.
@@ -33,6 +34,7 @@ export function GalleryClient({ rights, myPersonId }: {
   /** The caller's own `people.id`, for the creator half of the delete rule. */
   myPersonId: string | null
 }) {
+  const t = useT()
   const confirm = useConfirm()
   const [collections, setCollections] = useState<PhotoCollection[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,14 +50,14 @@ export function GalleryClient({ rights, myPersonId }: {
   }, [])
 
   function handleCreate() {
-    if (!name.trim()) { setError('Give the album a name'); return }
+    if (!name.trim()) { setError(t('gal.needName')); return }
     setError('')
     startTransition(async () => {
       const result = await createCollection({
         name: name.trim(),
         description: description.trim() || undefined,
       })
-      if (!result.success) { setError(result.message ?? 'Could not create that album.'); return }
+      if (!result.success) { setError(result.message ?? t('gal.createFailed')); return }
       setCreating(false); setName(''); setDescription('')
       setCollections(await getPhotoCollections())
     })
@@ -73,15 +75,15 @@ export function GalleryClient({ rights, myPersonId }: {
       description: count > 0
         ? `This deletes the album AND all ${count} photograph${count === 1 ? '' : 's'} in it, `
           + 'for everybody. The image files are removed as well. This cannot be undone.'
-        : 'This deletes the album. It has no photographs in it.',
-      confirmLabel: count > 0 ? `Delete album and ${count} photo${count === 1 ? '' : 's'}` : 'Delete album',
+        : t('gal.deleteAlbumBody'),
+      confirmLabel: count > 0 ? `Delete album and ${count} photo${count === 1 ? '' : 's'}` : t('gal.deleteAlbum'),
       destructive: true,
     })
     if (!ok) return
     setError(''); setNotice('')
     startTransition(async () => {
       const result = await deleteCollection(c.id)
-      if (!result.success) { setError(result.message ?? 'Could not delete that album.'); return }
+      if (!result.success) { setError(result.message ?? t('gal.deleteAlbumFailed')); return }
       // A PARTIAL SUCCESS IS SAID OUT LOUD. The rows always go; the FILES can fail to, and a
       // family told an album is gone must not be left with the pictures still served.
       if (result.message) setNotice(result.message)
@@ -93,15 +95,12 @@ export function GalleryClient({ rights, myPersonId }: {
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="mb-1 text-3xl font-bold">Gallery</h1>
-          <p className="text-muted-foreground">
-            The family&rsquo;s photographs, kept in albums. Tag who is in them so a cousin can
-            find themselves.
-          </p>
+          <h1 className="mb-1 text-3xl font-bold">{t('gal.heading')}</h1>
+          <p className="text-muted-foreground">{t('ui.familySPhotographsKept')}</p>
         </div>
         {rights.upload && (
           <Button onClick={() => { setCreating(true); setError('') }}>
-            <Plus /> New album
+            <Plus /> {t('gal.newAlbum')}
           </Button>
         )}
       </div>
@@ -114,16 +113,16 @@ export function GalleryClient({ rights, myPersonId }: {
       )}
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Looking up the albums…</p>
+        <p className="text-sm text-muted-foreground">{t('gal.looking')}</p>
       ) : collections.length === 0 ? (
         <div className="rounded-xl border bg-card px-4 py-16 text-center">
           <Images className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
-          <p className="text-sm text-muted-foreground">No albums yet.</p>
+          <p className="text-sm text-muted-foreground">{t('gal.noAlbums')}</p>
           <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">
             An album is a set of photographs the family keeps together — a reunion, a wedding,
             a year. {rights.upload
-              ? 'Press New album to start one.'
-              : 'Somebody with permission to add to the gallery can start one.'}
+              ? t('gal.pressNew')
+              : t('gal.somebodyCan')}
           </p>
         </div>
       ) : (
@@ -140,7 +139,7 @@ export function GalleryClient({ rights, myPersonId }: {
                   onClick={() => handleDelete(c)}
                   disabled={isPending}
                   aria-label={`Delete the album “${c.name}”`}
-                  title="Delete album"
+                  title={t('gal.deleteAlbum')}
                   /* IT WAS INVISIBLE UNTIL 2026-08-22, and both halves of why are worth
                      keeping. `group-hover:` needs an ANCESTOR carrying `group`, and the
                      only `group` on this tile is inside `CollectionCard`, on the `<a>` —
@@ -167,29 +166,29 @@ export function GalleryClient({ rights, myPersonId }: {
         <Dialog
           open
           onClose={() => { setCreating(false); setError('') }}
-          title="New album"
-          description="A set of photographs the family keeps together."
+          title={t('gal.newAlbum')}
+          description={t('gal.albumIs')}
         >
           <div className="space-y-3">
             <div className="space-y-1.5">
-              <Label htmlFor="album-name">Name</Label>
+              <Label htmlFor="album-name">{t('field.name')}</Label>
               <Input id="album-name" value={name} onChange={e => setName(e.target.value)}
-                placeholder="Summer Reunion 2026" autoFocus />
+                placeholder={t('gal.albumNamePh')} autoFocus />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="album-desc">Description (optional)</Label>
+              <Label htmlFor="album-desc">{t('field.descriptionOptional')}</Label>
               <Input id="album-desc" value={description}
                 onChange={e => setDescription(e.target.value)}
-                placeholder="Three days at the lake" />
+                placeholder={t('gal.albumDescPh')} />
             </div>
             <FormError message={error} />
             <div className="flex gap-2">
               <Button size="sm" variant="affirm" onClick={handleCreate} disabled={isPending}>
-                Create album
+                {t('gal.createAlbum')}
               </Button>
               <Button size="sm" variant="ghost" disabled={isPending}
                 onClick={() => { setCreating(false); setError('') }}>
-                Cancel
+                {t('action.cancel')}
               </Button>
             </div>
           </div>

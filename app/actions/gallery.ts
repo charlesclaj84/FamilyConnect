@@ -9,6 +9,8 @@ import { requireMember, requireOwn } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedMany, embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { IMAGE_FORMATS, isAllowedUpload, uploadRejection } from '@/lib/upload-types'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * The Gallery — `/community/gallery`, and `review/photos` until 2026-08-22.
@@ -226,13 +228,14 @@ export async function createCollection(input: {
   description?: string
 }): Promise<{ success: boolean; id?: string; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   const familyCode = await getMyFamilyCode(user.id)
   const personId = await getMyPersonId(user.id)
   const name = input.name.trim()
-  if (!name) return { success: false, message: 'Give the album a name' }
+  if (!name) return { success: false, message: t('act.giveAlbumName') }
 
   const { data, error } = await supabase.from('photo_collections').insert({
     family_code: familyCode,
@@ -271,8 +274,9 @@ export async function uploadPhotos(
 ): Promise<{ success: boolean; uploaded: number; failed: string[]; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, uploaded: 0, failed: [], message: g.message }
+  const { t } = g
   if (!(await canAny(g.userId, 'community/gallery', 'create'))) {
-    return { success: false, uploaded: 0, failed: [], message: 'Not authorized' }
+    return { success: false, uploaded: 0, failed: [], message: t('act.notAuthorized') }
   }
 
   // ── §4: THE COLLECTION IS A CLIENT-SUPPLIED ID WRITTEN ONTO THE ROW ──────────────
@@ -282,12 +286,12 @@ export async function uploadPhotos(
   // written and not over the ids it references. `belongsToFamily` uses the service role on
   // purpose: the answer must not depend on the caller's view grant.
   if (!(await belongsToFamily('photo_collections', collectionId, g.familyCode))) {
-    return { success: false, uploaded: 0, failed: [], message: 'Album not found' }
+    return { success: false, uploaded: 0, failed: [], message: t('act.albumNotFound') }
   }
 
   const files = formData.getAll('files').filter((f): f is File => f instanceof File && f.size > 0)
   if (files.length === 0) {
-    return { success: false, uploaded: 0, failed: [], message: 'No files were chosen' }
+    return { success: false, uploaded: 0, failed: [], message: t('act.noFilesChosen') }
   }
   const caption = (formData.get('caption') as string | null)?.trim() || null
 
@@ -368,13 +372,18 @@ export async function updatePhotoCaption(
   caption: string,
 ): Promise<{ success: boolean; message?: string }> {
   const admin = createAdminClient()
+  const { user } = await currentUser()
+  // The translator BEFORE the row read, because the "not found" below runs
+  // before the guard: `requireOwn` needs the row's owner, so the row has to
+  // be read first. `currentUser()` is cached and the guard calls it anyway.
+  const { t } = await callerI18n(user?.id ?? null)
   const { data: row } = await admin
     .from('photos').select('uploader_id, family_code, collection_id').eq('id', photoId).maybeSingle()
-  if (!row) return { success: false, message: 'Photo not found' }
+  if (!row) return { success: false, message: t('act.photoNotFound') }
 
   const g = await requireOwn('community/gallery', 'edit', row.uploader_id)
   if (!g.ok) return { success: false, message: g.message }
-  if (row.family_code !== g.familyCode) return { success: false, message: 'Photo not found' }
+  if (row.family_code !== g.familyCode) return { success: false, message: t('act.photoNotFound') }
 
   const supabase = await createClient()
   const outcome = await confirmWrite(() =>
@@ -398,13 +407,18 @@ export async function deletePhoto(
   id: string,
 ): Promise<{ success: boolean; message?: string }> {
   const admin = createAdminClient()
+  const { user } = await currentUser()
+  // The translator BEFORE the row read, because the "not found" below runs
+  // before the guard: `requireOwn` needs the row's owner, so the row has to
+  // be read first. `currentUser()` is cached and the guard calls it anyway.
+  const { t } = await callerI18n(user?.id ?? null)
   const { data: row } = await admin
     .from('photos').select('uploader_id, family_code, collection_id').eq('id', id).maybeSingle()
-  if (!row) return { success: false, message: 'Photo not found' }
+  if (!row) return { success: false, message: t('act.photoNotFound') }
 
   const g = await requireOwn('community/gallery', 'delete', row.uploader_id)
   if (!g.ok) return { success: false, message: g.message }
-  if (row.family_code !== g.familyCode) return { success: false, message: 'Photo not found' }
+  if (row.family_code !== g.familyCode) return { success: false, message: t('act.photoNotFound') }
 
   const supabase = await createClient()
   // THE ROW COUNT IS THE ANSWER, NOT THE ERROR (§8b). `file_path` is in the projection so the
@@ -428,14 +442,15 @@ export async function tagPersonInPhoto(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   // §4 ON BOTH IDS. The `photo_tags` row carries the caller's family, so a policy is satisfied
   // by a tag naming another family's person on another family's photograph.
   if (!(await belongsToFamily('photos', photoId, g.familyCode))) {
-    return { success: false, message: 'Photo not found' }
+    return { success: false, message: t('act.photoNotFound') }
   }
   if (!(await belongsToFamily('people', personId, g.familyCode))) {
-    return { success: false, message: 'Person not found' }
+    return { success: false, message: t('act.personNotFound') }
   }
 
   const supabase = await createClient()
@@ -502,15 +517,20 @@ export async function deleteCollection(
   id: string,
 ): Promise<{ success: boolean; message?: string; removedPhotos?: number }> {
   const admin = createAdminClient()
+  const { user } = await currentUser()
+  // The translator BEFORE the row read, because the "not found" below runs
+  // before the guard: `requireOwn` needs the row's owner, so the row has to
+  // be read first. `currentUser()` is cached and the guard calls it anyway.
+  const { t } = await callerI18n(user?.id ?? null)
   const { data: row } = await admin
     .from('photo_collections').select('created_by, family_code, name').eq('id', id).maybeSingle()
-  if (!row) return { success: false, message: 'Album not found' }
+  if (!row) return { success: false, message: t('act.albumNotFound') }
 
   // Deleting an album cascades to every photograph in it, so its creator may remove their own
   // and anybody else needs the unrestricted delete grant.
   const g = await requireOwn('community/gallery', 'delete', row.created_by)
   if (!g.ok) return { success: false, message: g.message }
-  if (row.family_code !== g.familyCode) return { success: false, message: 'Album not found' }
+  if (row.family_code !== g.familyCode) return { success: false, message: t('act.albumNotFound') }
 
   // THE PATHS BEFORE THE CASCADE, on the admin client and family-scoped by hand (§3): the
   // rows are about to be unreachable, and a user-client read here would additionally miss any
@@ -519,7 +539,7 @@ export async function deleteCollection(
     .from('photos').select('file_path').eq('collection_id', id).eq('family_code', g.familyCode)
   if (readError) {
     console.error(`[gallery] could not list ${id} before deleting it: ${readError.message}`)
-    return { success: false, message: 'Could not read the album. Nothing was deleted.' }
+    return { success: false, message: t('act.couldNotReadAlbumNothing') }
   }
 
   const { error } = await admin

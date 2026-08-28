@@ -762,12 +762,18 @@ export const FEATURES: readonly Feature[] = [
     // available, because the boundary is already where it has to be.
     //
     // The Free card sells "Put the reunion on a shared calendar", and a calendar is a VIEW —
-    // something has to create the entries on it. `/gatherings/calendar` renders them and this
-    // page and `/admin/gatherings` are what put them there, so moving either up a rung leaves
-    // a Free family with a calendar that can never have anything on it and a bullet on the
-    // pricing page that is false. `scheduleGathering` accepting an EMPTY template list
-    // (2026-08-19) is what makes the Free half a real feature rather than a stub: a date, a
-    // place and a description, with no planning machinery at all.
+    // something has to create the entries on it. `/gatherings/calendar` renders them and THIS
+    // PAGE is what puts them there, so moving this one up a rung leaves a Free family with a
+    // calendar that can never have anything on it and a bullet on the pricing page that is
+    // false. `scheduleGathering` accepting an EMPTY template list (2026-08-19) is what makes
+    // the Free half a real feature rather than a stub: a date, a place and a description, with
+    // no planning machinery at all.
+    //
+    // THIS SENTENCE NAMED `/admin/gatherings` TOO UNTIL 2026-08-23, and that was the error in
+    // it: two screens were being kept Free to protect one calendar that only needs one of
+    // them. Gathering Management is Standard now and this page is the sole Free door onto the
+    // calendar — which makes the argument above STRONGER rather than weaker, because there is
+    // no longer a second screen to fall back on if somebody moves this one.
     //
     // So the line is DATE versus PLAN, not screen versus screen: Free is that a gathering
     // exists and when it is, Standard is turning it into assigned work with a budget. Three
@@ -1291,7 +1297,28 @@ export const FEATURES: readonly Feature[] = [
     href: '/admin/gatherings',
     label: 'Gathering Management',
     status: 'live',
-    tier: 'free',
+    // ── MOVED FREE -> STANDARD ON 2026-08-23, AND THE BOUNDARY GOT SIMPLER FOR IT ─────
+    // This was Free on the argument written up beside `/gatherings`: a calendar is a VIEW,
+    // something has to put entries on it, and moving either screen up would leave a Free
+    // family with a calendar that can never have anything on it.
+    //
+    // THAT ARGUMENT WAS RIGHT ABOUT THE CALENDAR AND WRONG ABOUT WHICH SCREEN FILLS IT.
+    // `/gatherings` schedules — `GatheringsClient` has offered its own New-gathering dialog
+    // since the split, `scheduleGathering` accepts an empty template list, and the picker is
+    // already tier-gated so a Free family gets a date, a place and a description. So the Free
+    // calendar keeps everything it needs from the MEMBER screen, and nothing here is load-
+    // bearing for it.
+    //
+    // What is left on this page is the whole of the planning half and nothing else: the task
+    // review queue, the budget band, the template library, deleting a gathering. Every one of
+    // those is Standard already or is meaningless without them — a review queue over tasks a
+    // Free family can never be assigned is a screen with a heading and no rows.
+    //
+    // THE PRACTICAL GAIN is that the split stops running through this page. It carried two
+    // keys at two tiers and had to and `tierAllows()` the library pane by hand; both keys are
+    // Standard now, so `requireView` answers for the whole screen and a Free family does not
+    // see Gathering Management in the rail at all.
+    tier: 'standard',
     blurb: 'Schedule a gathering, set its budget, hand out the tasks, and rule on the answers.',
   },
   {

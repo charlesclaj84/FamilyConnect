@@ -1,5 +1,14 @@
+'use client'
+
+// `'use client'` FOR THE TRANSLATOR AND FOR NOTHING ELSE. A sync Server Component
+// cannot await, so it cannot resolve the reader's language; and the router renders
+// this one directly, so there is no parent to hand a `t` down from. The markup is
+// static and the layout above already ships JS, so the directive buys the sentence
+// its language and costs nothing.
+
 import { SearchX } from 'lucide-react'
 import { PageShell } from '@/components/layout/PageShell'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The 404 for everything under `app/(staff)`.
@@ -59,15 +68,14 @@ import { PageShell } from '@/components/layout/PageShell'
  * lockup above it instead of floating in the middle of an otherwise empty page.
  */
 export default function StaffNotFound() {
+  const t = useT()
   return (
     <PageShell width="reading" className="space-y-3">
       <div className="flex h-11 w-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
         <SearchX className="h-5 w-5" aria-hidden="true" />
       </div>
-      <h1 className="text-xl font-semibold">Page not found</h1>
-      <p className="text-sm text-muted-foreground">
-        There is nothing at this address.
-      </p>
+      <h1 className="text-xl font-semibold">{t('stf.pageNotFound')}</h1>
+      <p className="text-sm text-muted-foreground">{t('stf.thereNothingAddress')}</p>
     </PageShell>
   )
 }

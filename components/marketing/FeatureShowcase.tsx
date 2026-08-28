@@ -4,9 +4,10 @@
 import { PillarVignette } from '@/components/marketing/PillarVignette'
 import { Reveal } from '@/components/marketing/Reveal'
 import { SectionHeading, ComingSoonBadge, MoreLink } from '@/components/marketing/sections'
-import { PILLARS } from '@/components/marketing/pillars'
+import { pillars } from '@/components/marketing/pillars'
 import { isFeatureFuture } from '@/lib/features'
-import { APP_NAME, APP_PROMISE } from '@/lib/brand'
+import { localizedHref } from '@/lib/i18n/route-locale'
+import { marketingI18n } from '@/lib/marketing/locale'
 
 /**
  * The landing page's product band: the three core jobs, one sentence and one
@@ -35,8 +36,26 @@ import { APP_NAME, APP_PROMISE } from '@/lib/brand'
  * `isFeatureFuture(route)` reads `lib/features.ts`, so a card cannot claim
  * something a member cannot reach. This was the only marketing surface with that
  * property; `/features` has it now too. Do not replace it with a hand-set boolean.
+ *
+ * ── `APP_PROMISE` AND `APP_NAME` ARE GONE FROM HERE, AND THAT IS A DECISION ───
+ * The eyebrow was `APP_PROMISE` — the three brand values joined into a phrase — and
+ * the lede interpolated `APP_NAME` into a sentence. `lib/brand.ts` is still the one
+ * place the product's name and voice live, and neither belongs in this file any more:
+ *
+ *   * `APP_PROMISE` joins `APP_VALUES` with English punctuation and reads as English
+ *     word order. Three values in Spanish do not join the same way, and a translator
+ *     needs the finished phrase rather than three words and a comma.
+ *   * A sentence with a name interpolated into the middle of it cannot be reordered
+ *     by a translator, which is the one thing a translator most often has to do.
+ *
+ * So both are catalogue entries whose English says exactly what the brand file did,
+ * and the product name is written out in each. The rule that survives is the one that
+ * matters: nobody types the name into a component.
  */
-export function FeatureShowcase() {
+export async function FeatureShowcase() {
+  const { t, locale } = await marketingI18n()
+  const PILLARS = pillars(t)
+
   return (
     // A flat ground, deliberately. This was a three-stop gradient between two values
     // a tenth of a step apart, which cost a paint and read as nothing. Contrast on
@@ -51,9 +70,9 @@ export function FeatureShowcase() {
             stays the single source. */}
         <SectionHeading
           id="showcase-heading"
-          eyebrow={APP_PROMISE}
-          title="Everything it takes to run a family"
-          lede={`${APP_NAME} replaces the group texts, spreadsheets and shoeboxes of receipts with one private home for your family, your plans and your money.`}
+          eyebrow={t('mkt.showcase.eyebrow')}
+          title={t('mkt.showcase.title')}
+          lede={t('mkt.showcase.lede')}
         />
 
         {/* One column below lg, not two or three. Three panels across a tablet
@@ -75,6 +94,7 @@ export function FeatureShowcase() {
                     rounded card leaves a sliver of ground in each corner. */}
                 <PillarVignette
                   kind={pillar.vignette}
+                  t={t}
                   className="rounded-none border-0 border-b shadow-none"
                 />
 
@@ -86,7 +106,7 @@ export function FeatureShowcase() {
                     <span className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-accent">
                       {pillar.eyebrow}
                     </span>
-                    {isFeatureFuture(pillar.route) && <ComingSoonBadge />}
+                    {isFeatureFuture(pillar.route) && <ComingSoonBadge label={t('mkt.comingSoon')} />}
                   </div>
                   <h3 className="text-xl leading-tight font-semibold">{pillar.title}</h3>
                   <p className="mt-2.5 text-sm leading-relaxed text-muted-foreground">
@@ -107,12 +127,11 @@ export function FeatureShowcase() {
         <Reveal delay={180}>
           <div className="mt-10 rounded-2xl border border-dashed bg-card/60 px-6 py-5 text-center">
             <p className="text-sm leading-relaxed text-muted-foreground">
-              And family chat, announcements, officer elections, photo collections,
-              documents, regional chapters and leadership reports.
+              {t('mkt.showcase.andAlso')}
             </p>
             <div className="mt-3 flex justify-center">
-              <MoreLink href="/features">
-                Everything it does, what is in each plan, and what is still on the way
+              <MoreLink href={localizedHref('/features', locale)}>
+                {t('mkt.showcase.moreLink')}
               </MoreLink>
             </div>
           </div>

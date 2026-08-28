@@ -3,6 +3,7 @@ import { formatCurrency } from '@/lib/currency-utils'
 import { HelpLink } from '@/components/help/HelpLink'
 import { gatheringBudgetMath } from '@/lib/gathering-budget'
 import type { GatheringBudgetView, GatheringBudgetState } from '@/app/actions/gatherings'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * A gathering's money, and the red line.
@@ -95,6 +96,11 @@ import type { GatheringBudgetView, GatheringBudgetState } from '@/app/actions/ga
  * number and so is not the math module's business.
  */
 export interface BudgetBandProps {
+  /**
+   * The reader's `Intl` tag, for the dates and figures below. A PROP rather than
+   * `useIntlTag()`, because this is a Server Component. See lib/i18n/server.ts.
+   */
+  intl: string
   /** From `getGatheringDetail` / `getAdminGatheringDetail`. Null for both null states below. */
   budget: GatheringBudgetView | null
   /**
@@ -107,7 +113,8 @@ export interface BudgetBandProps {
   className?: string
 }
 
-export function BudgetBand({ budget, state, className }: BudgetBandProps) {
+export function BudgetBand({ budget, state, className, intl }: BudgetBandProps) {
+  const t = useT()
   // The caller is entitled and the figures did not come back. Say it, once, in the space the
   // band would have occupied — see the header on why this is neither nothing nor a FormError.
   if (state === 'unavailable') {
@@ -117,10 +124,7 @@ export function BudgetBand({ budget, state, className }: BudgetBandProps) {
           'rounded-2xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground',
           className,
         )}
-      >
-        The budget for this gathering could not be read just now. Nothing has changed — reload the
-        page to try again.
-      </div>
+      >{t('gath.budgetGatheringCouldNot')}</div>
     )
   }
 
@@ -172,53 +176,53 @@ export function BudgetBand({ budget, state, className }: BudgetBandProps) {
             It is inside the `<h2>`'s own flex row rather than after the fund sentence, so the
             question mark reads as being about the band and not about the fund. */}
         <div className="flex items-center gap-1">
-          <h2 id="gathering-budget-heading" className="text-lg">Budget</h2>
-          <HelpLink slug="gatherings" section="budget" label="How a gathering's budget works" />
+          <h2 id="gathering-budget-heading" className="text-lg">{t('budget.heading')}</h2>
+          <HelpLink slug="gatherings" section="budget" label={t('budget.help')} />
         </div>
         <p className="text-xs text-muted-foreground">
           {budget.fundName
-            ? <>Drawn on <span className="font-medium text-foreground">{budget.fundName}</span></>
-            : 'No fund attached yet'}
+            ? <>{t('budget.drawnOn')} <span className="font-medium text-foreground">{budget.fundName}</span></>
+            : t('budget.noFund')}
         </p>
       </div>
 
       <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Figure
-          label="Budgeted"
-          value={hasBudget ? formatCurrency(math.budgetCents) : '—'}
-          caption={hasBudget ? 'What this gathering plans to spend' : 'Nobody has set a budget'}
+          label={t('budget.budgeted')}
+          value={hasBudget ? formatCurrency(math.budgetCents, intl) : '—'}
+          caption={hasBudget ? t('budget.plansToSpend') : t('budget.notSet')}
         />
         <Figure
-          label="Claimed by tasks"
-          value={formatCurrency(math.linesTotalCents)}
+          label={t('budget.claimed')}
+          value={formatCurrency(math.linesTotalCents, intl)}
           caption={lines === 0
-            ? 'No task carries a budget line'
+            ? t('budget.noLines')
             : `${lines} ${lines === 1 ? 'task line' : 'task lines'}`}
         />
         <Figure
-          label={math.overAllocated ? 'Over the budget' : 'Unallocated'}
+          label={math.overAllocated ? t('budget.over') : t('budget.unallocated')}
           /* `unallocatedCents` is the one signed field the math module returns, and its sign IS
              its meaning. The magnitude comes from `overAllocatedByCents`, which floors at zero,
              so this never prints "over -$450". */
           value={hasBudget
-            ? formatCurrency(math.overAllocated ? math.overAllocatedByCents : math.unallocatedCents)
+            ? formatCurrency(math.overAllocated ? math.overAllocatedByCents : math.unallocatedCents, intl)
             : '—'}
           caption={!hasBudget
-            ? 'Set a budget to see what is left'
+            ? t('budget.setToSee')
             : math.overAllocated
-              ? 'The task lines claim more than the budget'
-              : 'Still to hand out to a task'}
+              ? t('budget.linesExceed')
+              : t('budget.stillToHandOut')}
           tone={unallocatedTone}
         />
         <Figure
-          label="In the fund"
-          value={knowBalance ? formatCurrency(math.fundBalanceCents) : '—'}
+          label={t('budget.inTheFund')}
+          value={knowBalance ? formatCurrency(math.fundBalanceCents, intl) : '—'}
           caption={knowBalance
             ? (budget.otherCommittedCents > 0
-                ? `${formatCurrency(budget.otherCommittedCents)} of it is claimed by other gatherings`
-                : 'Nothing else is claiming it')
+                ? `${formatCurrency(budget.otherCommittedCents, intl)} of it is claimed by other gatherings`
+                : t('budget.nothingElse'))
             : budget.fundName
-              ? 'The balance was not available'
+              ? t('budget.balanceUnavailable')
               : 'A budget needs a fund to draw on'}
           tone={balanceTone}
         />
@@ -231,8 +235,8 @@ export function BudgetBand({ budget, state, className }: BudgetBandProps) {
       {math.overFund && (
         <p className="mt-4 rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           This gathering&rsquo;s budget of{' '}
-          <span className="font-semibold tabular-nums">{formatCurrency(math.budgetCents)}</span>{' '}
-          is <span className="font-semibold tabular-nums">{formatCurrency(math.overFundByCents)}</span>{' '}
+          <span className="font-semibold tabular-nums">{formatCurrency(math.budgetCents, intl)}</span>{' '}
+          is <span className="font-semibold tabular-nums">{formatCurrency(math.overFundByCents, intl)}</span>{' '}
           more than {budget.fundName ?? 'the fund'} holds.
         </p>
       )}
@@ -250,10 +254,10 @@ export function BudgetBand({ budget, state, className }: BudgetBandProps) {
           math.overFund ? 'mt-2' : 'mt-4',
         )}>
           Other live gatherings already claim{' '}
-          <span className="font-semibold tabular-nums">{formatCurrency(budget.otherCommittedCents)}</span>{' '}
-          of the same fund, so {formatCurrency(math.totalCommittedCents)} is committed against{' '}
+          <span className="font-semibold tabular-nums">{formatCurrency(budget.otherCommittedCents, intl)}</span>{' '}
+          of the same fund, so {formatCurrency(math.totalCommittedCents, intl)} is committed against{' '}
           {budget.fundName ?? 'the fund'} —{' '}
-          <span className="font-semibold tabular-nums">{formatCurrency(math.overFundWithOthersByCents)}</span>{' '}
+          <span className="font-semibold tabular-nums">{formatCurrency(math.overFundWithOthersByCents, intl)}</span>{' '}
           more than it holds.
         </p>
       )}
@@ -264,8 +268,8 @@ export function BudgetBand({ budget, state, className }: BudgetBandProps) {
       {math.overAllocated && (
         <p className="mt-2 rounded-xl border border-brand-withheld/40 bg-brand-withheld/5 px-4 py-3 text-sm text-brand-withheld">
           The task budgets add up to{' '}
-          <span className="font-semibold tabular-nums">{formatCurrency(math.linesTotalCents)}</span>,{' '}
-          which is <span className="font-semibold tabular-nums">{formatCurrency(math.overAllocatedByCents)}</span>{' '}
+          <span className="font-semibold tabular-nums">{formatCurrency(math.linesTotalCents, intl)}</span>,{' '}
+          which is <span className="font-semibold tabular-nums">{formatCurrency(math.overAllocatedByCents, intl)}</span>{' '}
           more than this gathering budgeted. Nothing has been spent — raise the budget or trim a
           task line.
         </p>

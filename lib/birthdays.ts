@@ -206,6 +206,10 @@ const MILLIS_PER_DAY = 86_400_000
  * the code happens to be running. The argument is at the `sort` in `upcomingBirthdays`,
  * which is the only caller.
  */
+// PINNED, and it is the honest state rather than the right one. A collator has to be built
+// once and shared — see the note below on why — and a per-locale one needs the reader's tag
+// threaded into `upcomingBirthdays`, which is Phase 4's surface-by-surface work. Recorded
+// here so the gap is visible: for a Spanish reader Ñ currently sorts after Z.
 const NAME_ORDER = new Intl.Collator('en')
 
 /**
@@ -449,12 +453,14 @@ export function upcomingBirthdays(
  * It throws on an unreadable date for `upcomingBirthdays`' reason: the only strings it is
  * ever handed are `onDate` values this module built.
  */
-export function birthdayWeekday(onDate: string): string {
+export function birthdayWeekday(onDate: string, locale: string = 'en-US'): string {
   const date = parseCalendarDate(onDate)
   if (!date) throw new TypeError(`birthdayWeekday: not a YYYY-MM-DD date: ${String(onDate)}`)
   if (date.year < 100) {
     throw new TypeError(`birthdayWeekday: a year below 100 is not a date this reads: ${String(onDate)}`)
   }
-  const format = new Intl.DateTimeFormat('en-US', { weekday: 'long', timeZone: 'UTC' })
+  // The reader's locale: a weekday NAME is read, not compared. `timeZone: 'UTC'` stays for
+  // the reason this function's header gives — the value is a wall-clock label.
+  const format = new Intl.DateTimeFormat(locale, { weekday: 'long', timeZone: 'UTC' })
   return format.format(new Date(utcMidnight(date)))
 }

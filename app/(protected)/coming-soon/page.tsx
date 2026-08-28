@@ -1,10 +1,11 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { describeFeature, LIVE_FEATURES } from '@/lib/features'
 import { viewableResources } from '@/lib/auth/permissions'
 import { getViewingMembership, isActiveFamily, REMOVED_FAMILY_RESOURCES } from '@/lib/auth/family'
 import { ComingSoonScreen } from '@/components/features/ComingSoon'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Destination for the roadmap gate in `proxy.ts`. The gate rewrites (rather than
@@ -42,11 +43,12 @@ export default async function ComingSoonPage({ searchParams }: Props) {
   const { from } = await searchParams
   const { label, blurb } = describeFeature(from ?? '')
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   // Signed out, there is no set to resolve and nothing to offer. `/login` rather than an
   // empty list: the gate that sent them here sits inside the protected shell.
   if (!user) redirect('/login')
+
+  const { t } = await callerI18n(user?.id)
 
   const [viewable, membership] = await Promise.all([
     viewableResources(user.id),
@@ -71,5 +73,5 @@ export default async function ComingSoonPage({ searchParams }: Props) {
     .filter(f => !familyRemoved || REMOVED_FAMILY_RESOURCES.includes(f.href.replace(/^\//, '')))
     .map(f => ({ href: f.href, label: f.label }))
 
-  return <ComingSoonScreen label={label} blurb={blurb} available={available} />
+  return <ComingSoonScreen label={label} blurb={blurb} available={available} t={t} />
 }

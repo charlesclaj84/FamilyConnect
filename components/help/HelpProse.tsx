@@ -1,6 +1,4 @@
-import Link from 'next/link'
 import { Info } from 'lucide-react'
-import { parseInline } from '@/lib/help/inline'
 import type { HelpBlock } from '@/lib/help/content'
 
 /**
@@ -16,29 +14,15 @@ import type { HelpBlock } from '@/lib/help/content'
  * be one.
  */
 
-/** One string, with `**bold**` and `[links](/route)` resolved. */
-export function HelpText({ text }: { text: string }) {
-  return (
-    <>
-      {parseInline(text).map((token, i) => {
-        if (token.kind === 'strong') {
-          return <strong key={i} className="font-semibold text-foreground">{token.text}</strong>
-        }
-        if (token.kind === 'link') {
-          // External links open away from the app; everything else is a client-side
-          // navigation, so the manual does not throw away the page it was read from.
-          // No explicit colour: `globals.css` gives every anchor the accent, which is
-          // exactly what a link in a paragraph of prose should be. The rails override it
-          // because a rail is not prose — see the note in MainRail.
-          return /^https?:\/\//.test(token.href)
-            ? <a key={i} href={token.href} target="_blank" rel="noreferrer">{token.text}</a>
-            : <Link key={i} href={token.href}>{token.text}</Link>
-        }
-        return <span key={i}>{token.text}</span>
-      })}
-    </>
-  )
-}
+/**
+ * One string, with `**bold**` and `[links](/route)` resolved.
+ *
+ * RE-EXPORTED, NOT REIMPLEMENTED. The renderer moved to `components/ui/inline-text.tsx` in
+ * Phase 5, when the catalogue started needing the same two forms outside the manual. This name
+ * stays so the manual's call sites read as the manual's, and there is one implementation.
+ */
+import { InlineText as HelpText } from '@/components/ui/inline-text'
+export { HelpText }
 
 /**
  * A run of blocks.

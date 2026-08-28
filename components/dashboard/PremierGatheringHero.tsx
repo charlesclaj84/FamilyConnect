@@ -3,6 +3,7 @@ import { CalendarDays, MapPin } from 'lucide-react'
 import { HeroCurveCrest, HeroCurveFoot, TreeWatermark } from '@/components/dashboard/curves'
 import { formatDateRange } from '@/lib/date-utils'
 import type { PremierGathering } from '@/app/actions/gatherings'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * The Golden Master's EVENT half of the welcome hero, finally on screen — as a second
@@ -90,7 +91,15 @@ import type { PremierGathering } from '@/app/actions/gatherings'
  *     altogether on 2026-08-22. See point 3 above; the reasoning about which EDGE it belonged
  *     to is kept because it is the argument for where the crest goes, which is unchanged.
  */
-export function PremierGatheringHero({ gathering }: { gathering: PremierGathering }) {
+export function PremierGatheringHero({ gathering, t }: {
+  gathering: PremierGathering
+  /**
+   * The reader's language, bound. Threaded from the page rather than resolved here: a
+   * Server Component cannot read `LocaleProvider` and has no `user` of its own. See
+   * `lib/i18n/server.ts`.
+   */
+  t: T
+}) {
   const dates = formatDateRange(gathering.startsOn, gathering.endsOn)
   const { total, approved } = gathering.taskCounts
 
@@ -118,7 +127,7 @@ export function PremierGatheringHero({ gathering }: { gathering: PremierGatherin
           {/* The eyebrow. Uppercase and letterspaced because that is what it has instead of
               the kit's gold — see (2) above. */}
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-on-hero/80">
-            Premier gathering
+            {t('dash.premier.label')}
           </p>
 
           {/* `text-brand-on-hero` is NOT optional and is not decoration: the base layer
@@ -175,7 +184,7 @@ export function PremierGatheringHero({ gathering }: { gathering: PremierGatherin
           href={`/gatherings/${gathering.id}`}
           className="inline-flex items-center rounded-full bg-brand-legacy px-5 py-2.5 text-sm font-semibold text-brand-on-legacy transition-opacity hover:opacity-90"
         >
-          View details
+          {t('dash.premier.view')}
         </Link>
       </div>
 

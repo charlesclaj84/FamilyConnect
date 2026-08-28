@@ -66,6 +66,21 @@ export interface CalendarEntry {
    * outline against the fill.
    */
   phase?: 'nominations' | 'voting'
+  /**
+   * "11:00 AM – 4:00 PM", "from 11:00 AM", or undefined where no time was given.
+   *
+   * ── OPTIONAL, AND UNDEFINED IS A REAL ANSWER ──────────────────────────────────────
+   * "The reunion is on 4 July" is complete, and most gatherings are entered that way — so a
+   * chip renders nothing rather than an empty element with its own padding. `timeLabelFor` in
+   * `lib/gathering-when.ts` builds it and returns null for exactly that case.
+   *
+   * ── IT IS A LABEL, NOT AN INSTANT, AND NOTHING HERE SORTS BY IT ────────────────────
+   * `20260826000001`'s header argues it: a gathering's time is wall-clock, never converted,
+   * never compared across zones. The grid's ordering is by DATE and by title, which is what it
+   * has always been — adding a time to the sort would put a 9am chip above an all-day one and
+   * make the same month read differently depending on whether anybody had entered a time.
+   */
+  timeLabel?: string
   href: string
   isPremier?: boolean
 }
@@ -244,10 +259,13 @@ export function shiftMonth(month: string, delta: number): string {
  * The cost is one `Intl` construction per heading. That is the right trade for a claim this
  * file states in capitals: an assertion that cannot fail is worse than no assertion.
  */
-export function monthLabel(month: string): string {
+export function monthLabel(month: string, locale: string = 'en-US'): string {
   if (!isValidMonth(month)) throw new TypeError(`monthLabel: not a YYYY-MM month: ${String(month)}`)
   const { year, monthNumber } = monthParts(month)
-  const format = new Intl.DateTimeFormat('en-US', {
+  // THE READER'S LOCALE. This is a heading somebody reads — "August 2026" / "agosto de 2026"
+  // — so unlike the field reads in `lib/tz.ts` it follows the reader. The `timeZone: 'UTC'`
+  // pin below is a different question entirely and stays; see the note above.
+  const format = new Intl.DateTimeFormat(locale, {
     month: 'long', year: 'numeric', timeZone: 'UTC',
   })
   return format.format(new Date(Date.UTC(year, monthNumber - 1, 1)))

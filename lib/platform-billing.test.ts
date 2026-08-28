@@ -7,8 +7,10 @@ import {
   daysBetween,
   daysInMonth,
   daysLeftInMonth,
+  dueNowTotalCents,
   entitlementOn,
   firstOfMonth,
+  initialChargeLines,
   initialChargeOptions,
   isPrepayMonths,
   lastDayOfMonthISO,
@@ -23,6 +25,8 @@ import {
   scheduleDowngrade,
   scheduledChangeDue,
   STRIPE_MINIMUM_CHARGE_CENTS,
+  STRIPE_MINIMUM_TRIAL_DAYS,
+  stripeTrialEnd,
   subscriptionIsCurrent,
   tierFromMetadata,
   tierMove,
@@ -599,6 +603,166 @@ describe('initialChargeOptions', () => {
     expect(o.remainderOnly).toBe(PLUS)
     expect(o.remainderPlusNext).toBe(PLUS * 2)
     expect(o.remainderPlusNextThrough).toBe('2026-09-30')
+  })
+})
+
+describe('initialChargeLines — what the hosted page actually lists', () => {
+  // The reported symptom, 2026-08-25: a Standard checkout on the 26th of August showed
+  // `GENORRA Standard · $10.00/month after · 35 days free` over one $11.94 line called "rest
+  // of this month and next". Every figure was right and the page was unreadable. These
+  // assertions are about the NAMES as much as the money, because the names are the fix.
+  it('itemises the combined first payment into the month and the part month', () => {
+    const lines = initialChargeLines('standard', '2026-08-26', 'remainder-plus-next')!
+    expect(lines).toEqual([
+      { name: 'GENORRA Standard — September 2026', cents: STANDARD },
+      { name: 'GENORRA Standard — August 2026 (proration)', cents: 194 },
+    ])
+    expect(dueNowTotalCents(lines)).toBe(STANDARD + 194)
+  })
+
+  it('puts the whole month FIRST, matching the rate printed above it', () => {
+    const [first] = initialChargeLines('plus', '2026-08-26', 'remainder-plus-next')!
+    expect(first.cents).toBe(PLUS)
+  })
+
+  it('is one line when only the rest of the month is being bought', () => {
+    // The 16th of a 31-day August is $5.17 — over the product floor, so it stands alone.
+    expect(initialChargeLines('standard', '2026-08-16', 'remainder')).toEqual([
+      { name: 'GENORRA Standard — August 2026 (proration)', cents: 517 },
+    ])
+  })
+
+  it('says "rest of" only when there IS a rest — the 1st is the whole month', () => {
+    // Otherwise the 1st reads "rest of September 2026 (30 days)", which sends the reader
+    // looking for the part they missed.
+    expect(initialChargeLines('standard', '2026-09-01', 'remainder')).toEqual([
+      { name: 'GENORRA Standard — September 2026', cents: STANDARD },
+    ])
+  })
+
+  it('marks the part month as a proration, whatever is left of it', () => {
+    // One day or twenty, the name is the same word. The day count used to be in here and
+    // read as a second description competing with the figure beside it — the days are quoted
+    // on the plan panel, before the button, which is where somebody checks the arithmetic.
+    const lastDay = initialChargeLines('premium', '2026-08-31', 'remainder-plus-next')!
+    expect(lastDay[1]!.name).toBe('GENORRA Premium — August 2026 (proration)')
+    const midMonth = initialChargeLines('premium', '2026-08-11', 'remainder-plus-next')!
+    expect(midMonth[1]!.name).toBe('GENORRA Premium — August 2026 (proration)')
+  })
+
+  it('names the MONTH, never "this" or "next"', () => {
+    // The page is read after a redirect and again in an emailed receipt, where a relative
+    // word names nothing. Also the one assertion that the label is UTC-pinned: `monthLabel`
+    // on a negative offset would report July for an August date.
+    for (const line of initialChargeLines('standard', '2026-08-01', 'remainder-plus-next')!) {
+      expect(line.name).not.toMatch(/this month|next month/)
+    }
+    expect(initialChargeLines('standard', '2026-12-26', 'remainder-plus-next')![0]!.name)
+      .toBe('GENORRA Standard — January 2027')
+  })
+
+  it('is NULL for a remainder below the product floor, and never a tiny charge', () => {
+    // The back half of every month at Standard — see `initialChargeOptions`. Null is the
+    // caller's cue to name the combined option, not a failure.
+    expect(initialChargeLines('standard', '2026-08-30', 'remainder')).toBeNull()
+    // And the combined option is still available on the same day, which is the whole point.
+    expect(initialChargeLines('standard', '2026-08-30', 'remainder-plus-next')).not.toBeNull()
+  })
+
+  it('takes the RAW proration on a prepaid session, floor and all', () => {
+    // Stripe's minimum applies to the session TOTAL and a prepaid session also carries whole
+    // months, so 65c is perfectly chargeable there even though it could not stand alone.
+    expect(initialChargeLines('standard', '2026-08-30', 'prepaid-remainder')).toEqual([
+      { name: 'GENORRA Standard — August 2026 (proration)', cents: 65 },
+    ])
+  })
+
+  it('never lists a zero line, whatever the month', () => {
+    // A $0.00 row on a receipt is a question nobody can answer. `ceil` makes it unreachable
+    // for a priced tier; asserted across every tier and every month length rather than
+    // trusted, because the rounding rule is one edit from being `floor`.
+    for (const tier of ['standard', 'plus', 'premium'] as const) {
+      for (const month of ['2026-02-01', '2026-04-01', '2026-08-01', '2027-01-01']) {
+        for (let d = 0; d < daysInMonth(month); d += 1) {
+          for (const plan of ['remainder', 'remainder-plus-next', 'prepaid-remainder'] as const) {
+            const lines = initialChargeLines(tier, addDays(month, d), plan)
+            for (const line of lines ?? []) expect(line.cents).toBeGreaterThan(0)
+          }
+        }
+      }
+    }
+  })
+
+  it('always totals what `initialChargeOptions` quoted on the button', () => {
+    // THE COUPLING THAT MATTERS. The screen quotes `initialChargeOptions`; Stripe charges
+    // these lines. Two figures describing one payment is how a family comes to be asked for a
+    // number the button did not promise — so they are asserted equal, every tier, every day.
+    for (const tier of ['standard', 'plus', 'premium'] as const) {
+      for (const month of ['2026-02-01', '2026-04-01', '2026-08-01', '2027-01-01']) {
+        for (let d = 0; d < daysInMonth(month); d += 1) {
+          const today = addDays(month, d)
+          const options = initialChargeOptions(tier, today)
+
+          const only = initialChargeLines(tier, today, 'remainder')
+          if (options.remainderOnly == null) expect(only).toBeNull()
+          else expect(dueNowTotalCents(only!)).toBe(options.remainderOnly)
+
+          const both = initialChargeLines(tier, today, 'remainder-plus-next')
+          expect(dueNowTotalCents(both!)).toBe(options.remainderPlusNext)
+        }
+      }
+    }
+  })
+})
+
+describe('stripeTrialEnd — when the subscription starts billing', () => {
+  const unix = (iso: string) => Math.floor(Date.parse(`${iso}T00:00:00Z`) / 1000)
+
+  it('is midnight UTC on the day billing starts', () => {
+    expect(stripeTrialEnd('2026-09-01', '2026-08-16')).toBe(unix('2026-09-01'))
+    expect(stripeTrialEnd('2026-10-01', '2026-08-30')).toBe(unix('2026-10-01'))
+  })
+
+  it('crosses a year end without inventing a date', () => {
+    expect(stripeTrialEnd('2027-01-01', '2026-12-15')).toBe(unix('2027-01-01'))
+  })
+
+  it('refuses a day inside Stripe’s floor, and takes the one just outside it', () => {
+    // Stripe's wording is 48 hours, INSTANT to instant. `today` is a DATE and the request can
+    // be made at any hour of it, so the gap to midnight on a day N days out is somewhere in
+    // (24N − 24, 24N] hours. Three days out is therefore always more than 48; two days out is
+    // between 24 and 48 and would be refused for anybody paying after midday.
+    expect(stripeTrialEnd('2026-09-01', '2026-08-29')).toBe(unix('2026-09-01'))  // 3 days
+    expect(stripeTrialEnd('2026-09-01', '2026-08-30')).toBeNull()                // 2 days
+    expect(stripeTrialEnd('2026-09-01', '2026-08-31')).toBeNull()                // 1 day
+  })
+
+  it('refuses a day already gone, and today itself', () => {
+    expect(stripeTrialEnd('2026-09-01', '2026-09-01')).toBeNull()
+    expect(stripeTrialEnd('2026-09-01', '2026-09-05')).toBeNull()
+  })
+
+  it('is wider than Stripe’s own floor, never narrower', () => {
+    // The property, not the number: whatever `STRIPE_MINIMUM_TRIAL_DAYS` becomes, a day it
+    // accepts must be strictly more than that many days away.
+    expect(daysBetween('2026-08-28', '2026-09-01')).toBeGreaterThan(STRIPE_MINIMUM_TRIAL_DAYS)
+    expect(daysBetween('2026-08-30', '2026-09-01')).toBeLessThanOrEqual(STRIPE_MINIMUM_TRIAL_DAYS)
+  })
+
+  it('leaves the remainder option unreachable inside the floor, which is why it is not a branch anybody hits', () => {
+    // The coupling worth asserting: `MINIMUM_FIRST_CHARGE_CENTS` withholds "the rest of this
+    // month" long before the 1st is close enough to refuse as a trial. Every tier, every
+    // month length — so a part month is never charged on a session that would then start
+    // billing today. Lowering that constant is what would break it, and this is what says so.
+    for (const tier of ['standard', 'plus', 'premium'] as const) {
+      for (const month of ['2026-02-01', '2026-04-01', '2026-08-01', '2027-01-01']) {
+        for (let d = 0; d < daysInMonth(month); d += 1) {
+          const today = addDays(month, d)
+          if (initialChargeOptions(tier, today).remainderOnly == null) continue
+          expect(stripeTrialEnd(nextFirstOfMonth(today), today)).not.toBeNull()
+        }
+      }
+    }
   })
 })
 

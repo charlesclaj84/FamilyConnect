@@ -12,6 +12,7 @@ import {
   DISCREET_AGE_EMOJI, DISCREET_AGE_LABEL, DISCREET_AGE_MIN, DISCREET_AGE_MAX,
   type UpcomingBirthday,
 } from '@/lib/birthdays'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * THE BIRTHDAYS PANE — the second half of `/community/announcements`.
@@ -90,6 +91,8 @@ import {
  * kind that section explicitly exempts — the same standing as which nav section is expanded.
  */
 export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) {
+  const intl = useIntlTag()
+  const t = useT()
   const [query, setQuery] = useState('')
 
   const filtered = birthdays.filter(b => matchesPersonQuery(
@@ -131,8 +134,8 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
             label above a single filter box over a table is a line of chrome between the rail
             and the answer. Not the same case as a form field, which owes a real <Label>. */}
         <Input
-          aria-label="Search birthdays by name"
-          placeholder="Search by name…"
+          aria-label={t('bday.searchLabel')}
+          placeholder={t('bday.searchPh')}
           value={query}
           onChange={e => setQuery(e.target.value)}
           className="pl-8"
@@ -151,16 +154,16 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-semibold">Name</th>
-                <th scope="col" className="px-3 py-2 font-semibold">Date</th>
+                <th scope="col" className="px-3 py-2 font-semibold">{t('field.name')}</th>
+                <th scope="col" className="px-3 py-2 font-semibold">{t('money.date')}</th>
                 {/* The two folded columns, and each `<th>` folds WITH its cells — hide two
                     cells behind five headings and every remaining cell is announced under the
                     wrong column. `display: none` takes both out of the accessibility tree,
                     which is what keeps the narrow table coherent. Name, Date and Countdown
                     stay because they are what the table answers: who, when, and how soon. */}
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Day</th>
-                <th scope="col" className="px-3 py-2 font-semibold">Countdown</th>
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Turning</th>
+                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('common.day')}</th>
+                <th scope="col" className="px-3 py-2 font-semibold">{t('bday.countdown')}</th>
+                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('bday.turning')}</th>
               </tr>
             </thead>
             <tbody>
@@ -198,7 +201,7 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
                         one or the next — four characters that add nothing and invite the one
                         misreading a birthday list is most prone to: the year printed is the
                         year of the next occurrence, not the year of birth. */}
-                    <td className="px-3 py-2.5 text-muted-foreground">{formatMonthDay(b.onDate)}</td>
+                    <td className="px-3 py-2.5 text-muted-foreground">{formatMonthDay(b.onDate, intl)}</td>
                     <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
                       {weekday}
                     </td>
@@ -213,11 +216,11 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
                           `--destructive`: nothing failed here. */}
                       {b.daysAway === 0 ? (
                         <span className="inline-flex items-center gap-1 rounded-full bg-brand-legacy px-2 py-0.5 text-xs font-semibold text-brand-on-legacy">
-                          <Cake className="h-3 w-3" aria-hidden="true" /> Today
+                          <Cake className="h-3 w-3" aria-hidden="true" /> {t('common.today')}
                         </span>
                       ) : (
                         <span className="text-muted-foreground">
-                          {b.daysAway === 1 ? 'Tomorrow' : `in ${b.daysAway} days`}
+                          {b.daysAway === 1 ? t('common.tomorrow') : `in ${b.daysAway} days`}
                         </span>
                       )}
                     </td>

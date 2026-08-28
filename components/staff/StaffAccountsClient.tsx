@@ -14,6 +14,7 @@ import {
   listStaffAccounts, lookupStaffAccount,
   type StaffAccountLookup, type StaffAccountPage, type StaffMembership,
 } from '@/app/actions/staff/accounts'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The screen support opens when somebody says they cannot sign in.
@@ -52,6 +53,7 @@ export function StaffAccountsClient({ initial }: { initial: StaffAccountPage }) 
 
 /** The one-address answer: does this account exist, is it usable, where does it belong. */
 function LookupPanel() {
+  const t = useT()
   const [email, setEmail] = useState('')
   const [result, setResult] = useState<StaffAccountLookup | null>(null)
   const [error, setError] = useState('')
@@ -61,7 +63,7 @@ function LookupPanel() {
     e.preventDefault()
     const wanted = email.trim()
     if (!wanted) {
-      setError('Enter the address from the ticket.')
+      setError(t('staff.enterFromTicket'))
       return
     }
     setError('')
@@ -72,22 +74,18 @@ function LookupPanel() {
 
   return (
     <section className="rounded-xl border bg-card p-5">
-      <h2 className="text-base font-semibold text-brand-ink">Look up one address</h2>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Paste the address from the ticket. This says whether an account exists at all,
-        whether it has ever been confirmed or used, and every family record carrying that
-        address — including one that was invited and never joined.
-      </p>
+      <h2 className="text-base font-semibold text-brand-ink">{t('staff.lookUpOne')}</h2>
+      <p className="mt-1 text-sm text-muted-foreground">{t('stf.pasteAddressFromTicket')}</p>
 
       <form onSubmit={submit} className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-end">
         <div className="min-w-0 flex-1">
-          <Label htmlFor="staff-lookup-email">Email address</Label>
+          <Label htmlFor="staff-lookup-email">{t('field.emailAddress')}</Label>
           <Input
             id="staff-lookup-email"
             type="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
-            placeholder="someone@example.com"
+            placeholder={t('staff.lookupPh')}
             className="mt-1 h-9"
             autoComplete="off"
           />
@@ -108,6 +106,7 @@ function LookupPanel() {
 }
 
 function LookupResult({ result }: { result: StaffAccountLookup }) {
+  const t = useT()
   const { state } = result
 
   return (
@@ -118,49 +117,37 @@ function LookupResult({ result }: { result: StaffAccountLookup }) {
           rendered as "no account" — a support engineer acting on that would tell somebody
           to register again and create a second account for them. */}
       {state === null ? (
-        <p className="text-muted-foreground">
-          The authentication service did not answer, so we do not know whether this address
-          has an account. That is a failed lookup, not a missing account — try again.
-        </p>
+        <p className="text-muted-foreground">{t('stf.authenticationServiceDidNot')}</p>
       ) : !state.exists ? (
         <p className="text-muted-foreground">
-          <span className="font-medium text-foreground">No account exists with this address.</span>{' '}
+          <span className="font-medium text-foreground">{t('staff.noAccount')}</span>{' '}
           Nobody has ever registered it. If they were invited, the invitation is below.
         </p>
       ) : (
         <ul className="space-y-1.5 text-muted-foreground">
-          <li>An account exists.</li>
+          <li>{t('staff.accountExists')}</li>
           <li>
             {state.confirmed
-              ? 'The address is confirmed.'
+              ? t('staff.confirmed')
               : (
-                <span className="text-brand-withheld">
-                  The address has never been confirmed — that is what stops the sign-in.
-                  Resending the confirmation is the fix.
-                </span>
+                <span className="text-brand-withheld">{t('stf.addressNeverBeenConfirmed')}</span>
               )}
           </li>
           <li>
             {state.signedInBefore
-              ? 'It has been signed in with before, so the password was working at some point.'
-              : 'It has never been signed in with. A forgotten password is as likely as anything else.'}
+              ? t('staff.hasSignedIn')
+              : t('staff.neverSignedIn')}
           </li>
         </ul>
       )}
 
       {result.membershipsFailed ? (
-        <p className="text-muted-foreground">
-          The family records for this address could not be read — that is a refused query
-          rather than an address belonging to nothing.
-        </p>
+        <p className="text-muted-foreground">{t('stf.familyRecordsAddressCould')}</p>
       ) : result.memberships.length === 0 ? (
-        <p className="text-muted-foreground">
-          This address is in no family record. An account with no family sees a 404 on
-          every page, which is what &ldquo;it just does not work&rdquo; looks like.
-        </p>
+        <p className="text-muted-foreground">{t('stf.addressNoFamilyRecord')}</p>
       ) : (
         <div>
-          <p className="mb-1.5 font-medium">In these families</p>
+          <p className="mb-1.5 font-medium">{t('staff.inTheseFamilies')}</p>
           <MembershipList memberships={result.memberships} />
         </div>
       )}
@@ -170,6 +157,8 @@ function LookupResult({ result }: { result: StaffAccountLookup }) {
 
 /** The browsable list: one row per account, memberships beside it. */
 function AccountTable({ initial }: { initial: StaffAccountPage }) {
+  const intl = useIntlTag()
+  const t = useT()
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
   // 1-BASED, as GoTrue numbers pages, so the number in this state is the number sent to
@@ -203,25 +192,22 @@ function AccountTable({ initial }: { initial: StaffAccountPage }) {
 
   return (
     <section className="space-y-4">
-      <h2 className="text-base font-semibold text-brand-ink">All accounts</h2>
+      <h2 className="text-base font-semibold text-brand-ink">{t('staff.allAccounts')}</h2>
 
       <MemberSearchBox
         value={query}
         onChange={setQuery}
-        placeholder="Filter by any part of an address…"
+        placeholder={t('staff.filterAddress')}
         pending={isPending}
       />
 
       {data.failed ? (
-        <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
-          The account list could not be read. That is the authentication service refusing
-          or timing out, not a platform with no accounts on it.
-        </p>
+        <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">{t('stf.accountListCouldNot')}</p>
       ) : data.rows.length === 0 ? (
         <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
           {debounced
             ? `No address on this page contains “${debounced}”.`
-            : 'There are no accounts on this platform yet.'}
+            : t('staff.noAccounts')}
         </p>
       ) : (
         /*
@@ -235,11 +221,11 @@ function AccountTable({ initial }: { initial: StaffAccountPage }) {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-semibold">Email</th>
-                <th scope="col" className="px-3 py-2 font-semibold">Status</th>
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Families</th>
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Last sign-in</th>
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Created</th>
+                <th scope="col" className="px-3 py-2 font-semibold">{t('field.email')}</th>
+                <th scope="col" className="px-3 py-2 font-semibold">{t('money.status')}</th>
+                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.families')}</th>
+                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.lastSignIn')}</th>
+                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.created')}</th>
               </tr>
             </thead>
             <tbody>
@@ -250,17 +236,17 @@ function AccountTable({ initial }: { initial: StaffAccountPage }) {
                     <RowMeta className="flex-col items-start gap-y-1">
                       <span>
                         {row.memberships.length === 0
-                          ? 'In no family'
+                          ? t('staff.inNoFamily')
                           : `${row.memberships.length} ${row.memberships.length === 1 ? 'family' : 'families'}`}
                       </span>
                       <span className="flex flex-wrap items-center gap-x-1.5">
                         {/* PREFIXED. Two bare dates under an address are a coin toss once
                             the headings that distinguished them are folded away. */}
                         <span>
-                          Last sign-in {formatDate(row.lastSignInAt) ?? 'never'}
+                          Last sign-in {formatDate(row.lastSignInAt, intl) ?? 'never'}
                         </span>
                         <MetaDot />
-                        <span>Created {formatDate(row.createdAt) ?? '—'}</span>
+                        <span>Created {formatDate(row.createdAt, intl) ?? '—'}</span>
                       </span>
                     </RowMeta>
                   </td>
@@ -273,19 +259,19 @@ function AccountTable({ initial }: { initial: StaffAccountPage }) {
                           : 'bg-brand-withheld/10 text-brand-withheld',
                       )}
                     >
-                      {row.confirmedAt ? 'Confirmed' : 'Not confirmed'}
+                      {row.confirmedAt ? t('staff.confirmedShort') : t('staff.notConfirmed')}
                     </span>
                   </td>
                   <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>
                     {row.memberships.length === 0
-                      ? <span className="text-muted-foreground">In no family</span>
+                      ? <span className="text-muted-foreground">{t('staff.inNoFamily')}</span>
                       : <MembershipList memberships={row.memberships} />}
                   </td>
                   <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
-                    {formatDate(row.lastSignInAt) ?? 'Never'}
+                    {formatDate(row.lastSignInAt, intl) ?? 'Never'}
                   </td>
                   <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
-                    {formatDate(row.createdAt) ?? '—'}
+                    {formatDate(row.createdAt, intl) ?? '—'}
                   </td>
                 </tr>
               ))}
@@ -303,7 +289,7 @@ function AccountTable({ initial }: { initial: StaffAccountPage }) {
             onClick={() => setPage(p => Math.max(1, p - 1))}
             disabled={page <= 1 || isPending}
             className={cn('rounded p-1', page <= 1 ? 'opacity-40' : 'hover:bg-muted')}
-            aria-label="Previous page"
+            aria-label={t('ms.prevPage')}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -312,7 +298,7 @@ function AccountTable({ initial }: { initial: StaffAccountPage }) {
             onClick={() => setPage(p => p + 1)}
             disabled={!data.hasMore || isPending}
             className={cn('rounded p-1', !data.hasMore ? 'opacity-40' : 'hover:bg-muted')}
-            aria-label="Next page"
+            aria-label={t('ms.nextPage')}
           >
             <ChevronRight className="h-4 w-4" />
           </button>

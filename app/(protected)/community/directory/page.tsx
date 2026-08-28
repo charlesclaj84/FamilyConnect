@@ -1,12 +1,13 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { GitBranch } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getMembers } from '@/app/actions/members'
 import { MemberDirectoryClient } from '@/components/members/MemberDirectoryClient'
 import { PageShell } from '@/components/layout/PageShell'
 import { Button } from '@/components/ui/button'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 // "Directory", not "Member Directory". It sits under a Community heading in the rail,
 // beside Chat and Announcements, where the only thing it could be a directory OF is the
@@ -16,11 +17,12 @@ import { Button } from '@/components/ui/button'
 export const metadata = { title: 'Directory' }
 
 export default async function MembersPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'community/directory')
+
+  const { t } = await callerI18n(user.id)
 
   const members = await getMembers()
 
@@ -37,14 +39,11 @@ export default async function MembersPage() {
           one click from the answer, without having to notice the rail. */}
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold mb-1">Directory</h1>
-          <p className="text-muted-foreground">All family members and their roles.</p>
+          <h1 className="text-3xl font-bold">{t('page./community/directory.title')}</h1>
         </div>
         <Link href="/community/family-tree">
           <Button variant="outline">
-            <GitBranch className="h-4 w-4" aria-hidden="true" />
-            Family Tree
-          </Button>
+            <GitBranch className="h-4 w-4" aria-hidden="true" />{t('comm.familyTree')}</Button>
         </Link>
       </div>
       <MemberDirectoryClient members={members} />

@@ -1,28 +1,34 @@
 'use server'
 
 import { revalidatePath } from 'next/cache'
+import type Stripe from 'stripe'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireEdit, requireRead } from '@/lib/auth/guard'
 import { FAMILY_RESOURCE } from '@/components/admin/family-settings'
 import { TIER_IS_SOLD, TIER_PRICE } from '@/lib/plans'
 import { formatCurrency } from '@/lib/currency-utils'
+import { monthLabel } from '@/lib/calendar'
 import { TIER_LABEL, TIER_RANK, isFamilyTier, type FamilyTier } from '@/lib/tiers'
 import {
-  MAX_PREPAY_MONTHS, NO_PLATFORM_BILLING, addDays, daysBetween, entitlementOn,
-  initialChargeOptions, isPrepayMonths, nextFirstOfMonth, prepayQuoteCents,
-  prorateRemainderCents, scheduleDowngrade, tierMove, upgradeQuote,
+  MAX_PREPAY_MONTHS, NO_PLATFORM_BILLING, addDays, daysBetween, daysLeftInMonth,
+  dueNowTotalCents, entitlementOn, initialChargeLines, isPrepayMonths, nextFirstOfMonth,
+  prepayQuoteCents, scheduleDowngrade, stripeTrialEnd, tierMove, upgradeQuote,
   type BillingMode, type PlatformBillingRecord,
 } from '@/lib/platform-billing'
+import { signupPlanPrompt, type SignupPlanPrompt } from '@/lib/signup-plan'
 import { intentKey, stripeClient, stripeUnavailableReason } from '@/lib/stripe/client'
 import {
-  INTEGRATION_IDS, checkoutReturnUrls, platformBillingConfigured, platformPriceId,
+  INTEGRATION_IDS, checkoutReturnUrls, platformBillingConfigured,
+  platformPriceId,
 } from '@/lib/stripe/config'
 // A PLAIN MODULE, imported and never re-exported — everything exported from a `'use server'`
 // file gets a URL, and `trackCheckoutStarted` takes an email and a name (lib/email/send.ts'
 // open-relay rule, applied to the analytics transport).
 import { trackCheckoutStarted } from '@/lib/meta/billing'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * A family paying GENORRA for its plan — the hosted-checkout half.
@@ -50,12 +56,17 @@ import { trackCheckoutStarted } from '@/lib/meta/billing'
  *   `admin/settings:edit`   the permission. Choosing and paying for a plan is the same
  *                           decision as `setFamilyTier`, and it rides the same key rather
  *                           than inventing one — see `getPlatformBilling` for why.
- *   `TIER_IS_SOLD[tier]`    the PRODUCT decision. `/pricing` says "Not yet available" on
- *                           every paid tier, and a checkout that took money while the
- *                           marketing page said that would be a sale nobody made. Turning
- *                           billing on is therefore two edits in one commit: this flag (with
- *                           `PLANS[].available` beside it) and the Stripe credentials. The
- *                           GO LIVE list in TODO.md names both halves.
+ *   `TIER_IS_SOLD[tier]`    the PRODUCT decision, and it is still consulted after Standard
+ *                           and Plus went on sale on 2026-08-23 — because Premium has not.
+ *                           A checkout that took money while `/pricing` said "Not yet
+ *                           available" would be a sale nobody made, so this flag and
+ *                           `PLANS[].available` move in one commit, in both directions.
+ *
+ *                           IT IS NOT THE CAPABILITY. A tier can be sold here and have no
+ *                           Stripe Price on this deployment, which is the ordinary state of
+ *                           a laptop — hence `platformBillingConfigured` two lines below
+ *                           every one of these checks, answering with a sentence about the
+ *                           deployment rather than a claim about the plan.
  *
  * ── AND `setFamilyTier` IS STILL THERE, WHICH IS A COLLISION WORTH KNOWING ABOUT ────
  * That action has been scaffolding since 2026-08-13: pick a plan, nothing is charged. It now
@@ -85,6 +96,14 @@ export interface PlatformBilling extends PlatformBillingRecord {
   canManage: boolean
   /** Per tier, whether a checkout can actually be started. */
   purchasable: Record<FamilyTier, TierPurchasability>
+  /**
+   * The plan chosen at signup, if the family is still owed that checkout.
+   *
+   * NOT AN ENTITLEMENT, and it must never be read as one — `activeTier` is what the product
+   * enforces and this is a note about a button somebody pressed on `/pricing` before there
+   * was a family to charge. See 20260823000008's header and `lib/signup-plan.ts`.
+   */
+  signupPlan: SignupPlanPrompt
   /** Set when the deployment cannot transact at all, for a sentence on screen. */
   unavailable: string | null
   /**
@@ -182,14 +201,26 @@ export async function getPlatformBilling(): Promise<PlatformBilling | null> {
 
   const record = readRecord(accountRes.data)
   const today = todayISO()
+  const activeTier = isFamilyTier(familyRes.data?.tier) ? familyRes.data.tier : 'free'
+  const row = accountRes.data as SignupIntentRow | null
 
   return {
     ...record,
     familyCode: g.familyCode,
-    activeTier: isFamilyTier(familyRes.data?.tier) ? familyRes.data.tier : 'free',
+    activeTier,
     paidEntitlement: entitlementOn(record, today),
     canManage: editable,
     purchasable: purchasability(),
+    // The plan they chose on `/register` and have not paid for yet, or a skip reason.
+    // ONE DEFINITION, in `lib/signup-plan.ts`, shared with the dashboard banner — so the
+    // panel and the banner can never disagree about whether a family is still being asked.
+    signupPlan: signupPlanPrompt({
+      signupTier: row?.signup_tier,
+      signupTierAt: row?.signup_tier_at,
+      dismissedAt: row?.signup_tier_dismissed_at,
+      activeTier,
+      today,
+    }),
     today,
     unavailable: stripeUnavailableReason(),
     delinquentSince: typeof (accountRes.data as { delinquent_since?: unknown } | null)?.delinquent_since === 'string'
@@ -248,16 +279,18 @@ export async function startPlanCheckout(input: {
 }): Promise<CheckoutResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  const { intl } = await callerI18n(g.userId)
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   // NARROWED, NEVER CAST. This is a `'use server'` export, so every argument arrives from an
   // HTTP request and the panel in front of it is a convenience (§2).
   if (!isFamilyTier(input.tier) || input.tier === 'free') {
-    return { success: false, message: 'That is not a plan that can be bought.' }
+    return { success: false, message: t('act.notPlanCanBought') }
   }
   const tier = input.tier
   if (input.mode !== 'recurring' && input.mode !== 'prepaid') {
-    return { success: false, message: 'Choose whether to pay monthly or in advance.' }
+    return { success: false, message: t('act.chooseWhetherPayMonthlyAdvance') }
   }
   const mode: BillingMode = input.mode
   const months = mode === 'prepaid' ? (input.months ?? 6) : 1
@@ -276,7 +309,7 @@ export async function startPlanCheckout(input: {
   if (input.firstPayment != null
       && input.firstPayment !== 'remainder'
       && input.firstPayment !== 'remainder-plus-next') {
-    return { success: false, message: 'Choose which first payment to make.' }
+    return { success: false, message: t('act.chooseWhichFirstPaymentMake') }
   }
   const firstPayment = input.firstPayment ?? 'remainder'
 
@@ -291,7 +324,24 @@ export async function startPlanCheckout(input: {
 
   const stripe = stripeClient()
   const priceId = platformPriceId(tier, mode)
-  if (!stripe || !priceId) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe || !priceId) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
+
+  // ── IS THE PRICE THE RIGHT SHAPE? ASKED BEFORE THE SESSION, NOT AFTER ─────────────
+  //
+  // Added 2026-08-23, after the first real checkout against a Stripe sandbox answered "Could
+  // not start the payment. Please try again." — which is the catch at the end of this
+  // function reporting a PERMANENT misconfiguration as a transient failure. Retrying was
+  // never going to work, and Stripe's own message (the useful one) is deliberately withheld
+  // because it names a price id and an account.
+  //
+  // So the shape is checked here instead, where the failure can be described without naming
+  // anything: which plan, which way of paying, and that nothing was charged.
+  const shapeError = await priceShapeError(stripe, priceId, tier, mode)
+  if (shapeError) {
+    // The DETAIL, with the id, goes to the log — the same split the catch below makes.
+    console.error(`[billing] price ${priceId} unusable for ${tier}/${mode}: ${shapeError.detail}`)
+    return { success: false, message: shapeError.message }
+  }
 
   const admin = createAdminClient()
   const record = await loadRecord(admin, g.familyCode)
@@ -303,13 +353,13 @@ export async function startPlanCheckout(input: {
   if (mode === 'prepaid' && record.stripe_subscription_id && record.mode === 'recurring') {
     return {
       success: false,
-      message: 'This family pays monthly. Cancel the monthly plan first, then pay in advance from the next period.',
+      message: t('act.familyPaysMonthlyCancelMonthly'),
     }
   }
   if (mode === 'recurring' && record.stripe_subscription_id && record.mode === 'recurring') {
     return {
       success: false,
-      message: 'This family already pays monthly. Use Change plan instead of starting a second subscription.',
+      message: t('act.familyAlreadyPaysMonthlyUse'),
     }
   }
   if (mode === 'prepaid' && tierMove(toRecord(record).paidTier, tier) === 'downgrade') {
@@ -323,7 +373,7 @@ export async function startPlanCheckout(input: {
     familyCode: g.familyCode,
     existing: record.stripe_customer_id,
   })
-  if (!customerId) return { success: false, message: 'Could not start the payment. Please try again.' }
+  if (!customerId) return { success: false, message: t('act.couldNotStartPaymentPlease') }
 
   // Metadata carried on everything the webhook might see it on. It is OURS — set here, never
   // client-supplied — and it is still re-verified on the way back in: it round-trips through
@@ -344,143 +394,208 @@ export async function startPlanCheckout(input: {
   const extendingLiveTerm =
     record.paid_through != null && daysBetween(today, record.paid_through) >= 0
 
-  let prorationCents: number | null = null
-  if (!extendingLiveTerm) {
-    if (mode === 'prepaid') {
-      // THE RAW PRORATION, not the floored one. Stripe's minimum applies to the SESSION
-      // total, and a prepaid session also carries whole months — so a 33c part month is
-      // perfectly chargeable here even though it could not stand alone.
-      prorationCents = prorateRemainderCents(tier, today)
-    } else {
-      const options = initialChargeOptions(tier, today)
-      prorationCents = firstPayment === 'remainder-plus-next'
-        ? options.remainderPlusNext
-        : options.remainderOnly
-      if (prorationCents == null) {
-        // Only reachable for 'remainder' below Stripe's minimum, which is the ordinary state
-        // in the last days of a month on the cheaper tiers. Named rather than described: the
-        // family is being told which control to press, not that something failed.
-        return {
-          success: false,
-          message: `Only ${options.daysLeft} day${options.daysLeft === 1 ? '' : 's'} are left this month, which is too small a charge to take on its own. Choose the option that covers this month and next.`,
-        }
-      }
+  // ── WHAT IS DUE TODAY, ITEMISED ───────────────────────────────────────────────────
+  // The arithmetic and the wording are both in `initialChargeLines`, which is pure and tested
+  // — see its header for why one rolled-up figure was not good enough on the hosted page.
+  // Empty when a live prepaid term already owns these days, which is the case that would
+  // otherwise be charged twice.
+  const dueNow = extendingLiveTerm
+    ? []
+    : initialChargeLines(tier, today, mode === 'prepaid' ? 'prepaid-remainder' : firstPayment)
+
+  if (dueNow == null) {
+    // Only reachable for 'remainder' below the product floor, which is the ordinary state of
+    // the back half of every month at Standard. Named rather than described: the family is
+    // being told which control to press, not that something failed.
+    const daysLeft = daysLeftInMonth(today)
+    return {
+      success: false,
+      message: `Only ${daysLeft} day${daysLeft === 1 ? '' : 's'} are left this month, which is too small a charge to take on its own. Choose the option that covers this month and next.`,
     }
   }
 
-  const prorationLine = prorationCents != null && prorationCents > 0
-    ? {
-        quantity: 1,
-        price_data: {
-          currency: 'usd',
-          unit_amount: prorationCents,
-          product_data: {
-            name: firstPayment === 'remainder-plus-next' && mode === 'recurring'
-              ? `${TIER_LABEL[tier]} — rest of this month and next`
-              : `${TIER_LABEL[tier]} — rest of this month`,
-          },
-        },
-      }
-    : null
+  const dueNowLines = dueNow.map(item => ({
+    quantity: 1,
+    price_data: {
+      currency: 'usd',
+      unit_amount: item.cents,
+      product_data: { name: item.name },
+    },
+  }))
+  const dueNowCents = dueNowTotalCents(dueNow)
 
-  // The cycle. `day_of_month: 1` for the ordinary case; a real timestamp for
-  // 'remainder-plus-next', because next month is paid for in this session and the cycle has
-  // to skip it — which `day_of_month` cannot express. And NEITHER when a prepaid term is
-  // still running: `trial_end` is already holding the subscription off until the day after it
-  // ends, which under rule 2 is itself a 1st.
-  const anchor = extendingLiveTerm
-    ? {}
-    : firstPayment === 'remainder-plus-next'
+  // ── WHEN THE SUBSCRIPTION STARTS BILLING, EXPRESSED AS A TRIAL ────────────────────
+  //
+  // The days above are already paid for by the line item, so the subscription itself has
+  // nothing to charge until the 1st — and `trial_end` is the only way to say that in a
+  // Checkout Session carrying a one-time price. See `STRIPE_MINIMUM_TRIAL_DAYS`, which
+  // records what the alternative was and why Stripe refuses it.
+  //
+  //   extendingLiveTerm      the day after the prepaid term ends, which under rule 2 is
+  //                          itself a 1st.
+  //   'remainder-plus-next'  the 1st AFTER next, because next month is paid for in this
+  //                          session and the cycle has to skip it.
+  //   otherwise              the next 1st.
+  //
+  // The cycle then anchors to the trial end, so every invoice after it lands on the 1st with
+  // no `billing_cycle_anchor` of our own.
+  //
+  // NULL FOR A PREPAID SESSION, which has no subscription and therefore nothing to defer: the
+  // whole term is the one payment, and `subscription_data` is never sent.
+  const billingStartsOn = mode !== 'recurring'
+    ? null
+    : extendingLiveTerm
+      ? (record.paid_through ? addDays(record.paid_through, 1) : null)
+      : firstPayment === 'remainder-plus-next'
+        ? nextFirstOfMonth(nextFirstOfMonth(today))
+        : nextFirstOfMonth(today)
+  const trialEnd = billingStartsOn ? stripeTrialEnd(billingStartsOn, today) : null
+
+  // A part month charged HERE while the subscription starts billing TODAY is the double-bill
+  // this whole arrangement exists to prevent, so it is refused rather than started.
+  //
+  // Unreachable at today's figures, and stated rather than assumed for that reason:
+  // `MINIMUM_FIRST_CHARGE_CENTS` withholds the remainder option long before the 1st is close
+  // enough for Stripe to refuse the trial (six days out at Premium, sixteen at Standard), and
+  // the combined option is a whole month further. Lowering that constant, or pricing a tier
+  // high enough that a couple of days clears $5, would otherwise reintroduce a silent double
+  // charge — `stripeTrialEnd`'s own test asserts the coupling across every tier and month.
+  if (mode === 'recurring' && dueNowCents > 0 && trialEnd == null) {
+    return {
+      success: false,
+      message: t('act.tooFewDaysLeftMonth'),
+    }
+  }
+
+  // HOISTED so the idempotency key below can fingerprint it — see `intentKey`. The
+  // annotation is what keeps `mode` and `currency` as the literals Stripe's types demand
+  // rather than widening to `string` the moment the object stops being an argument.
+  const params: Stripe.Checkout.SessionCreateParams = {
+    mode: mode === 'recurring' ? 'subscription' : 'payment',
+    customer: customerId,
+    // Shown in the Dashboard beside the payment, so a support question does not start with
+    // "which family is this?".
+    client_reference_id: g.familyCode,
+    line_items: [
+      mode === 'recurring'
+        ? { price: priceId, quantity: 1 }
+        : {
+            price: priceId,
+            quantity: months,
+            // PAY AS FAR AHEAD AS YOU LIKE, on Stripe's own page. The presets on our screen
+            // are buttons; this is the field that makes five months possible without us
+            // building a stepper. Capped at `MAX_PREPAY_MONTHS`, which also caps how long a
+            // downgrade can be deferred — see that constant.
+            adjustable_quantity: { enabled: true, minimum: 1, maximum: MAX_PREPAY_MONTHS },
+          },
+      // ── WHAT IS DUE TODAY, AS OUR OWN LINES, AND ONLY WHEN IT IS OWED ────────────
+      // Every family bills on the 1st, so the first payment includes the rest of the
+      // current month — and, when that remainder is under the product floor, the whole of
+      // next month with it. They are line items OF OURS rather than a Stripe proration,
+      // because the rounding rule is ours: `ceil(monthly × daysLeft ÷ daysInMonth)`,
+      // computed by `prorateRemainderCents` and quoted on the button before the family
+      // presses it. If Stripe prorated it instead the two figures would differ by a few
+      // cents and the hosted page would ask for a number the button did not promise.
+      //
+      // ITEMISED — see `dueNow` above for why one combined line was not good enough.
+      //
+      // ABSENT ENTIRELY when the family already owns this month — a live prepaid term being
+      // extended — which is the case that would otherwise double-charge for it.
+      ...dueNowLines,
+    ],
+    ...(mode === 'recurring'
       ? {
-          billing_cycle_anchor: Math.floor(
-            Date.parse(`${nextFirstOfMonth(nextFirstOfMonth(today))}T00:00:00Z`) / 1000,
-          ),
+          subscription_data: {
+            metadata,
+            // ── EVERYBODY BILLS ON THE 1st, AND A TRIAL IS HOW IT IS SAID ─────────
+            // Stripe models "do not charge until this date" as a trial, and the card is
+            // still collected now — so the session charges the part month above, the
+            // subscription's first invoice lands on the day named here, and the cycle
+            // anchors to it. That covers all three cases at once: a family paying for the
+            // rest of this month, one paying for this month and next, and one whose
+            // prepaid term is still running and must not be billed twice for it.
+            //
+            // NOT `billing_cycle_anchor` PLUS `proration_behavior: 'none'`, which is what
+            // this was until it met a real Checkout Session: that pair is refused outright
+            // when a one-time price is present, and the default in its place bills Stripe's
+            // own part month on top of ours. `STRIPE_MINIMUM_TRIAL_DAYS` carries the whole
+            // argument, and `billingStartsOn` above is where the day is decided.
+            //
+            // The floor is Stripe's, not ours — a trial ending too soon is refused — so a
+            // prepaid term with a day left simply starts billing now, which is correct to
+            // within one day and errs in the family's favour. A part month on the same
+            // session is refused above instead, because there the same day would be paid
+            // for twice.
+            ...(trialEnd != null ? { trial_end: trialEnd } : {}),
+          },
         }
-      : { billing_cycle_anchor_config: { day_of_month: 1 } }
+      : {
+          payment_intent_data: { metadata },
+          // A one-time payment of this size wants a receipt the family can file. Without
+          // this, `mode: 'payment'` produces a charge and no invoice.
+          invoice_creation: { enabled: true },
+        }),
+    metadata,
+    // Groups sessions in the Dashboard so the two shapes can be compared. Needs API
+    // version 2026-03-25.dahlia or later, which lib/stripe/config.ts pins past.
+    integration_identifier: mode === 'recurring'
+      ? INTEGRATION_IDS.platformRecurring
+      : INTEGRATION_IDS.platformPrepaid,
+    allow_promotion_codes: true,
+    // ── THE BUTTON, AND WHAT CHECKOUT WILL AND WILL NOT LET US SAY ────────────────
+    // `submit_type` is a CLOSED ENUM — `auto | book | donate | pay | subscribe`. There is no
+    // free-text button label in Checkout, so "Join GENORRA" is not available at any price;
+    // `'pay'` is the honest one of the five, because money moves today.
+    //
+    // It is set on both shapes deliberately. On the recurring one Checkout may still render
+    // its own trial wording over the top — the trial is real, in Stripe's sense — which is
+    // exactly why the message below exists rather than being left to the button.
+    submit_type: 'pay',
+    // ── AND THE ONE SENTENCE THAT CORRECTS "N DAYS FREE" ─────────────────────────
+    // Stripe puts a "35 days free" badge on the subscription line whenever a trial is set,
+    // and it is not wrong on its own terms — the SUBSCRIPTION charges nothing until the 1st.
+    // It is badly wrong as the thing a family reads, because they are paying for those days
+    // right now, on the lines underneath. We cannot remove that badge; we can put the truth
+    // next to the button, which is the last thing read before paying.
+    //
+    // Only where there is something due today. On a session that genuinely charges nothing
+    // now — a live prepaid term being extended — this sentence would be the false one.
+    //
+    // THE DATE IS DERIVED FROM `billingStartsOn`, which is the same value that becomes
+    // `trial_end`. So the sentence and the trial cannot disagree: whatever Stripe's badge
+    // counts, this names the last month the family has actually bought.
+    ...(dueNowCents > 0 && mode === 'recurring' && billingStartsOn
+      ? {
+          custom_text: {
+            submit: {
+              message: `${formatCurrency(dueNowCents, intl)} today covers you to the end of `
+                + `${monthLabel(addDays(billingStartsOn, -1).slice(0, 7))}. ${TIER_LABEL[tier]} then `
+                + `renews at ${formatCurrency(TIER_PRICE[tier]?.monthlyCents ?? 0, intl)} a month, on the 1st.`,
+            },
+          },
+        }
+      : {}),
+    ...checkoutReturnUrls('/admin/settings'),
+  }
 
   try {
-    const session = await stripe.checkout.sessions.create({
-      mode: mode === 'recurring' ? 'subscription' : 'payment',
-      customer: customerId,
-      // Shown in the Dashboard beside the payment, so a support question does not start with
-      // "which family is this?".
-      client_reference_id: g.familyCode,
-      line_items: [
-        mode === 'recurring'
-          ? { price: priceId, quantity: 1 }
-          : {
-              price: priceId,
-              quantity: months,
-              // PAY AS FAR AHEAD AS YOU LIKE, on Stripe's own page. The presets on our screen
-              // are buttons; this is the field that makes five months possible without us
-              // building a stepper. Capped at `MAX_PREPAY_MONTHS`, which also caps how long a
-              // downgrade can be deferred — see that constant.
-              adjustable_quantity: { enabled: true, minimum: 1, maximum: MAX_PREPAY_MONTHS },
-            },
-        // ── THE PART MONTH, AS OUR OWN LINE, AND ONLY WHEN IT IS OWED ─────────────────
-        // Every family bills on the 1st, so the first payment includes the rest of the
-        // current month. It is a line item OF OURS rather than a Stripe proration, because
-        // the rounding rule is ours: `ceil(monthly × daysLeft ÷ daysInMonth)`, computed by
-        // `prorateRemainderCents` and quoted on the button before the family presses it. If
-        // Stripe prorated it instead the two figures would differ by a few cents and the
-        // hosted page would ask for a number the button did not promise.
-        //
-        // ABSENT ENTIRELY when the family already owns this month — a live prepaid term being
-        // extended — which is the case that would otherwise double-charge for it.
-        ...(prorationLine ? [prorationLine] : []),
-      ],
-      ...(mode === 'recurring'
-        ? {
-            subscription_data: {
-              metadata,
-              // ── EVERYBODY BILLS ON THE 1st ───────────────────────────────────────
-              // Declarative rather than a computed timestamp: `day_of_month: 1` is what
-              // "the billing cycle is the calendar month" means, and Stripe handles the
-              // month lengths. For 'remainder-plus-next' the anchor is a real timestamp
-              // instead, because next month is already paid for and the cycle has to skip
-              // it — there is no way to say "the 1st, but not the next one" declaratively.
-              ...anchor,
-              // NOTHING PRORATED BY STRIPE. The default here is `create_prorations`, which
-              // would bill its own computed part-month ON TOP of the line item above — the
-              // family charged twice for the same days. `'none'` is what makes our line the
-              // only one.
-              proration_behavior: 'none' as const,
-              // ── NOT DOUBLE-BILLING A FAMILY THAT ALREADY PAID IN ADVANCE ───────────
-              // A prepaid term with time left on it is honoured by starting the subscription
-              // at the end of it. Stripe models "do not charge until this date" as a trial,
-              // which is exactly the right shape: the card is collected now, the first
-              // invoice lands when the paid term runs out, and nobody is charged twice for
-              // the same month.
-              //
-              // The two-day floor is Stripe's, not ours — a trial ending sooner than that is
-              // refused — so a term with a day left starts billing immediately, which is
-              // correct to within one day and errs in the family's favour.
-              ...(trialEndFor(record) ? { trial_end: trialEndFor(record)! } : {}),
-            },
-          }
-        : {
-            payment_intent_data: { metadata },
-            // A one-time payment of this size wants a receipt the family can file. Without
-            // this, `mode: 'payment'` produces a charge and no invoice.
-            invoice_creation: { enabled: true },
-          }),
-      metadata,
-      // Groups sessions in the Dashboard so the two shapes can be compared. Needs API
-      // version 2026-03-25.dahlia or later, which lib/stripe/config.ts pins past.
-      integration_identifier: mode === 'recurring'
-        ? INTEGRATION_IDS.platformRecurring
-        : INTEGRATION_IDS.platformPrepaid,
-      allow_promotion_codes: true,
-      ...checkoutReturnUrls('/admin/settings'),
-    }, {
+    const session = await stripe.checkout.sessions.create(params, {
       // Derived from the INTENT, never from a clock: a double-clicked button inside 24 hours
       // gets the same session back instead of a second one. `months` is in the key because
       // twelve months and one month are different intents.
-      idempotencyKey: intentKey(['plan', g.familyCode, tier, mode, months]),
+      //
+      // AND FROM THE PARAMS, which the naming parts cannot describe. Two things are in this
+      // body that "this family, this tier, monthly, one month" does not say: the part month's
+      // AMOUNT, which is prorated by the day and so differs between today and yesterday, and
+      // the SHAPE, which changes whenever this session is edited. Both were silently outside
+      // the key until 2026-08-25 — the second refused every checkout for a day after the
+      // trial change, and the first is quieter and worse, because a family returning the next
+      // morning was handed back yesterday's session quoting yesterday's figure.
+      idempotencyKey: intentKey(['plan', g.familyCode, tier, mode, months], params),
     })
 
     if (!session.url) {
-      return { success: false, message: 'Could not start the payment. Please try again.' }
+      return { success: false, message: t('act.couldNotStartPaymentPlease') }
     }
 
     // InitiateCheckout — the customer has genuinely entered the checkout, which is what that
@@ -498,7 +613,7 @@ export async function startPlanCheckout(input: {
   } catch (e) {
     // Stripe's own message can name a price id and an account. Logged, never returned.
     console.error(`[billing] checkout failed for ${g.familyCode} (${tier}/${mode}): ${describe(e)}`)
-    return { success: false, message: 'Could not start the payment. Please try again.' }
+    return { success: false, message: t('act.couldNotStartPaymentPlease') }
   }
 }
 
@@ -552,13 +667,15 @@ export async function changePlanTier(
 ): Promise<PlanChangeResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
-  if (!isFamilyTier(nextTier)) return { success: false, message: 'That is not a plan.' }
+  const { t } = g
+  const { intl } = await callerI18n(g.userId)
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
+  if (!isFamilyTier(nextTier)) return { success: false, message: t('act.notPlan') }
 
   const unavailable = stripeUnavailableReason()
   if (unavailable) return { success: false, message: unavailable }
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const admin = createAdminClient()
   const record = await loadRecord(admin, g.familyCode)
@@ -580,13 +697,13 @@ export async function changePlanTier(
     // the paid term ends. `cancelPlanRenewal` above handles the same move to Free, which is
     // where a family with no subscription and no term will already have gone.
     if (move === 'downgrade') {
-      return scheduleDowngradeOnly({ admin, familyCode: g.familyCode, record, nextTier })
+      return scheduleDowngradeOnly({ admin, familyCode: g.familyCode, record, nextTier, t })
     }
     // An UPGRADE, and `upgradeQuote` is its rule: value the unused old term at the OLD rate,
     // spend it on the new tier, carry the remainder as a credit. `lib/platform-billing.ts`
     // holds the arithmetic and the worked example.
     return upgradeFromPrepaid({
-      admin, stripe, familyCode: g.familyCode, userId: g.userId,
+      intl, t, admin, stripe, familyCode: g.familyCode, userId: g.userId,
       record, nextTier, includeNextMonth,
     })
   }
@@ -597,7 +714,7 @@ export async function changePlanTier(
     const subscription = await stripe.subscriptions.retrieve(record.stripe_subscription_id)
     const itemId = subscription.items.data[0]?.id
     if (!itemId) {
-      return { success: false, message: 'Could not read the current plan from Stripe. Please try again.' }
+      return { success: false, message: t('act.couldNotReadCurrentPlan') }
     }
 
     await stripe.subscriptions.update(record.stripe_subscription_id, {
@@ -630,7 +747,7 @@ export async function changePlanTier(
         console.error(`[billing] could not record the scheduled downgrade for ${g.familyCode}: ${error.message}`)
         return {
           success: false,
-          message: 'Stripe was updated but we could not record the change. Please contact support before trying again.',
+          message: t('act.stripeUpdatedButWeCould2'),
         }
       }
       revalidateBilling()
@@ -647,7 +764,7 @@ export async function changePlanTier(
     }
   } catch (e) {
     console.error(`[billing] plan change failed for ${g.familyCode} -> ${nextTier}: ${describe(e)}`)
-    return { success: false, message: 'Could not change the plan. Please try again.' }
+    return { success: false, message: t('act.couldNotChangePlanPlease') }
   }
 }
 
@@ -662,15 +779,16 @@ export async function changePlanTier(
 export async function cancelPlanRenewal(): Promise<PlanChangeResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const admin = createAdminClient()
   const record = await loadRecord(admin, g.familyCode)
   if (!record.stripe_subscription_id) {
-    return { success: false, message: 'This family has no monthly plan to stop.' }
+    return { success: false, message: t('act.familyNoMonthlyPlanStop') }
   }
 
   try {
@@ -679,7 +797,7 @@ export async function cancelPlanRenewal(): Promise<PlanChangeResult> {
     }, { idempotencyKey: intentKey(['plan-cancel', g.familyCode, record.stripe_subscription_id]) })
   } catch (e) {
     console.error(`[billing] cancel failed for ${g.familyCode}: ${describe(e)}`)
-    return { success: false, message: 'Could not stop the plan. Please try again.' }
+    return { success: false, message: t('act.couldNotStopPlanPlease') }
   }
 
   const scheduled = scheduleDowngrade({ record: toRecord(record), toTier: 'free', today: todayISO() })
@@ -694,7 +812,7 @@ export async function cancelPlanRenewal(): Promise<PlanChangeResult> {
     console.error(`[billing] could not record the cancellation for ${g.familyCode}: ${error.message}`)
     return {
       success: false,
-      message: 'Stripe was updated but we could not record it. Please contact support before trying again.',
+      message: t('act.stripeUpdatedButWeCould'),
     }
   }
 
@@ -702,6 +820,134 @@ export async function cancelPlanRenewal(): Promise<PlanChangeResult> {
   return {
     success: true,
     message: `The plan stops on ${scheduled.on}. Every page stays open until then, and every record is kept afterwards.`,
+  }
+}
+
+/**
+ * Just the plan the family is still owed a checkout for, for the dashboard prompt.
+ *
+ * ── A SECOND, NARROWER READ RATHER THAN REUSING `getPlatformBilling` ────────────────
+ * §5, and it is the whole reason this exists. That function returns two years of payment
+ * history, the Stripe customer id and the delinquency date; the dashboard needs one word.
+ * Props are serialized into the RSC payload whether a component renders them or not, so
+ * calling it from the dashboard would publish the family's invoices to every page load of
+ * the screen every member lands on.
+ *
+ * ── GATED ON `requireEdit`, WHICH IS STRICTER THAN THE SCREEN IT LINKS TO ───────────
+ * Deliberately. A prompt is an invitation to act, and offering one to somebody who would be
+ * refused at the till is worse than showing them nothing — it sends them to a screen to
+ * press a button that answers "Not authorized". `getPlatformBilling` reads with
+ * `requireRead` because a viewer may legitimately READ what the family has paid; nobody
+ * needs to be ASKED to pay unless they can.
+ *
+ * NULL FOR EVERY "NO", with no reason attached. The skip reasons in `lib/signup-plan.ts`
+ * are for tests and support, not for a banner — and a dashboard that said "we are not
+ * asking you about Plus because you already have it" would be noise on the one screen
+ * every member sees.
+ */
+export async function getSignupPlanPrompt(): Promise<{ tier: FamilyTier } | null> {
+  const g = await requireEdit(FAMILY_RESOURCE)
+  if (!g.ok || !g.familyCode) return null
+
+  // ── THE "CAN THIS DEPLOYMENT SELL ANYTHING" CHECK IS THE CALLER'S, NOT THIS ONE'S ──
+  //
+  // It belongs here by instinct and belongs at the page in fact, and the reason is the one
+  // AGENTS.md states for tier checks: where the withheld thing IS the whole answer, a check
+  // inside the action turns it into a function that answers null to everybody, and every
+  // assertion about it becomes evidence for the credential check instead of for family
+  // isolation. `tests/rls` has no `STRIPE_SECRET_KEY`, so putting
+  // `anyPlatformBillingConfigured()` here makes the two cases covering this action vacuous —
+  // measured, on the first run, through the positive control.
+  //
+  // So the dashboard skips the CALL when the deployment cannot take a payment (a laptop and
+  // every preview build), and this stays a database question with a testable answer.
+  const admin = createAdminClient()
+  // §3 by hand. Two reads because the prompt is a comparison between what was asked for and
+  // what the family actually holds — `families.tier` is the second half, and reading only the
+  // billing row would keep asking a family that has since paid.
+  const [intentRes, familyRes] = await Promise.all([
+    admin.from('platform_billing_accounts')
+      .select('signup_tier, signup_tier_at, signup_tier_dismissed_at')
+      .eq('family_code', g.familyCode)
+      .maybeSingle(),
+    admin.from('families').select('tier').eq('family_code', g.familyCode).maybeSingle(),
+  ])
+  // §8: a refused or failed read must not render as "nothing to set up" — but here the
+  // honest answer to a failure IS silence, because the alternative is a banner asking a
+  // family to pay for a plan we cannot confirm they chose. Logged so it is not invisible.
+  if (intentRes.error || familyRes.error) {
+    console.error(`[billing] could not read the signup plan for ${g.familyCode}`)
+    return null
+  }
+
+  const prompt = signupPlanPrompt({
+    signupTier: intentRes.data?.signup_tier,
+    signupTierAt: intentRes.data?.signup_tier_at,
+    dismissedAt: intentRes.data?.signup_tier_dismissed_at,
+    activeTier: isFamilyTier(familyRes.data?.tier) ? familyRes.data.tier : 'free',
+    today: todayISO(),
+  })
+  return prompt.prompt ? { tier: prompt.tier } : null
+}
+
+/**
+ * "We will stay on our current plan" — stop asking about the plan chosen at signup.
+ *
+ * ── IT CANCELS A PROMPT AND NOTHING ELSE ────────────────────────────────────────────
+ * No money is involved in either direction. No subscription is touched, no tier moves, and
+ * `families.tier` is not read or written — the family is on whatever plan it was already on,
+ * and every paid plan is still on sale to them on this very screen one section further down.
+ * What stops is US ASKING, which is why there is no confirmation dialog in front of it: the
+ * action is reversible by pressing the plan they wanted, which is the thing the prompt was
+ * offering anyway.
+ *
+ * ── `requireEdit`, THE SAME GRANT AS THE CHECKOUT ───────────────────────────────────
+ * Deliberately not a lower bar. Deciding the family will not buy Plus is the same decision as
+ * deciding it will, taken by the same person — and a read-only viewer being able to silence
+ * the prompt would let somebody without the grant quietly cancel a choice the administrator
+ * made on the pricing page.
+ *
+ * ── AND IT IS AN UPDATE THAT CAN MATCH NOTHING (§8b) ────────────────────────────────
+ * The row exists only if a plan was recorded at signup, so a family with no intent has no row
+ * to update and PostgREST reports `{ error: null }` over zero rows. `confirmWrite` is not the
+ * tool here — this write goes through the service role with no policy underneath it, so there
+ * is no silent RLS refusal to catch — but the caller is still told the truth: the update is
+ * predicated on there BEING an unresolved intent, and a no-op reports that there was nothing
+ * to dismiss rather than reporting success.
+ */
+export async function dismissSignupPlan(): Promise<PlanChangeResult> {
+  const g = await requireEdit(FAMILY_RESOURCE)
+  if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
+
+  const admin = createAdminClient()
+  // §3 by hand: the service role sees past RLS, so the family conjunct is the only thing
+  // scoping this. `.is('signup_tier_dismissed_at', null)` makes a second press a no-op rather
+  // than re-stamping the date, and `.not(...)` keeps the CHECK constraint satisfiable — a
+  // dismissal with no intent is refused by the database (20260823000008).
+  const { data, error } = await admin.from('platform_billing_accounts')
+    .update({ signup_tier_dismissed_at: new Date().toISOString() })
+    .eq('family_code', g.familyCode)
+    .not('signup_tier', 'is', null)
+    .is('signup_tier_dismissed_at', null)
+    .select('family_code')
+
+  if (error) {
+    console.error(`[billing] could not dismiss the signup plan for ${g.familyCode}: ${error.message}`)
+    return { success: false, message: t('act.couldNotUpdatePleaseTry') }
+  }
+  if (!data?.length) {
+    return { success: false, message: t('act.thereNoPlanWaitingSet') }
+  }
+
+  revalidateBilling()
+  // REVALIDATES THE SHELL TOO, because the prompt this clears lives on the dashboard and
+  // `revalidateBilling()` only covers the settings screen.
+  revalidatePath('/dashboard')
+  return {
+    success: true,
+    message: t('act.weWillStopAskingYou'),
   }
 }
 
@@ -718,15 +964,16 @@ export async function cancelPlanRenewal(): Promise<PlanChangeResult> {
 export async function openBillingPortal(): Promise<CheckoutResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode) return { success: false, message: 'You do not belong to a family yet.' }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
 
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const admin = createAdminClient()
   const record = await loadRecord(admin, g.familyCode)
   if (!record.stripe_customer_id) {
-    return { success: false, message: 'This family has no payment history yet.' }
+    return { success: false, message: t('act.familyNoPaymentHistoryYet') }
   }
 
   try {
@@ -737,7 +984,7 @@ export async function openBillingPortal(): Promise<CheckoutResult> {
     return { success: true, url: session.url }
   } catch (e) {
     console.error(`[billing] portal failed for ${g.familyCode}: ${describe(e)}`)
-    return { success: false, message: 'Could not open the billing portal. Please try again.' }
+    return { success: false, message: t('act.couldNotOpenBillingPortal') }
   }
 }
 
@@ -754,8 +1001,11 @@ async function scheduleDowngradeOnly(input: {
   familyCode: string
   record: BillingRow
   nextTier: FamilyTier
+  /** The caller's language. In the options object rather than a positional, to match `intl`
+      on `upgradeFromPrepaid` below — every one of these helpers is called by name. */
+  t: T
 }): Promise<PlanChangeResult> {
-  const { admin, familyCode, record, nextTier } = input
+  const { admin, familyCode, record, nextTier, t } = input
   const scheduled = scheduleDowngrade({
     record: toRecord(record), toTier: nextTier, today: todayISO(),
   })
@@ -768,7 +1018,7 @@ async function scheduleDowngradeOnly(input: {
     }, { onConflict: 'family_code' })
   if (error) {
     console.error(`[billing] could not record the scheduled downgrade for ${familyCode}: ${error.message}`)
-    return { success: false, message: 'Could not record the change. Please try again.' }
+    return { success: false, message: t('act.couldNotRecordChangePlease') }
   }
 
   revalidateBilling()
@@ -800,6 +1050,10 @@ async function scheduleDowngradeOnly(input: {
  * a tier DOWN, so the worst a bug here can do is fail to open a page.
  */
 async function upgradeFromPrepaid(input: {
+  /** The reader's `Intl` tag, for the figures in the message below. */
+  intl: string
+  /** And their language, for the words around them. */
+  t: T
   admin: AdminClient
   stripe: NonNullable<ReturnType<typeof stripeClient>>
   familyCode: string
@@ -808,7 +1062,9 @@ async function upgradeFromPrepaid(input: {
   nextTier: FamilyTier
   includeNextMonth: boolean
 }): Promise<PlanChangeResult> {
-  const { admin, stripe, familyCode, userId, record, nextTier, includeNextMonth } = input
+  const {
+    intl, t, admin, stripe, familyCode, userId, record, nextTier, includeNextMonth,
+  } = input
   const today = todayISO()
   const from = toRecord(record)
 
@@ -836,7 +1092,7 @@ async function upgradeFromPrepaid(input: {
     }, { onConflict: 'family_code' })
     if (error) {
       console.error(`[billing] could not apply the upgrade for ${familyCode}: ${error.message}`)
-      return { success: false, message: 'Could not change the plan. Please try again.' }
+      return { success: false, message: t('act.couldNotChangePlanPlease') }
     }
 
     await promoteFamilyTier(admin, familyCode, nextTier)
@@ -852,7 +1108,7 @@ async function upgradeFromPrepaid(input: {
     return {
       success: true,
       message: quote.creditLeftCents > 0
-        ? `${TIER_LABEL[nextTier]} is active now, paid through ${quote.paidThrough}. What was left of the old term — ${formatCurrency(quote.creditLeftCents)} — is held as credit against your next invoice.`
+        ? `${TIER_LABEL[nextTier]} is active now, paid through ${quote.paidThrough}. What was left of the old term — ${formatCurrency(quote.creditLeftCents, intl)} — is held as credit against your next invoice.`
         : `${TIER_LABEL[nextTier]} is active now, paid through ${quote.paidThrough}. The term you had already paid for covered it exactly.`,
     }
   }
@@ -861,7 +1117,7 @@ async function upgradeFromPrepaid(input: {
   const customerId = await ensureCustomer(admin, stripe, {
     familyCode, existing: record.stripe_customer_id,
   })
-  if (!customerId) return { success: false, message: 'Could not start the payment. Please try again.' }
+  if (!customerId) return { success: false, message: t('act.couldNotStartPaymentPlease') }
 
   // THE OUTCOME TRAVELS IN METADATA, and the webhook narrows every field of it rather than
   // casting. It is carried rather than recomputed because `today` can differ by a day between
@@ -905,7 +1161,7 @@ async function upgradeFromPrepaid(input: {
       idempotencyKey: intentKey(['upgrade', familyCode, nextTier, quote.dueNowCents, String(includeNextMonth)]),
     })
 
-    if (!session.url) return { success: false, message: 'Could not start the payment. Please try again.' }
+    if (!session.url) return { success: false, message: t('act.couldNotStartPaymentPlease') }
 
     void trackMetaCheckoutStart({
       sessionId: session.id, tier: nextTier, mode: 'prepaid', months: 1, userId,
@@ -914,11 +1170,11 @@ async function upgradeFromPrepaid(input: {
     return {
       success: true,
       url: session.url,
-      message: `Opening Stripe to collect ${formatCurrency(quote.dueNowCents)}.`,
+      message: `Opening Stripe to collect ${formatCurrency(quote.dueNowCents, intl)}.`,
     }
   } catch (e) {
     console.error(`[billing] upgrade checkout failed for ${familyCode} -> ${nextTier}: ${describe(e)}`)
-    return { success: false, message: 'Could not start the payment. Please try again.' }
+    return { success: false, message: t('act.couldNotStartPaymentPlease') }
   }
 }
 
@@ -1003,6 +1259,20 @@ const EMPTY_ROW: BillingRow = {
   cancel_at_period_end: false, scheduled_tier: null, scheduled_tier_on: null,
 }
 
+/**
+ * The signup-intent columns, read off the same `select('*')` `getPlatformBilling` already does.
+ *
+ * SEPARATE FROM `BillingRow` on purpose. That one is the shape `loadRecord` projects for the
+ * money path, and every field on it feeds `entitlementOn()` — putting a signup intent in it
+ * would put it one careless spread away from being read as a paid term, which is the single
+ * thing 20260823000008's header asks a future change not to do.
+ */
+interface SignupIntentRow {
+  signup_tier: string | null
+  signup_tier_at: string | null
+  signup_tier_dismissed_at: string | null
+}
+
 async function loadRecord(admin: AdminClient, familyCode: string): Promise<BillingRow> {
   const { data } = await admin
     .from('platform_billing_accounts')
@@ -1027,26 +1297,6 @@ function toRecord(row: BillingRow): PlatformBillingRecord {
 
 function readRecord(row: unknown): PlatformBillingRecord {
   return row ? toRecord(row as BillingRow) : NO_PLATFORM_BILLING
-}
-
-/**
- * Where a subscription should start billing when a prepaid term is still running.
- *
- * A UNIX SECOND, which is what Stripe's `trial_end` takes — one of the two places in this
- * feature where a date becomes an instant, and it is Stripe's calendar rather than ours. The
- * conversion is at midnight UTC on the day AFTER `paid_through`, matching
- * `scheduleDowngrade`: the family paid through that day inclusive.
- *
- * Null when there is nothing to defer, and null inside Stripe's two-day floor — a trial
- * shorter than that is refused, so a term with a day left simply starts billing now. That
- * loses at most one day and loses it in the family's favour.
- */
-function trialEndFor(row: BillingRow): number | null {
-  if (!row.paid_through) return null
-  const today = todayISO()
-  const remaining = daysBetween(today, row.paid_through)
-  if (remaining < 2) return null
-  return Math.floor(Date.parse(`${addDays(row.paid_through, 1)}T00:00:00Z`) / 1000)
 }
 
 /**
@@ -1098,6 +1348,116 @@ async function ensureCustomer(
   }
 }
 
+/**
+ * Whether the Stripe Price behind a tier is actually usable for the way somebody is paying.
+ *
+ * ── WHY THIS EXISTS: A CONFIG ERROR WAS REPORTED AS "PLEASE TRY AGAIN" ──────────────
+ * `platformBillingConfigured` answers whether the variable is SET. It cannot answer whether
+ * the id in it names a price of the right shape, because that lives in Stripe — and until
+ * this function existed the answer arrived as a 400 from `checkout.sessions.create`, caught
+ * by a handler whose message asks the family to retry something that will fail forever.
+ *
+ * ── THE FOUR THINGS THAT GO WRONG, AND THE FIRST TWO ARE THE SAME MISTAKE ───────────
+ *
+ *   RECURRING/ONE-TIME SWAPPED  `mode: 'subscription'` needs a price with a `recurring`, and
+ *                               `mode: 'payment'` needs one without. The two variables per
+ *                               tier differ by one word (`_RECURRING` / `_PREPAID`) and are
+ *                               set in the same UI on the same afternoon, so this is the
+ *                               likeliest single misconfiguration in the whole integration.
+ *   ARCHIVED                    a price can be deactivated in the Dashboard long after it
+ *                               was wired up here, and an inactive price cannot be sold.
+ *   WRONG INTERVAL              a yearly price in the `_RECURRING` slot would bill twelve
+ *                               months at the monthly figure. There is one rate per tier and
+ *                               it is monthly (`lib/plans.ts`); anything else is not ours.
+ *   WRONG AMOUNT               `TIER_PRICE[tier].monthlyCents` is what every screen QUOTES
+ *                               and Stripe is what CHARGES. TODO.md's GO LIVE list said
+ *                               "nothing in this repo can check that" — this is that check,
+ *                               made at the one moment it matters and can be acted on.
+ *
+ * ── IT REFUSES RATHER THAN WARNS, AND THE AMOUNT IS WHY ─────────────────────────────
+ * The first three would fail at Stripe anyway, so refusing here only improves the message.
+ * The amount would NOT fail: the hosted page would open and ask for a different number from
+ * the one the button promised, and somebody would pay it. That is the one case where this
+ * function is the only thing standing between a family and being charged the wrong price.
+ *
+ * ── ONE EXTRA API CALL PER CHECKOUT START, WHICH IS THE RIGHT TRADE ─────────────────
+ * A `prices.retrieve` on a path a member reaches by pressing Pay — rare, deliberate, and
+ * already about to make a heavier call. It is NOT on any render path, so no screen gets
+ * slower and no page depends on Stripe being reachable to draw itself.
+ *
+ * A FAILED RETRIEVE IS NOT A FINDING. If Stripe cannot be reached the answer is null and the
+ * session call decides — that path already reports a transient failure honestly, and refusing
+ * a checkout because a preflight timed out would turn an outage into a misconfiguration.
+ */
+async function priceShapeError(
+  stripe: NonNullable<ReturnType<typeof stripeClient>>,
+  priceId: string,
+  tier: FamilyTier,
+  mode: BillingMode,
+): Promise<{ message: string; detail: string } | null> {
+  const way = mode === 'recurring' ? 'monthly' : 'paying in advance'
+  const bad = (detail: string) => ({
+    // NAMES NO ID AND NO ACCOUNT, per the same rule as the catch below — and says the thing
+    // the family most needs to know, which is that no money moved.
+    message: `${TIER_LABEL[tier]} is not set up correctly for ${way} on this deployment. `
+      + 'Nothing has been charged. Please report this rather than retrying.',
+    detail,
+  })
+
+  // ── A PRODUCT ID IN A PRICE SLOT, CAUGHT WITHOUT AN API CALL ──────────────────────
+  //
+  // Measured on the first real sandbox checkout (2026-08-23): `STRIPE_PRICE_STANDARD_RECURRING`
+  // held `prod_…` and Stripe answered `resource_missing`, "No such price: 'prod_…'". It is the
+  // easiest mistake in the whole setup to make and the hardest to see, because the id is
+  // REAL — the Dashboard shows a healthy Product under it, so the natural conclusion from the
+  // error is that Stripe is wrong. A Product is the thing being sold; a Price is the amount
+  // charged for it, and `line_items[].price` takes the second.
+  //
+  // Checked by PREFIX rather than by asking Stripe, so it costs nothing and names the mistake
+  // exactly instead of reporting the 404 it would otherwise become. `price_` is the only form
+  // this parameter accepts.
+  if (!priceId.startsWith('price_')) {
+    return bad(priceId.startsWith('prod_')
+      ? 'a PRODUCT id (prod_…) is in the price variable; it needs the Price id (price_…) '
+        + 'from that product\'s Pricing section'
+      : `the id does not look like a Stripe Price (expected price_…, got ${priceId.slice(0, 6)}…)`)
+  }
+
+  let price
+  try {
+    price = await stripe.prices.retrieve(priceId)
+  } catch (e) {
+    // A price id that does not exist on THIS account lands here, not below — and it is
+    // reported, because it is a configuration error rather than an outage. The commonest
+    // cause is a live-mode id against a sandbox key, or an id from another sandbox.
+    return bad(`could not be retrieved: ${describe(e)}`)
+  }
+
+  if (price.active === false) return bad('the price is archived')
+  if (mode === 'recurring' && !price.recurring) {
+    return bad('a ONE-TIME price is in the _RECURRING slot')
+  }
+  if (mode === 'prepaid' && price.recurring) {
+    return bad('a RECURRING price is in the _PREPAID slot')
+  }
+  if (mode === 'recurring'
+      && (price.recurring?.interval !== 'month' || (price.recurring?.interval_count ?? 1) !== 1)) {
+    return bad(`the recurring interval is ${price.recurring?.interval_count ?? 1} `
+      + `${price.recurring?.interval}, and there is one monthly rate per tier`)
+  }
+  if (price.currency !== 'usd') return bad(`the currency is ${price.currency}, not usd`)
+
+  // `unit_amount` is null for tiered pricing, which this product does not sell and cannot
+  // quote. Refused rather than skipped: a null here means the figure on the button came from
+  // somewhere the charge does not.
+  const expected = TIER_PRICE[tier]?.monthlyCents
+  if (expected != null && price.unit_amount !== expected) {
+    return bad(`Stripe charges ${price.unit_amount} and every screen quotes ${expected}`)
+  }
+
+  return null
+}
+
 /** Which tiers can actually be bought here, in each shape. Read by the panel (§5). */
 function purchasability(): Record<FamilyTier, TierPurchasability> {
   const out = {} as Record<FamilyTier, TierPurchasability>
@@ -1120,8 +1480,7 @@ async function trackMetaCheckoutStart(input: {
 }): Promise<void> {
   const quote = prepayQuoteCents(input.tier, input.mode === 'prepaid' ? input.months : 1)
   if (quote == null) return
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   await trackCheckoutStarted({
     checkoutId: input.sessionId,
     amountCents: quote,

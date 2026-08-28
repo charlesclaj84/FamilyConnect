@@ -24,6 +24,8 @@ import {
   addTemplateStep, updateTemplateStep, deleteTemplateStep, moveTemplateStep,
   type GatheringTemplate, type TemplateStep,
 } from '@/app/actions/admin/gathering-templates'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * THE TEMPLATE LIBRARY — a card per template, a table of steps inside each.
@@ -134,14 +136,18 @@ interface Props {
  * values are shared with the server so the action and the picker cannot disagree about what is
  * being chosen between; the words are a screen's decision.
  */
-const SCHEDULER_LABEL: Record<GatheringTemplateScheduler, string> = {
-  admin:  'Administrators only',
-  family: 'Any member',
+function schedulerLabel(t: T): Record<GatheringTemplateScheduler, string> {
+  return {
+    admin:  t('tmpl.adminsOnly'),
+    family: t('tmpl.anyMember'),
+  }
 }
 
-const SCHEDULER_HINT: Record<GatheringTemplateScheduler, string> = {
-  admin:  'Only somebody who can manage gatherings may start one from this template.',
-  family: 'Any member who may schedule a gathering can start one from this template. They still cannot edit the template itself.',
+function schedulerHint(t: T): Record<GatheringTemplateScheduler, string> {
+  return {
+    admin:  t('tmpl.adminsOnlyHint'),
+    family: t('tmpl.anyMemberHint'),
+  }
 }
 
 /** Live templates first, then alphabetically — the order `getGatheringTemplates` returns. */
@@ -150,8 +156,12 @@ function sortTemplates(list: GatheringTemplate[]): GatheringTemplate[] {
     Number(a.isArchived) - Number(b.isArchived) || a.name.localeCompare(b.name))
 }
 
-const usedCaption = (n: number) =>
-  n === 0 ? 'Not used by any gathering yet' : `Used by ${n} ${n === 1 ? 'gathering' : 'gatherings'}`
+// ONE AND MANY ARE TWO KEYS — `${n} ${n === 1 ? 'gathering' : 'gatherings'}` is an
+// English pluralisation compiled into the source.
+const usedCaption = (n: number, t: T) =>
+  n === 0 ? t('tmpl.notUsed')
+    : n === 1 ? t('tmpl.usedByOne')
+      : t('tmpl.usedByMany', { n })
 
 /**
  * A THREE-ROW BOX, NEVER AN AUTO-GROWING ONE, for every long-text field in this file.
@@ -202,6 +212,7 @@ function TemplateDialog({
     createdId?: string
   }) => void
 }) {
+  const t = useT()
   const adding = template === null
   const [name, setName] = useState(template?.name ?? '')
   const [description, setDescription] = useState(template?.description ?? '')
@@ -233,7 +244,7 @@ function TemplateDialog({
           whoMaySchedule: scheduler,
         })
         if (!result.success || !result.templateId) {
-          setError(result.message ?? 'Could not add that template')
+          setError(result.message ?? t('tmpl.addFailed'))
           return
         }
         onSaved({
@@ -248,7 +259,7 @@ function TemplateDialog({
           whoMaySchedule: scheduler,
         })
         if (!result.success) {
-          setError(result.message ?? 'Could not save that template')
+          setError(result.message ?? t('tmpl.saveFailed'))
           return
         }
         onSaved({ name: nextName, description: nextDescription, whoMaySchedule: scheduler })
@@ -261,18 +272,18 @@ function TemplateDialog({
     <Dialog
       open
       onClose={onClose}
-      title={adding ? 'Add a template' : `Edit ${template.name}`}
+      title={adding ? t('tmpl.addATemplate') : `Edit ${template.name}`}
       description={adding
-        ? 'Name it for the occasion — “Family Reunion”, “Memorial Service”, “Scholarship Banquet”. Its steps are added on the card once it is on the list.'
-        : 'Changing a template never changes a gathering already built from it — every task keeps its own copy of what it asked.'}
+        ? t('tmpl.nameItHint')
+        : t('tmpl.neverChanges')}
       className="max-w-xl"
     >
       <div className="mt-2 space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="template-name" required>Template name</Label>
+          <Label htmlFor="template-name" required>{t('tmpl.name')}</Label>
           <Input
             id="template-name"
-            placeholder="e.g. Family Reunion"
+            placeholder={t('tmpl.namePh')}
             value={name}
             disabled={isPending}
             onChange={e => { setName(e.target.value); setError('') }}
@@ -285,11 +296,11 @@ function TemplateDialog({
         {/* NO "Usual location" FIELD, since 2026-08-19, and its absence is a decision — see the
             module header. A step of kind **A place** does that job properly. */}
         <div className="space-y-1.5">
-          <Label htmlFor="template-description">Description</Label>
+          <Label htmlFor="template-description">{t('common.description')}</Label>
           <Textarea
             id="template-description"
             rows={LONG_TEXT_ROWS}
-            placeholder="What this template is for, and anything an organizer should know before scheduling from it."
+            placeholder={t('tmpl.descPh')}
             value={description}
             disabled={isPending}
             onChange={e => setDescription(e.target.value)}
@@ -297,7 +308,7 @@ function TemplateDialog({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="template-scheduler">Who can schedule from this</Label>
+          <Label htmlFor="template-scheduler">{t('tmpl.whoCanSchedule')}</Label>
           <Select
             id="template-scheduler"
             value={scheduler}
@@ -305,10 +316,10 @@ function TemplateDialog({
             onChange={e => setScheduler(e.target.value as GatheringTemplateScheduler)}
           >
             {GATHERING_TEMPLATE_SCHEDULERS.map(s => (
-              <option key={s} value={s}>{SCHEDULER_LABEL[s]}</option>
+              <option key={s} value={s}>{schedulerLabel(t)[s]}</option>
             ))}
           </Select>
-          <p className="text-xs text-muted-foreground">{SCHEDULER_HINT[scheduler]}</p>
+          <p className="text-xs text-muted-foreground">{schedulerHint(t)[scheduler]}</p>
         </div>
 
         <FormError message={error} />
@@ -317,15 +328,15 @@ function TemplateDialog({
             dialog body scrolls and this footer does not, so a message rendered next to an
             input can be off-screen at the moment somebody presses Save again. */}
         <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
-          <Button variant="outline" disabled={isPending} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={isPending} onClick={onClose}>{t('action.cancel')}</Button>
           <Button
             variant={adding ? 'affirm' : 'default'}
             disabled={!name.trim() || !dirty || isPending}
             onClick={handleSave}
           >
             {adding
-              ? (isPending ? 'Adding…' : 'Add template')
-              : (isPending ? 'Saving…' : 'Save changes')}
+              ? (isPending ? t('action.adding') : t('tmpl.add'))
+              : (isPending ? t('action.saving') : t('action.saveChanges'))}
           </Button>
         </div>
       </div>
@@ -362,6 +373,7 @@ function StepDialog({
   onClose: () => void
   onSaved: (step: TemplateStep) => void
 }) {
+  const t = useT()
   const adding = step === null
   const [label, setLabel] = useState(step?.label ?? '')
   const [kind, setKind] = useState<GatheringStepKind>(step?.kind ?? 'text')
@@ -397,7 +409,7 @@ function StepDialog({
   function handleSave() {
     const nextLabel = label.trim()
     if (!nextLabel) { setError('A step needs a label'); return }
-    if (isChild && !nextChildId) { setError('Pick the template this step includes'); return }
+    if (isChild && !nextChildId) { setError(t('tmpl.pickStepTemplate')); return }
     setError('')
 
     const childName = nextChildId
@@ -416,7 +428,7 @@ function StepDialog({
           budgetDefaultCents: nextBudgetCents,
         })
         if (!result.success || !result.stepId) {
-          setError(result.message ?? 'Could not add that step')
+          setError(result.message ?? t('tmpl.addStepFailed'))
           return
         }
         onSaved({
@@ -438,7 +450,7 @@ function StepDialog({
           budgetDefaultCents: nextBudgetCents,
         })
         if (!result.success) {
-          setError(result.message ?? 'Could not save that step')
+          setError(result.message ?? t('tmpl.saveStepFailed'))
           return
         }
         onSaved({
@@ -457,15 +469,15 @@ function StepDialog({
       open
       onClose={onClose}
       title={adding ? `Add a step to ${templateName}` : `Edit “${step.label}”`}
-      description="One step per thing somebody has to do or decide. Steps are copied onto the tasks of every gathering scheduled from this template, so editing one never changes a gathering already running."
+      description={t('tmpl.stepsHint')}
       className="max-w-xl"
     >
       <div className="mt-2 space-y-4">
         <div className="space-y-1.5">
-          <Label htmlFor="step-label" required>Step</Label>
+          <Label htmlFor="step-label" required>{t('tmpl.step')}</Label>
           <Input
             id="step-label"
-            placeholder="e.g. Book the hall"
+            placeholder={t('tmpl.stepPh')}
             value={label}
             disabled={isPending}
             onChange={e => { setLabel(e.target.value); setError('') }}
@@ -474,7 +486,7 @@ function StepDialog({
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="step-kind">What it asks for</Label>
+          <Label htmlFor="step-kind">{t('tmpl.whatItAsks')}</Label>
           <Select
             id="step-kind"
             value={kind}
@@ -500,33 +512,29 @@ function StepDialog({
             materialises next to the one you just used is easier to miss than one below it. */}
         {isChild && (
           <div className="space-y-1.5">
-            <Label htmlFor="step-child" required>Template to include</Label>
+            <Label htmlFor="step-child" required>{t('tmpl.templateToInclude')}</Label>
             <Select
               id="step-child"
               value={childId}
               disabled={isPending}
               onChange={e => { setChildId(e.target.value); setError('') }}
             >
-              <option value="">Pick a template…</option>
+              <option value="">{t('tmpl.pickTemplate')}</option>
               {siblings.map(t => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </Select>
-            <p className="text-xs text-muted-foreground">
-              Every step of that template becomes a task of its own here, in its own order, at
-              this point in the list. Nobody answers this step — it is the checklist, not a
-              question. A template cannot include itself, or anything that leads back to it.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('adm.everyStepTemplateBecomes')}</p>
           </div>
         )}
 
         {!isChild && (
           <div className="space-y-1.5">
-            <Label htmlFor="step-help">Help text</Label>
+            <Label htmlFor="step-help">{t('tmpl.helpText')}</Label>
             <Textarea
               id="step-help"
               rows={LONG_TEXT_ROWS}
-              placeholder="What the assignee should know — who to call, what counts as done."
+              placeholder={t('tmpl.helpPh')}
               value={helpText}
               disabled={isPending}
               onChange={e => setHelpText(e.target.value)}
@@ -545,28 +553,25 @@ function StepDialog({
                   onChange={e => setRequired(e.target.checked)}
                   className="h-4 w-4 rounded border-input accent-primary"
                 />
-                <span className="text-sm font-medium">Required</span>
+                <span className="text-sm font-medium">{t('common.required')}</span>
               </label>
               <p className="text-xs text-muted-foreground">
                 {required
-                  ? 'The gathering is not finished until this one is answered and approved.'
-                  : 'Useful but optional — the gathering can be completed without it.'}
+                  ? t('tmpl.requiredHint')
+                  : t('tmpl.optionalHint')}
               </p>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="step-budget">Suggested budget ($)</Label>
+              <Label htmlFor="step-budget">{t('tmpl.suggestedBudget')}</Label>
               <Input
                 id="step-budget"
                 type="number" min="0" step="0.01"
-                placeholder="Optional"
+                placeholder={t('common.optional')}
                 value={budget}
                 disabled={isPending}
                 onChange={e => setBudget(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">
-                A starting figure copied onto the task. An organizer can change it on the
-                gathering, and the money that counts is the gathering’s own budget.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('adm.startingFigureCopiedOnto')}</p>
             </div>
           </div>
         )}
@@ -574,15 +579,15 @@ function StepDialog({
         <FormError message={error} />
 
         <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
-          <Button variant="outline" disabled={isPending} onClick={onClose}>Cancel</Button>
+          <Button variant="outline" disabled={isPending} onClick={onClose}>{t('action.cancel')}</Button>
           <Button
             variant={adding ? 'affirm' : 'default'}
             disabled={!label.trim() || !dirty || isPending}
             onClick={handleSave}
           >
             {adding
-              ? (isPending ? 'Adding…' : 'Add step')
-              : (isPending ? 'Saving…' : 'Save changes')}
+              ? (isPending ? t('action.adding') : t('tmpl.addStep'))
+              : (isPending ? t('action.saving') : t('action.saveChanges'))}
           </Button>
         </div>
       </div>
@@ -595,6 +600,7 @@ function StepDialog({
 export function AdminGatheringTemplatesClient({
   initialTemplates, mayCreate, mayEdit, mayDelete,
 }: Props) {
+  const t = useT()
   // `useServerState`, never `useState`: every write below ends in a `revalidatePath`, and
   // `router.refresh()` merges the new payload WITHOUT discarding client state — a plain
   // initializer is read once per visit and every later server render ignored, which is what
@@ -615,7 +621,7 @@ export function AdminGatheringTemplatesClient({
               `Plus`: `CirclePlus` is the tree's glyph for a create trigger in a `MainRail`
               action slot, and every other "Add …" button uses `Plus`. */}
           <Button variant="affirm" onClick={() => setAdding(true)}>
-            <Plus className="h-4 w-4" /> Add template
+            <Plus className="h-4 w-4" /> {t('tmpl.add')}
           </Button>
         </div>
       )}
@@ -644,8 +650,8 @@ export function AdminGatheringTemplatesClient({
         <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
           No gathering templates yet.{' '}
           {mayCreate
-            ? 'Add one, then give it a step for each thing somebody has to do.'
-            : 'Somebody who can add templates has to create the first one.'}
+            ? t('tmpl.addOneThen')
+            : t('tmpl.somebodyCan')}
         </p>
       ) : (
         <div className="space-y-6">
@@ -698,6 +704,7 @@ function TemplateCard({
   onPatch: (next: Partial<GatheringTemplate>) => void
   onRemove: () => void
 }) {
+  const t = useT()
   const confirm = useConfirm()
   const [error, setError] = useState('')
   // Set when `deleteGatheringTemplate` refuses because a gathering was built from this
@@ -730,7 +737,7 @@ function TemplateCard({
       const result = await updateGatheringTemplate({ templateId: template.id, isArchived: next })
       if (!result.success) {
         setError(result.message
-          ?? (next ? 'Could not archive that template' : 'Could not restore that template'))
+          ?? (next ? t('tmpl.archiveFailed') : t('tmpl.restoreFailed')))
         return
       }
       onPatch({ isArchived: next })
@@ -739,11 +746,13 @@ function TemplateCard({
 
   async function handleDelete() {
     const ok = await confirm({
-      title: 'Delete template',
-      description: `Delete “${template.name}” and ${template.steps.length === 1 ? 'its step' : `its ${template.steps.length} steps`}? `
-        + 'No gathering already built from it changes — every task keeps its own copy of what '
-        + 'it asked and what was answered. This cannot be undone.',
-      confirmLabel: 'Delete template',
+      title: t('tmpl.delete'),
+      // ONE AND MANY ARE TWO WHOLE KEYS. The old form spliced `its step` / `its N steps` into
+      // the middle of a sentence, which is an English agreement rule no translation can use.
+      description: template.steps.length === 1
+        ? t('tmpl.deleteOneStep', { name: template.name })
+        : t('tmpl.deleteManySteps', { name: template.name, n: template.steps.length }),
+      confirmLabel: t('tmpl.delete'),
       destructive: true,
     })
     if (!ok) return
@@ -755,7 +764,7 @@ function TemplateCard({
         // Surfaced VERBATIM. The action's sentence names how many gatherings were built from
         // this template and says to archive it instead; anything this screen composed from a
         // count that arrived with the page could be stale and would say less.
-        setError(result.message ?? 'Could not delete that template')
+        setError(result.message ?? t('tmpl.deleteFailed'))
         setOfferArchive(!template.isArchived)
         return
       }
@@ -778,7 +787,7 @@ function TemplateCard({
     startTransition(async () => {
       const result = await moveTemplateStep({ stepId: step.id, direction })
       if (!result.success) {
-        setStepError(result.message ?? 'Could not move that step')
+        setStepError(result.message ?? t('tmpl.moveStepFailed'))
         onPatch({ steps: template.steps })
       }
     })
@@ -786,18 +795,18 @@ function TemplateCard({
 
   async function handleDeleteStep(step: TemplateStep) {
     const ok = await confirm({
-      title: 'Delete step',
+      title: t('tmpl.deleteStep'),
       description: `Delete the “${step.label}” step from ${template.name}? Any task already `
         + 'created from it keeps its own wording, its assignee and its answer — only the '
         + 'template loses the step. This cannot be undone.',
-      confirmLabel: 'Delete step',
+      confirmLabel: t('tmpl.deleteStep'),
       destructive: true,
     })
     if (!ok) return
     setStepError('')
     startTransition(async () => {
       const result = await deleteTemplateStep(step.id)
-      if (!result.success) { setStepError(result.message ?? 'Could not delete that step'); return }
+      if (!result.success) { setStepError(result.message ?? t('tmpl.deleteStepFailed')); return }
       onPatch({ steps: template.steps.filter(s => s.id !== step.id) })
     })
   }
@@ -840,7 +849,7 @@ function TemplateCard({
                 <span className="block text-lg group-hover:text-brand-accent">{template.name}</span>
                 <span className="block text-sm text-muted-foreground">
                   {template.steps.length === 1 ? '1 step' : `${template.steps.length} steps`}
-                  {' · '}{usedCaption(template.usedByCount)}
+                  {' · '}{usedCaption(template.usedByCount, t)}
                   {template.isArchived && ' · Archived, so nothing new can be started from it'}
                   {/* NO "Unsaved changes" NOTE, and nothing to put in one: every edit now
                       happens in a dialog that either saves or is dismissed, so a shut card
@@ -856,7 +865,7 @@ function TemplateCard({
                 aria-label={`Edit the ${template.name} template`}
                 onClick={() => setEditingTemplate(true)}
               >
-                <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Edit
+                <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> {t('action.edit')}
               </Button>
             )}
             {mayEdit && (
@@ -867,7 +876,7 @@ function TemplateCard({
                   : `Take ${template.name} out of the schedule-from list, leaving every gathering as it is`}
                 onClick={() => handleArchive(!template.isArchived)}
               >
-                {template.isArchived ? 'Restore' : 'Archive'}
+                {template.isArchived ? t('tmpl.restore') : t('tmpl.archive')}
               </Button>
             )}
             {mayDelete && (
@@ -897,7 +906,7 @@ function TemplateCard({
               `MemberDetailsDialog` and the money ledgers use for one record in full. */}
           <dl className="divide-y text-sm">
             <div className="flex gap-4 py-2">
-              <dt className="w-40 shrink-0 text-muted-foreground">Description</dt>
+              <dt className="w-40 shrink-0 text-muted-foreground">{t('common.description')}</dt>
               {/* An em-dash for absent, which is what a missing value looks like everywhere
                   else in this product. `whitespace-pre-line` so a description written with
                   paragraphs reads back the way it was typed. */}
@@ -906,11 +915,11 @@ function TemplateCard({
               </dd>
             </div>
             <div className="flex gap-4 py-2">
-              <dt className="w-40 shrink-0 text-muted-foreground">Who can schedule</dt>
+              <dt className="w-40 shrink-0 text-muted-foreground">{t('tmpl.whoCanScheduleShort')}</dt>
               <dd className="min-w-0 flex-1">
-                {SCHEDULER_LABEL[template.whoMaySchedule]}
+                {schedulerLabel(t)[template.whoMaySchedule]}
                 <span className="mt-0.5 block text-xs text-muted-foreground">
-                  {SCHEDULER_HINT[template.whoMaySchedule]}
+                  {schedulerHint(t)[template.whoMaySchedule]}
                 </span>
               </dd>
             </div>
@@ -918,14 +927,14 @@ function TemplateCard({
 
           {!mayEdit && (
             <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-              You can view this template but not change it.
+              {t('tmpl.readOnly')}
             </div>
           )}
 
           <div className="flex flex-wrap items-center gap-2">
             {offerArchive && (
               <Button variant="outline" disabled={isPending} onClick={() => handleArchive(true)}>
-                Archive it instead
+                {t('tmpl.archiveInstead')}
               </Button>
             )}
           </div>
@@ -938,34 +947,30 @@ function TemplateCard({
                 {/* Preflight resets `h3` size and weight to `inherit` and `globals.css`'s base
                     layer gives it only a COLOUR, so a class-less `<h3>` is body text in
                     terracotta — indistinguishable in weight from the paragraph it heads. */}
-                <h3 className="text-sm font-semibold">Steps</h3>
-                <p className="text-sm text-muted-foreground">
-                  One per thing somebody has to do or decide, in the order they will be handed
-                  out. They are copied onto the tasks of every gathering scheduled from this
-                  template, so editing one here never changes a gathering already running.
-                </p>
+                <h3 className="text-sm font-semibold">{t('tmpl.steps')}</h3>
+                <p className="text-sm text-muted-foreground">{t('adm.onePerThingSomebody')}</p>
               </div>
               {mayCreate && (
                 <Button variant="affirm" size="sm" onClick={() => setAddingStep(true)}>
-                  <Plus className="h-4 w-4" /> Add step
+                  <Plus className="h-4 w-4" /> {t('tmpl.addStep')}
                 </Button>
               )}
             </div>
 
             {template.steps.length === 0 ? (
               <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-                No steps yet. A template with no steps builds a gathering with no work in it.
+                {t('tmpl.noSteps')}
               </p>
             ) : (
               <div className="overflow-visible rounded-xl border">
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      <th scope="col" className="px-3 py-2 font-semibold">Step</th>
-                      <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Asks for</th>
-                      <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Required</th>
-                      <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Suggested budget</th>
-                      <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+                      <th scope="col" className="px-3 py-2 font-semibold">{t('tmpl.step')}</th>
+                      <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('tmpl.asksFor')}</th>
+                      <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('common.required')}</th>
+                      <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('tmpl.suggestedBudgetShort')}</th>
+                      <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1071,9 +1076,11 @@ function StepRow({
   onMove: (direction: 'up' | 'down') => void
   onDelete: () => void
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   const isChild = step.kind === 'template'
   const budgetText = step.budgetDefaultCents == null
-    ? '—' : formatCurrency(step.budgetDefaultCents)
+    ? '—' : formatCurrency(step.budgetDefaultCents, intl)
 
   return (
     <tr className="border-b align-top last:border-0 sm:align-middle">
@@ -1095,7 +1102,7 @@ function StepRow({
             <span>Includes {step.childTemplateName ?? 'a template'}</span>
           ) : (
             <>
-              <span>{step.required ? 'Required' : 'Optional'}</span>
+              <span>{step.required ? t('common.required') : t('common.optional')}</span>
               <MetaDot />
               <span>Budget {budgetText}</span>
             </>

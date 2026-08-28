@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 import Stripe from 'stripe'
 
 import { STRIPE_API_VERSION, liveKeyOnNonProduction, stripeSecretKey } from '@/lib/stripe/config'
@@ -99,7 +101,37 @@ export function onAccount(stripeAccountId: string): Stripe.RequestOptions {
  * NOT FOR WEBHOOK-SIDE WRITES. Those are made idempotent by the database instead
  * (`stripe_webhook_events` and the unique index on `dues_payments(source, processor_ref)`),
  * because a redelivery can arrive days later — long past Stripe's own 24-hour window.
+ *
+ * ── `body` — FINGERPRINT THE REQUEST WHEN ITS SHAPE CAN CHANGE ──────────────────────
+ * Stripe replays a key only for the SAME parameters, and refuses outright when they differ:
+ *
+ *     Keys for idempotent requests can only be used with the same parameters they were
+ *     first used with. Try using a key other than 'genorra:plan:4BEZ2S:standard:recurring:1'
+ *
+ * That is a real one, 2026-08-25, and it is what a purely-intent key costs when the request
+ * it stands for is edited: every family that had attempted a checkout in the previous 24
+ * hours met it, on a deploy whose whole purpose was to make that checkout work. The naming
+ * parts said "this family, this tier, monthly, one month", which was still true — and the
+ * body they had been recorded against was not.
+ *
+ * Passing the params appends a short digest of them, so a changed request is a changed key
+ * with nobody having to remember a version number. It does NOT weaken the guarantee: a
+ * double-clicked button sends identical parameters and still gets one session back. The
+ * naming parts are kept in front of the digest because an opaque key in the Dashboard is
+ * one nobody can trace back to a family.
+ *
+ * REACH FOR IT WHEN THE REQUEST CARRIES A FIGURE OR A CONDITIONAL SHAPE. A fixed-shape call
+ * whose only variable is already in the parts — `ensureCustomer`, `cancelPlanRenewal` —
+ * gains nothing from it.
+ *
+ * AND THE WARNING ABOVE APPLIES TO THE BODY TOO: a params object holding a clock reading
+ * rather than a date makes every call a fresh key, which defeats the whole mechanism while
+ * looking like it is using it. `trial_end` is safe because it is midnight on a day; a
+ * `Math.floor(Date.now() / 1000)` in there would not be.
  */
-export function intentKey(parts: readonly (string | number)[]): string {
-  return ['genorra', ...parts].join(':').slice(0, 255)
+export function intentKey(parts: readonly (string | number)[], body?: unknown): string {
+  const named = ['genorra', ...parts].join(':')
+  if (body === undefined) return named.slice(0, 255)
+  const digest = createHash('sha256').update(JSON.stringify(body)).digest('hex').slice(0, 12)
+  return `${named}:${digest}`.slice(0, 255)
 }

@@ -38,6 +38,11 @@ export const WRITABLE_PROFILE_COLUMNS: readonly string[] = [
   'gender',
   'tshirt_category', 'tshirt_size',
   'time_zone',
+  // Writable, and confined to the supported set by `people_locale_check` (20260826000002)
+  // rather than here — the same arrangement `gender` has, and for the same reason: this
+  // list decides which KEYS reach the row and says nothing about their contents, so a
+  // caller who never loads the form is stopped by the constraint and not by this file.
+  'locale',
   // NO `chapter_id`, deliberately, and it is the one column here that was removed
   // rather than never added.
   //
@@ -136,6 +141,32 @@ export function pickProfileColumns<T extends Record<string, unknown>>(
   for (const [key, value] of Object.entries(input ?? {})) {
     if (!ALLOWED.has(key)) continue
 
+    // ── UNICODE NORMALISATION, AND IT HAS TO BE FIRST ────────────────────────────────
+    // "José" has two valid encodings: a precomposed `é` (U+00E9), and an `e` followed by a
+    // combining acute (U+0065 U+0301). They render identically and are DIFFERENT STRINGS —
+    // and which one arrives depends on the keyboard, the operating system and the input
+    // method, so one relative typing their own name on a Mac and again on Android can
+    // legitimately produce two spellings of it.
+    //
+    // Nothing downstream is prepared for that. A unique index treats them as two values, a
+    // `lower(email)` dedupe misses one, `===` is false, and `ORDER BY` puts them apart —
+    // each failing quietly, because the screen shows the same word either way.
+    //
+    // NFC (composed) rather than NFD, because it is the shorter form, it is what the web
+    // platform hands over in most cases already, and it is what Postgres text comparison
+    // and every other consumer will meet elsewhere.
+    //
+    // HERE rather than at the call sites for the reason this whole module exists: this is
+    // the one chokepoint every profile write passes through — `saveProfileSection`,
+    // `updateUserProfile` and `editPersonRecord` — so doing it here makes it enforced
+    // rather than remembered. It is the same argument that put the column allow-list here,
+    // and the same argument `toNameCase` and `normalizePhone` are already here for.
+    //
+    // NOTE the deliberate asymmetry with `lib/person-search.ts`, which normalises to NFD in
+    // order to STRIP marks. That is a folding pass over a value nobody stores; this is the
+    // canonical form of a value that goes in the row. They are not in tension.
+    const raw = typeof value === 'string' ? value.normalize('NFC') : value
+
     // Only strings are normalised. A caller could hand any JSON value for any key — these
     // are public endpoints — and handing a number to a string normaliser would coerce it
     // into the row as text. Leave a non-string exactly as it arrived and let the column's
@@ -143,14 +174,14 @@ export function pickProfileColumns<T extends Record<string, unknown>>(
     // BEFORE the normalisers, because a blank is not a value either of them should see and
     // `''` is what an emptied `<input type="date">` sends. `.trim()` first: a field the browser
     // has autofilled and the member has cleared can come back as whitespace.
-    if (typeof value === 'string' && BLANK_IS_NULL.has(key) && value.trim() === '') {
+    if (typeof raw === 'string' && BLANK_IS_NULL.has(key) && raw.trim() === '') {
       out[key] = null
-    } else if (typeof value === 'string' && NAME_COLUMNS.has(key)) {
-      out[key] = toNameCase(value)
-    } else if (typeof value === 'string' && PHONE_SET.has(key)) {
-      out[key] = normalizePhone(value)
+    } else if (typeof raw === 'string' && NAME_COLUMNS.has(key)) {
+      out[key] = toNameCase(raw)
+    } else if (typeof raw === 'string' && PHONE_SET.has(key)) {
+      out[key] = normalizePhone(raw)
     } else {
-      out[key] = value
+      out[key] = raw
     }
   }
   return out as Partial<T>

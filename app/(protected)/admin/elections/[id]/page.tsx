@@ -1,13 +1,14 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, MapPin } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getElectionSummary } from '@/app/actions/elections'
 import { formatDateRange } from '@/lib/date-utils'
 import { ElectionSummary } from '@/components/admin/ElectionSummary'
 import { ELECTION_WINDOW } from '@/components/elections/status'
 import { PageShell } from '@/components/layout/PageShell'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 export const metadata = { title: 'Election' }
 
@@ -43,11 +44,12 @@ export default async function AdminElectionDetailPage(
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'admin/elections')
+
+  const { t } = await callerI18n(user.id)
 
   const summary = await getElectionSummary(id)
   if (!summary) notFound()
@@ -61,8 +63,7 @@ export default async function AdminElectionDetailPage(
           href="/admin/elections"
           className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ChevronLeft className="h-3.5 w-3.5" /> Back to Elections
-        </Link>
+          <ChevronLeft className="h-3.5 w-3.5" />{t('adm.backElections')}</Link>
         <h1 className="text-3xl font-bold">{election.title}</h1>
         <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
           <MapPin className="h-3.5 w-3.5 shrink-0" /> {election.scope_label}
@@ -99,7 +100,7 @@ export default async function AdminElectionDetailPage(
         )}
       </div>
 
-      <ElectionSummary summary={summary} />
+      <ElectionSummary summary={summary} t={t} />
     </PageShell>
   )
 }

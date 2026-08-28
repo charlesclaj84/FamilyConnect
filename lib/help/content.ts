@@ -247,31 +247,43 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'General', text: 'Name, preferred name, phone, email, birthday, and your photo.' },
                 { term: 'Address', text: 'Where you live. Used by the Directory and by anything the family posts to you.' },
                 { term: 'Additional Information', text: 'T-shirt size, chapter, and the other details events and reports ask for.' },
-                { term: 'Text Messages', text: 'A mobile number your family can reach you on for safety check-ins, and whether they may.' },
+                { term: 'Notifications', text: 'What your family may contact you about and how — a switch per notification, per channel.' },
                 { term: 'Sign-in & Security', text: 'The address you sign in with, and your password.' },
               ),
             ],
           },
           {
-            id: 'text-messages',
-            heading: 'Text messages',
+            id: 'notifications',
+            heading: 'Notifications',
             blocks: [
-              p('**Text Messages** holds two separate things, and both have to be in place before your family can text you.'),
-              steps(
-                'A mobile number, confirmed. You type it, we send a six-digit code, and you type the code back. Until that is done the number is shown as **Not confirmed yet** and nothing is sent to it.',
-                'Your agreement. A separate **Agree to texts** control, because giving us a number is not the same as saying we may use it.',
+              p('**Notifications** is a grid: a row for each thing your family can contact you about, and a column for each way it could reach you — **Email**, **SMS** and **Push Notification**. Each cell is one press, **On** or **Off**, and it saves the moment you press it. There is nothing to submit.'),
+              p('It uses the email address and mobile number already in your **General** details. Both are shown at the top of the screen so you can see where a notification would go, and changing either one there changes it for every notification at once. This screen never asks you for a second number.'),
+              defs(
+                { term: 'Safety Check', text: 'Your family raises a check-in during a storm, an evacuation or an emergency and asks whether you are safe. Email is on unless you turn it off; SMS is off unless you turn it on.' },
               ),
-              note('Text messages are not switched on yet. You can add your number and record your choice now — the page says so at the top — and the number will be confirmed as soon as they are.'),
-              p('The panel tells you if something is still missing. "Agreed" beside an unconfirmed number does not mean you will be texted, so the screen says which step is outstanding rather than leaving you to work it out.'),
+              note('**Email is on by default and SMS is not**, and that is deliberate rather than inconsistent. A check-in that reaches nobody is the thing worth avoiding, and your family already has your address — but a text has to be agreed to before anybody sends one, so nothing about SMS is ever on because you did not notice it.'),
+              note('**Push Notification** says **Not built yet** on every row. The column is there so you can see what is coming rather than being surprised by it later; nothing in the product sends one today.'),
             ],
           },
           {
-            id: 'text-messages-stopping',
+            id: 'notifications-delivery',
+            heading: 'When On does not mean it will arrive',
+            blocks: [
+              p('A switch says what you have asked for. Whether we can actually deliver it is a separate question, and the screen says so underneath the grid rather than letting **On** imply more than it should.'),
+              bullets(
+                'No email address on file, or only a placeholder one — nothing marked on for Email can arrive. Add a real address under **General**.',
+                'No mobile number on file — nothing marked on for SMS can arrive.',
+                'A mobile number we have not confirmed yet — we send a six-digit code to it before we text you anything.',
+                'Text messages not switched on yet at our end. You can record your choice now and we will start using it as soon as they are.',
+              ),
+            ],
+          },
+          {
+            id: 'notifications-stopping',
             heading: 'Stopping texts',
             blocks: [
-              p('**Turn off** stops them, immediately, with nothing to confirm and no reason asked for. You can turn them back on whenever you like.'),
-              p('Replying **STOP** to any text we send stops them too — and that one is different in a way worth knowing about. It is your mobile network that acts on it, not us, so we cannot switch it back on from this page and neither can anybody in your family. If you want them back, text **START** to the number that messaged you.'),
-              note('The number here is only for text messages. The phone number in your **General** details is what relatives see in the Directory, and changing one does not change the other — so you can list a landline for people to call and confirm a mobile for check-ins.'),
+              p('Turning the **SMS** cell off stops them immediately, with nothing to confirm and no reason asked for. You can turn it back on whenever you like.'),
+              p('Replying **STOP** to any text we send stops them too — and that one is different in a way worth knowing about. It is your mobile network that acts on it, not us, so we cannot switch it back on from this page and neither can anybody in your family. The cell says **Stopped** rather than offering a switch. If you want them back, text **START** to the number that messaged you.'),
             ],
           },
           {
@@ -1097,7 +1109,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('**Both ends count.** An election whose nominations read "January 1st – January 5th" is open on the 5th, right up to the end of the day. The same is true of voting — with one exception, below.'),
               p('Voting never opens before nominations close, so the list of candidates you are voting on cannot change under you. There is often a gap in between, and the screen says what it is waiting for.'),
               p('**Voting may open on the same day nominations close, and then that day belongs to voting.** Nominations run through their closing date, or until voting opens, whichever comes first — so on a shared day the nomination form is already shut and the ballot is live. If your family wants the whole of that day for nominations, the closing date goes one day earlier.'),
-              note('Nothing here happens at a time of day, and no timezone is involved. A window opens on its date and closes at the end of its closing date, and the screen shows the same dates to everybody.'),
+              note('Nothing here happens at a time of day. A window opens on its date and closes at the end of its closing date, and the screen shows the same dates to everybody.'),
+              p('**"The end of the day" means the end of the day where your family is.** An election records the timezone it was scheduled in, and both the dates on screen and the moment the ballot actually shuts are read in that one timezone — so a relative in another part of the world sees the same closing date as everybody else, and the ballot stays open until your family\'s midnight rather than somebody else\'s.'),
             ],
           },
           {
@@ -1209,7 +1222,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('The page is two lists. **Coming up** holds everything that has not finished, soonest first; **Already held** holds the rest, most recent first. A gathering running over several days stays under Coming up on every one of them and is marked **Happening now** while it does.'),
               p('Each card carries the dates, the place, how far the work has got — "4 of 9 tasks approved", or **No tasks yet** for a gathering nothing has been added to — and a status. The status is set by whoever is organising rather than worked out from the calendar, because a gathering can be called off without its dates moving:'),
               defs(
-                { term: 'Planning', text: 'Being put together. Dates may still move.' },
+                { term: 'Planning', text: 'Being put together. Dates may still move. Only a gathering built from templates starts here — one that is just a date starts at Scheduled, because there is nothing to plan.' },
                 { term: 'Scheduled', text: 'Settled, and going ahead.' },
                 { term: 'Complete', text: 'Finished, and said to be finished by whoever ran it.' },
                 { term: 'Cancelled', text: 'Called off. Nothing is deleted and it can be set back.' },
@@ -1225,11 +1238,33 @@ export const HELP_PARTS: readonly HelpPart[] = [
               steps(
                 'Press **Schedule a gathering**.',
                 'Tick any templates under **Built from**. Every step of every one you tick becomes a task, ready to hand out, and each template you tick becomes a segment of the gathering. Tick none and the gathering is a date with no tasks.',
-                'Fill in **Title** and **First day**, and **Last day** only if it runs more than one day.',
+                'Fill in **Title**.',
+                'Fill in **When** — see below. A date is all that is required.',
                 '**Where** and **What it is** are optional.',
                 'Press **Schedule gathering**. You land on the gathering itself, where any tasks it just made are waiting.',
               ),
               p('Each template decides for itself who may schedule from it, so the list offered here is not the whole library — one set to Administrators only is not on it unless you can manage gatherings, and an archived template cannot start anything new. Where nothing is offered at all, the form says the gathering will be a date with no tasks and points at the library for whoever can author one: nothing is wrong with your access.'),
+            ],
+          },
+          {
+            id: 'when',
+            heading: 'When it happens',
+            blocks: [
+              p('**When** is the same set of controls wherever a gathering is created or edited. A date is the only thing it insists on; everything else is there when you need it.'),
+              defs(
+                { term: 'Starts', text: 'The day it begins, and — if you want to say so — the time. Leave the time empty and the gathering is just "on that day", which is how most are entered.' },
+                { term: 'End time', text: 'When it finishes. On a single day this is a time and nothing else: a picnic that runs from 11 to 4 has an end time and no end date.' },
+                { term: 'Runs over more than one day', text: 'Tick this and one more question appears, because two very different things both take more than a day.' },
+              ),
+              p('That question is the important one:'),
+              defs(
+                { term: 'One continuous block', text: 'A reunion from Friday evening to Sunday lunchtime. Give the day it ends and, if you like, the time. It draws as one bar spanning those days on [the calendar](/gatherings/calendar).' },
+                { term: 'Separate days, same gathering', text: 'A committee meeting on three Saturdays. Add a row for each day, each with its own times. Every one draws as its own entry on the calendar, all carrying this gathering\'s title.' },
+              ),
+              note('The difference matters more than it looks. Before this existed, three Saturdays had to be entered as a first day and a last day — which put a bar across the whole fortnight and told the family they were gathering for two weeks. Separate days say what is actually happening.'),
+              p('**The end can never be before the start.** The date pickers grey out the impossible days, and if you get there another way the form says so rather than saving it. The same applies to times within one day — 2pm to 9am is not a gathering — while across days it is perfectly ordinary, so Friday 6pm to Sunday 11am is accepted.'),
+              p('**Give a time and you are asked which timezone it is in**, starting with your own. The time is then shown exactly as you typed it, with that timezone named beside it — 11:00 AM CDT.'),
+              note('Nothing is ever converted. A time here means what it says where the gathering is, exactly as it would on a printed invitation, and every relative sees the same figure — the timezone is named so somebody elsewhere knows what to make of it, not so the product can quietly move it.'),
             ],
           },
           {
@@ -1244,7 +1279,16 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Approved', text: 'Accepted. That answer is the family\'s record of it and the person who sent it cannot change it.' },
                 { term: 'Needs another look', text: 'Handed back with notes. The notes are on the row, and whoever holds the task reads them on [My Gathering Tasks](/gatherings/my-tasks).' },
               ),
-              p('**Organize this gathering** appears for somebody who can run it and leads to the same gathering on [Gathering Management](/admin/gatherings), where the work is handed out and ruled on.'),
+              p('**Organize this gathering** appears for somebody who can run it and leads to the same gathering on [Gathering Management](/admin/gatherings), where the work is handed out and ruled on. On the Free plan it says **Edit this gathering** instead and goes to the same place — there is no work to hand out, so the console is where the title, the dates, the place and the status are changed.'),
+            ],
+          },
+          {
+            id: 'free-plan',
+            heading: 'Gatherings on the Free plan',
+            blocks: [
+              p('A gathering is a date, a place and a description on the Free plan, and that is a complete feature: it goes on [the calendar](/gatherings/calendar), every relative can see it, and it can be edited or cancelled at any time.'),
+              p('What Free does not include is the planning half — the checklists a gathering is built from, the tasks handed out to relatives by name, and the budget drawn on a fund. So there is no **Planning** status, no **Segments**, no **Tasks**, and nothing to organise; the gathering\'s page says what those would add rather than showing empty panels for them.'),
+              note('Nothing is lost by staying on Free and nothing is lost by leaving it. A family that upgrades can start handing out work on gatherings it already has, and one that lapses keeps every task and answer already recorded — they simply cannot add more.'),
             ],
           },
           {
@@ -1893,7 +1937,11 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'schedules',
             heading: 'Your schedules',
             blocks: [
-              p('The **Dues** pane lists every schedule you are on: what it costs a year, what one installment comes to, when the next one falls, and what is left. The two cards at the top are the same ones [Summary](/accounting/summary) leads with.'),
+              p('The **Dues** pane lists every schedule you are on, in two tables: **Required dues**, which everybody on them owes, and **Optional dues**, which are yours to take on or decline. Each row says what the schedule costs a year, what the next payment has to be, when it falls, and what is left. The two cards at the top are the same ones [Summary](/accounting/summary) leads with.'),
+              p('You only ever see a table you have a schedule in. A family that runs no optional dues shows one table and no empty heading — so a missing **Optional dues** table means there are none for you, not that something failed to load.'),
+              p('**Every schedule you are on stays listed, including ones you have settled.** A due you have paid in full says **Paid** and shows a zero balance rather than disappearing — the tables are what you are on, and what you still owe is the **Due now** card underneath them.'),
+              p('A row shaded and marked **Past due** is one the calendar has already asked for and the money has not covered. It is a marker rather than a warning: being behind is not an error, and the next payment simply carries the catch-up.'),
+              p('Two other markers appear beside a schedule name. **Declined** is an optional due you have opted out of. **Not yet due** is a due that starts at an age you have not reached — see [Dues that start at an age](#age).'),
             ],
           },
           {
@@ -1912,7 +1960,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'cadence',
             heading: 'Changing how often you pay',
             blocks: [
-              p('Each schedule has a **Pay cadence** you set for yourself — weekly, monthly, quarterly, annual, or one-time. The annual total does not change; the cadence divides it.'),
+              p('Each schedule has a pay cadence you set for yourself — weekly, monthly, quarterly, annual, or one-time. The annual total does not change; the cadence divides it. The one you are on is printed under the amount on the row.'),
+              p('To change it, open the row\u2019s menu — the button at the right-hand end — and press **Change pay cadence**. The dialog prices all five before you pick one: what each installment costs, and, where a switch would leave you catching up, what the very next payment would be.'),
               p('This is yours to set and needs no permission from anybody. Nobody else can set it for you.'),
             ],
           },
@@ -1920,12 +1969,22 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'pay-online',
             heading: 'Paying by card',
             blocks: [
-              p('A **Pay online** section appears under the table once your family has connected a card processor. It lists each due you still owe with the amount that is due now already filled in — change it if you want to pay more or clear the due entirely — and **Pay by card** takes you to Stripe\'s own page to enter it.'),
-              p('The payment posts to the family\'s books as soon as it clears. There is nothing for a treasurer to key in afterwards, and it appears in your own payment history alongside anything recorded by hand.'),
-              p('**Pay … automatically** sets up a standing card payment for that due, at the cadence you have already chosen above. It follows that cadence rather than asking again, so changing **Pay cadence** is how you change what is taken. Each due is separate: setting one up says nothing about the others.'),
+              p('Once your family has connected a card processor, every due you still owe carries a **Pay** button on its own row. It opens with the amount that is due now already filled in — change it if you want to pay more or clear the due entirely — and takes you to Stripe\u2019s own page to enter your card.'),
+              p('The payment posts to the family\u2019s books as soon as it clears. There is nothing for a treasurer to key in afterwards, and it appears in your own payment history alongside anything recorded by hand.'),
+              p('**Set up automatic payments**, in the row\u2019s menu, starts a standing card payment for that due at the cadence you have already chosen. It follows that cadence rather than asking again, so [changing your cadence](#cadence) is how you change what is taken. Each due is separate: setting one up says nothing about the others. A due you have set up says **Automatic** on its row, with what is taken and how often.'),
               note('Automatic payments are for dues only. A donation drive is a gift, and agreeing to give once is not agreeing to give every month — so drives are given to one at a time from the **Donations** pane.'),
-              p('**Stop** ends the automatic payments straight away, and everything already paid stays on your record. There is nothing to cancel elsewhere.'),
-              note('No **Pay online** section means your family has not connected a processor yet, or Stripe is still checking the account. Ask whoever keeps your family\'s accounting — it is the **Processing** section of [Accounting](/admin/accounting) — and pay by whatever means your family already uses in the meantime.'),
+              p('**Stop automatic payments**, in the same menu, ends them straight away, and everything already paid stays on your record. There is nothing to cancel elsewhere.'),
+              note('No **Pay** button anywhere means your family has not connected a processor yet, or Stripe is still checking the account. Ask whoever keeps your family\u2019s accounting — it is the **Processing** section of [Accounting](/admin/accounting) — and pay by whatever means your family already uses in the meantime.'),
+            ],
+          },
+          {
+            id: 'due-now',
+            heading: 'Paying everything at once',
+            blocks: [
+              p('**Due now**, under both tables, lists every due with something to pay and what each one comes to, then the total. It is what you would pay to be completely up to date today, catch-ups included — and a line carrying one says so underneath itself.'),
+              p('**Pay … by card** takes the lot in one card payment. Stripe\u2019s page itemizes it, one line per due, so you can see what each part of the total is for before you commit — and it arrives in the family\u2019s books split the same way, one entry per schedule.'),
+              p('The dialog lists every due with its own amount, so you can change any of them before paying. Set one to zero to leave it out of this payment; it stays exactly where it was.'),
+              note('If your family has not connected a card processor, **Due now** still adds everything up — it just says so instead of offering a button. The figure is the same one to hand over by cheque.'),
             ],
           },
           {
@@ -1957,7 +2016,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'opt-out',
             heading: 'Opting out',
             blocks: [
-              p('**Opt out** on a schedule says it does not apply to you — a fund you are not part of, a chapter you do not belong to. It asks you to confirm, and **Opt back in** reverses it. Only an optional due offers it; a required one has no button.'),
+              p('**Opt out**, in the menu on a row of the **Optional dues** table, says the schedule does not apply to you — a fund you are not part of, a chapter you do not belong to. It asks you to confirm, and **Opt back in** in the same menu reverses it. Only an optional due offers it; nothing in the **Required dues** table can be declined.'),
               note('Opting out is not the same as having paid. It removes the schedule from your balance going forward; it does not erase what was already owed.'),
             ],
           },
@@ -1987,7 +2046,11 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'giving',
             heading: 'Giving to one',
             blocks: [
-              p('Giving online is not built yet, which is why **Give** is there and does nothing. Hand your gift to whoever keeps the books and it appears here — and in your [payment history](/reporting/payment-history) — once they record it.'),
+              p('**Give**, on an open drive, takes you to Stripe\u2019s own page to enter your card. Type what you want to give — there is no set amount and no maximum, and the drive tells you what would meet its goal if it has one. It posts to the family\u2019s books as soon as it clears, and appears in your [payment history](/reporting/payment-history) alongside anything recorded by hand.'),
+              p('Giving is one drive at a time and never recurring, which is the difference from paying dues. Agreeing to give once is not agreeing to give every month, and giving to one drive says nothing about the others.'),
+              p('A gift goes whole into your family\u2019s **Donations** fund. It is not split across funds the way a dues payment is — see [Funds](/help/accounting#funds).'),
+              note('A drive that has met its goal keeps taking gifts, and one that has **Closed** takes none. A closed drive shows no **Give** button because its total cannot move any more.'),
+              note('No **Give** button on any drive means your family has not connected a card processor yet. Hand your gift to whoever keeps the books and it appears here once they record it.'),
               note('Nothing on this page says who gave what. Every figure is either a family total or your own.'),
             ],
           },
@@ -2323,7 +2386,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
               note('**You will never be asked for a Stripe key, and you should never give one to anybody.** GENORRA stores only your account\'s id — enough to send a payment to you, and useless to anyone on its own. If a screen ever asks you to paste a key that begins `sk_`, it is not this product.'),
               p('A card payment posts to the family\'s books the moment it clears and splits across your funds by the same **Routing** table a payment keyed in by hand follows. Nobody has to enter it afterwards, and it appears in [Transactions](/accounting/transactions) beside everything else.'),
               p('**Check with Stripe** asks Stripe for the account\'s current state, which is worth pressing if you have just finished something on their side. Until it says card payments are on, members see no **Pay online** section at all — better than a button that fails once somebody has decided to pay.'),
-              note('**Disconnecting stops every member\'s automatic payment as well.** The panel says how many there are before you confirm. Nothing already recorded is removed, and your family\'s Stripe account is untouched — this only stops GENORRA using it.'),
+              note('**Disconnecting stops every member\'s automatic payment as well, and those cannot be restarted.** Reconnecting brings the same Stripe account back with its history and bank details exactly as they were — but each relative who was paying automatically has to set their payment up again, because the arrangement was cancelled at Stripe rather than paused. The panel says how many people that is before you confirm. Nothing already recorded is removed, and your family\'s own Stripe account is untouched — this only stops GENORRA using it.'),
+              p('**Because of that, disconnecting asks for two things.** First your sign-in password, so it cannot happen by accident or by somebody sitting at an unlocked screen. Then a six-digit code emailed to the address you sign in with — not to an address you type, and not to anybody else. The code lasts fifteen minutes, works once, and cancels itself after five wrong tries. It is the same gate as [removing a family](/help/family-settings#removal), and it is there for the same reason: the part you can undo hides a part you cannot.'),
+              p('If your family has disconnected, the pane says so and the button reads **Reconnect Stripe** rather than **Connect a Stripe account** — because it really is the same account coming back, not a new one being made.'),
             ],
           },
           {
@@ -2810,9 +2875,11 @@ export const HELP_PARTS: readonly HelpPart[] = [
         sections: [
           {
             id: 'bands',
-            heading: 'Two sections',
+            heading: 'Three sections',
             blocks: [
-              p('The page is two sections, chosen from the rail across the top. **Plan** is which subscription this family is on and what moving between them does. **Family** is the family itself — its name, the code relatives join with, and switching it off.'),
+              p('The page is three sections, chosen from the rail across the top. **Billing** is what your family has paid GENORRA, until when, and every receipt. **Plan** is which subscription this family is on, what each one includes, and where you move between them. **Family** is the family itself — its name, the code relatives join with, and switching it off.'),
+              p('Settings opens on **Plan**, because that is the section most people came to look at or change.'),
+              p('Paying for a plan is covered in [Paying for a plan](/help/plans#paying); this page is where the controls are.'),
             ],
           },
           {
@@ -2834,15 +2901,18 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'plan',
             heading: 'The plan',
             blocks: [
-              p('The **Plan** section, which Settings opens on, shows which plan the family is on, what it costs monthly and for the year, and what it includes. It is also where an administrator moves the family between plans. **Features** on any row opens the full list for that plan. See [Plans](/help/plans).'),
+              p('The **Plan** section, which Settings opens on, shows which plan the family is on, what each one costs a month, and what it includes. **Features** on any row opens the full list for that plan. See [Plans](/help/plans).'),
+              p('**Every plan row carries its own button.** A row above the one you are on says **Upgrade to …** and starts the payment; a row below says **Downgrade to …**. The row you are already on says **Current plan** and does nothing. A plan that has a price but is not on sale yet shows **Coming Soon** instead of a button.'),
               p('Moving down asks for your password as well as a confirmation, because it closes pages for every member of the family at once. Nothing is deleted either way.'),
+              note('**Moving down is also how you stop paying.** Downgrading to Free ends a monthly plan at the end of the period you have already paid for — there is no separate "stop renewing" control, because stopping the payment and choosing what you stop at are one decision. The confirmation names the date it takes effect.'),
             ],
           },
           {
             id: 'billing',
             heading: 'Paying for the plan',
             blocks: [
-              p('**Billing**, beneath the plans, is what your family has actually paid: which plan, the day it is paid through, and whether anything renews it. **Pay for …** opens Stripe\'s own page; nothing on this screen takes a card number.'),
+              p('**Billing** is what your family has actually paid: which plan, the day it is paid through, the day the next payment is due, and whether anything renews it. Nothing on it starts a payment — the buttons that do are on the plan rows in **Plan**, and they open Stripe\'s own page. Nothing on this screen takes a card number.'),
+              note('**"Next payment due" means two different things and the row beside it says which.** On a monthly plan it is the day the card is charged automatically. On a plan paid in advance nothing renews it, so it is the day the pages close unless somebody buys again.'),
               p('**Every family is billed on the 1st.** The first payment is only the rest of the current month, worked out by the day and rounded up — so joining on the 20th costs a few days, not a month, and every payment after it lands on the 1st.'),
               note('**If the rest of the month comes to less than $5, the first payment covers this month and next.** A charge of a pound or two is not worth putting on a card statement, and below about 50 cents a card network will not take it at all. The screen says which option you are being offered and why.'),
               p('There are two ways to pay and one rate. **Monthly** renews until you stop it. **In advance** is one payment covering the rest of this month plus however many whole months you like, up to 60 — which you can also change on Stripe\'s page. There is no discount for paying ahead and no annual price; a year in advance is twelve months at the monthly rate.'),
@@ -2851,9 +2921,9 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Moving down', text: 'Costs nothing and changes nothing today. It takes effect on the 1st — the next one if you pay monthly, or the 1st after your prepaid term runs out. Six months of Plus, moved down in month two, is Plus for months two to six and the cheaper plan from month seven. There is no refund, which is exactly what keeps those pages open until it finishes.' },
               ),
               note('**Nothing is granted by pressing a button here.** The plan changes when the payment clears, which can be a moment later — so if the band still shows the old plan straight after paying, give it a minute and reload. If a payment fails, this section says so and nothing your family can reach changes while Stripe keeps trying the card.'),
-              p('**Cards and receipts** opens Stripe\'s own billing portal, where the card on file is changed and every invoice can be downloaded. **What GENORRA has charged** lists the same payments here.'),
-              note('These are GENORRA\'s charges to your family and they are deliberately nowhere near your family\'s own money. Nothing on this band appears in your funds, your [P&L](/reporting/pl-summary), your dues projections or any member\'s payment history — what your family pays us and what your relatives pay your family are two separate sets of books.'),
-              p('**Stop renewing** ends a monthly plan at the end of the period already paid for, never immediately. Every page stays open until then and every record is kept afterwards — moving back up later finds everything where it was.'),
+              p('**Cards and receipts** opens Stripe\'s own billing portal, where the card on file is changed and every invoice can be downloaded. **What GENORRA has charged** lists the same payments here — what was bought, when it was paid, what it covers and how much.'),
+              note('These are GENORRA\'s charges to your family and they are deliberately nowhere near your family\'s own money. Nothing on this section appears in your funds, your [P&L](/reporting/pl-summary), your dues projections or any member\'s payment history — what your family pays us and what your relatives pay your family are two separate sets of books.'),
+              p('**To stop paying, move down to Free on the [Plan](/admin/settings) section.** That ends a monthly plan at the end of the period already paid for, never immediately. Every page stays open until then and every record is kept afterwards — moving back up later finds everything where it was.'),
             ],
           },
           {
@@ -2937,7 +3007,30 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('Free, Standard, Plus and Premium, and they are inclusive — each one is everything below it and more. What each includes is listed in the **Plan** section of [Settings](/admin/settings), which is the copy that is kept current.'),
               p('Each paid plan shows one price there, per month, month to month. No figure is written down here — the panel reads the real one, and a price copied into a manual is a price that goes out of date without anybody noticing.'),
-              note('Free is free, and not a trial. The three paid plans have prices and none is on sale yet: there is no payment step anywhere in the product, so nothing is billed whichever plan a family is put on. Every paid card says so.'),
+              note('Free is free, and not a trial. Standard and Plus can be bought; Premium has a price and is not on sale yet, and its row is marked **Coming Soon**. Nothing is ever billed for a plan a family has not paid for.'),
+            ],
+          },
+          {
+            id: 'paying',
+            heading: 'Paying for a plan',
+            blocks: [
+              p('Paid plans are set up in the **Billing** section of [Settings](/admin/settings), underneath the plans themselves, and only somebody with the Settings permission can open it. There are two ways to pay: **monthly**, which renews on the 1st, or **in advance**, which buys a set number of months outright and renews nothing.'),
+              p('Payment is taken by Stripe on their own pages. No card details are typed into GENORRA and none are stored here. The **Plan** section above cannot move a family up on its own — an upgrade is a payment, so the rows there point at Billing instead.'),
+              p('Moving to a cheaper plan is free and does not go through Billing. A monthly plan can also be stopped, which lets it run to the end of the month already paid for rather than ending it that day.'),
+              note('A plan only changes once the payment has actually gone through, which is Stripe telling us rather than the browser coming back. If you close the tab mid-payment, nothing is lost — the plan changes when the money does, and the Billing section shows what has been paid.'),
+            ],
+          },
+          {
+            id: 'chosen-at-signup',
+            heading: 'A plan chosen when the family was created',
+            blocks: [
+              p('Choosing Standard or Plus on the pricing page, or on the registration form, does not pay for it — there is no family to bill yet and no account to charge. The choice is remembered against the family instead.'),
+              p('Once the email address is confirmed and whoever created the family signs in, the dashboard leads with **Finish paying for** that plan, above everything else it has to say. It carries two buttons.'),
+              defs(
+                { term: 'Pay Now', text: 'Takes you straight to Stripe to pay monthly, starting with the rest of this month. There is no separate screen to find first.' },
+                { term: 'Cancel', text: 'Drops the plan the family asked for and leaves it on Free. It cancels nothing at Stripe and buys nothing — every plan is still on sale in Settings afterwards.' },
+              ),
+              p('A link under the buttons goes to the Billing section instead, which is where months can be bought in advance. Until a payment goes through the family is on Free and nothing has been charged.'),
             ],
           },
           {

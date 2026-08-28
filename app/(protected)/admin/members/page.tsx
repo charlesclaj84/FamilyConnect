@@ -1,5 +1,4 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { can, canAny, requireFamilyActive } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
 import {
@@ -18,6 +17,8 @@ import {
   type MemberBoardData,
 } from '@/components/admin/AdminAccessClient'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 // "Members", not "Members & Access" — see the note on the FEATURES entry in
 // lib/features.ts. The route and the resource key both stay `admin/users`.
@@ -100,9 +101,9 @@ const NO_RIGHTS: AccessRights = { view: false, create: false, edit: false, remov
  * owes.
  */
 export default async function AdminAccessPage({ searchParams }: Props) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
+  const { t } = await callerI18n(user.id)
 
   // A REMOVED FAMILY GETS THE NOTICE, NOT THIS SCREEN — and this page went without the line
   // for as long as it has decomposed `requireView`. `requireView` is THREE checks folded into
@@ -370,15 +371,7 @@ export default async function AdminAccessPage({ searchParams }: Props) {
   return (
     <PageShell>
       <div className="mb-8">
-        <h1 className="mb-1 text-3xl font-bold">Members</h1>
-        {/* Broadened when Organization arrived: the sentence about templates was the whole
-            of this page when three of its four panes were about permissions, and it now
-            describes only three of them. Both halves are stated because both are what an
-            administrator comes here to change. */}
-        <p className="text-muted-foreground">
-          Who is in the family and how it is organized. Every member is on one permission
-          template, and that template is what they can do.
-        </p>
+        <h1 className="text-3xl font-bold">{t('page./admin/members.title')}</h1>
       </div>
 
       <AdminAccessClient

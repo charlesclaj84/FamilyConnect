@@ -25,6 +25,17 @@
 <title>Reset your GENORRA password</title>
 <style>
   /* Enhancement only — see the README. Inline styles carry the design. */
+  /*
+     THE CSS PROPERTY, NOT JUST THE META TAGS. Both were here and the property was not, and
+     the property is the half that matters: iOS Mail and Outlook read it to decide whether to
+     apply their OWN dark-mode inversion on top of the design. Without it they darken the sand
+     button label until it vanishes into the burgundy behind it — reported as "you cannot see
+     the text" on Confirm my email address. No @media rule can fix that, because the client
+     inverts AFTER ours have applied.
+  */
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  body  { color-scheme: light dark; supported-color-schemes: light dark; }
+
   @media (prefers-color-scheme: dark) {
     .gn-page  { background-color: #1e1216 !important; }
     .gn-card  { background-color: #26191e !important; border-color: #402931 !important; }
@@ -33,9 +44,30 @@
     .gn-muted { color: #b9afa4 !important; }
     .gn-rule  { border-color: #402931 !important; }
     .gn-btn   { background-color: #7d474f !important; }
-    .gn-btn a { color: #faf7f2 !important; }
+    /* NOT the label. Sand is pinned INLINE with `!important` on both the anchor and the
+       span inside it, so no client rewrite can reach it — and an inline `!important` beats a
+       stylesheet `!important`, so a rule here would be dead. It does not need one: sand is
+       7.37:1 on the light band and 5.27:1 on this one, so one colour is correct in both
+       themes and there is nothing to swap. */
     .gn-code  { background-color: #1e1216 !important; border-color: #402931 !important; color: #b9afa4 !important; }
   }
+
+  /*
+     OUTLOOK.COM REWRITES COLOURS AND IGNORES `prefers-color-scheme`. It stamps `data-ogsc`
+     (original get style color) and `data-ogsb` (background) on whatever it has rewritten, and
+     those attributes are the only hook for putting a colour back. Every rule above is
+     mirrored through them; in any client that never sets them these select nothing.
+  */
+  [data-ogsc] .gn-page  { background-color: #1e1216 !important; }
+  [data-ogsc] .gn-card  { background-color: #26191e !important; border-color: #402931 !important; }
+  [data-ogsc] .gn-h1    { color: #e5d9c6 !important; }
+  [data-ogsc] .gn-text  { color: #e5d9c6 !important; }
+  [data-ogsc] .gn-muted { color: #b9afa4 !important; }
+  [data-ogsc] .gn-rule  { border-color: #402931 !important; }
+  [data-ogsc] .gn-btn   { background-color: #7d474f !important; }
+  [data-ogsc] .gn-code  { background-color: #1e1216 !important; border-color: #402931 !important; color: #b9afa4 !important; }
+  [data-ogsb] .gn-band  { background-color: #6b2d3a !important; }
+
   @media only screen and (max-width: 620px) {
     .gn-pad  { padding-left: 24px !important; padding-right: 24px !important; }
     .gn-btn  { width: 100% !important; }
@@ -57,8 +89,8 @@
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" class="gn-card" style="width:600px; max-width:600px; background-color:#faf7f2; border:1px solid #e7dccf; border-radius:14px; overflow:hidden;">
 
         <tr>
-          <td align="center" bgcolor="#6b2d3a" style="background-color:#6b2d3a; padding:28px 24px 22px 24px;">
-            <img src="{{ .SiteURL }}/identity/genorra-mail-mark-256.png" width="64" height="64" alt="" border="0" style="display:block; width:64px; height:64px; border:0; outline:none; text-decoration:none;">
+          <td align="center" bgcolor="#6b2d3a" class="gn-band" style="background-color:#6b2d3a; padding:28px 24px 22px 24px;">
+            <img src="{{ .SiteURL }}/identity/genorra-app-256.png" width="64" height="64" alt="" border="0" style="display:block; width:64px; height:64px; border:0; outline:none; text-decoration:none; border-radius:14px;">
             <div style="height:12px; line-height:12px; font-size:12px;">&nbsp;</div>
             <div style="font-family:'Cormorant Garamond',Georgia,'Times New Roman',Times,serif; font-size:26px; line-height:30px; letter-spacing:0.22em; color:#e5d9c6; text-transform:uppercase; mso-line-height-rule:exactly;">
               GENORRA
@@ -107,8 +139,8 @@
               <tr>
                 <td class="gn-btn" align="center" bgcolor="#6b2d3a" style="background-color:#6b2d3a; border-radius:8px;">
                   <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=recovery"
-                     style="display:inline-block; padding:15px 38px; font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; font-weight:600; line-height:20px; color:#e5d9c6; text-decoration:none; border-radius:8px;">
-                    Choose a new password
+                     style="display:inline-block; padding:15px 38px; font-family:Inter,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; font-size:16px; font-weight:600; line-height:20px; color:#e5d9c6 !important; text-decoration:none; border-radius:8px;">
+                    <span class="gn-btn-label" style="color:#e5d9c6 !important;">Choose a new password</span>
                   </a>
                 </td>
               </tr>

@@ -1,6 +1,7 @@
 import type { LucideIcon } from 'lucide-react'
 import type { PillarVignetteKind } from '@/components/marketing/PillarVignette'
 import { CalendarCheck, Wallet, Network } from 'lucide-react'
+import { type T } from '@/lib/i18n/t'
 
 /**
  * The three jobs a family organization lives or dies on, defined ONCE.
@@ -49,7 +50,26 @@ import { CalendarCheck, Wallet, Network } from 'lucide-react'
  * string is worth keeping for that day, because the repo has shipped the bug once: a
  * string `src` that resolves to nothing renders an empty box in silence, whereas a
  * static import of a missing file fails `next build`.
+ *
+ * ── THE COPY IS A FUNCTION OF `t` AND THE REST OF THE ROW IS NOT ─────────────────
+ * `pillars(t)` since the public site learned Spanish and French. What moved into the
+ * catalogue is the eyebrow, the title, the two blurbs and the six bullets; what stayed
+ * here is everything the reader does not read — the `route` this file's own header calls
+ * the honesty mechanism, the icon, the two colour tokens and the vignette name.
+ *
+ * That division is the reason this conversion is safe. The whole argument above is that
+ * ONE definition feeds two surfaces so they cannot drift; keying the words does not
+ * weaken it, because both surfaces still call this one function and the catalogue is
+ * itself gated — `i18n:check` reports a Spanish bullet by name once its English source
+ * has been edited, which is a stronger guarantee than the original comment could make.
+ *
+ * The bullets are `mkt.pillar.<i>.b<n>`, indexed rather than named. Six bullets per
+ * pillar, and the count is a constant here so a seventh is one number and one entry
+ * rather than an edit in three catalogues that could each be forgotten differently.
  */
+
+/** How many bullets each pillar carries on `/features`. See the header. */
+const BULLETS_PER_PILLAR = 6
 
 export interface Pillar {
   /** Route in `lib/features.ts` whose status decides the Coming Soon badge. Never linked. */
@@ -80,34 +100,37 @@ export interface Pillar {
   vignette: PillarVignetteKind
 }
 
-export const PILLARS: readonly Pillar[] = [
-  // THIS PILLAR SOLD THE EVENTS PRODUCT UNTIL 2026-08-19 — save-the-dates, hotel room blocks,
-  // RSVPs by household, day-of check-in — and every one of those screens is now deleted. A
-  // marketing page selling a feature by name that the product does not have is the failure
-  // FutureFeature.md is largely a record of, so the copy is what Gatherings actually does:
-  // a template, a gathering scheduled from it, a named relative holding each step, and an
-  // organizer accepting the answer or handing it back.
-  //
-  // `route` IS LOAD-BEARING AND IS NOT DECORATION: `FeatureShowcase` and `/features` both
-  // call `isFeatureFuture(pillar.route)` on it to decide whether to draw a Coming Soon badge,
-  // and it is the React key. Left as `/events` it would resolve against a registry entry that
-  // no longer exists.
+/**
+ * The three pillars, in the reader's language.
+ *
+ * The order is the sales order and is deliberate: what you plan, what it costs, who your
+ * family is. Both surfaces render them in this order and neither sorts.
+ */
+export function pillars(t: T): readonly Pillar[] {
+  return SHAPES.map((shape, i) => ({
+    ...shape,
+    eyebrow: t(`mkt.pillar.${i}.eyebrow`),
+    title: t(`mkt.pillar.${i}.title`),
+    short: t(`mkt.pillar.${i}.short`),
+    blurb: t(`mkt.pillar.${i}.blurb`),
+    bullets: Array.from({ length: BULLETS_PER_PILLAR }, (_, n) =>
+      t(`mkt.pillar.${i}.b${n}`)),
+  }))
+}
+
+/**
+ * Everything about a pillar the reader does not read.
+ *
+ * ── `route` IS STILL THE HONESTY MECHANISM ──────────────────────────────────────
+ * `/gatherings`, not `/events`. That entry was renamed when Events was retired, and the
+ * comment it replaced is worth keeping: both surfaces call `isFeatureFuture(pillar.route)`
+ * to decide whether to draw a Coming Soon badge, and it is the React key. Left as
+ * `/events` it would resolve against a registry entry that no longer exists — which is not
+ * an error, it is a card that silently claims to have shipped.
+ */
+const SHAPES: readonly Omit<Pillar, 'eyebrow' | 'title' | 'short' | 'blurb' | 'bullets'>[] = [
   {
     route: '/gatherings',
-    eyebrow: 'Plan it all',
-    title: 'Reunions that run themselves',
-    short:
-      'Build the reunion from a checklist, hand every step to the relative who owns it, and see at a glance what has come back — with nobody chasing a spreadsheet the week before.',
-    blurb:
-      'A gathering is more than a date. Author the checklist once, schedule the reunion from it, and every step becomes somebody’s job with a due date against it.',
-    bullets: [
-      'Reusable templates: the checklist your family runs every year, written once',
-      'Every step assigned to a named relative, with a due date',
-      'Answers come back to an organizer, who accepts them or sends them back with notes',
-      'A budget drawn on a real fund, with each task claiming its own line',
-      'One gathering flagged premier, across the top of everyone’s dashboard',
-      'The month calendar, with every gathering on the days it actually runs',
-    ],
     icon: CalendarCheck,
     tone: 'text-brand-affirm',
     chip: 'bg-brand-affirm/15',
@@ -115,20 +138,6 @@ export const PILLARS: readonly Pillar[] = [
   },
   {
     route: '/reporting/pl-summary',
-    eyebrow: 'Money, handled',
-    title: 'A real treasury, not a shoebox',
-    short:
-      'Dues your members can actually afford, every dollar routed to the right fund automatically, and a profit and loss your treasurer can hand to the board.',
-    blurb:
-      'Collect dues your members can actually afford, route every dollar to the right fund automatically, and answer "where did the money go" with a report instead of an argument.',
-    bullets: [
-      'Dues at any cadence, with installment plans members can keep up with',
-      'Automatic routing: the reunion fund fills first, the college fund follows',
-      'Minimum-balance waterfalls, so no fund is quietly left short',
-      'Contributions and disbursements on one full ledger',
-      'Fund balances that update the moment dues come in',
-      'A profit and loss your treasurer can hand to the board',
-    ],
     icon: Wallet,
     tone: 'text-brand-accent',
     chip: 'bg-brand-accent/12',
@@ -136,34 +145,6 @@ export const PILLARS: readonly Pillar[] = [
   },
   {
     route: '/community/family-tree',
-    eyebrow: 'Know your family',
-    title: 'The family record, kept properly',
-    short:
-      'The Family Tree and the directory — one living record the whole family maintains, rather than one exhausted historian.',
-    blurb:
-      'Who is related to whom, how to reach them, and every branch traced back through the generations — maintained by the family rather than by one exhausted historian.',
-    // ── "LINEAGE" AND "DIRECT LINEAGE" ARE NOT PRODUCT WORDS, AND MUST NOT COME BACK ──
-    // This pillar sold a "Direct lineage view" and "convert them to members" until
-    // 2026-08-19, and both named `/direct-lineage`, which was DELETED on 2026-08-13 (a
-    // child is a person — AGENTS.md §4b). Nothing caught it for six days and nothing
-    // could: the Coming Soon pill is derived per ROUTE from `isFeatureFuture()`, and a
-    // route that has been deleted is not 'future', it is absent — so `getFeature()` finds
-    // nothing, there is nothing to badge, and the bullet read as shipped.
-    //
-    // The screen that replaced both is `/community/family-tree`, and the words below are ITS words.
-    // Tracing one line back is the tree's focus canvas plus its Bloodline toggle — but
-    // "Bloodline" is an in-canvas control, not a thing to sell a family, so the bullet
-    // names the outcome and leaves the control unnamed. Recording a relative with no
-    // address and inviting them later are two ordinary things the tree does, not a
-    // separate kind of person with a conversion step.
-    bullets: [
-      'A multi-generation tree: parents, grandparents, children and spouses',
-      'Step-relationships and ex-partners handled gracefully',
-      'Trace any branch back through the generations, one click at a time',
-      'Record a relative who has no email yet, and invite them when they do',
-      'Profiles the family maintains: contact details, birthdays, t-shirt sizes',
-      'A directory with search that handles real names — accents and all',
-    ],
     icon: Network,
     // Ink, not Legacy gold. Gold is 2.30 on a card and an icon carrying meaning
     // needs 3:1 — gold is the WASH here, never the foreground.

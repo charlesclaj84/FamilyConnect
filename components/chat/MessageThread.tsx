@@ -13,6 +13,7 @@ import {
   type ChatMessage, type SenderMap, type RoomWithMeta, type ChatParticipant,
 } from '@/app/actions/chat'
 import { createClient } from '@/lib/supabase/client'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 interface Props {
   room: RoomWithMeta
@@ -24,9 +25,13 @@ interface Props {
    * member would not appear until the whole page was reloaded.
    */
   onParticipantsChange: (roomId: string, next: ChatParticipant[]) => void
+  /** The reader's timezone, resolved by the page. Message timestamps are instants. */
+  zone: string
 }
 
-export function MessageThread({ room, currentUserId, onBack, onParticipantsChange }: Props) {
+export function MessageThread({ room, currentUserId, onBack, onParticipantsChange, zone }: Props) {
+  const t = useT()
+  const intl = useIntlTag()
   const confirm = useConfirm()
   const [messages, setMessages]         = useState<ChatMessage[]>([])
   const [senderMap, setSenderMap]       = useState<SenderMap>({})
@@ -43,13 +48,13 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
   const activeParticipants: ChatParticipant[] = room.participants.filter(p => p.user_id !== currentUserId)
 
   const threadTitle =
-    room.kind === 'family' ? 'Family Chat'
+    room.kind === 'family' ? t('chat.familyChat')
     : room.kind === 'group' ? (room.name ?? 'Group')
     : (() => {
         const other = room.participants.find(p => p.user_id !== currentUserId)
         return other
-          ? ([other.first_name, other.last_name].filter(Boolean).join(' ') || 'Family Member')
-          : 'Direct Message'
+          ? ([other.first_name, other.last_name].filter(Boolean).join(' ') || t('chat.familyMember'))
+          : t('chat.directMessage')
       })()
 
   // Load messages + Realtime subscription when room changes
@@ -91,7 +96,7 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
     const result = await sendMessage(room.id, trimmed)
     setSending(false)
     if (result.success) setBody('')
-    else setSendError(result.error ?? 'Failed to send')
+    else setSendError(result.error ?? t('chat.sendFailed'))
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -113,15 +118,15 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
       ? ([member.firstName, member.lastName].filter(Boolean).join(' ') || 'this family member')
       : 'this family member'
     const ok = await confirm({
-      title: 'Add to group',
+      title: t('chat.addToGroup'),
       description: `Add ${name} to "${threadTitle}"? They will be able to read the conversation.`,
-      confirmLabel: 'Add',
+      confirmLabel: t('chat.addToGroup'),
     })
     if (!ok) return
     setMemberLoading(true)
     const result = await addGroupMember(room.id, userId)
     setMemberLoading(false)
-    if (!result.success) { setMemberError(result.error ?? 'Could not add member'); return }
+    if (!result.success) { setMemberError(result.error ?? t('chat.addFailed')); return }
     setMemberError('')
     setAddMembers(prev => prev.filter(m => m.userId !== userId))
     onParticipantsChange(room.id, [...room.participants, {
@@ -137,16 +142,16 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
       ? ([participant.first_name, participant.last_name].filter(Boolean).join(' ') || 'this family member')
       : 'this family member'
     const ok = await confirm({
-      title: 'Remove from group',
+      title: t('chat.removeFromGroup'),
       description: `Remove ${name} from "${threadTitle}"? They lose access to the conversation.`,
-      confirmLabel: 'Remove',
+      confirmLabel: t('action.remove'),
       destructive: true,
     })
     if (!ok) return
     setMemberLoading(true)
     const result = await removeGroupMember(room.id, userId)
     setMemberLoading(false)
-    if (!result.success) { setMemberError(result.error ?? 'Could not remove member'); return }
+    if (!result.success) { setMemberError(result.error ?? t('chat.removeFailed')); return }
     setMemberError('')
     onParticipantsChange(room.id, room.participants.filter(p => p.user_id !== userId))
     // Offer them back in the "add members" list rather than making the creator
@@ -162,15 +167,15 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
 
   function resolveName(userId: string) {
     const s = senderMap[userId]
-    if (!s) return 'Family Member'
-    return [s.first_name, s.last_name].filter(Boolean).join(' ') || 'Family Member'
+    if (!s) return t('chat.familyMember')
+    return [s.first_name, s.last_name].filter(Boolean).join(' ') || t('chat.familyMember')
   }
 
   return (
     <div className="flex flex-col h-full">
       {/* Thread header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b shrink-0 bg-background">
-        <button onClick={onBack} className="md:hidden p-1 rounded hover:bg-muted transition-colors" aria-label="Back">
+        <button onClick={onBack} className="md:hidden p-1 rounded hover:bg-muted transition-colors" aria-label={t('action.back')}>
           <ChevronLeft className="h-5 w-5" />
         </button>
         <h2 className="text-sm font-semibold truncate flex-1">{threadTitle}</h2>
@@ -185,7 +190,7 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
           <button
             onClick={handleShowMembers}
             className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground shrink-0"
-            aria-label="Manage members"
+            aria-label={t('chat.manageMembers')}
           >
             <Settings className="h-4 w-4" />
           </button>
@@ -195,13 +200,13 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
       {/* Group member management panel (creator only) */}
       {room.kind === 'group' && showMembers && isCreator && (
         <div className="border-b bg-muted/30 px-4 py-3 space-y-3">
-          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Members</p>
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t('chat.members')}</p>
 
           <FieldError message={memberError} />
 
           <div className="space-y-1">
             {activeParticipants.map(p => {
-              const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Family Member'
+              const name = [p.first_name, p.last_name].filter(Boolean).join(' ') || t('chat.familyMember')
               return (
                 <div key={p.user_id} className="flex items-center justify-between text-sm">
                   <span>{name}</span>
@@ -210,7 +215,7 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
                     disabled={memberLoading}
                     className="flex items-center gap-1 text-xs text-destructive hover:opacity-70 transition-opacity"
                   >
-                    <UserMinus className="h-3.5 w-3.5" /> Remove
+                    <UserMinus className="h-3.5 w-3.5" /> {t('action.remove')}
                   </button>
                 </div>
               )
@@ -219,9 +224,9 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
 
           {addMembers.length > 0 && (
             <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Add members:</p>
+              <p className="text-xs text-muted-foreground">{t('chat.addMembers')}</p>
               {addMembers.map(m => {
-                const name = [m.firstName, m.lastName].filter(Boolean).join(' ') || 'Family Member'
+                const name = [m.firstName, m.lastName].filter(Boolean).join(' ') || t('chat.familyMember')
                 return (
                   <div key={m.userId} className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">{name}</span>
@@ -230,7 +235,7 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
                       disabled={memberLoading}
                       className="flex items-center gap-1 text-xs text-primary hover:opacity-70 transition-opacity"
                     >
-                      <UserPlus className="h-3.5 w-3.5" /> Add
+                      <UserPlus className="h-3.5 w-3.5" /> {t('chat.addToGroup')}
                     </button>
                   </div>
                 )
@@ -243,15 +248,17 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
       {/* Message scroll area */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         {messages.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center mt-8">No messages yet. Say hello!</p>
+          <p className="text-sm text-muted-foreground text-center mt-8">{t('chat.noMessages')}</p>
         ) : (
           <div className="flex flex-col gap-3">
             {messages.map(msg => (
               <MessageBubble
+                intl={intl}
                 key={msg.id}
                 message={msg}
                 senderName={resolveName(msg.sender_id)}
                 isOwn={msg.sender_id === currentUserId}
+                zone={zone}
               />
             ))}
             <div ref={bottomRef} />
@@ -281,13 +288,13 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
               value={body}
               onChange={e => setBody(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type a message… (Enter to send, Shift+Enter for new line)"
+              placeholder={t('chat.typeMessage')}
               maxLength={4000}
               rows={1}
               maxRows={5}
               className="flex-1 text-sm"
             />
-            <Button size="icon" disabled={!body.trim() || sending} onClick={handleSend} aria-label="Send">
+            <Button size="icon" disabled={!body.trim() || sending} onClick={handleSend} aria-label={t('chat.send')}>
               <Send className="h-4 w-4" />
             </Button>
           </div>
@@ -296,8 +303,8 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
         <div className="border-t px-4 py-3 shrink-0 bg-muted/30">
           <p className="text-xs text-muted-foreground text-center">
             {room.kind === 'dm'
-              ? 'This conversation has ended.'
-              : 'You have been removed from this group.'}
+              ? t('chat.ended')
+              : t('chat.youWereRemoved')}
           </p>
         </div>
       )}

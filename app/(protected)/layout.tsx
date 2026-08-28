@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import { createClient } from '@/lib/supabase/server'
 import { viewableResources } from '@/lib/auth/permissions'
 import {
   getMyFamilyCode, getViewingMembership, isApproved, isActiveFamily,
@@ -12,7 +11,13 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { ConfirmProvider } from '@/components/ui/confirm'
 import { IdleTimeout } from '@/components/layout/IdleTimeout'
 import { ShellWatcher } from '@/components/layout/ShellWatcher'
+import { ZoneHint } from '@/components/layout/ZoneHint'
+import { LocaleSync } from '@/components/layout/LocaleSync'
+import { LocaleProvider } from '@/components/layout/LocaleProvider'
+import { resolveLocale } from '@/lib/auth/locale'
+import { BASE_LOCALE } from '@/lib/i18n/locales'
 import { ShellSwoop, ShellHill } from '@/components/layout/ShellDecor'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * The signed-in app says "do not index me", on every route beneath this layout.
@@ -46,6 +51,14 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   let familyCode = ''
   /** Gates the idle timer — there is nothing to sign out if nobody resolved. */
   let signedIn = false
+  /**
+   * The member's language, for `<html lang>` via LocaleSync at the bottom of this file.
+   *
+   * Empty until resolved, and LocaleSync does nothing with an empty string — so a request
+   * that never reaches the resolver leaves the root layout's `Accept-Language` answer in
+   * place rather than overwriting it with a guess.
+   */
+  let locale = ''
   /**
    * What this shell was built from, and whether the caller is sitting in front of a
    * reduced version of it waiting for that to change. Both feed ShellWatcher — see its
@@ -84,8 +97,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   let sessionStartedAt: string | null = null
 
   try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+    const { user } = await currentUser()
     if (user) {
       signedIn = true
       sessionStartedAt = user.last_sign_in_at ?? null
@@ -101,7 +113,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       //
       // getMyFamilyCode costs nothing here: it reads getMyFamilies(), which is
       // cache()-wrapped, and TopBar calls it again in this same request.
-      const [resources, code, shell, membership, staff] = await Promise.all([
+      const [resources, code, shell, membership, staff, resolvedLocale] = await Promise.all([
         viewableResources(user.id),
         getMyFamilyCode(user.id),
         // Costs one extra round of the same cache()-wrapped reads the three above
@@ -113,7 +125,11 @@ export default async function ProtectedLayout({ children }: { children: React.Re
         // can see `genorra_staff` at all. Memoized per request, so the staff layout
         // asking again on the other window costs nothing here.
         isGenorraStaff(user.id),
+        // The member's chosen language, or their browser's, or English. One `people` read,
+        // cache()-wrapped like the rest, feeding LocaleSync at the bottom of this file.
+        resolveLocale(user.id),
       ])
+      locale = resolvedLocale
       // ── A REMOVED FAMILY GETS THE PERSONAL PAGES AND NOTHING ELSE ─────────────────
       // Navigation, not authorization, and the distinction is written out at length on
       // REMOVED_FAMILY_RESOURCES. Every page still gates on `requireView`, which knows
@@ -155,6 +171,18 @@ export default async function ProtectedLayout({ children }: { children: React.Re
   // the provider has to sit above the whole shell — the top bar and the rail
   // mutate state too.
   return (
+    // THE LANGUAGE WRAPS EVERYTHING, and the two providers nest in this order deliberately:
+    // `useConfirm()`'s dialogs carry captions of their own, so the language has to be resolvable
+    // from inside them.
+    //
+    // OUTSIDE `<main key={familyCode}>`, like IdleTimeout and ZoneHint, because a language
+    // belongs to the PERSON and not to the family they are looking at — a switch must not tear
+    // the provider down and rebuild it.
+    //
+    // It is what every client component in the product reads through `useT()`. Server components
+    // cannot see a context and call `callerI18n()` instead; `LocaleProvider`'s header carries the
+    // argument for both.
+    <LocaleProvider locale={locale || BASE_LOCALE}>
     <ConfirmProvider>
       {/* ONE ROW, NO HEADER ABOVE IT. There used to be a full-width `bg-brand-hero`
           Navbar here carrying the mark, the wordmark and four controls. The Golden
@@ -277,6 +305,20 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       {signedIn && shellFingerprint && (
         <ShellWatcher fingerprint={shellFingerprint} watchClosely={watchClosely} />
       )}
+
+      {/* Records which timezone this browser is in, so `resolveZone` can read dates in the
+          member's own zone before they have set a preference. Outside `<main
+          key={familyCode}>` for the same reason IdleTimeout is: a zone belongs to the
+          person, not to the family they are looking at. Renders nothing. */}
+      {signedIn && <ZoneHint />}
+
+      {/* Puts the member's OWN language on `<html lang>`. The root layout negotiates
+          `Accept-Language`, which is right for Home and for anybody not signed in; this is
+          where a stored choice takes over. Outside `<main key={familyCode}>` for the same
+          reason ZoneHint is: a language belongs to the person, not to the family they are
+          looking at. Renders nothing. */}
+      {signedIn && <LocaleSync locale={locale} />}
     </ConfirmProvider>
+    </LocaleProvider>
   )
 }

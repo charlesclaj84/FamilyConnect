@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
+import { resolveZone } from '@/lib/auth/zone'
 import {
   getOrCreateFamilyRoom,
   getRoomList,
@@ -9,6 +9,8 @@ import {
 import { ChatShell } from '@/components/chat/ChatShell'
 import { PAGE_MEASURE } from '@/components/layout/PageShell'
 import { cn } from '@/lib/utils'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Chat' }
 
@@ -18,8 +20,10 @@ export const metadata = { title: 'Chat' }
  * Chat was the one signed-in screen with no visible title — it had the `metadata.title`
  * that names the browser tab and no `<h1>`, so a member landing here from the rail got a
  * room list with nothing naming the page, and a screen reader got a document whose only
- * headings were room names. Every other page under (protected) leads with an h1 and a
- * one-line description; this one now does too.
+ * headings were room names. It leads with an h1 like every other page now. (It carried a
+ * one-line description under it too until 2026-08-25, when those were swept out of the app —
+ * "Group threads and private messages with your family" is what a room list already looks
+ * like, and a caption that restates its own heading is furniture.)
  *
  * The heading could not simply be prepended, because `ChatShell` used to size ITSELF at
  * `h-[calc(100vh-4rem)]` — the viewport less the TopBar — so anything above it pushed the
@@ -46,25 +50,24 @@ export const metadata = { title: 'Chat' }
  * the thread's height, which is exactly what the arithmetic above is arranged to allow.
  */
 export default async function ChatPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'community/chat')
 
-  const [{ room: familyRoom, error: chatError }, rooms, familyMembers] = await Promise.all([
+  const { t } = await callerI18n(user.id)
+
+  const [{ room: familyRoom, error: chatError }, rooms, familyMembers, zone] = await Promise.all([
     getOrCreateFamilyRoom(),
     getRoomList(),
     getFamilyMembersWithAccounts(),
+    resolveZone(user.id),
   ])
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
       <div className={cn(PAGE_MEASURE, 'shrink-0 pb-6 pt-10')}>
-        <h1 className="mb-1 text-3xl font-bold">Chat</h1>
-        <p className="text-muted-foreground">
-          Group threads and private messages with your family.
-        </p>
+        <h1 className="text-3xl font-bold">{t('page./community/chat.title')}</h1>
       </div>
 
       {/* THE BODY IS INSET TO THE SAME MEASURE AS THE HEADING, and until 2026-08-13 it was
@@ -85,18 +88,17 @@ export default async function ChatPage() {
             familyRoomId={familyRoom.id}
             currentUserId={user.id}
             familyMembers={familyMembers}
+            zone={zone}
           />
         ) : (
           <div className="mx-auto max-w-lg space-y-2 py-16 text-center">
-            <p className="text-sm font-medium text-destructive">Unable to load chat</p>
+            <p className="text-sm font-medium text-destructive">{t('comm.unableLoadChat')}</p>
             {chatError && (
               <p className="rounded bg-muted px-3 py-2 text-left font-mono text-xs text-muted-foreground">
                 {chatError}
               </p>
             )}
-            <p className="text-xs text-muted-foreground">
-              Make sure the chat migration has been applied in your Supabase project.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('comm.makeSureChatMigration')}</p>
           </div>
         )}
       </div>

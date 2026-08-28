@@ -3,11 +3,16 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import {
+  readOccurrences, resolveWhen, whenFromInput, writeOccurrences,
+} from '@/lib/gathering-when-write'
+import type { GatheringWhen } from '@/lib/gathering-when'
 import { requireMember, requireRead, requireScope } from '@/lib/auth/guard'
 import { canAny } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
 import { getMyNameInFamily } from '@/lib/auth/family'
-import { todayLocal } from '@/lib/date-utils'
+import { resolveFamilyZone } from '@/lib/auth/zone'
+import { todayIn } from '@/lib/tz'
 import { attachTemplatesToGathering } from '@/lib/gathering-instantiate'
 import { notifyGatheringTaskSubmitted } from '@/lib/notifications'
 import {
@@ -16,6 +21,7 @@ import {
   type GatheringStatus, type GatheringTaskKind, type GatheringTaskStatus,
   type TaskProgress,
 } from '@/lib/gatherings'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * GATHERINGS, member facing — the list, one gathering, my tasks, and scheduling.
@@ -130,6 +136,21 @@ export interface GatheringSummary {
   location: string | null
   startsOn: string
   endsOn: string | null
+  /**
+   * The ENVELOPE's times, and whether it is one block or several occasions — all three
+   * materialised on `gatherings` by trigger, so a list can say when each gathering is without a
+   * child join per row. `formatWhenBrief` reads them and refuses to print a range for a series.
+   */
+  startTime: string | null
+  /**
+   * The zone the times above WERE STATED IN — never one to convert them into.
+   * `null` where no time was given. See 20260826000003.
+   */
+  timeZone: string | null
+
+  endTime: string | null
+  isContinuous: boolean
+  occurrenceCount: number
   status: GatheringStatus
   isPremier: boolean
   taskCounts: TaskProgress
@@ -202,6 +223,16 @@ export interface GatheringBudgetView {
 export type GatheringBudgetState = 'shown' | 'withheld' | 'unavailable'
 
 export interface GatheringDetail extends GatheringSummary {
+  /**
+   * Every occasion, in entry order — what this screen PRINTS.
+   *
+   * The four envelope fields inherited from `GatheringSummary` are what a LIST reads; a detail
+   * page has room to name each day and its times, and for a series that is the only honest
+   * answer (the envelope of three Saturdays is a fortnight). NULL where the read failed, which
+   * is different from a gathering with no dates — a state the database does not permit — so a
+   * consumer falls back to the envelope rather than to nothing.
+   */
+  occurrences: { startsOn: string; startTime: string | null; endsOn: string | null; endTime: string | null }[] | null
   tasks: GatheringTaskRow[]
   /**
    * The gathering's SEGMENTS, in `position` order — the Welcome, the Picnic and the Send Off
@@ -272,7 +303,11 @@ export interface PremierGathering {
 // fetched them (§5). They are also not this client's to read at all — see the note above
 // `TASK_COLUMNS`, which is the same rule on the other table.
 
-const GATHERING_SELECT = 'id, title, summary, location, starts_on, ends_on, status, is_premier, photo_path'
+// `start_time`, `end_time` and `is_continuous` arrived with `20260826000001` — the envelope,
+// materialised from `gathering_occurrences` by trigger, so a list can say when each gathering
+// is without a child join per row.
+const GATHERING_SELECT = 'id, title, summary, location, starts_on, ends_on, start_time, time_zone, '
+  + 'end_time, is_continuous, status, is_premier, photo_path'
 
 interface GatheringRow {
   id: string
@@ -284,6 +319,11 @@ interface GatheringRow {
   status: string
   is_premier: boolean
   photo_path: string | null
+  // Added with `20260826000001` — the envelope, materialised on `gatherings` by trigger.
+  start_time: string | null
+  time_zone: string | null
+  end_time: string | null
+  is_continuous: boolean
 }
 
 /**
@@ -660,6 +700,11 @@ export async function getGatherings(): Promise<GatheringSummary[]> {
     location:   row.location,
     startsOn:   row.starts_on,
     endsOn:     row.ends_on,
+    startTime:  row.start_time ? String(row.start_time).slice(0, 5) : null,
+    timeZone:   row.time_zone ?? null,
+    endTime:    row.end_time ? String(row.end_time).slice(0, 5) : null,
+    isContinuous: row.is_continuous !== false,
+    occurrenceCount: 1,
     status:     row.status as GatheringStatus,
     isPremier:  row.is_premier,
     taskCounts: taskProgress(asTaskStatuses(row.gathering_tasks ?? [])),
@@ -754,7 +799,7 @@ export async function getGatheringDetail(gatheringId: string): Promise<Gathering
     template_id: string; position: number; occurs_on: string | null; location: string | null
   }[]
 
-  const [names, templates, latest, budget, budgetLines] = await Promise.all([
+  const [names, templates, latest, budget, budgetLines, occurrenceMap] = await Promise.all([
     personNames(taskRows.map(t => t.assignee_id ?? ''), g.familyCode),
     templateNames([...taskRows.map(t => t.template_id), ...useRows.map(u => u.template_id)], g.familyCode),
     latestSubmissions(supabase, taskRows.map(t => t.id)),
@@ -765,6 +810,16 @@ export async function getGatheringDetail(gatheringId: string): Promise<Gathering
     // the task query as an extra column — see `TASK_COLUMNS` for why it no longer can.
     canSeeBudget ? readBudget(gatheringId, g.familyCode) : Promise.resolve(null),
     canSeeBudget ? taskBudgetLines(taskRows.map(t => t.id), g.familyCode) : Promise.resolve(null),
+    // ── EVERY OCCASION, ON THE USER CLIENT ──────────────────────────────────────────
+    // `gathering_occurrences` carries a SELECT policy keyed on `gatherings:view` through
+    // `auth_may_see_gathering()`, so RLS does the narrowing here — and `readOccurrences`
+    // applies `.eq('family_code', …)` beside it anyway, which is belt-and-braces on the user
+    // client and the whole boundary on any future admin-client caller.
+    //
+    // NOT gated on anything: the caller has already been shown this gathering by the read
+    // above, and WHEN it happens is part of what a gathering IS rather than a restricted
+    // figure like the budget.
+    readOccurrences(supabase, g.familyCode, [gatheringId]),
   ])
 
   // WITHHELD AND UNREADABLE ARE THE SAME `null` AND MUST NOT BE THE SAME SENTENCE — the whole
@@ -772,6 +827,8 @@ export async function getGatheringDetail(gatheringId: string): Promise<Gathering
   // reports the family's whole budget as unallocated, and the lines without the band leave the
   // task column standing under no total, so either half missing makes the figures wrong rather
   // than partial.
+  const occurrences = occurrenceMap?.get(gatheringId) ?? null
+
   const budgetState: GatheringBudgetState = !canSeeBudget
     ? 'withheld'
     : budget !== null && budgetLines !== null ? 'shown' : 'unavailable'
@@ -783,6 +840,18 @@ export async function getGatheringDetail(gatheringId: string): Promise<Gathering
     location:   gathering.location,
     startsOn:   gathering.starts_on,
     endsOn:     gathering.ends_on,
+    startTime:  gathering.start_time ? String(gathering.start_time).slice(0, 5) : null,
+    timeZone:   gathering.time_zone ?? null,
+    endTime:    gathering.end_time ? String(gathering.end_time).slice(0, 5) : null,
+    isContinuous: gathering.is_continuous !== false,
+    // NULL on a failed read, never an empty list — §8. An empty list would render as a
+    // gathering with no dates, which the database does not permit, so a consumer falling back
+    // to the envelope is the honest degradation.
+    occurrences: occurrences ?? null,
+    // ONE unless the occurrences were read. This screen prints the whole answer from
+    // `occurrences` below, so the count is only here to satisfy `formatWhenBrief` for a caller
+    // that has the summary and not the detail.
+    occurrenceCount: occurrences?.length ?? 1,
     status:     gathering.status as GatheringStatus,
     isPremier:  gathering.is_premier,
     taskCounts: taskProgress(asTaskStatuses(taskRows)),
@@ -1087,7 +1156,10 @@ export async function getPremierGathering(): Promise<PremierGathering | null> {
   // modules take `today` as a PARAMETER (AGENTS.md §7b) — an action is the layer allowed to
   // decide what today is. Two places in this module do: here, and `getUpcomingGatheringCount`
   // below, which reuses this read's `.or(...)` span test verbatim and says why.
-  const today = todayLocal()
+  // THE FAMILY'S ZONE, not the server's. `todayLocal()` here read UTC, which rolls over at
+  // 7pm Central — so for the last five hours of every day this judged the family's records
+  // against tomorrow. See `resolveFamilyZone` in lib/auth/zone.ts for the rule.
+  const today = todayIn(await resolveFamilyZone(g.familyCode))
 
   const supabase = await createClient()
   const { data, error } = await supabase
@@ -1188,7 +1260,10 @@ export async function getUpcomingGatheringCount(): Promise<number> {
   const g = await requireRead('gatherings/calendar')
   if (!g.ok) return 0
 
-  const today = todayLocal()
+  // THE FAMILY'S ZONE, not the server's. `todayLocal()` here read UTC, which rolls over at
+  // 7pm Central — so for the last five hours of every day this judged the family's records
+  // against tomorrow. See `resolveFamilyZone` in lib/auth/zone.ts for the rule.
+  const today = todayIn(await resolveFamilyZone(g.familyCode))
 
   const supabase = await createClient()
   const { count, error } = await supabase
@@ -1307,11 +1382,12 @@ export async function submitGatheringTask(input: {
 }): Promise<ActionResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   // `getMyPersonId` answers '' for a caller it cannot resolve, and '' is not a uuid — the
   // unchecked version reaches the database as `invalid input syntax for type uuid: ""` and
   // surfaces that to a member as the whole of the error message.
-  if (!g.personId) return { success: false, message: 'Profile not found' }
-  if (!input?.taskId) return { success: false, message: 'Task not found' }
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
+  if (!input?.taskId) return { success: false, message: t('act.taskNotFound') }
 
   const admin = createAdminClient()
   const { data, error } = await admin
@@ -1326,9 +1402,9 @@ export async function submitGatheringTask(input: {
 
   if (error) {
     console.error(`[gatherings] submit could not read task ${input.taskId} in ${g.familyCode}: ${error.message}`)
-    return { success: false, message: 'Could not read that task' }
+    return { success: false, message: t('act.couldNotReadTask') }
   }
-  if (!data) return { success: false, message: 'Task not found' }
+  if (!data) return { success: false, message: t('act.taskNotFound') }
 
   const task = data as unknown as {
     id: string
@@ -1341,18 +1417,18 @@ export async function submitGatheringTask(input: {
   }
 
   if (task.assignee_id !== g.personId) {
-    return { success: false, message: 'This task is assigned to somebody else' }
+    return { success: false, message: t('act.taskAssignedSomebodyElse') }
   }
   if (task.gatherings?.status === 'cancelled') {
     return {
       success: false,
-      message: 'This gathering has been cancelled, so its tasks are no longer being collected. Ask an organizer if that is not right.',
+      message: t('act.gatheringBeenCancelledSoIts'),
     }
   }
   if (task.status === 'approved') {
     return {
       success: false,
-      message: 'This task has already been approved, and an approved answer is final. Ask an organizer to reopen it if it needs to change.',
+      message: t('act.taskAlreadyBeenApprovedApproved'),
     }
   }
   if (!isGatheringTaskKind(task.kind)) {
@@ -1360,7 +1436,7 @@ export async function submitGatheringTask(input: {
     // not. Refusing is the only safe answer: `parseAnswer` cannot normalise it, and writing
     // the raw value would store an answer no screen in this build can render.
     console.error(`[gatherings] task ${task.id} in ${g.familyCode} has unknown kind "${task.kind}"`)
-    return { success: false, message: 'This task cannot be answered in this version' }
+    return { success: false, message: t('act.taskCannotAnsweredVersion') }
   }
 
   const answer = parseAnswer(task.kind, input.answer)
@@ -1387,7 +1463,7 @@ export async function submitGatheringTask(input: {
   })
   if (submissionRes.error) {
     console.error(`[gatherings] submission insert failed for task ${task.id} in ${g.familyCode}: ${submissionRes.error.message}`)
-    return { success: false, message: 'Could not record your answer' }
+    return { success: false, message: t('act.couldNotRecordYourAnswer') }
   }
 
   const taskRes = await admin
@@ -1407,7 +1483,7 @@ export async function submitGatheringTask(input: {
 
   if (taskRes.error) {
     console.error(`[gatherings] task status update failed for ${task.id} in ${g.familyCode}: ${taskRes.error.message}`)
-    return { success: false, message: 'Your answer was saved but the task could not be moved to review. Try again.' }
+    return { success: false, message: t('act.yourAnswerSavedButTask') }
   }
 
   // A BELL FAILURE MUST NEVER UNDO THE DECISION IT ANNOUNCES, so this is wrapped and the
@@ -1495,17 +1571,39 @@ export async function scheduleGathering(input: {
   title: string
   summary?: string
   location?: string
-  startsOn: string
+  /**
+   * WHEN it happens — one continuous block, or several occasions carrying one title.
+   *
+   * `startsOn`/`endsOn` below are the shape every caller sent until 2026-08-26 and are still
+   * read, as a one-occasion continuous `when`, where this is absent. `whenFromInput` states why
+   * that matters: this is a `'use server'` export, so a browser tab open across the deploy posts
+   * the old shape, and refusing it would fail a member's schedule with a message about a field
+   * their form does not have. `when` wins where both arrive.
+   */
+  when?: GatheringWhen
+  startsOn?: string
   endsOn?: string
   templateIds: string[]
 }): Promise<ActionResult & { gatheringId?: string }> {
   const g = await requireScope('gatherings', 'create')
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'Profile not found' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
 
   const asOrganizer = await canAny(g.userId, 'admin/gatherings', 'create')
 
-  const fields = normalizeGatheringFields(input)
+  // ── WHEN, RESOLVED BEFORE ANYTHING IS WRITTEN ──────────────────────────────────
+  // `resolveWhen` runs the same `whenProblems` the form ran — the form in front of an action is
+  // a convenience (§2) — and hands back the ENVELOPE, which the parent insert needs because
+  // `gatherings.starts_on` is NOT NULL and the row exists before its occurrences do.
+  const when = resolveWhen(whenFromInput(input))
+  if (!when.ok) return { success: false, message: when.message }
+
+  const fields = normalizeGatheringFields({
+    ...input,
+    startsOn: when.startsOn,
+    endsOn: when.endsOn ?? undefined,
+  }, t)
   if ('message' in fields) return { success: false, message: fields.message }
 
   // Deduplicated before anything is checked or written: `UNIQUE (gathering_id, template_id)`
@@ -1532,7 +1630,7 @@ export async function scheduleGathering(input: {
 
   if (templateError) {
     console.error(`[gatherings] schedule could not read templates in ${g.familyCode}: ${templateError.message}`)
-    return { success: false, message: 'Could not read the templates' }
+    return { success: false, message: t('act.couldNotReadTemplates') }
   }
 
   const rows = (templates ?? []) as {
@@ -1542,7 +1640,7 @@ export async function scheduleGathering(input: {
   // or does not exist, and both answer the same sentence — telling a caller which is an
   // enumeration signal about another family's data.
   if (rows.length !== templateIds.length) {
-    return { success: false, message: 'Template not found' }
+    return { success: false, message: t('act.templateNotFound') }
   }
 
   const allowed = asOrganizer ? new Set(['family', 'admin']) : new Set(['family'])
@@ -1580,10 +1678,26 @@ export async function scheduleGathering(input: {
       starts_on:   fields.startsOn,
       ends_on:     fields.endsOn,
       created_by:  g.personId,
-      // `status` and `is_premier` take their defaults — 'planning' and false. A member
-      // scheduling a gathering is proposing the work, not announcing it to the family: moving
-      // it to 'scheduled' and flagging it premier are organizer decisions with their own
-      // actions and their own grant.
+      // ── SCHEDULED WHEN THERE IS NOTHING TO PLAN, PLANNING WHEN THERE IS ───────────
+      // This took the column's default of 'planning' unconditionally, on the argument that a
+      // member scheduling a gathering is PROPOSING the work rather than announcing it. That is
+      // right when there IS work — a set of templates whose tasks nobody has answered is
+      // exactly a gathering being planned — and wrong when there is none: a bare date on the
+      // family calendar with no tasks and nothing to hand out is not being planned by anybody,
+      // and 'Planning' on it is a status that will never move.
+      //
+      // A Free family can only ever create the second kind (the template picker is Standard),
+      // so this is also what makes "once a gathering is added it is scheduled" true for them —
+      // WITHOUT a tier check in the action, which AGENTS.md forbids for a read and which is the
+      // same instinct here. The rule is about the REQUEST, so a paid family scheduling a bare
+      // date gets the same sensible answer.
+      status:      templateIds.length > 0 ? 'planning' : 'scheduled',
+      // ONE BLOCK OR SEVERAL OCCASIONS, on the parent because every reader that only needs to
+      // know how to DRAW it should not have to count child rows — and a series with one
+      // occasion entered so far is still a series.
+      is_continuous: when.normalised!.isContinuous,
+      // `is_premier` takes its default of false: flagging a gathering premier puts it across
+      // the top of the Dashboard, which is an organizer decision with its own action and grant.
       //
       // `fund_id` and `budget_cents` are absent for a harder reason. Money on a gathering is
       // `gatherings/budget`, a RESTRICTED key, and `setGatheringBudget` is where it is set —
@@ -1598,6 +1712,14 @@ export async function scheduleGathering(input: {
     return { success: false, message: error?.message ?? 'Could not schedule the gathering' }
   }
   const gatheringId = (created as { id: string }).id
+
+  // ── THE OCCURRENCES, WHICH ARE THE ONLY PLACE THE DATES REALLY LIVE ────────────
+  // The parent already carries the envelope from the insert above; the trigger recomputes it
+  // from these and its `WHERE` makes that a no-op. A failure here leaves the envelope and no
+  // occurrences, which `tg_gathering_when_envelope`'s zero-row branch is written for: the dates
+  // stay, so the gathering is on the calendar and can be fixed rather than being invisible.
+  const written = await writeOccurrences(admin, g.familyCode, gatheringId, when.normalised!)
+  if (!written.ok) return { success: false, message: written.message }
 
   // The junction rows and the tasks, template by template, in the order they were named —
   // `position` on the use row is what preserves that, and `instantiateTemplateTasks` offsets
@@ -1647,20 +1769,23 @@ function normalizeGatheringFields(input: {
   location?: string | null
   startsOn?: string
   endsOn?: string | null
-}): { title: string; summary: string | null; location: string | null; startsOn: string; endsOn: string | null }
+},
+  /** The caller's language. A pure validator, so it is handed one rather than resolving it. */
+  t: T,
+): { title: string; summary: string | null; location: string | null; startsOn: string; endsOn: string | null }
   | { message: string } {
   const title = (input.title ?? '').trim()
-  if (!title) return { message: 'A gathering needs a title' }
+  if (!title) return { message: t('act.gatheringNeedsTitle') }
 
   const start = parseAnswer('date', input.startsOn ?? '')
-  if (!start || !('date' in start)) return { message: 'Choose the date the gathering starts' }
+  if (!start || !('date' in start)) return { message: t('act.chooseDateGatheringStarts') }
 
   let endsOn: string | null = null
   const rawEnd = (input.endsOn ?? '') || ''
   if (rawEnd) {
     const end = parseAnswer('date', rawEnd)
-    if (!end || !('date' in end)) return { message: 'That end date is not a real date' }
-    if (end.date < start.date) return { message: 'The gathering cannot end before it starts' }
+    if (!end || !('date' in end)) return { message: t('act.endDateNotRealDate') }
+    if (end.date < start.date) return { message: t('act.gatheringCannotEndBeforeStarts') }
     endsOn = end.date
   }
 

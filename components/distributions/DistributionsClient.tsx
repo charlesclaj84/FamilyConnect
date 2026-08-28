@@ -19,6 +19,8 @@ import {
   type DistributionSummary,
 } from '@/app/actions/distributions'
 import type { DistributionProgress } from '@/lib/distribution-audience'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Email distributions — compose one, watch it go out, and read what happened.
@@ -54,6 +56,7 @@ export function DistributionsClient({ initialDistributions, audiences, rights }:
   audiences: AudienceOption[]
   rights: DistributionRights
 }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
 
@@ -159,8 +162,7 @@ export function DistributionsClient({ initialDistributions, audiences, rights }:
     const ok = await confirm({
       title: `Delete the record of “${row.subject}”?`,
       description:
-        'The emails that were sent have been sent. This removes the record of who was '
-        + 'emailed and what happened to each message, and it cannot be undone.',
+        t('dist.emailsSentBeenSent'),
       confirmLabel: 'Delete the record',
       destructive: true,
     })
@@ -179,19 +181,14 @@ export function DistributionsClient({ initialDistributions, audiences, rights }:
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold text-brand-ink">Distributions</h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Email everyone in the family at once. The list of who gets it is your membership —
-            there is nothing to keep up to date, and nobody is on it twice.
-          </p>
+          <p className="max-w-2xl text-sm text-muted-foreground">{t('dist.emailEveryoneFamilyOnce')}</p>
         </div>
         {rights.send && (
           <Button
             onClick={() => { setError(''); setComposing(true) }}
             className="bg-brand-affirm text-brand-on-affirm hover:bg-brand-affirm/90"
           >
-            <Send className="mr-2 h-4 w-4" aria-hidden="true" />
-            New distribution
-          </Button>
+            <Send className="mr-2 h-4 w-4" aria-hidden="true" />{t('dist.newDistribution')}</Button>
         )}
       </header>
 
@@ -206,18 +203,13 @@ export function DistributionsClient({ initialDistributions, audiences, rights }:
           aria-live="polite"
         >
           {sendingLabel || 'Sending…'}
-          <span className="ml-2 text-brand-on-soft/70">
-            You can leave this page — the send carries on from where it got to.
-          </span>
+          <span className="ml-2 text-brand-on-soft/70">{t('dist.canLeavePageSend')}</span>
         </div>
       )}
 
       {distributions === null ? (
         /* §8. A REFUSED READ IS NOT AN EMPTY LOG, and the two must not render the same. */
-        <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-          We could not read your distributions just now. Nothing has been lost — try again in a
-          moment.
-        </p>
+        <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">{t('dist.weCouldNotRead')}</p>
       ) : distributions.length === 0 ? (
         <p className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
           {rights.send
@@ -276,6 +268,7 @@ function DistributionTable({ rows, rights, busy, onOpen, onStop, onRetry, onRemo
   onRetry: (id: string) => void
   onRemove: (row: DistributionSummary) => void
 }) {
+  const t = useT()
   return (
     /* NO `min-w-*` AND NO `overflow-x-auto`. "On a phone a table narrows. It does not scroll
      * sideways" — the columns that are not the row's subject collapse and are restated in a
@@ -285,12 +278,8 @@ function DistributionTable({ rows, rights, busy, onOpen, onStop, onRetry, onRemo
         <thead className="bg-muted/50 text-left">
           <tr>
             <th scope="col" className="px-3 py-2 font-medium">Subject</th>
-            <th scope="col" className={cn('px-3 py-2 font-medium', COLLAPSING_CELL)}>
-              Sent to
-            </th>
-            <th scope="col" className={cn('px-3 py-2 font-medium', COLLAPSING_CELL)}>
-              Sent by
-            </th>
+            <th scope="col" className={cn('px-3 py-2 font-medium', COLLAPSING_CELL)}>{t('dist.sent')}</th>
+            <th scope="col" className={cn('px-3 py-2 font-medium', COLLAPSING_CELL)}>{t('dist.sent2')}</th>
             <th scope="col" className="px-3 py-2 font-medium">Delivery</th>
             {/* A column with no heading to give still needs one. */}
             <th scope="col" className="px-3 py-2"><span className="sr-only">Actions</span></th>
@@ -361,9 +350,7 @@ function DistributionTable({ rows, rights, busy, onOpen, onStop, onRetry, onRemo
                     && (row.counts.failed > 0 || row.counts.pending > 0) && (
                     <Button size="sm" variant="outline" disabled={busy}
                       onClick={() => onRetry(row.id)}>
-                      <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
-                      Try again
-                    </Button>
+                      <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />{t('dist.tryAgain')}</Button>
                   )}
                   {rights.remove && !row.progress.sending && (
                     <Button size="sm" variant="ghost" disabled={busy}
@@ -399,6 +386,7 @@ function ComposeDialog({ audiences, onClose, onSent }: {
   onClose: () => void
   onSent: (id: string) => Promise<void>
 }) {
+  const t = useT()
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [choice, setChoice] = useState('family:')
@@ -436,12 +424,12 @@ function ComposeDialog({ audiences, onClose, onSent }: {
     <Dialog
       open
       onClose={onClose}
-      title="New distribution"
+      title={t('dist.newDistribution')}
       description="This goes out by email straight away. There is no draft to come back to."
     >
       <div className="space-y-4 px-6 pb-2">
         <div className="space-y-1.5">
-          <Label htmlFor="dist-audience" required>Who it goes to</Label>
+          <Label htmlFor="dist-audience" required>{t('dist.whoGoes')}</Label>
           <select
             id="dist-audience"
             value={choice}
@@ -474,7 +462,7 @@ function ComposeDialog({ audiences, onClose, onSent }: {
             value={subject}
             maxLength={200}
             onChange={e => setSubject(e.target.value)}
-            placeholder="Reunion details for the 4th"
+            placeholder={t('dist.reunionDetails4th')}
           />
           <FieldError message={fieldError} />
         </div>
@@ -489,10 +477,7 @@ function ComposeDialog({ audiences, onClose, onSent }: {
             onChange={e => setBody(e.target.value)}
             placeholder={'Leave a blank line between paragraphs.\n\nReplies come straight back to you.'}
           />
-          <p className="text-xs text-muted-foreground">
-            Plain text. Leave a blank line between paragraphs. Replies come back to your own
-            email address, not to GENORRA.
-          </p>
+          <p className="text-xs text-muted-foreground">{t('dist.plainTextLeaveBlank')}</p>
         </div>
       </div>
 
@@ -516,18 +501,26 @@ function ComposeDialog({ audiences, onClose, onSent }: {
   )
 }
 
-/** How one recipient's state reads, and how loudly. */
-const STATE_COPY: Record<string, { label: string; className: string }> = {
-  sent: { label: 'Sent', className: 'text-brand-affirm' },
-  pending: { label: 'Waiting to send', className: 'text-brand-withheld' },
-  sending: { label: 'Sending', className: 'text-brand-withheld' },
-  // THE ONE DESTRUCTIVE STATE. Mail that was meant to arrive did not.
-  failed: { label: 'Could not be delivered', className: 'text-destructive' },
-  // NOT AN ERROR. Nothing went wrong and nobody should chase it — the whole reason this state
-  // exists rather than being folded into `failed`.
-  unreachable: { label: 'No email address on file', className: 'text-muted-foreground' },
-  duplicate: { label: 'Shares an address', className: 'text-muted-foreground' },
-  cancelled: { label: 'Not sent — stopped', className: 'text-brand-withheld' },
+/**
+ * How one recipient's state reads, and how loudly.
+ *
+ * A FUNCTION since the labels are translated — the six STATES are the contract (they are
+ * `distribution_recipients.state` values) and the words are looked up. See `tiles.ts` for
+ * the same conversion and the same argument.
+ */
+function stateCopy(t: T): Record<string, { label: string; className: string }> {
+  return {
+    sent: { label: 'Sent', className: 'text-brand-affirm' },
+    pending: { label: t('dist.waitingSend'), className: 'text-brand-withheld' },
+    sending: { label: 'Sending', className: 'text-brand-withheld' },
+    // THE ONE DESTRUCTIVE STATE. Mail that was meant to arrive did not.
+    failed: { label: t('dist.couldNotDelivered'), className: 'text-destructive' },
+    // NOT AN ERROR. Nothing went wrong and nobody should chase it — the whole reason this state
+    // exists rather than being folded into `failed`.
+    unreachable: { label: t('dist.noEmailAddressFile'), className: 'text-muted-foreground' },
+    duplicate: { label: t('dist.sharesAddress'), className: 'text-muted-foreground' },
+    cancelled: { label: t('dist.notSentStopped'), className: 'text-brand-withheld' },
+  }
 }
 
 /**
@@ -541,6 +534,7 @@ function DetailDialog({ detail, onClose }: {
   detail: DistributionDetail | null
   onClose: () => void
 }) {
+  const t = useT()
   return (
     <Dialog
       open
@@ -550,11 +544,11 @@ function DetailDialog({ detail, onClose }: {
       className="max-w-3xl"
     >
       {!detail ? (
-        <p className="px-6 py-8 text-sm text-muted-foreground">Loading…</p>
+        <p className="px-6 py-8 text-sm text-muted-foreground">{t('dist.loading')}</p>
       ) : (
         <div className="space-y-5 px-6 pb-6">
           <section className="space-y-2">
-            <h3 className="text-sm font-medium text-brand-accent">What was sent</h3>
+            <h3 className="text-sm font-medium text-brand-accent">{t('dist.whatSent')}</h3>
             {/* `whitespace-pre-line` so the paragraph breaks the author typed survive. The
               * email itself is built by `bodyParagraphs()` and escaped there; this is the
               * stored text rendered as text, never as markup. */}
@@ -565,9 +559,7 @@ function DetailDialog({ detail, onClose }: {
 
           <section className="space-y-2">
             <h3 className="flex items-center gap-2 text-sm font-medium text-brand-accent">
-              <Users className="h-4 w-4" aria-hidden="true" />
-              Who it went to
-            </h3>
+              <Users className="h-4 w-4" aria-hidden="true" />{t('dist.whoWent')}</h3>
             {detail.notAddressed > 0 && (
               <p className="text-xs text-muted-foreground">
                 {detail.notAddressed} {detail.notAddressed === 1 ? 'relative was' : 'relatives were'}
@@ -587,7 +579,7 @@ function DetailDialog({ detail, onClose }: {
                 </thead>
                 <tbody>
                   {detail.recipients.map(r => {
-                    const copy = STATE_COPY[r.state]
+                    const copy = stateCopy(t)[r.state]
                       ?? { label: r.state, className: 'text-muted-foreground' }
                     return (
                       <tr key={r.id} className="border-t align-top sm:align-middle">

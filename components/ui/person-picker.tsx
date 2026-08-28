@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils'
 import { disambiguatedName } from '@/lib/name-utils'
 import { matchesPersonQuery } from '@/lib/person-search'
 import type { SelectablePerson } from '@/components/ui/person-multi-select'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * THE control for choosing ONE member of a family. The single-select counterpart to
@@ -63,6 +64,7 @@ export function PersonPicker({
   hint?: string
   emptyMessage?: string
 }) {
+  const t = useT()
   const [query, setQuery] = useState('')
   // useId, not a hand-rolled counter: two pickers on one page would otherwise share a
   // radio NAME, and choosing in the second would clear the first.
@@ -102,7 +104,7 @@ export function PersonPicker({
 
       <p className="text-xs text-muted-foreground">
         {chosen
-          ? <>Chosen: <span className="font-medium text-foreground">{chosen.name}</span></>
+          ? <>{t('ui.chosen')}<span className="font-medium text-foreground">{chosen.name}</span></>
           : 'Nobody chosen yet.'}
       </p>
 
@@ -115,7 +117,7 @@ export function PersonPicker({
           id={`${fieldId}-search`}
           value={query}
           onChange={e => setQuery(e.target.value)}
-          placeholder="Search by name…"
+          placeholder={t('ui.searchName')}
           className="pl-8"
           autoComplete="off"
           spellCheck={false}
@@ -128,9 +130,7 @@ export function PersonPicker({
         className="max-h-56 overflow-y-auto rounded-lg border"
       >
         {shown.length === 0 ? (
-          <p className="px-3 py-4 text-center text-xs text-muted-foreground">
-            Nobody matches that.
-          </p>
+          <p className="px-3 py-4 text-center text-xs text-muted-foreground">{t('ui.nobodyMatches')}</p>
         ) : (
           <ul>
             {shown.map(({ person, name }) => {

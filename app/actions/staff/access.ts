@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireStaffOwner, type StaffRole } from '@/lib/auth/staff'
 import { listAccounts } from '@/lib/auth/account-state'
+import { callerI18n } from '@/lib/i18n/server'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Who has staff access, and the four operations that change it.
@@ -239,15 +241,19 @@ type EmailLookup =
   | { ok: true; userId: string; email: string }
   | { ok: false; message: string }
 
-async function resolveAccount(rawEmail: unknown): Promise<EmailLookup> {
+async function resolveAccount(
+  rawEmail: unknown,
+  /** The acting owner's language. See `refuseSelf` below for the same argument. */
+  t: T,
+): Promise<EmailLookup> {
   const email = typeof rawEmail === 'string' ? rawEmail.trim().toLowerCase() : ''
-  if (!email) return { ok: false, message: 'Enter the email address of the account to grant' }
+  if (!email) return { ok: false, message: t('act.enterEmailAddressAccountGrant') }
 
   // 100 is `listAccounts`' own clamp, and asking for the largest page is what makes the
   // full-page branch below rare rather than routine.
   const page = await listAccounts({ filter: email, perPage: 100 })
   if (!page) {
-    return { ok: false, message: 'Could not reach the account service just now. Try again.' }
+    return { ok: false, message: t('act.couldNotReachAccountService') }
   }
 
   const match = page.accounts.find(a => a.email.trim().toLowerCase() === email)
@@ -256,7 +262,7 @@ async function resolveAccount(rawEmail: unknown): Promise<EmailLookup> {
   if (page.hasMore) {
     return {
       ok: false,
-      message: 'Could not resolve that address unambiguously — type it exactly and try again.',
+      message: t('act.couldNotResolveAddressUnambiguously'),
     }
   }
   return {
@@ -275,11 +281,18 @@ async function resolveAccount(rawEmail: unknown): Promise<EmailLookup> {
  *
  * It is also why `ownerCount` below can look like dead code and is not — see the note there.
  */
-function refuseSelf(actingUserId: string, targetUserId: string): StaffAccessResult | null {
+function refuseSelf(
+  actingUserId: string,
+  targetUserId: string,
+  /** The acting owner's language. A parameter rather than a resolve, because the caller
+      has already resolved one from `requireStaffOwner()` and a second read of the same
+      row for the same answer is a second expression of one rule. */
+  t: T,
+): StaffAccessResult | null {
   if (actingUserId !== targetUserId) return null
   return {
     success: false,
-    message: 'You cannot change your own staff access. Ask another owner to do it.',
+    message: t('act.youCannotChangeYourOwn'),
   }
 }
 
@@ -303,7 +316,7 @@ function refuseSelf(actingUserId: string, targetUserId: string): StaffAccessResu
  *     revokes A. Both counts read 2, both writes land, the console has no owner and no screen
  *     can repair it. A count followed by a write in a separate statement DOES NOT CLOSE THIS,
  *     and pretending otherwise is worse than the gap. The stronger form is one SQL statement
- *     under `FOR UPDATE`, exactly as `consume_family_removal_challenge` does for the five-branch
+ *     under `FOR UPDATE`, exactly as `consume_family_action_challenge` does for the five-branch
  *     read-modify-write it replaced — a `staff_set_role(p_user_id, p_role)` that counted and
  *     wrote while holding the row locks. That is the right change the day two owners are ever
  *     plausibly clicking at once; today the team is small enough that the window is theoretical,
@@ -438,24 +451,25 @@ export async function grantStaffAccess(input: {
   note: string
 }): Promise<StaffAccessResult> {
   const staff = await requireStaffOwner()
+  const { t } = await callerI18n(staff.userId)
   if (staff.role !== 'owner') return { success: false, message: NOT_AUTHORIZED }
 
   if (!isStaffRole(input?.role)) {
-    return { success: false, message: 'Choose what kind of access to grant' }
+    return { success: false, message: t('act.chooseWhatKindAccessGrant') }
   }
 
   const note = (input?.note ?? '').trim()
   if (!note) {
     return {
       success: false,
-      message: 'Say why this person needs staff access. The list is an audit record.',
+      message: t('act.sayWhyPersonNeedsStaff'),
     }
   }
   if (note.length > NOTE_MAX) {
     return { success: false, message: `Keep the reason under ${NOTE_MAX} characters` }
   }
 
-  const account = await resolveAccount(input?.email)
+  const account = await resolveAccount(input?.email, t)
   if (!account.ok) return { success: false, message: account.message }
 
   // RULE 4 REACHES THE GRANT TOO, and the reason is not the obvious one: an owner cannot use a
@@ -463,7 +477,7 @@ export async function grantStaffAccess(input: {
   // insert below were an upsert. It is not an upsert (see the duplicate branch), so this is the
   // narrower case of granting to the address you are signed in as — refused with the same
   // sentence, so the two controls cannot be made to disagree.
-  const self = refuseSelf(staff.userId, account.userId)
+  const self = refuseSelf(staff.userId, account.userId, t)
   if (self) return self
 
   const admin = createAdminClient()
@@ -493,7 +507,7 @@ export async function grantStaffAccess(input: {
       }
     }
     console.error(`[staff/access] grant failed for ${account.userId}: ${error.message}`)
-    return { success: false, message: 'Could not grant access just now. Try again.' }
+    return { success: false, message: t('act.couldNotGrantAccessJust') }
   }
 
   revalidatePath('/staff/access')
@@ -517,14 +531,15 @@ export async function setStaffRole(input: {
   role: StaffRole
 }): Promise<StaffAccessResult> {
   const staff = await requireStaffOwner()
+  const { t } = await callerI18n(staff.userId)
   if (staff.role !== 'owner') return { success: false, message: NOT_AUTHORIZED }
 
-  if (!input?.userId) return { success: false, message: 'Staff member not found' }
+  if (!input?.userId) return { success: false, message: t('act.staffMemberNotFound') }
   if (!isStaffRole(input?.role)) {
-    return { success: false, message: 'Choose what kind of access to give them' }
+    return { success: false, message: t('act.chooseWhatKindAccessGive') }
   }
 
-  const self = refuseSelf(staff.userId, input.userId)
+  const self = refuseSelf(staff.userId, input.userId, t)
   if (self) return self
 
   const admin = createAdminClient()
@@ -539,9 +554,9 @@ export async function setStaffRole(input: {
 
   if (readError) {
     console.error(`[staff/access] role read failed for ${input.userId}: ${readError.message}`)
-    return { success: false, message: 'Could not read that staff member just now. Try again.' }
+    return { success: false, message: t('act.couldNotReadStaffMember') }
   }
-  if (!existing) return { success: false, message: 'Staff member not found' }
+  if (!existing) return { success: false, message: t('act.staffMemberNotFound') }
 
   // RULE 5. Only asked when the change would actually take an owner away — see `ownerCount` for
   // why this cannot fire sequentially and why it stays anyway.
@@ -549,13 +564,12 @@ export async function setStaffRole(input: {
   if (current === 'owner' && input.role !== 'owner') {
     const owners = await ownerCount(admin)
     if (owners < 0) {
-      return { success: false, message: 'Could not check the owner list just now. Try again.' }
+      return { success: false, message: t('act.couldNotCheckOwnerList') }
     }
     if (owners <= 1) {
       return {
         success: false,
-        message: 'This is the last owner. Make somebody else an owner first, or nobody will be '
-          + 'able to grant staff access.',
+        message: t('act.lastOwnerMakeSomebodyElse'),
       }
     }
   }
@@ -567,7 +581,7 @@ export async function setStaffRole(input: {
 
   if (error) {
     console.error(`[staff/access] role update failed for ${input.userId}: ${error.message}`)
-    return { success: false, message: 'Could not change their access just now. Try again.' }
+    return { success: false, message: t('act.couldNotChangeTheirAccess') }
   }
 
   revalidatePath('/staff/access')
@@ -594,11 +608,12 @@ export async function revokeStaffAccess(input: {
   userId: string
 }): Promise<StaffAccessResult> {
   const staff = await requireStaffOwner()
+  const { t } = await callerI18n(staff.userId)
   if (staff.role !== 'owner') return { success: false, message: NOT_AUTHORIZED }
 
-  if (!input?.userId) return { success: false, message: 'Staff member not found' }
+  if (!input?.userId) return { success: false, message: t('act.staffMemberNotFound') }
 
-  const self = refuseSelf(staff.userId, input.userId)
+  const self = refuseSelf(staff.userId, input.userId, t)
   if (self) return self
 
   const admin = createAdminClient()
@@ -611,25 +626,24 @@ export async function revokeStaffAccess(input: {
 
   if (readError) {
     console.error(`[staff/access] revoke read failed for ${input.userId}: ${readError.message}`)
-    return { success: false, message: 'Could not read that staff member just now. Try again.' }
+    return { success: false, message: t('act.couldNotReadStaffMember') }
   }
   // Reported rather than answered "done". A delete that matched nothing is a screen that has
   // just told somebody access was removed when it was already gone — which is the same class of
   // lie as reporting success over a refused write, and on this screen it would leave an owner
   // believing they had closed something.
-  if (!existing) return { success: false, message: 'Staff member not found' }
+  if (!existing) return { success: false, message: t('act.staffMemberNotFound') }
 
   // RULE 5 again, and the same window. See `ownerCount`.
   if ((existing as { role: string | null }).role === 'owner') {
     const owners = await ownerCount(admin)
     if (owners < 0) {
-      return { success: false, message: 'Could not check the owner list just now. Try again.' }
+      return { success: false, message: t('act.couldNotCheckOwnerList') }
     }
     if (owners <= 1) {
       return {
         success: false,
-        message: 'This is the last owner. Make somebody else an owner first, or nobody will be '
-          + 'able to grant staff access.',
+        message: t('act.lastOwnerMakeSomebodyElse'),
       }
     }
   }
@@ -641,7 +655,7 @@ export async function revokeStaffAccess(input: {
 
   if (error) {
     console.error(`[staff/access] revoke failed for ${input.userId}: ${error.message}`)
-    return { success: false, message: 'Could not remove their access just now. Try again.' }
+    return { success: false, message: t('act.couldNotRemoveTheirAccess') }
   }
 
   revalidatePath('/staff/access')

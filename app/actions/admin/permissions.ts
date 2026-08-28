@@ -4,6 +4,8 @@ import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyActiveMembership } from '@/lib/auth/family'
+import { callerI18n } from '@/lib/i18n/server'
+import type { T } from '@/lib/i18n/t'
 import { isFeatureFuture, requiredTier } from '@/lib/features'
 import { getMyFamilyTier } from '@/lib/auth/tier'
 import { tierMeets } from '@/lib/tiers'
@@ -17,6 +19,7 @@ import {
 } from '@/lib/auth/permissions'
 import type { MembershipStatus } from '@/lib/auth/family'
 import { chapterPlaces } from '@/lib/chapter-places'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * Members & Access — the whole of the family's authorization surface.
@@ -156,25 +159,38 @@ export type PolicyMap = Record<string, PermissionScope>
 async function requireAccessAdmin(
   resource: string,
   action: PermissionAction = 'edit',
-): Promise<{ ok: true; userId: string; familyCode: string } | { ok: false; message: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { ok: false, message: 'Not authenticated.' }
+): Promise<
+  { ok: true; userId: string; familyCode: string; t: T } | { ok: false; message: string }
+> {
+  const { user } = await currentUser()
+  // THE LANGUAGE, THE SAME WAY `lib/auth/guard.ts` DOES IT. This helper is a guard in every
+  // way but its name — see its header for why it is not `requireEdit` — so it carries `t`
+  // for the same reason `GuardOk` does: an action that returns `t('act.…')` needs one
+  // bound, and threading it per call site is a line seven functions here would have to
+  // remember. The two failures above it resolve `callerI18n(null)`, because there is no
+  // caller yet to have a stored preference.
+  if (!user) {
+    const { t } = await callerI18n(null)
+    return { ok: false, message: t('act.notAuthenticated2') }
+  }
 
-  const { familyCode } = await getMyActiveMembership(user.id)
-  if (!familyCode) return { ok: false, message: 'No family associated with your account.' }
+  const [{ familyCode }, { t }] = await Promise.all([
+    getMyActiveMembership(user.id),
+    callerI18n(user.id),
+  ])
+  if (!familyCode) return { ok: false, message: t('act.noFamilyAssociatedYourAccount') }
 
   if (!(await can(user.id, resource, action))) {
     return {
       ok: false,
       message: resource === TEMPLATE_RESOURCE
         ? (action === 'delete'
-            ? 'You do not have permission to delete templates.'
-            : 'You do not have permission to change permission templates.')
-        : 'You do not have permission to manage access.',
+            ? t('act.notPermissionDeleteTemplates')
+            : t('act.notPermissionChangePermissionTemplates'))
+        : t('act.youDoNotPermissionManage'),
     }
   }
-  return { ok: true, userId: user.id, familyCode }
+  return { ok: true, userId: user.id, familyCode, t }
 }
 
 /** What the caller may do on one of the two keys. Drives the UI; never the enforcement. */
@@ -209,8 +225,7 @@ export async function canManageAccess(): Promise<{
   members: AccessRights
   templates: AccessRights
 }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { members: NO_RIGHTS, templates: NO_RIGHTS }
   const [members, templates] = await Promise.all([
     rightsOn(user.id, RESOURCE),
@@ -565,8 +580,7 @@ export async function getTemplatePolicy(templateId: string): Promise<PolicyMap> 
 
 /** The caller's own effective permissions — used to render the UI honestly. */
 export async function getMyEffectivePermissions(): Promise<{ legacy: boolean }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { legacy: false }
   const perms = await getMyPermissionSet(user.id)
   return { legacy: perms.legacy }
@@ -596,9 +610,10 @@ export async function createTemplate(
 ): Promise<AdminResult> {
   const auth = await requireAccessAdmin(TEMPLATE_RESOURCE, 'create')
   if (!auth.ok) return { success: false, message: auth.message }
+  const { t } = auth
 
   const trimmed = name.trim()
-  if (!trimmed) return { success: false, message: 'Template name is required.' }
+  if (!trimmed) return { success: false, message: t('act.templateNameRequired') }
 
   const admin = createAdminClient()
 
@@ -611,7 +626,7 @@ export async function createTemplate(
     if (!(await can(auth.userId, TEMPLATE_RESOURCE, 'edit'))) {
       return {
         success: false,
-        message: 'You do not have permission to copy what a template grants. Create a blank template instead.',
+        message: t('act.youDoNotPermissionCopy'),
       }
     }
 
@@ -624,7 +639,7 @@ export async function createTemplate(
       .eq('id', copyFromTemplateId)
       .eq('family_code', auth.familyCode)
       .maybeSingle()
-    if (!source) return { success: false, message: 'The template to copy was not found in your family.' }
+    if (!source) return { success: false, message: t('act.templateCopyNotFoundYour') }
 
     // The error is read rather than discarded (§8) precisely because an empty result is
     // indistinguishable from a template that grants nothing — and here that difference
@@ -633,7 +648,7 @@ export async function createTemplate(
       .from('template_permissions')
       .select('resource_key, action, scope')
       .eq('template_id', copyFromTemplateId)
-    if (grantsError) return { success: false, message: 'Could not read the template to copy.' }
+    if (grantsError) return { success: false, message: t('act.couldNotReadTemplateCopy') }
 
     sourceGrid = {}
     for (const g of (grants ?? []) as { resource_key: string; action: PermissionAction; scope: PermissionScope }[]) {
@@ -653,8 +668,8 @@ export async function createTemplate(
     .single()
 
   if (error) {
-    if (error.code === '23505') return { success: false, message: 'A template with that name already exists.' }
-    return { success: false, message: 'Could not create the template.' }
+    if (error.code === '23505') return { success: false, message: t('act.templateNameAlreadyExists') }
+    return { success: false, message: t('act.couldNotCreateTemplate') }
   }
 
   // A new template starts as a complete grid rather than an empty one, copy or not.
@@ -697,9 +712,10 @@ export async function renameTemplate(
 ): Promise<AdminResult> {
   const auth = await requireAccessAdmin(TEMPLATE_RESOURCE)
   if (!auth.ok) return { success: false, message: auth.message }
+  const { t } = auth
 
   const trimmed = name.trim()
-  if (!trimmed) return { success: false, message: 'Template name is required.' }
+  if (!trimmed) return { success: false, message: t('act.templateNameRequired') }
 
   const admin = createAdminClient()
   const { error } = await admin
@@ -709,8 +725,8 @@ export async function renameTemplate(
     .eq('family_code', auth.familyCode)
 
   if (error) {
-    if (error.code === '23505') return { success: false, message: 'A template with that name already exists.' }
-    return { success: false, message: 'Could not rename the template.' }
+    if (error.code === '23505') return { success: false, message: t('act.templateNameAlreadyExists') }
+    return { success: false, message: t('act.couldNotRenameTemplate') }
   }
   revalidatePath('/admin/members')
   return { success: true }
@@ -719,6 +735,7 @@ export async function renameTemplate(
 export async function deleteTemplate(templateId: string): Promise<AdminResult> {
   const auth = await requireAccessAdmin(TEMPLATE_RESOURCE, 'delete')
   if (!auth.ok) return { success: false, message: auth.message }
+  const { t } = auth
 
   const admin = createAdminClient()
   const { data: template } = await admin
@@ -728,11 +745,11 @@ export async function deleteTemplate(templateId: string): Promise<AdminResult> {
     .eq('family_code', auth.familyCode)
     .maybeSingle()
 
-  if (!template) return { success: false, message: 'Template not found.' }
+  if (!template) return { success: false, message: t('act.templateNotFound2') }
   if ((template as { is_system: boolean }).is_system) {
     return {
       success: false,
-      message: 'Administrators and General are built in and cannot be deleted. Edit what they grant instead.',
+      message: t('act.administratorsGeneralBuiltCannotDeleted'),
     }
   }
 
@@ -757,7 +774,7 @@ export async function deleteTemplate(templateId: string): Promise<AdminResult> {
     .delete()
     .eq('id', templateId)
     .eq('family_code', auth.familyCode)
-  if (error) return { success: false, message: 'Could not delete the template.' }
+  if (error) return { success: false, message: t('act.couldNotDeleteTemplate') }
 
   revalidatePath('/admin/members')
   revalidatePath('/', 'layout')
@@ -772,12 +789,13 @@ export async function setTemplatePermission(
 ): Promise<AdminResult> {
   const auth = await requireAccessAdmin(TEMPLATE_RESOURCE)
   if (!auth.ok) return { success: false, message: auth.message }
+  const { t } = auth
 
   const admin = createAdminClient()
   const { data: template } = await admin
     .from('permission_templates').select('id').eq('id', templateId)
     .eq('family_code', auth.familyCode).maybeSingle()
-  if (!template) return { success: false, message: 'Template not found in your family.' }
+  if (!template) return { success: false, message: t('act.templateNotFoundYourFamily') }
 
   // Never let the family revoke its own last route back in. Removing either of the two
   // grants that govern THIS page is the edit with no undo: the screen that could
@@ -806,7 +824,7 @@ export async function setTemplatePermission(
     },
     { onConflict: 'template_id,resource_key,action' },
   )
-  if (error) return { success: false, message: 'Could not save the permission.' }
+  if (error) return { success: false, message: t('act.couldNotSavePermission') }
 
   revalidatePath('/admin/members')
   revalidatePath('/', 'layout')
@@ -887,20 +905,21 @@ async function wouldLoseLastAdmin(
  */
 export async function applyTemplate(personId: string, templateId: string): Promise<AdminResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated.' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated2') }
 
   // canAny would be the guard-file equivalent; assigning permissions has no coherent
   // "own" version, and the row a member would own is their own access.
   if ((await can(user.id, RESOURCE, 'edit')) === false) {
-    return { success: false, message: 'You do not have permission to manage access.' }
+    return { success: false, message: t('act.youDoNotPermissionManage') }
   }
 
   const { data, error } = await supabase
     .rpc('apply_permission_template', { p_person_id: personId, p_template_id: templateId })
     .maybeSingle<{ ok: boolean; message: string | null }>()
 
-  if (error) return { success: false, message: 'Could not apply that template. Please try again.' }
+  if (error) return { success: false, message: t('act.couldNotApplyTemplatePlease') }
   if (!data?.ok) return { success: false, message: data?.message ?? 'Not authorized' }
 
   revalidatePath('/admin/members')
@@ -920,18 +939,19 @@ export async function applyTemplate(personId: string, templateId: string): Promi
  */
 export async function setMemberEnabled(personId: string, enabled: boolean): Promise<AdminResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated.' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated2') }
 
   if ((await can(user.id, RESOURCE, 'edit')) === false) {
-    return { success: false, message: 'You do not have permission to manage access.' }
+    return { success: false, message: t('act.youDoNotPermissionManage') }
   }
 
   const { data, error } = await supabase
     .rpc('set_member_enabled', { p_person_id: personId, p_enabled: enabled })
     .maybeSingle<{ ok: boolean; message: string | null }>()
 
-  if (error) return { success: false, message: 'Could not change that member. Please try again.' }
+  if (error) return { success: false, message: t('act.couldNotChangeMemberPlease') }
   if (!data?.ok) return { success: false, message: data?.message ?? 'Not authorized' }
 
   revalidatePath('/admin/members')

@@ -6,11 +6,10 @@ import { peekInvitation } from '@/app/actions/invitations'
 import { StructuredData } from '@/components/marketing/StructuredData'
 import { authPageGraph } from '@/lib/structured-data'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { APP_LEAD, APP_NAME } from '@/lib/brand'
-
-const REGISTER_PAGE_NAME = 'Create Your Free Family Account'
-const REGISTER_PAGE_DESCRIPTION =
-  `Create your free ${APP_NAME} account and bring your family together — reunions, dues, photos and your family tree in one private place.`
+import { APP_NAME } from '@/lib/brand'
+import { callerI18n } from '@/lib/i18n/server'
+import { localizedAlternates } from '@/lib/i18n/route-locale'
+import { sellablePlanParam } from '@/lib/signup-plan'
 
 /**
  * `generateMetadata` rather than a static `metadata` export, because this route's
@@ -33,10 +32,11 @@ export async function generateMetadata({
   searchParams: Promise<{ invite?: string }>
 }): Promise<Metadata> {
   const { invite } = await searchParams
+  const { t, locale } = await callerI18n(null)
 
   if (invite) {
     return {
-      title: 'Accept Your Invitation',
+      title: t('auth.meta.inviteTitle'),
       robots: { index: false, follow: false, nocache: true },
     }
   }
@@ -48,9 +48,9 @@ export async function generateMetadata({
     // against the ~60 Google displays. The word "Free" is not marketing licence: the
     // landing page's closing button says "Create your free account", and a title must
     // not promise what the page does not (same rule as lib/structured-data.ts).
-    title: REGISTER_PAGE_NAME,
-    description: REGISTER_PAGE_DESCRIPTION,
-    alternates: { canonical: '/register' },
+    title: t('auth.meta.registerTitle'),
+    description: t('auth.meta.registerDescription', { app: APP_NAME }),
+    alternates: localizedAlternates('/register', locale),
   }
 }
 
@@ -76,16 +76,32 @@ export async function generateMetadata({
 export default async function RegisterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ invite?: string }>
+  searchParams: Promise<{ invite?: string; plan?: string }>
 }) {
-  const { invite } = await searchParams
+  const { invite, plan } = await searchParams
+  // See lib/auth/locale.ts: the address bar first, so /es/register is Spanish whatever
+  // the reader's browser asks for.
+  const { t } = await callerI18n(null)
   const invitation = invite ? await peekInvitation(invite) : null
+
+  // ── `?plan=` — WHICH PLAN THE PRICING PAGE SENT THEM HERE FOR ─────────────────────
+  //
+  // NARROWED ON THE SERVER, and `sellablePlanParam` is the same function `registerUser`
+  // narrows with — so the form cannot preselect a plan the action would then drop, and a
+  // hand-typed `?plan=premium` preselects nothing rather than promising a checkout for a
+  // tier that is priced and not sold.
+  //
+  // A HINT AND NOT A DECISION. It preselects a card; the member can change it, and every
+  // paid plan is offered again on `/admin/settings` whatever happens here. It is also
+  // ignored entirely for an invited registrant and in join mode — a plan belongs to a
+  // family, and somebody joining one is not the person who buys it.
+  const chosenPlan = sellablePlanParam(plan)
 
   if (invitation?.valid && invitation.hasAccount) {
     return (
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle as="h1" className="text-2xl">You already have an account</CardTitle>
+          <CardTitle as="h1" className="text-2xl">{t('auth.alreadyAccount')}</CardTitle>
           <CardDescription>
             <span className="font-medium">{invitation.email}</span> is already registered
             with {APP_NAME}, so there is nothing to create. Sign in and you will come
@@ -97,9 +113,7 @@ export default async function RegisterPage({
           <Link
             href={`/login?next=${encodeURIComponent(`/invite/${invite}`)}`}
             className="inline-flex rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
-          >
-            Sign in to accept
-          </Link>
+          >{t('auth.signAccept')}</Link>
         </CardContent>
       </Card>
     )
@@ -130,14 +144,14 @@ export default async function RegisterPage({
         graph={authPageGraph({
           path: '/register',
           // The visible h1 in RegisterForm, not the <title>. See the note in login/page.tsx.
-          name: 'Create your account',
-          description: REGISTER_PAGE_DESCRIPTION,
+          name: t('auth.meta.registerGraphName'),
+          description: t('auth.meta.registerDescription', { app: APP_NAME }),
         })}
       />
       {/* The auth layout's <main> is `flex items-center justify-center`, which is a ROW —
           two siblings there would sit side by side. `max-w-md` matches the card's own. */}
       <div className="w-full max-w-md space-y-6">
-        <RegisterForm />
+        <RegisterForm plan={chosenPlan} />
 
         {/* ── What the account is, and what happens after you make one ───────────
             THE SECOND HALF IS THE USEFUL HALF. This is the conversion page and the
@@ -159,48 +173,59 @@ export default async function RegisterPage({
             per-member fee — which is the rule lib/structured-data.ts is written to:
             claim nothing that is not said somewhere it can be verified. If the free
             tier ever changes, this paragraph changes in the same commit as that page. */}
-        <AuthAside heading={`Joining ${APP_NAME}`}>
-          <p>
-            {APP_NAME} gives one extended family a private place of its own —{' '}
-            {APP_LEAD.toLowerCase()} There is no public profile and nothing is shared
-            outside the family you join. Members can:
-          </p>
+        <AuthAside heading={t('auth.aside.joiningHeading', { app: APP_NAME })}>
+          <p>{t('auth.aside.joiningLede', { app: APP_NAME })}</p>
+          {/* ── THE FIRST BULLET SOLD A RETIRED PRODUCT AND A FEATURE THAT NEVER EXISTED ──
+              Corrected 2026-08-23. It read "Plan reunions and events, and see who is
+              coming", and both halves were wrong in different ways:
+
+                * EVENTS IS GONE (20260819000006). Thirteen tables, four routes and six
+                  action modules were deleted, and Gatherings replaced it. This is the
+                  drift the Gatherings retirement swept out of `/pricing`, `/features`,
+                  `/how-it-works`, `/why-us` and `lib/plans.ts` — and it survived here,
+                  on the conversion page, because nothing walks this prose.
+                * "SEE WHO IS COMING" IS AN RSVP, and RSVPs are explicitly NOT replaced —
+                  no attendee count, no room block, no check-in list, anywhere in the
+                  product. A step of a gathering can ASK a relative for any of it; nothing
+                  counts the answers.
+
+              What replaces it is the sentence the product uses about itself everywhere
+              else — `TIER_TAGLINE.standard`, the help chapter and `lib/features.ts` all
+              say "who is doing what" — so this now claims the thing Gatherings actually
+              answers. */}
           <ul className="list-disc space-y-1 pl-5">
-            <li>Plan reunions and events, and see who is coming.</li>
-            <li>Track dues and contributions, so nobody is chasing receipts.</li>
-            <li>Share photographs in collections the whole family can add to.</li>
-            <li>Build the family tree, and keep the record of who belongs to whom.</li>
+            <li>{t('auth.aside.can1')}</li>
+            <li>{t('auth.aside.can2')}</li>
+            <li>{t('auth.aside.can3')}</li>
+            <li>{t('auth.aside.can4')}</li>
           </ul>
 
-          <p className="font-medium text-foreground">What happens next</p>
+          <p className="font-medium text-foreground">{t('auth.aside.nextHeading')}</p>
           <ol className="list-decimal space-y-1.5 pl-5">
             <li>
-              <AsideTerm>Confirm your email.</AsideTerm> We send a link as soon as you
-              register, and the account stays inactive until you open it.
+              <AsideTerm>{t('auth.aside.confirmTerm')}</AsideTerm>{' '}
+              {t('auth.aside.confirmBody')}
             </li>
             <li>
-              <AsideTerm>Joining an existing family?</AsideTerm> You need its family code
-              — ask whoever invited you. Your request then waits for one of that
-              family&apos;s administrators to admit you; you can sign in in the meantime.
+              <AsideTerm>{t('auth.aside.joiningTerm')}</AsideTerm>{' '}
+              {t('auth.aside.joiningBody')}
             </li>
             <li>
-              <AsideTerm>Starting a new one?</AsideTerm> You are its first member, and you
-              are given a six-character family code to pass around. Anyone holding it can
-              ask to join, and you decide who comes in.
+              <AsideTerm>{t('auth.aside.startingTerm')}</AsideTerm>{' '}
+              {t('auth.aside.startingBody')}
             </li>
           </ol>
 
           <p>
-            The free account is free forever — no card, no trial clock, and no charge per
-            relative, however many of you there are.{' '}
+            {t('auth.aside.freeForever')}{' '}
             <Link href="/pricing" className="font-medium text-primary hover:underline">
-              See what each tier includes
+              {t('auth.aside.seeTiers')}
             </Link>
-            , or{' '}
+            {t('auth.aside.orSep')}{' '}
             <Link href="/" className="font-medium text-primary hover:underline">
-              read how it works
+              {t('auth.aside.readHow')}
             </Link>{' '}
-            first.
+            {t('auth.aside.first')}
           </p>
         </AuthAside>
       </div>

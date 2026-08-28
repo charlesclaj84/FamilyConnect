@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { PowerOff } from 'lucide-react'
 import { PageShell } from '@/components/layout/PageShell'
 import { isActiveFamily, isApproved, type FamilyMembership } from '@/lib/auth/family'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * What a member sees when the family they are viewing has been removed.
@@ -40,6 +41,7 @@ export function FamilyRemoved({ membership, families }: {
   membership: FamilyMembership
   families: FamilyMembership[]
 }) {
+  const t = useT()
   // APPROVED and ACTIVE, both tested positively. A pending membership in another family is
   // not somewhere to send them, and a second removed one is this screen again.
   const elsewhere = families.filter(
@@ -61,10 +63,7 @@ export function FamilyRemoved({ membership, families }: {
           <h1 className="text-2xl font-bold leading-tight sm:text-3xl">
             {membership.familyName} has been removed
           </h1>
-          <p className="mt-2 text-muted-foreground">
-            An administrator of this family switched it off. Nobody can open it, join it or
-            accept an invitation to it.
-          </p>
+          <p className="mt-2 text-muted-foreground">{t('ui.administratorFamilySwitchedOff')}</p>
         </div>
       </div>
 
@@ -72,27 +71,19 @@ export function FamilyRemoved({ membership, families }: {
           important thing on this screen and the thing somebody in this position least
           expects to be true. */}
       <section className="rounded-xl border bg-card p-5 sm:p-6">
-        <h2 className="text-lg font-semibold">Nothing has been deleted</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Every payment, fund, photograph, event, message, document and person is exactly
-          where it was. Removing a family closes its doors; it destroys no records at all,
-          and it did not touch your account or any other family you belong to.
-        </p>
-        <p className="mt-3 text-sm text-muted-foreground">
-          Only GENORRA support can bring a family back — there is no button for it anywhere
-          in the product, on purpose. If this was not meant, ask whoever administers the
-          family to get in touch with support.
-        </p>
+        <h2 className="text-lg font-semibold">{t('rem.nothingDeleted')}</h2>
+        <p className="mt-1 text-sm text-muted-foreground">{t('ui.everyPaymentFundPhotograph')}</p>
+        <p className="mt-3 text-sm text-muted-foreground">{t('ui.onlyGenorraSupportCan')}</p>
       </section>
 
       {elsewhere.length > 0 && (
         <section className="rounded-xl border bg-card p-5 sm:p-6">
           <h2 className="text-lg font-semibold">
-            {elsewhere.length === 1 ? 'Your other family' : 'Your other families'}
+            {elsewhere.length === 1 ? t('rem.otherFamily') : t('rem.otherFamilies')}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Switch with the family menu at the top of the page, or from{' '}
-            <Link href="/my-families">My Families</Link>.
+            <Link href="/my-families">{t('fam.heading')}</Link>.
           </p>
           <ul className="mt-3 space-y-1 text-sm">
             {elsewhere.map(f => (
@@ -108,7 +99,7 @@ export function FamilyRemoved({ membership, families }: {
       )}
 
       <p className="text-sm text-muted-foreground">
-        <Link href="/my-families">My Families</Link> is still open to you, and so is the{' '}
+        <Link href="/my-families">{t('fam.heading')}</Link> is still open to you, and so is the{' '}
         <Link href="/help">manual</Link>.
       </p>
     </PageShell>

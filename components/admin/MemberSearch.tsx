@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 import { MEMBER_PAGE_SIZE } from '@/lib/pagination'
 import type { MemberPage, MemberSummary } from '@/app/actions/admin/permissions'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Search + paging over a family's members. Families can run past 500 people, so
@@ -62,6 +63,7 @@ export function MemberSearchBox({ value, onChange, placeholder, pending }: {
   placeholder: string
   pending?: boolean
 }) {
+  const t = useT()
   return (
     <div className="relative">
       <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -79,7 +81,7 @@ export function MemberSearchBox({ value, onChange, placeholder, pending }: {
             type="button"
             onClick={() => onChange('')}
             className="rounded p-0.5 text-muted-foreground hover:bg-muted"
-            aria-label="Clear search"
+            aria-label={t('ms.clear')}
           >
             <X className="h-3.5 w-3.5" />
           </button>
@@ -94,6 +96,7 @@ export function Pager({ page, total, onPage }: {
   total: number
   onPage: (p: number) => void
 }) {
+  const t = useT()
   const pages = Math.max(1, Math.ceil(total / MEMBER_PAGE_SIZE))
   if (total === 0) return null
 
@@ -112,7 +115,7 @@ export function Pager({ page, total, onPage }: {
             onClick={() => onPage(page - 1)}
             disabled={page === 0}
             className={cn('rounded p-1', page === 0 ? 'opacity-40' : 'hover:bg-muted')}
-            aria-label="Previous page"
+            aria-label={t('ms.prevPage')}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -124,7 +127,7 @@ export function Pager({ page, total, onPage }: {
             onClick={() => onPage(page + 1)}
             disabled={page + 1 >= pages}
             className={cn('rounded p-1', page + 1 >= pages ? 'opacity-40' : 'hover:bg-muted')}
-            aria-label="Next page"
+            aria-label={t('ms.nextPage')}
           >
             <ChevronRight className="h-4 w-4" />
           </button>

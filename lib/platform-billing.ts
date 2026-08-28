@@ -59,8 +59,10 @@
  *      see its header for why that distinction is load-bearing rather than pedantic.
  */
 
+import { APP_NAME } from '@/lib/brand'
+import { monthLabel } from '@/lib/calendar'
 import { TIER_PRICE } from '@/lib/plans'
-import { DEFAULT_TIER, TIER_RANK, isFamilyTier, type FamilyTier } from '@/lib/tiers'
+import { DEFAULT_TIER, TIER_LABEL, TIER_RANK, isFamilyTier, type FamilyTier } from '@/lib/tiers'
 
 /**
  * How a family is paying.
@@ -146,6 +148,49 @@ export const MINIMUM_FIRST_CHARGE_CENTS = 500
  * is multi-currency yet.
  */
 export const STRIPE_MINIMUM_CHARGE_CENTS = 50
+
+/**
+ * The shortest trial Stripe will accept, in days.
+ *
+ * ── WHY A SUBSCRIPTION STARTS AS A TRIAL AT ALL ─────────────────────────────────────
+ * Every family bills on the 1st, and the rest of the current month is sold as OUR OWN line
+ * item so the figure quoted on the button is the figure the hosted page asks for. That leaves
+ * the subscription itself with nothing to charge until the 1st, and Stripe has exactly one way
+ * to say "do not bill until this date": `subscription_data.trial_end`.
+ *
+ * The alternative — `billing_cycle_anchor` plus `proration_behavior: 'none'` — is what this
+ * used to do, and it is REFUSED OUTRIGHT: *"You cannot set `proration_behavior` to `none` in a
+ * Checkout Session with one-time prices."* Leaving the default `create_prorations` in its place
+ * is worse than the error, because it succeeds: Stripe bills its own computed part month on top
+ * of ours and the family is charged twice for the same days.
+ *
+ * ── AND WHY THE FLOOR IS THREE DAYS, NOT TWO ────────────────────────────────────────
+ * Stripe's own wording is *"has to be at least 48 hours in the future"*, an instant-to-instant
+ * comparison. `today` here is a DATE, and the request can be made at any hour of it — so a
+ * trial ending two calendar days out is only 24 hours away for somebody paying in the evening.
+ * `stripeTrialEnd` therefore demands strictly MORE than this many days, which holds whatever
+ * the clock says.
+ */
+export const STRIPE_MINIMUM_TRIAL_DAYS = 2
+
+/**
+ * When a subscription should start billing, as the Unix second Stripe's `trial_end` takes.
+ *
+ * Null when `startsOn` is inside Stripe's floor — and a caller must READ that rather than
+ * defaulting past it. Which answer is right depends on what else is in the session:
+ *
+ *   * Nothing else to charge (a prepaid term with a day left on it) — start billing now. That
+ *     loses at most one day, in the family's favour.
+ *   * A part month on the same session — REFUSE. Charging for days the subscription is about
+ *     to charge for again is the double-bill this whole arrangement exists to prevent.
+ *
+ * One of the two places in this feature where a date becomes an instant, and it is Stripe's
+ * calendar rather than ours: midnight UTC on `startsOn`.
+ */
+export function stripeTrialEnd(startsOn: string, today: string): number | null {
+  if (daysBetween(today, startsOn) <= STRIPE_MINIMUM_TRIAL_DAYS) return null
+  return Math.floor(Date.parse(`${startsOn}T00:00:00Z`) / 1000)
+}
 
 /** A month count this product will accept. Integral, at least one, at most the ceiling. */
 export function isPrepayMonths(value: unknown): value is number {
@@ -393,6 +438,100 @@ export function initialChargeOptions(tier: FamilyTier, today: string): InitialCh
     remainderPlusNext: remainder != null && monthly != null ? remainder + monthly : null,
     remainderPlusNextThrough: lastDayOfMonthISO(next),
   }
+}
+
+/**
+ * What is due TODAY, itemised — one line per thing the family is actually buying.
+ *
+ * ── WHY THIS IS A LIST AND NOT A FIGURE ─────────────────────────────────────────────
+ * It was a figure, and on Stripe's hosted page that produced something no reader could
+ * reconcile. A subscription whose first months are paid for as one-time lines starts in a
+ * TRIAL — the only way Checkout will accept "do not bill until the 1st" (see
+ * `STRIPE_MINIMUM_TRIAL_DAYS`) — and Stripe stamps the plan line with "35 days free". So the
+ * page read: `GENORRA Standard · $10.00/month after · 35 days free`, and underneath it one
+ * $11.94 line called "rest of this month and next".
+ *
+ * The badge is true in Stripe's sense and false in every sense a family has: they are paying
+ * for those 35 days, on the line below. The badge cannot be removed — no API withholds it —
+ * so the answer is for the lines beneath it to say exactly what each part is:
+ *
+ *     GENORRA Standard — September 2026            $10.00
+ *     GENORRA Standard — rest of August (6 days)    $1.94
+ *
+ * ── THE NAMES CARRY THE MONTH, NOT "THIS" AND "NEXT" ────────────────────────────────
+ * The page is read after a redirect, and again later in an emailed receipt, where "next
+ * month" no longer names anything. `monthLabel` is UTC-pinned for the reason `lib/calendar.ts`
+ * argues at length: a date rendered in the reader's zone is the previous month for half the
+ * country.
+ *
+ * ── NULL MEANS "NOT ON ITS OWN" AND THE CALLER OWES A SENTENCE ─────────────────────
+ * Only for `'remainder'` below `MINIMUM_FIRST_CHARGE_CENTS`, which is the ordinary state of
+ * the back half of every month at Standard — see `initialChargeOptions`. The caller names the
+ * other option rather than reporting a failure, because nothing has failed.
+ *
+ * `'prepaid-remainder'` is the part month of a prepaid session, which takes the RAW proration:
+ * Stripe's minimum applies to the session TOTAL and a prepaid session also carries whole
+ * months, so a 33¢ part month is perfectly chargeable there even though it could not stand
+ * alone.
+ */
+export interface DueNowLine {
+  /** What the family reads on Stripe's page and on the receipt. */
+  name: string
+  cents: number
+}
+
+export type FirstPaymentPlan = 'remainder' | 'remainder-plus-next' | 'prepaid-remainder'
+
+export function initialChargeLines(
+  tier: FamilyTier,
+  today: string,
+  plan: FirstPaymentPlan,
+): DueNowLine[] | null {
+  const remainder = prorateRemainderCents(tier, today)
+  const monthly = TIER_PRICE[tier]?.monthlyCents ?? null
+  if (remainder == null || monthly == null) return null
+
+  // ── THE PRODUCT NAME IS ON THESE LINES, AND IT HAS TO BE ──────────────────────────
+  // The plan line above them is drawn from the Stripe Product, which is named "GENORRA
+  // Standard". A line beside it reading "Standard — rest of August" is the same thing under a
+  // different name, on a page whose whole job is to say what the total is made of. `APP_NAME`
+  // rather than the literal, per AGENTS.md's "The product name lives in one place" — and if
+  // the Stripe Products are ever renamed, this is one of the two places that has to follow.
+  const planName = `${APP_NAME} ${TIER_LABEL[tier]}`
+  // ── "(proration)", NOT "rest of August (6 days)" ──────────────────────────────────
+  // One word that names what the figure IS. The day count was there to justify the amount and
+  // it read as a second, competing description of the same line — and the reader who wants to
+  // check the arithmetic is not on Stripe's page, they are on the plan panel, where the days
+  // are quoted before the button is pressed.
+  //
+  // ON THE 1st IT IS NOT A PRORATION, so it does not say so: the remainder IS the whole month
+  // at the full rate, and a line reading "August 2026 (proration)" for $10.00 beside a
+  // $10.00/month plan invites a query nobody can answer.
+  const partMonth = daysLeftInMonth(today) === daysInMonth(today)
+    ? `${planName} — ${monthLabel(today.slice(0, 7))}`
+    : `${planName} — ${monthLabel(today.slice(0, 7))} (proration)`
+
+  if (plan === 'prepaid-remainder') {
+    return remainder > 0 ? [{ name: partMonth, cents: remainder }] : []
+  }
+
+  if (plan === 'remainder') {
+    const only = initialChargeOptions(tier, today).remainderOnly
+    return only == null ? null : [{ name: partMonth, cents: only }]
+  }
+
+  // The whole month FIRST, because it is the larger figure and the one that matches the rate
+  // printed on the plan line above it. The part month then reads as the adjustment it is.
+  const lines: DueNowLine[] = [
+    { name: `${planName} — ${monthLabel(nextFirstOfMonth(today).slice(0, 7))}`, cents: monthly },
+  ]
+  if (remainder > 0) lines.push({ name: partMonth, cents: remainder })
+  return lines
+}
+
+/** What a list of due-now lines comes to. */
+export function dueNowTotalCents(lines: readonly DueNowLine[]): number {
+  return lines.reduce((sum, line) => sum + line.cents, 0)
 }
 
 // ── The record, and what it entitles a family to ────────────────────────────────────

@@ -6,6 +6,7 @@ import { sliceColor, type DonutPalette } from '@/components/reports/DonutChart'
 import { MembershipSliceDialog } from '@/components/reports/MembershipSliceDialog'
 import type { CountSlice } from '@/lib/membership-report'
 import type { MembershipBreakdown, MembershipRepairRights } from '@/lib/membership-drill'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The legend beside a donut — which is also the direct labelling, also the data table, and
@@ -54,6 +55,7 @@ export function MembershipBreakdownLegend({
   title: string
   rights: MembershipRepairRights
 }) {
+  const t = useT()
   const [openSlice, setOpenSlice] = useState<CountSlice | null>(null)
   const colorByKey = new Map(drawn.map((s, i) => [s.key, sliceColor(palette, i)]))
 
@@ -62,11 +64,11 @@ export function MembershipBreakdownLegend({
       <table className="w-full text-sm">
         <caption className="sr-only">
           {`Every ${unit} count in this breakdown, including any the chart folds together. `
-            + 'Press a row to see who is in it.'}
+            + t('rep.pressRow')}
         </caption>
         <thead className="sr-only">
           <tr>
-            <th scope="col">Group</th><th scope="col">Members</th><th scope="col">Share</th>
+            <th scope="col">{t('rep.group')}</th><th scope="col">{t('rep.members')}</th><th scope="col">{t('rep.share')}</th>
           </tr>
         </thead>
         <tbody>

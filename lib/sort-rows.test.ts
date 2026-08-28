@@ -151,3 +151,76 @@ describe('sortRows', () => {
     expect(sortRows([], (r: { a: number }) => r.a, 'asc')).toEqual([])
   })
 })
+
+describe('the collation is the reader, not the host', () => {
+  // ── WHY THIS BLOCK EXISTS, AND WHY IT IS ONE LETTER ─────────────────────────────
+  // `localeCompare(x, undefined, …)` asks the RUNTIME for its default collation, which is
+  // `en-US` on a laptop and whatever the container's ICU build says in production. That is
+  // invisible until it is not — and the one place it is visible in the three languages this
+  // product ships is `ñ`, which is a LETTER OF ITS OWN in Spanish and files after `n`.
+  //
+  // Measured before the change: the whole rest of the Latin surface sorts identically under
+  // `en`, `es` and `fr` — Loeb/Lœb, Strasse/Straße, digits, mixed case, and every accented
+  // vowel. Modern CLDR dropped Spanish's `ch`/`ll` digraph rules in 1994. So this really is
+  // one letter, and the reason to thread a locale anyway is that the letter is real and the
+  // determinism is free.
+  //
+  // ── MUTATION-CHECKED, per §7b. Four, all tripping ────────────────────────────────
+  //   * the locale ignored — `localeCompare(…, undefined, …)` again          2 failed
+  //   * `sortRows` drops it on the way through to `compareValues`            2 failed
+  //   * `DEFAULT_COLLATION` changed from `'en'`                              1 failed
+  //   * `sensitivity: 'base'` dropped                                       1 failed
+  //
+  // The third is the one worth having: it is the only assertion that can see a default that
+  // is a DECISION rather than the host's, and it works by comparing the no-locale call with
+  // the explicit English one rather than by naming a constant this module does not export.
+  const spanishSurnames = ['Nu', 'Ñato', 'Nz', 'Núñez']
+
+  it('files ñ after n for a Spanish reader', () => {
+    // The Spanish alphabet's order. A family with a Ñato in it wants the name here.
+    expect(sortRows(spanishSurnames, s => s, 'asc', 'es-MX'))
+      .toEqual(['Nu', 'Núñez', 'Nz', 'Ñato'])
+  })
+
+  it('files ñ with n for an English or French reader', () => {
+    // NOT a bug in those languages — `ñ` is `n` with a mark on it there, and this is what a
+    // reader of either expects. Both are asserted, because a change that made them agree
+    // with Spanish would be wrong in a way only this line would catch.
+    // FIRST, not merely mixed in — `sensitivity: 'base'` folds `Ñ` to `n` in these two, so
+    // `Ñato` compares as `nato` and beats `Nu` on the second letter. That is the accent-folding
+    // decision 2 already made, working; the Spanish case above is a different letter rather
+    // than a different accent, which is the whole distinction this block is about.
+    expect(sortRows(spanishSurnames, s => s, 'asc', 'en'))
+      .toEqual(['Ñato', 'Nu', 'Núñez', 'Nz'])
+    expect(sortRows(spanishSurnames, s => s, 'asc', 'fr'))
+      .toEqual(['Ñato', 'Nu', 'Núñez', 'Nz'])
+  })
+
+  it('defaults to English rather than to whatever the host is set to', () => {
+    // `DEFAULT_COLLATION` is `'en'` and is not exported, so this pins it by BEHAVIOUR: the
+    // no-locale call must equal the explicit English one. Passing `undefined` through to
+    // `localeCompare` would make this pass on a US laptop and fail on a Spanish container,
+    // which is the failure this default exists to remove.
+    expect(sortRows(spanishSurnames, s => s, 'asc'))
+      .toEqual(sortRows(spanishSurnames, s => s, 'asc', 'en'))
+  })
+
+  it('still folds accents and still sorts digits numerically, in every language', () => {
+    // The two decisions the locale must not have disturbed. `sensitivity: 'base'` is what
+    // keeps `Ángel` beside `Angel` — and it is measurably NOT what decides `ñ`, which is why
+    // the block above is a separate concern rather than a wider sensitivity.
+    for (const intl of ['en', 'es-MX', 'fr']) {
+      expect(sortRows(['Zeb', 'Ángel', 'Angus'], s => s, 'asc', intl))
+        .toEqual(['Ángel', 'Angus', 'Zeb'])
+      expect(sortRows(['Chapter 10', 'Chapter 2'], s => s, 'asc', intl))
+        .toEqual(['Chapter 2', 'Chapter 10'])
+    }
+  })
+
+  it('keeps the blanks-last rule whatever the collation', () => {
+    // Decision 1 is checked before the direction and before the locale, so a locale cannot
+    // reach it — asserted because "cannot" is the kind of claim that stops being true.
+    expect(sortRows(['Ñato', '', 'Nu'], s => s, 'desc', 'es-MX'))
+      .toEqual(['Ñato', 'Nu', ''])
+  })
+})

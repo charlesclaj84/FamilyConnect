@@ -14,6 +14,35 @@ import { applyDuePlatformTierChanges } from '@/lib/stripe/tier-sweep'
  * `STRIPE_PLATFORM_WEBHOOK_SECRET`, and it is NOT the Connect endpoint's — see
  * `lib/stripe/webhook.ts` for why one shared secret would make the two indistinguishable.
  *
+ * ── ON A PREVIEW DEPLOYMENT, VERCEL ANSWERS 401 BEFORE THIS FILE RUNS ───────────────
+ * Measured 2026-08-25, and it cost a full debugging cycle because it presents as silence:
+ * a test-mode checkout on `genorra-kappa.vercel.app` succeeded, took the money, and moved
+ * nothing. Every delivery attempt in Stripe's own log read:
+ *
+ *     401  {"error":{"code":"401","message":"Protected deployment"},
+ *           "protection":{"vercel_auth_enabled":true, …}}
+ *
+ * That is **Vercel Deployment Protection**, which guards preview deployments by default. It
+ * is decided at Vercel's edge, so no route, no runtime setting and no code in this repo can
+ * see the request — `stripe_webhook_events` stays empty and looks exactly like an endpoint
+ * nobody wired up. `npm run billing:trace` names this case for that reason.
+ *
+ * PRODUCTION IS NOT AFFECTED. Standard Protection covers preview and the generated
+ * production URLs, not the custom domain, so `https://genorra.com/api/stripe/platform`
+ * answers normally and the live-mode endpoint needs none of this.
+ *
+ * To test against a preview, turn on **Protection Bypass for Automation** (Vercel → Project →
+ * Settings → Deployment Protection) and append the secret to the endpoint URL as a QUERY
+ * PARAMETER — Stripe cannot set custom headers, and Vercel documents this exact case:
+ *
+ *     https://<preview-host>/api/stripe/platform?x-vercel-protection-bypass=<secret>
+ *
+ * The signature covers the raw BODY, not the URL, so a query parameter changes nothing about
+ * verification and this file needs no knowledge of it. Note what the secret is: anyone
+ * holding that URL reaches the whole preview deployment, so it belongs in Stripe's dashboard
+ * and nowhere else — never in a commit, and never on the live-mode endpoint, which does not
+ * need it.
+ *
  * ── THIS IS THE FIRST `app/api` ROUTE IN THE PRODUCT, AND `proxy.ts` HAD TO LEARN ───
  * That matcher used to run for every path but static assets, which meant a webhook delivery
  * did a GoTrue `getUser()` round trip before reaching this file — pointless for a request that

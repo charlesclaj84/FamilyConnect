@@ -9,6 +9,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { pickProfileColumns } from '@/lib/profile-columns'
 import { emailOrigin } from '@/lib/email/send'
 import type { PersonalInfoData } from '@/app/actions/personal-info'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 export type MyRoleSummary = import('@/lib/role-utils').RoleSummary
 
@@ -44,8 +46,7 @@ export type MyRoleSummary = import('@/lib/role-utils').RoleSummary
  */
 
 export async function getMyRoles(): Promise<MyRoleSummary[]> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
   const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
@@ -108,8 +109,7 @@ export async function updateUserProfile(
   peopleId: string,
   data: Partial<PersonalInfoData>
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, error: 'Not authenticated' }
   // THE KEY WAS `admin/boardpositions:edit` UNTIL 2026-08-19, through a helper shared with
   // the role-assignment actions above — so a family that let somebody curate its board
@@ -148,6 +148,11 @@ export async function updateUserProfile(
   //      working mailbox and `invitePersonRecord` cannot mint an invitation to it. The
   //      address changes exactly once, when `redeem_family_invitation` clears both flags.
   delete fields.primary_email
+  // AND THE LANGUAGE, for the reason MemberProfileEditDialog's FormState states: a locale
+  // is a preference the member expresses, not a fact about them an administrator corrects.
+  // Deleted HERE and not only in the dialog, because the dialog is a convenience and this
+  // is a public HTTP endpoint (§2).
+  delete fields.locale
   if (Object.keys(fields).length === 0) return { success: true }
 
   //   3. A REFERENCE CHECK on chapter_id (AGENTS.md §4) — the SECOND layer, and today a
@@ -237,8 +242,7 @@ export interface MemberProfileForEdit {
 export async function getMemberProfileForEdit(
   peopleId: string
 ): Promise<{ success: boolean; error?: string; profile?: MemberProfileForEdit }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, error: 'Not authenticated' }
 
   // The SAME gate as the write it feeds — `admin/members:edit` at `canAny`, because the row is
@@ -291,7 +295,11 @@ export async function getMemberProfileForEdit(
     return { success: false, error: `Could not read this family’s chapters: ${chaptersRes.error.message}` }
   }
 
-  const t = (v: unknown) => (typeof v === 'string' ? v : '')
+  // RENAMED FROM `t` ON 2026-08-27. It is a string coercer for a `Record<string, unknown>`
+  // row and has nothing to do with the translator this file now binds — one letter, two
+  // meanings, and the collision was a compile error rather than a silent one only because
+  // both are `const`.
+  const str = (v: unknown) => (typeof v === 'string' ? v : '')
   return {
     success: true,
     profile: {
@@ -301,18 +309,18 @@ export async function getMemberProfileForEdit(
       emailIsPlaceholder: Boolean(data.email_is_placeholder),
       email: (data.primary_email as string | null) ?? null,
       fields: {
-        prefix: t(data.prefix), first_name: t(data.first_name), middle_name: t(data.middle_name),
-        last_name: t(data.last_name), nick_name: t(data.nick_name), suffix: t(data.suffix),
-        primary_phone: t(data.primary_phone),
-        street_address: t(data.street_address), apartment: t(data.apartment),
-        city: t(data.city), state: t(data.state), zip_code: t(data.zip_code),
-        country: t(data.country),
-        date_of_birth: t(data.date_of_birth), sunset_date: t(data.sunset_date),
-        gender: t(data.gender),
-        tshirt_category: t(data.tshirt_category), tshirt_size: t(data.tshirt_size),
-        time_zone: t(data.time_zone),
+        prefix: str(data.prefix), first_name: str(data.first_name), middle_name: str(data.middle_name),
+        last_name: str(data.last_name), nick_name: str(data.nick_name), suffix: str(data.suffix),
+        primary_phone: str(data.primary_phone),
+        street_address: str(data.street_address), apartment: str(data.apartment),
+        city: str(data.city), state: str(data.state), zip_code: str(data.zip_code),
+        country: str(data.country),
+        date_of_birth: str(data.date_of_birth), sunset_date: str(data.sunset_date),
+        gender: str(data.gender),
+        tshirt_category: str(data.tshirt_category), tshirt_size: str(data.tshirt_size),
+        time_zone: str(data.time_zone),
       },
-      chapterId: t(data.chapter_id),
+      chapterId: str(data.chapter_id),
       chapters: (chaptersRes.data ?? []) as { id: string; name: string }[],
     },
   }
@@ -358,8 +366,8 @@ export async function setMemberChapter(
   peopleId: string,
   chapterId: string | null,
 ): Promise<{ success: boolean; error?: string; message?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
   if (!user) return { success: false, error: 'Not authenticated' }
   if (!(await canAny(user.id, 'admin/members', 'edit'))) {
     return { success: false, error: 'Not authorized' }
@@ -401,8 +409,7 @@ export async function setMemberChapter(
   if (propagation.error) {
     return {
       success: true,
-      message: 'Chapter saved, but their children under 18 with no account of their own '
-        + 'could not be moved with them. Try again, or set each chapter individually.',
+      message: t('act.chapterSavedButTheirChildren'),
     }
   }
   if (propagation.moved > 0) {
@@ -449,7 +456,8 @@ export async function sendMemberPasswordReset(
   peopleId: string
 ): Promise<{ success: boolean; error?: string; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
   if (!user) return { success: false, error: 'Not authenticated' }
 
   if (!(await canAny(user.id, 'admin/members', 'edit'))) return { success: false, error: 'Not authorized' }
@@ -501,7 +509,6 @@ export async function sendMemberPasswordReset(
 
   return {
     success: true,
-    message: 'A reset link has been requested for that member. '
-      + 'They will receive it if their address is reachable.',
+    message: t('act.resetLinkBeenRequestedMember'),
   }
 }

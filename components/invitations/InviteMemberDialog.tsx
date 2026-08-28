@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { FormError } from '@/components/ui/form-message'
 import { inviteMember } from '@/app/actions/invitations'
 import { cn } from '@/lib/utils'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Invite someone by email. Used in two places with two different meanings:
@@ -36,7 +37,7 @@ import { cn } from '@/lib/utils'
  */
 export function InviteMemberDialog({
   preApproved = false,
-  label = 'Invite Member',
+  label,
   className,
   familyCode,
   familyName,
@@ -68,6 +69,10 @@ export function InviteMemberDialog({
    */
   renderTrigger?: (open: () => void) => React.ReactNode
 }) {
+  const t = useT()
+  // THE DEFAULT IS RESOLVED HERE, not in the parameter list: a default value is evaluated
+  // where the parameter is declared, and `t` does not exist yet at that point.
+  const triggerLabel = label ?? t('inv.title')
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [firstName, setFirstName] = useState('')
@@ -155,22 +160,22 @@ export function InviteMemberDialog({
             className,
           )}
         >
-          <UserPlus className="h-4 w-4" /> {label}
+          <UserPlus className="h-4 w-4" /> {triggerLabel}
         </button>
       )}
 
       <Dialog
         open={open}
         onClose={close}
-        title={result ? (result.emailed ? 'Invitation sent' : 'Invitation created') : label}
+        title={result ? (result.emailed ? t('inv.sent') : t('inv.created')) : triggerLabel}
         description={
           result
             ? undefined
             : preApproved
-              ? 'They will be admitted as soon as they accept — no second approval.'
+              ? t('inv.noSecondApproval')
               : familyName
                 ? `They will join ${familyName} once an administrator approves them.`
-                : 'They will still need an administrator to approve them.'
+                : t('inv.needsApproval')
         }
       >
         {!result && (
@@ -187,45 +192,41 @@ export function InviteMemberDialog({
                 they go looking for the address. */}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="invite-first">First name</Label>
+                <Label htmlFor="invite-first">{t('field.firstNameLower')}</Label>
                 <Input
                   id="invite-first"
                   value={firstName}
                   onChange={e => setFirstName(e.target.value)}
-                  placeholder="Ada"
+                  placeholder={t('field.ph.firstName')}
                   autoComplete="off"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="invite-last">Last name</Label>
+                <Label htmlFor="invite-last">{t('field.lastNameLower')}</Label>
                 <Input
                   id="invite-last"
                   value={lastName}
                   onChange={e => setLastName(e.target.value)}
-                  placeholder="Okonkwo"
+                  placeholder={t('field.ph.lastName')}
                   autoComplete="off"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="invite-email">Email address</Label>
+              <Label htmlFor="invite-email">{t('field.emailAddress')}</Label>
               <Input
                 id="invite-email"
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="cousin@example.com"
+                placeholder={t('field.ph.cousinEmail')}
                 autoComplete="off"
                 spellCheck={false}
               />
             </div>
 
-            <p className="text-sm text-muted-foreground">
-              We&apos;ll email them an invitation. Only this address can use it, and it
-              expires in 14 days. The name is what your family sees while they are waiting
-              to be admitted.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('ui.weLlEmailThem')}</p>
 
             <FormError message={error} />
 
@@ -235,14 +236,14 @@ export function InviteMemberDialog({
                 onClick={close}
                 className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
               >
-                Cancel
+                {t('action.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={isPending || !complete}
                 className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
               >
-                {isPending ? 'Creating…' : 'Create invitation'}
+                {isPending ? t('action.creating') : t('inv.create')}
               </button>
             </div>
           </form>
@@ -253,12 +254,12 @@ export function InviteMemberDialog({
             <p className="text-sm">
               {result.emailed ? (
                 <>
-                  We&apos;ve emailed an invitation to <span className="font-medium">{result.name}</span>
+                  {t('inv.emailedTo')} <span className="font-medium">{result.name}</span>
                   {' '}at <span className="font-medium">{result.email}</span>.
                 </>
               ) : (
                 <>
-                  An invitation for <span className="font-medium">{result.name}</span>
+                  {t('inv.anInvitationFor')} <span className="font-medium">{result.name}</span>
                   {' '}at <span className="font-medium">{result.email}</span>.
                 </>
               )}
@@ -275,8 +276,8 @@ export function InviteMemberDialog({
                 : <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />}
               <p className={result.preApproved ? '' : 'text-muted-foreground'}>
                 {result.preApproved
-                  ? 'They will be admitted the moment they accept — they will not appear in the approvals queue.'
-                  : 'When they accept they will appear in Member Approvals, waiting for an administrator.'}
+                  ? t('inv.admittedAtOnce')
+                  : t('inv.willAppearInQueue')}
               </p>
             </div>
 
@@ -289,14 +290,11 @@ export function InviteMemberDialog({
               <>
                 <div className="flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
-                  <p>
-                    The invitation was created, but we could not email it. Send them this
-                    link instead — it works exactly the same.
-                  </p>
+                  <p>{t('ui.invitationCreatedButWe')}</p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="invite-link">Send them this link</Label>
+                  <Label htmlFor="invite-link">{t('inv.sendThisLink')}</Label>
                   <div className="flex gap-2">
                     <Input
                       id="invite-link"
@@ -311,15 +309,12 @@ export function InviteMemberDialog({
                       className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-3 text-sm font-medium transition-colors hover:bg-muted"
                     >
                       {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                      {copied ? 'Copied' : 'Copy'}
+                      {copied ? t('action.copied') : 'Copy'}
                     </button>
                   </div>
                 </div>
 
-                <p className="text-sm text-muted-foreground">
-                  Treat it like a password — anyone who gets hold of it and has that email
-                  address can use it. It is shown once.
-                </p>
+                <p className="text-sm text-muted-foreground">{t('ui.treatLikePasswordAnyone')}</p>
 
                 {/* Opening it yourself is the obvious thing to do with a link you have just
                     been handed, and it cannot work: redemption requires the session's
@@ -339,7 +334,7 @@ export function InviteMemberDialog({
                 onClick={close}
                 className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
               >
-                Done
+                {t('action.done')}
               </button>
             </div>
           </div>

@@ -11,6 +11,7 @@ import { paneLede, type AnnouncementPane } from '@/lib/announcement-panes'
 import type { Announcement, Chapter } from '@/app/actions/announcements'
 import type { UpdatesArchive } from '@/app/actions/updates'
 import type { PermissionScope } from '@/lib/auth/permissions'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * THE `/community/announcements` RAIL — the notice board, the archive of everything sent, and whose
@@ -98,13 +99,16 @@ interface Props {
   // ── The Birthdays pane ────────────────────────────────────────────────────────────
   /** Already sorted, soonest first, by `lib/birthdays.ts`. Empty when not fetched. */
   birthdays: UpcomingBirthday[]
+  /** The reader's language, resolved by the page. See lib/i18n/catalogues.ts. */
+  locale: string
 }
 
 export function AnnouncementsShell({
   initialPane, mayViewBoard, mayViewUpdates, mayViewBirthdays,
   initialAnnouncements, chapters, canPost, canPin, deleteScope, myPersonId,
-  archive, birthdays,
+  archive, birthdays, locale,
 }: Props) {
+  const t = useT()
   const [pane, setPane] = useState<AnnouncementPane>(initialPane)
 
   function selectPane(next: AnnouncementPane) {
@@ -119,23 +123,25 @@ export function AnnouncementsShell({
   const items: MainRailItem<AnnouncementPane>[] = [
     ...(mayViewBoard ? [{
       id: 'general' as const,
-      label: 'General',
+      label: t('ann.pane.general'),
       icon: Megaphone,
       href: '/community/announcements?pane=general',
     }] : []),
     ...(mayViewUpdates ? [{
       id: 'updates' as const,
-      label: 'Updates',
+      label: t('ann.pane.updates'),
       icon: Inbox,
       href: '/community/announcements?pane=updates',
     }] : []),
     ...(mayViewBirthdays ? [{
       id: 'birthdays' as const,
-      label: 'Birthdays',
+      label: t('ann.pane.birthdays'),
       icon: Cake,
       href: '/community/announcements?pane=birthdays',
     }] : []),
   ]
+
+  const lede = paneLede(t, pane, BIRTHDAY_HORIZON_DAYS)
 
   return (
     <div className="space-y-5">
@@ -143,13 +149,16 @@ export function AnnouncementsShell({
           belongs inside the pane it posts to, and lifting it onto the rail would put it above
           the other two panes where it means nothing. */}
       <MainRail
-        label="Announcement areas"
+        label={t('ann.rail')}
         items={items}
         active={pane}
         onSelect={selectPane}
       />
 
-      <p className="text-muted-foreground">{paneLede(pane, BIRTHDAY_HORIZON_DAYS)}</p>
+      {/* NOT EVERY PANE HAS ONE. `paneLede` answers null for Updates, whose lede described a
+          searchable list to somebody looking at a searchable list; rendering an empty `<p>`
+          would leave its margin behind, which is the gap the 2026-08-25 sweep removed. */}
+      {lede && <p className="text-muted-foreground">{lede}</p>}
 
       {/* The active pane, and only ever the pane the caller may open. Both conjuncts are
           kept: the page falls back to a pane the caller can see, so the second half should
@@ -175,6 +184,7 @@ export function AnnouncementsShell({
           archive={archive}
           basePath="/community/announcements"
           keepParams={{ pane: 'updates' }}
+        locale={locale}
         />
       )}
 

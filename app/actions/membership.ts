@@ -6,6 +6,8 @@ import { getMyFamilies, getMyNameInFamily } from '@/lib/auth/family'
 import { getMyPermissionSet } from '@/lib/auth/permissions'
 import { getMyFamilyTier } from '@/lib/auth/tier'
 import { notifyMembershipAppeal } from '@/lib/notifications'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 export type ResendResult =
   | { success: true }
@@ -58,8 +60,9 @@ export async function appealMembershipDecision(
   note: string,
 ): Promise<AppealResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   const { data, error } = await supabase
     .rpc('appeal_membership_decision', {
@@ -68,7 +71,7 @@ export async function appealMembershipDecision(
     })
     .maybeSingle<{ ok: boolean; message: string | null }>()
 
-  if (error) return { success: false, message: 'Could not send that just now. Please try again.' }
+  if (error) return { success: false, message: t('act.couldNotSendJustNow') }
   if (!data?.ok) return { success: false, message: data?.message ?? 'Could not send that.' }
 
   // ── Tell the administrators, which nothing did until 2026-08-14 ────────────────
@@ -158,8 +161,7 @@ export interface ShellState {
 }
 
 export async function getMyShellState(): Promise<ShellState> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { fingerprint: '' }
 
   const families = await getMyFamilies(user.id)
@@ -204,11 +206,12 @@ export async function getMyShellState(): Promise<ShellState> {
 
 export async function resendConfirmationEmail(): Promise<ResendResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user?.email) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user?.email) return { success: false, message: t('act.notAuthenticated') }
 
   if (user.email_confirmed_at) {
-    return { success: false, message: 'Your email address is already confirmed.' }
+    return { success: false, message: t('act.yourEmailAddressAlreadyConfirmed') }
   }
 
   const { error } = await supabase.auth.resend({ type: 'signup', email: user.email })

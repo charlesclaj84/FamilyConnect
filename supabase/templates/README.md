@@ -1,3 +1,25 @@
+> ## FROZEN AS OF 2026-08-27 — READ THIS FIRST
+>
+> These five files are now the **fallback**. When `[auth.hook.send_email]` is enabled, GoTrue
+> renders none of them: `app/api/auth/send-email/route.ts` composes the message instead, from
+> `lib/email/auth-mail.ts` and the email catalogue, which is what makes them readable in
+> Spanish and French. One HTML body cannot be three languages.
+>
+> **So a change to any of this wording is made in `lib/email/auth-mail.ts`, not here.** The
+> English exists twice while both paths are live, and the mitigation is that this copy is not
+> edited — two copies both maintained is how they come to disagree; two copies where one is
+> retired is a migration in progress.
+>
+> They are kept because the hook is off by default and is a separate, deliberate act per
+> environment (TODO.md's GO LIVE item has the order). In that window GoTrue still needs
+> something to send, and its own defaults link with `{{ .ConfirmationURL }}` — which points at
+> GoTrue rather than at `/auth/confirm` and is wrong for this app. `npm run email:push` keeps
+> pushing them for that reason.
+>
+> Everything below still describes how these files work and why they look the way they do. It
+> is also the reference `lib/email/layout.ts` mirrors, so it is worth reading before changing
+> either.
+
 # Auth email templates
 
 The bodies GoTrue sends. Wired up in `supabase/config.toml` under
@@ -236,21 +258,28 @@ for f in supabase/templates/*.html; do echo "$(wc -c <"$f")  $f"; done
 
 ## No SVG, and the wordmark is text
 
-Gmail strips `<img>` pointing at SVG entirely, so the mark is served as PNG
-(`public/identity/genorra-mail-mark-256.png`) rather than `BRAND_MARK_SRC`.
+Gmail strips `<img>` pointing at SVG entirely, so the mark is served as PNG rather than
+`BRAND_MARK_SRC`.
 
-**That file exists for mail alone, and it did not until 2026-08-22.** These templates used
-`genorra-app-256.png` — the web manifest's tile — which worked for a year because that tile
-was the kit's DARK app icon and so had the band's own burgundy baked into it (see "The band
-does not change between themes" below). The manifest moved to the kit's **Light** tile, the
-full-colour mark on cream, because that is what an installed GENORRA shows on a home screen
-and monochrome gold was not recognisably the brand there (`app/manifest.ts` argues it).
+**IT IS `genorra-app-256.png` — THE FULL-COLOUR TILE — SINCE 2026-08-26.** Before that it was
+`genorra-mail-mark-256.png`, the gold-on-burgundy tile, chosen so its own ground matched the
+band's and the tile disappeared into it. That was the more elegant composition and it had one
+cost that outweighed it: **mail was the only surface where GENORRA was monochrome.** The rail
+draws the full-colour mark at 64px, an installed home-screen icon is the full-colour tile
+(`app/manifest.ts` argues that one), and a transactional email was gold on burgundy — so the
+first thing a new member ever sees from this product did not look like the product.
 
-One shared file could not be both: repointing the manifest alone would have put a cream
-rounded square on the burgundy band in every transactional email the product sends. So the
-dark tile is now filed under its own role name and referenced by these five templates and
-`lib/email/layout.ts` — six places, exactly as before, and none of them shares a file with a
-surface that can be re-skinned for a different reason.
+So the tile is the full-colour one, on the same burgundy band, with `border-radius:14px` on the
+`<img>`. Its ground is cream, so it now reads as an app-icon badge on the band rather than
+vanishing into it — **which is deliberate and is the thing the previous note warned about
+happening by accident.** If you find a cream rounded square on burgundy and think it is a
+mistake, it is not; changing it back is a decision about whether mail may be monochrome.
+
+`genorra-mail-mark-256.png` is kept in `public/identity/` and is now referenced by nothing.
+It is the only asset in that folder in that position, and it stays for one reason: the gold
+tile is the artwork a dark-banded design would need, and re-deriving it from the kit is a
+`design/` lookup rather than a copy. **Do not repoint the manifest at it** — that is the swap
+`app/manifest.ts` exists to prevent.
 
 The **wordmark is set as text**, not placed as artwork — the same rule as `.gn-wordmark`
 in `globals.css`, and doubly right here, because most clients block images by default and
@@ -263,15 +292,49 @@ twice.
 
 ## The band does not change between themes
 
-`#6b2d3a` in both. `genorra-mail-mark-256.png` has that exact colour baked into its own
-rounded-square tile (sampled: ground `#6b2d3a`, marks `#d6a24a`, corners transparent), so a
-matching band makes the tile disappear and leaves the gold mark floating on burgundy.
-Recolour the band for dark mode and the tile reappears as a lighter square on a darker one.
+`#6b2d3a` in both, and the reason has changed with the tile. It used to be that
+`genorra-mail-mark-256.png` had that exact colour baked into its own rounded square, so a
+matching band made the tile disappear — recolour the band for dark mode and the tile reappeared
+as a lighter square on a darker one.
 
-**This is what makes the file mail-specific rather than merely mail-referenced.** Its ground
-is not decoration, it is a value that has to equal the band's — so swapping it for any other
-tile is a change to the header's composition, not to its artwork. That is the whole reason it
-is no longer shared with the web manifest.
+The full-colour tile has a cream ground, so it no longer disappears into anything and that
+argument is gone. The band still does not move, for a plainer reason: **a header that is the
+same in both themes is one fewer thing a mail client can get wrong.** Every dark-mode failure
+in this directory has been a client overriding a colour we set; a band with no override to
+apply cannot be one of them. It carries `class="gn-band"` purely so Outlook's inverter can be
+told to leave it alone.
+
+## Dark mode is the client's, not ours, and that is what broke the button
+
+Reported as: *you cannot see the text on Confirm my email address.*
+
+The `@media (prefers-color-scheme: dark)` block was correct and was not the whole story. Two
+gaps, both fixed on 2026-08-26, and the first is the one that mattered:
+
+* **The CSS `color-scheme` property was missing.** Both `<meta>` tags were present —
+  `color-scheme` and `supported-color-schemes` — and iOS Mail and Outlook read the CSS
+  PROPERTY to decide whether to apply their own inversion. Without it they invert on top of
+  whatever we set, darkening the sand button label until it disappears into the burgundy behind
+  it. No `@media` rule can prevent that, because the client acts after ours have applied. It is
+  now declared on `:root` and on `body` in all five templates and in `lib/email/layout.ts`.
+* **Outlook.com ignores `prefers-color-scheme` entirely** and stamps `data-ogsc` (original get
+  style color) and `data-ogsb` (background) on what it has rewritten. Those attributes are the
+  only hook for putting a colour back, so every dark rule is mirrored through them. In a client
+  that never sets them the mirror selects nothing.
+
+**And the button label is pinned inline, with an important flag, on both the anchor and a span
+inside it.** Three independent defences, because there is no way to test a mail client from
+here: an inline important beats a client-injected rule, and the nested span gives a second
+element with its own declaration for a client that rewrites the anchor's.
+
+One consequence worth knowing: an inline important also beats a stylesheet important, so the
+dark block's `.gn-btn a` colour rule would now be dead and has been replaced by a comment
+saying so. It is not needed — sand is **7.37:1** on the light band and **5.27:1** on the dark
+button fill, so one label colour is correct in both themes and there is nothing to swap.
+
+**This is still not a rendered email.** `npm run email:check` reports that the bytes match
+hosted; it says nothing about what a phone draws. Send yourself a real signup and look at it in
+dark mode before calling this done.
 
 ## Colour literals in this directory
 

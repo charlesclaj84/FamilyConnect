@@ -1,10 +1,12 @@
 import Link from 'next/link'
+import { weekdayNames } from '@/lib/date-utils'
 import { ChevronLeft, ChevronRight, Gavel, Star, Vote } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   monthLabel,
   type CalendarBar, type CalendarDay, type CalendarEntry, type CalendarMonth,
 } from '@/lib/calendar'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * One month of the family calendar: a real seven-column grid on a screen that can hold one,
@@ -84,34 +86,39 @@ export interface MonthCalendarProps {
   /** Built by `buildCalendarMonth` on the server — see the header on why it is built once. */
   month: CalendarMonth
   className?: string
+  /**
+   * The reader's language, bound, and its `Intl` tag.
+   *
+   * PROPS RATHER THAN `useT()`, because this is a Server Component: the month is built on the
+   * server and this renderer holds no state, so there is nothing to hydrate and no context to
+   * read. `lib/i18n/server.ts` carries the rule — a `T` crossing a server-to-server boundary is
+   * passed by reference, and a missing prop is a type error.
+   */
+  t: T
+  intl: string
 }
 
-/**
- * Sunday first, matching `buildCalendarMonth`'s weeks exactly.
+/*
+ * THE WEEKDAY NAMES COME FROM `Intl`, through `weekdayNames()` in lib/date-utils.ts — they were
+ * a hand-written table here until Phase 5. Its header carries the argument; the short version is
+ * that a weekday is not copy, every locale already has canonical forms, and Spanish and French
+ * both lower-case them.
  *
- * The short form is what the column heading prints and the full form is what a screen reader
- * announces, which is the whole reason both are here: "Sun" read out is a word, not a day.
- * Taken by INDEX from the week rather than parsed out of each day's date — the grid is
- * Sunday-first by construction, so index 0 is Sunday and no `Date` has to be built to find out.
+ * Everything the old comment said still holds and is now the helper's contract: Sunday first,
+ * matching `buildCalendarMonth`'s weeks; both forms, because the heading prints the short one and
+ * a screen reader announces the long one; and taken by INDEX from the week rather than parsed out
+ * of each day's date, since the grid is Sunday-first by construction.
  */
-const WEEKDAYS = [
-  { short: 'Sun', long: 'Sunday' },
-  { short: 'Mon', long: 'Monday' },
-  { short: 'Tue', long: 'Tuesday' },
-  { short: 'Wed', long: 'Wednesday' },
-  { short: 'Thu', long: 'Thursday' },
-  { short: 'Fri', long: 'Friday' },
-  { short: 'Sat', long: 'Saturday' },
-] as const
 
-/** What each kind of entry is called, for the `sr-only` prefix and the legend. */
-const ENTRY_KIND_WORD = {
-  premier:    'Premier gathering',
-  gathering:  'Gathering',
-  meeting:    'Meeting',
-  nominations: 'Nominations open',
-  voting:     'Voting open',
-} as const
+/**
+ * What each kind of entry is called, for the `sr-only` prefix and the legend.
+ *
+ * A FUNCTION of `t`. The TONE keys are the contract — `ENTRY_TONE`'s declaration order is what
+ * makes the legend read the same way every month — and only the words moved.
+ */
+function entryKindWord(t: T, tone: EntryTone): string {
+  return t(`cal.kind.${tone}`)
+}
 
 /**
  * The measured surface pairs. Never crossed — a foreground from one pair on another's fill is
@@ -223,7 +230,7 @@ const CELL_GUTTER_PX = 4 + 4 + 1
  * complete things where there is one — which is exactly the misreading this whole change is
  * about, moved from days to weeks.
  */
-function EntryBar({ bar }: { bar: CalendarBar }) {
+function EntryBar({ bar, t }: { bar: CalendarBar; t: T }) {
   const tone = toneOf(bar.entry)
   const cut = bar.continuesBefore || bar.continuesAfter
   // Said in words, because the shape of the ends is not available to a screen reader. "n
@@ -240,10 +247,19 @@ function EntryBar({ bar }: { bar: CalendarBar }) {
         bar.continuesBefore ? 'rounded-l-none' : 'rounded-l',
         bar.continuesAfter ? 'rounded-r-none' : 'rounded-r',
       )}
-      title={bar.entry.title}
+      title={bar.entry.timeLabel
+        ? `${bar.entry.title} · ${bar.entry.timeLabel}`
+        : bar.entry.title}
     >
       <ToneIcon tone={tone} />
-      <span className="sr-only">{ENTRY_KIND_WORD[tone]}{runWords}: </span>
+      {/* THE TIME IS IN THE HOVER TITLE AND THE SCREEN-READER RUN, NOT ON THE BAR ITSELF.
+          A bar is `h-5` and already truncates its title, so a time rendered inside it would be
+          the first thing cut off — a half-shown "11:0" is worse than no time at all. The agenda
+          below has room and prints it; this keeps the grid legible at its own size. */}
+      <span className="sr-only">
+        {entryKindWord(t, tone)}{runWords}
+        {bar.entry.timeLabel ? `, ${bar.entry.timeLabel}` : ''}:{' '}
+      </span>
       {/* `min-w-0` is what lets a flex child shrink below its content, and without it the
           title would push the bar wider than the width set above and out past the table. */}
       <span className="min-w-0 truncate">{bar.entry.title}</span>
@@ -263,7 +279,7 @@ function EntryBar({ bar }: { bar: CalendarBar }) {
  * track: without the `min-w-0` a flex or grid child refuses to shrink below its content and
  * the whole table pushes the page sideways, which is the one thing this screen must not do.
  */
-function EntryChip({ entry }: { entry: CalendarEntry }) {
+function EntryChip({ entry, t }: { entry: CalendarEntry; t: T }) {
   const tone = toneOf(entry)
   return (
     <Link
@@ -272,27 +288,36 @@ function EntryChip({ entry }: { entry: CalendarEntry }) {
         'block min-w-0 truncate rounded px-1.5 py-0.5 text-xs hover:opacity-90',
         ENTRY_TONE[tone],
       )}
-      title={entry.title}
+      title={entry.timeLabel ? `${entry.title} · ${entry.timeLabel}` : entry.title}
     >
       {/* Wrapped so it is not an empty margin for a plain gathering, which has no glyph. */}
       {tone !== 'gathering' && (
         <span className="mr-1 inline-flex align-[-2px]"><ToneIcon tone={tone} /></span>
       )}
       {/* Says in words what the colour says in colour. */}
-      <span className="sr-only">{ENTRY_KIND_WORD[tone]}: </span>
+      <span className="sr-only">{entryKindWord(t, tone)}: </span>
       {entry.title}
+      {/* THE TIME, on the agenda only — see `EntryBar` for why the grid's bars carry it in
+          their hover title instead. `opacity-80` rather than a muted token: this sits ON a
+          filled tone, so a foreground from another pair is not a checked combination
+          (AGENTS.md, "the pairs are load-bearing") and dimming the one that IS checked is the
+          way to make it secondary without leaving the pair. */}
+      {entry.timeLabel && (
+        <span className="ml-1 opacity-80">· {entry.timeLabel}</span>
+      )}
     </Link>
   )
 }
 
 /** Which adjacent month a leading or trailing day belongs to — for the day list, where a
  *  cell has no column to place it. `YYYY-MM` compares lexicographically. */
-function adjacentCaption(day: CalendarDay, month: string): string | null {
+function adjacentCaption(day: CalendarDay, month: string, t: T): string | null {
   if (day.inMonth) return null
-  return day.iso.slice(0, 7) < month ? 'Previous month' : 'Next month'
+  return day.iso.slice(0, 7) < month ? t('cal.prevMonth') : t('cal.nextMonth')
 }
 
-export function MonthCalendar({ month, className }: MonthCalendarProps) {
+export function MonthCalendar({ month, className, t, intl }: MonthCalendarProps) {
+  const weekdays = weekdayNames(intl)
   const days = month.weeks.flat()
   const hasEntries = days.some(day => day.entries.length > 0)
   // In `ENTRY_TONE`'s declaration order, so the legend reads the same way every month
@@ -325,7 +350,7 @@ export function MonthCalendar({ month, className }: MonthCalendarProps) {
             href="/gatherings/calendar"
             className="inline-flex h-8 items-center rounded-lg border px-2.5 text-sm text-foreground hover:bg-muted"
           >
-            This month
+            {t('cal.thisMonth')}
           </Link>
           <Link
             href={`/gatherings/calendar?month=${month.nextMonth}`}
@@ -352,7 +377,7 @@ export function MonthCalendar({ month, className }: MonthCalendarProps) {
           </caption>
           <thead>
             <tr className="border-b bg-muted/40 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              {WEEKDAYS.map(weekday => (
+              {weekdays.map(weekday => (
                 <th key={weekday.long} scope="col" className="px-2 py-2 text-left font-semibold">
                   <span aria-hidden="true">{weekday.short}</span>
                   <span className="sr-only">{weekday.long}</span>
@@ -424,7 +449,7 @@ export function MonthCalendar({ month, className }: MonthCalendarProps) {
                                 // continuous. `h-5` matches `EntryBar`'s own height exactly.
                                 className={cn('h-5', lane > 0 && 'mt-0.5')}
                               >
-                                {bar && <EntryBar bar={bar} />}
+                                {bar && <EntryBar bar={bar} t={t} />}
                               </div>
                             )
                           })}
@@ -455,13 +480,13 @@ export function MonthCalendar({ month, className }: MonthCalendarProps) {
           <ul className="divide-y rounded-xl border">
             {month.weeks.map(week => week.map((day, weekdayIndex) => {
               if (day.entries.length === 0 && !day.isToday) return null
-              const adjacent = adjacentCaption(day, month.month)
+              const adjacent = adjacentCaption(day, month.month, t)
               return (
                 <li key={day.iso} className="flex gap-3 px-3 py-2.5">
                   <div className="w-12 shrink-0">
                     <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                      {WEEKDAYS[weekdayIndex].short}
-                      <span className="sr-only">{` ${WEEKDAYS[weekdayIndex].long}`}</span>
+                      {weekdays[weekdayIndex].short}
+                      <span className="sr-only">{` ${weekdays[weekdayIndex].long}`}</span>
                     </p>
                     {day.isToday ? (
                       <p className="mt-0.5">
@@ -480,9 +505,9 @@ export function MonthCalendar({ month, className }: MonthCalendarProps) {
                       // Reachable only for today, by the exemption above. A sentence rather than
                       // an empty column: a row with a marked date and nothing beside it reads as
                       // something that failed to load.
-                      <p className="text-sm text-muted-foreground">Nothing on today.</p>
+                      <p className="text-sm text-muted-foreground">{t('cal.nothingToday')}</p>
                     ) : day.entries.map(entry => (
-                      <EntryChip key={`${day.iso}:${entry.id}`} entry={entry} />
+                      <EntryChip key={`${day.iso}:${entry.id}`} entry={entry} t={t} />
                     ))}
                   </div>
                 </li>
@@ -505,7 +530,7 @@ export function MonthCalendar({ month, className }: MonthCalendarProps) {
           {legend.map(tone => (
             <li key={tone} className="flex items-center gap-1.5">
               <span aria-hidden="true" className={cn('h-3 w-6 rounded', ENTRY_TONE[tone])} />
-              {ENTRY_KIND_WORD[tone]}
+              {entryKindWord(t, tone)}
             </li>
           ))}
         </ul>

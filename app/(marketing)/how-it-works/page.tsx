@@ -6,24 +6,36 @@ import { Button } from '@/components/ui/button'
 import { Reveal } from '@/components/marketing/Reveal'
 import { StructuredData } from '@/components/marketing/StructuredData'
 import { Testimonials } from '@/components/marketing/Testimonials'
-import { PageHero, SectionHeading, CtaBand, MoreLink } from '@/components/marketing/sections'
+import { PageHero, SectionHeading, MoreLink } from '@/components/marketing/sections'
+import { CtaBand } from '@/components/marketing/CtaBand'
 import { marketingPageGraph } from '@/lib/structured-data'
 import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
-import { APP_NAME } from '@/lib/brand'
+import { localizedHref } from '@/lib/i18n/route-locale'
+import { marketingI18n } from '@/lib/marketing/locale'
+import { localizedAlternates } from '@/lib/i18n/route-locale'
+import { type T } from '@/lib/i18n/t'
 import { MetaViewContent } from '@/components/meta/MetaViewContent'
 
-const PAGE_TITLE = 'How It Works — Set Up Your Family Portal in an Evening'
-const PAGE_DESCRIPTION =
-  `Create your family, share one code, and your relatives join themselves. See exactly how ${APP_NAME} goes from empty to running a reunion in five steps.`
-
-export const metadata: Metadata = {
-  // 39 characters, so 49 once `title.template` appends the product name — inside
-  // Google's ~60-character display budget. The first draft read 'How It Works — Set Up
-  // Your Family Portal in an Evening' and rendered at 64, which is truncated, and a cut
-  // title is worse than a shorter one. Measured against the built HTML, not counted by eye.
-  title: 'Set Up Your Family Portal in an Evening',
-  description: PAGE_DESCRIPTION,
-  alternates: { canonical: '/how-it-works' },
+/**
+ * ── `generateMetadata` RATHER THAN A STATIC OBJECT, AND IT COSTS NOTHING ────────────
+ * The title, the description and the `hreflang` set are all per-language now, and none of them
+ * can be a module constant any more. That is normally a real cost on the Dashboard — a
+ * `generateMetadata` there would need `getUser()` for a browser-tab title — and here it is
+ * free: `marketingI18n()` reads a request header `proxy.ts` has already written, and the read is
+ * request-cached, so the page body below asking again is not a second one.
+ *
+ * The 60-character budget the old comment measured still applies and still applies PER LANGUAGE.
+ * `mkt.hiw.metaTitle` is held to roughly the English length in the catalogue for that reason — a
+ * faithful Spanish rendering of *Set Up Your Family Portal in an Evening* runs past the display
+ * budget and is truncated, and a cut title is worse than a shorter one.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const { t, locale } = await marketingI18n()
+  return {
+    title: t('mkt.hiw.metaTitle'),
+    description: t('mkt.hiw.metaDescription'),
+    alternates: localizedAlternates('/how-it-works', locale),
+  }
 }
 
 /**
@@ -31,103 +43,76 @@ export const metadata: Metadata = {
  * product uses on screen — "family code", "approve", "dues plan". A how-it-works page
  * that paraphrases is a page that stops matching the product at the next release, and the
  * first person to notice is somebody who followed it and got lost.
+ *
+ * ── AND THAT RULE IS WHAT MAKES THE TRANSLATION A JUDGEMENT ─────────────────────────
+ * "The actual words the product uses on screen" is a constraint that now has to hold in three
+ * languages rather than one. So *family code* is *código familiar* here because that is what
+ * `/register` calls it in Spanish, and *dues plan* is *plan de cuotas* because that is what
+ * `/accounting/dues-and-donations` calls it — the shell catalogue is the authority, and a
+ * better-sounding word that no screen uses would break exactly the promise above.
+ *
+ * A function of `t` rather than a const, which is the conversion ~40 caption registries in this
+ * product have already been through. The ICONS are not copy and stay where they are.
  */
-const STEPS: readonly { icon: LucideIcon; title: string; detail: string; aside?: string }[] = [
-  {
-    icon: UserPlus,
-    title: 'Create your family',
-    detail:
-      'One person signs up, names the family, and becomes its first administrator. It takes about a minute and costs nothing.',
-    aside: 'You are the founder, so you hold every permission from the start.',
-  },
-  {
-    icon: KeyRound,
-    title: 'Share one family code',
-    detail:
-      'Your family gets a short code. Put it in the group text. Relatives sign up with it and land in your approval queue — you are not typing in a hundred people by hand.',
-    aside: 'Prefer to invite directly? Email an invitation and they skip straight past the code.',
-  },
-  {
-    icon: Users,
-    title: 'Approve who belongs',
-    detail:
-      'Every applicant waits until an administrator recognises them. Nobody sees a single photograph, address or dollar figure before you say yes.',
-    aside: 'Declined by mistake? They can ask you to look again, in writing.',
-  },
-  {
-    icon: CalendarCheck,
-    title: 'Put the reunion up',
-    detail:
-      'Write the checklist once, schedule the gathering from it, and every step becomes somebody’s job with a date against it. What comes back is accepted or sent back with notes.',
-  },
-  {
-    icon: Wallet,
-    title: 'Turn on the treasury',
-    detail:
-      'Set a dues plan members can pay in installments, create the funds the money belongs to, and let the routing rules put each payment where it goes.',
-    aside: 'Your treasurer gets a real profit and loss out of the other end.',
-  },
-]
+const STEP_ICONS: readonly LucideIcon[] = [UserPlus, KeyRound, Users, CalendarCheck, Wallet]
+
+function steps(t: T): readonly { icon: LucideIcon; title: string; detail: string; aside?: string }[] {
+  return STEP_ICONS.map((icon, i) => ({
+    icon,
+    title: t(`mkt.hiw.step${i}.title`),
+    detail: t(`mkt.hiw.step${i}.detail`),
+    // Step four has no aside, and an empty catalogue entry is how that is said. `t` answers the
+    // KEY for a missing entry, so the empty string has to be present rather than absent —
+    // otherwise the gold-bordered callout renders `mkt.hiw.step3.aside` to a reader.
+    aside: t(`mkt.hiw.step${i}.aside`) || undefined,
+  }))
+}
 
 /**
  * ANSWERED IN THE VISIBLE COPY BELOW, which is what lets these become an `FAQPage` node.
  * Adding a question here that the page does not answer is the mismatch that costs rich
  * results — see the note on `marketingPageGraph`.
+ *
+ * ── THE STRUCTURED DATA IS IN THE READER'S LANGUAGE, MATCHING THE PAGE ──────────────
+ * `FAQPage` markup disagreeing with the visible copy is the mismatch above, and English JSON-LD
+ * on a Spanish page is its most literal form: the document a crawler reads and the document a
+ * person reads would not be the same document. So the graph is built from the same `t` the body
+ * renders from, which is why this is a function rather than a const.
  */
-const FAQ = [
-  {
-    question: 'How long does it take to set up a family portal?',
-    answer:
-      'Creating the family takes about a minute. Most families have relatives signing themselves up the same evening, because they join with a family code instead of being entered by hand.',
-  },
-  {
-    question: 'Do I have to add every family member myself?',
-    answer:
-      'No. You share one short family code and relatives sign up with it, landing in an approval queue for an administrator to review. You can also email invitations directly, which lets someone skip the code entirely.',
-  },
-  {
-    question: 'Can someone see our family’s information before we approve them?',
-    answer:
-      'No. An applicant sees nothing about the family until an administrator approves them — no directory, no photographs, no financial figures. Family separation is enforced by the database on every query, not by a setting.',
-  },
-  {
-    question: 'What happens if we decline someone by mistake?',
-    answer:
-      'The decision is kept rather than deleted, so it can be reversed. An administrator can admit them after all, any member can send them a fresh invitation, and the person themselves can reply once in writing to ask the administrators to look again.',
-  },
-  {
-    question: `Is ${APP_NAME} free to start?`,
-    answer:
-      'Yes. Creating your family, inviting your relatives and running your first reunion costs nothing, and no card is required to start.',
-  },
-] as const
+const FAQ_COUNT = 5
 
-export default function HowItWorksPage() {
+function faq(t: T): readonly { question: string; answer: string }[] {
+  return Array.from({ length: FAQ_COUNT }, (_, i) => ({
+    question: t(`mkt.hiw.faq${i}.q`),
+    answer: t(`mkt.hiw.faq${i}.a`),
+  }))
+}
+
+export default async function HowItWorksPage() {
+  const { t, locale } = await marketingI18n()
+  const STEPS = steps(t)
+  const FAQ = faq(t)
+
   return (
     <>
       <MetaViewContent content="howItWorks" />
       <StructuredData
         graph={marketingPageGraph({
           path: '/how-it-works',
-          name: PAGE_TITLE,
-          description: PAGE_DESCRIPTION,
+          name: t('mkt.hiw.graphName'),
+          description: t('mkt.hiw.metaDescription'),
           faq: FAQ,
         })}
       />
 
       <PageHero
-        eyebrow="How it works"
-        title={<>From nothing to a running reunion, in an evening</>}
-        lede={
-          <>
-            No migration project. No data entry weekend. One person starts it, and the
-            family fills it in themselves.
-          </>
-        }
+        eyebrow={t('mkt.hiw.eyebrow')}
+        title={t('mkt.hiw.title')}
+        lede={t('mkt.hiw.lede')}
       >
-        <Link href={ACCOUNT_ROUTES.register}>
+        <Link href={localizedHref(ACCOUNT_ROUTES.register, locale)}>
           <Button size="lg" className="w-full bg-brand-legacy px-8 text-base text-brand-on-legacy hover:opacity-90 sm:w-auto">
-            Start Step One
+            {t('mkt.hiw.heroCta')}
           </Button>
         </Link>
       </PageHero>
@@ -140,9 +125,9 @@ export default function HowItWorksPage() {
         <div className="mx-auto max-w-3xl">
           <SectionHeading
             id="steps-heading"
-            eyebrow="Five steps"
-            title="What you actually do"
-            lede="In order. Steps four and five are optional on day one — plenty of families start with the directory alone."
+            eyebrow={t('mkt.hiw.stepsEyebrow')}
+            title={t('mkt.hiw.stepsTitle')}
+            lede={t('mkt.hiw.stepsLede')}
           />
 
           <ol className="mt-12 space-y-8">
@@ -163,7 +148,7 @@ export default function HowItWorksPage() {
                   <div className="min-w-0 pb-2">
                     <div className="flex items-baseline gap-2">
                       <span className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                        Step {i + 1}
+                        {t('mkt.hiw.stepN', { n: i + 1 })}
                       </span>
                     </div>
                     <h3 className="mt-1 text-xl">{step.title}</h3>
@@ -184,14 +169,14 @@ export default function HowItWorksPage() {
               <div className="mb-3 inline-flex rounded-xl bg-brand-affirm/15 p-2.5">
                 <Rocket className="h-6 w-6 text-brand-affirm" aria-hidden="true" />
               </div>
-              <h3 className="text-xl">That is the whole setup</h3>
+              <h3 className="text-xl">{t('mkt.hiw.wholeSetup')}</h3>
               <p className="mx-auto mt-2 max-w-md text-muted-foreground">
-                Everything else — chat, photos, documents, elections, chapters, reports —
-                is already switched on inside the same account, waiting for whenever you
-                want it.
+                {t('mkt.hiw.wholeSetupLede')}
               </p>
               <div className="mt-4 flex justify-center">
-                <MoreLink href="/features">See everything included</MoreLink>
+                <MoreLink href={localizedHref('/features', locale)}>
+                  {t('mkt.hiw.seeEverything')}
+                </MoreLink>
               </div>
             </div>
           </Reveal>
@@ -205,7 +190,11 @@ export default function HowItWorksPage() {
           both read every answer whether it is open or not. */}
       <section aria-labelledby="faq-heading" className="bg-brand-soft/40 px-4 py-16 sm:px-6 sm:py-20">
         <div className="mx-auto max-w-3xl">
-          <SectionHeading id="faq-heading" eyebrow="Questions" title="The things families ask first" />
+          <SectionHeading
+            id="faq-heading"
+            eyebrow={t('mkt.faqEyebrow')}
+            title={t('mkt.hiw.faqTitle')}
+          />
           <div className="mt-10 space-y-3">
             {FAQ.map((entry, i) => (
               <Reveal key={entry.question} delay={i * 90}>
@@ -227,12 +216,12 @@ export default function HowItWorksPage() {
         </div>
       </section>
 
-      <Testimonials heading="What families tell us afterwards" />
+      <Testimonials heading={t('mkt.hiw.testimonials')} />
 
       <CtaBand
-        title="Start with step one"
-        lede="Create your family, share the code, and see how much of this fills itself in."
-        primaryLabel="Create Your Family Free"
+        title={t('mkt.hiw.ctaTitle')}
+        lede={t('mkt.hiw.ctaLede')}
+        primaryLabel={t('mkt.hiw.ctaPrimary')}
       />
     </>
   )

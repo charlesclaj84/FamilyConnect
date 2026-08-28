@@ -1,10 +1,12 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import { getMyPersonId } from '@/lib/auth/family'
+import { resolveZone } from '@/lib/auth/zone'
 import { getDocuments } from '@/app/actions/documents'
 import { DocumentList } from '@/components/documents/DocumentList'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Documents' }
 
@@ -22,33 +24,32 @@ export const metadata = { title: 'Documents' }
  * `uploaded_by` and the action enforces with `requireOwn`.
  */
 export default async function DocumentsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'library/documents')
 
-  const [documents, canUpload, canDeleteAny, myPersonId] = await Promise.all([
+  const { t } = await callerI18n(user.id)
+
+  const [documents, canUpload, canDeleteAny, myPersonId, zone] = await Promise.all([
     getDocuments(),
     canAny(user.id, 'library/documents', 'create'),
     canAny(user.id, 'library/documents', 'delete'),
     getMyPersonId(user.id),
+    resolveZone(user.id),
   ])
 
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Documents</h1>
-        <p className="text-muted-foreground">
-          The family&rsquo;s records — forms, filings and signed copies, in one place that is
-          not somebody&rsquo;s inbox.
-        </p>
+        <h1 className="text-3xl font-bold">{t('page./library/documents.title')}</h1>
       </div>
       <DocumentList
         initialDocuments={documents}
         canUpload={canUpload}
         canDeleteAny={canDeleteAny}
         myPersonId={myPersonId || null}
+        zone={zone}
       />
     </PageShell>
   )

@@ -3,6 +3,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { currentUser } from '@/lib/auth/current-user'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -82,8 +83,7 @@ async function enrichRoom(admin: any, room: ChatRoom, familyCode: string, canRep
 // ── Family room ────────────────────────────────────────────────────────────────
 
 export async function getOrCreateFamilyRoom(): Promise<{ room: ChatRoom | null; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { room: null, error: 'Not authenticated' }
 
   const familyCode = await getMyFamilyCode(user.id)
@@ -152,8 +152,7 @@ export async function getOrCreateFamilyRoom(): Promise<{ room: ChatRoom | null; 
 export async function getOrCreateDmRoom(
   otherUserId: string
 ): Promise<{ room: RoomWithMeta | null; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { room: null, error: 'Not authenticated' }
 
   const familyCode = await getMyFamilyCode(user.id)
@@ -222,8 +221,7 @@ export async function getOrCreateDmRoom(
 export async function deleteDm(
   roomId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, error: 'Not authenticated' }
 
   const admin = createAdminClient()
@@ -283,8 +281,7 @@ export async function createGroupRoom(
   name: string,
   memberUserIds: string[]
 ): Promise<{ room: RoomWithMeta | null; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { room: null, error: 'Not authenticated' }
 
   const familyCode = await getMyFamilyCode(user.id)
@@ -340,8 +337,7 @@ export async function addGroupMember(
   roomId: string,
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, error: 'Not authenticated' }
 
   const admin = createAdminClient()
@@ -386,8 +382,7 @@ export async function removeGroupMember(
   roomId: string,
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, error: 'Not authenticated' }
 
   const admin = createAdminClient()
@@ -418,8 +413,7 @@ export async function removeGroupMember(
 // ── Room list ──────────────────────────────────────────────────────────────────
 
 export async function getRoomList(): Promise<RoomWithMeta[]> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   const familyCode = await getMyFamilyCode(user.id)
@@ -463,7 +457,7 @@ export async function getRoomList(): Promise<RoomWithMeta[]> {
 
 export async function getMessages(roomId: string): Promise<ChatMessage[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   const { data } = await supabase
@@ -477,8 +471,7 @@ export async function getMessages(roomId: string): Promise<ChatMessage[]> {
 }
 
 export async function getSenderMap(roomId: string): Promise<SenderMap> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return {}
 
   const familyCode = await getMyFamilyCode(user.id)
@@ -510,7 +503,7 @@ export async function getFamilyMembersWithAccounts(): Promise<
   { userId: string; firstName: string | null; lastName: string | null }[]
 > {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   const familyCode = await getMyFamilyCode(user.id)
@@ -539,8 +532,7 @@ export async function getFamilyMembersWithAccounts(): Promise<
 }
 
 export async function markRoomRead(roomId: string): Promise<void> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return
 
   const admin = createAdminClient()
@@ -559,7 +551,7 @@ export async function sendMessage(
   if (!trimmed || trimmed.length > 4000) return { success: false, error: 'Invalid message' }
 
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { success: false, error: 'Not authenticated' }
 
   const { error } = await supabase

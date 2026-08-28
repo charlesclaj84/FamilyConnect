@@ -12,6 +12,7 @@ import { approveApplicant, rejectApplicant, type Applicant } from '@/app/actions
 import { revokeInvitation, resendInvitation, type FamilyInvitation, type ResendResult } from '@/app/actions/invitations'
 import { formatDate } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Review the join queue.
@@ -31,6 +32,8 @@ export function AdminApprovalsClient({
   canDecide: boolean
   invitations: FamilyInvitation[]
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [pending, setPending] = useServerState(pendingProp)
@@ -49,7 +52,7 @@ export function AdminApprovalsClient({
   // become a row in one of the two lists above.
   const openInvitations = invitations.filter(i => !i.acceptedAt && !i.revokedAt)
 
-  const name = (a: Applicant) => `${a.firstName} ${a.lastName}`.trim() || a.email || 'This person'
+  const name = (a: Applicant) => `${a.firstName} ${a.lastName}`.trim() || a.email || t('appr.thisPerson')
 
   function run(applicant: Applicant, action: () => Promise<{ success: boolean; message?: string }>) {
     setError('')
@@ -63,7 +66,7 @@ export function AdminApprovalsClient({
         setPending(current => current.filter(p => p.personId !== applicant.personId))
         router.refresh()
       } else {
-        setError(result.message ?? 'Something went wrong.')
+        setError(result.message ?? t('meet.wentWrong'))
       }
     })
   }
@@ -72,8 +75,8 @@ export function AdminApprovalsClient({
     const ok = await confirm({
       title: `Admit ${name(applicant)}?`,
       description:
-        'They will get immediate access to everything your family has made visible to members.',
-      confirmLabel: 'Approve',
+        t('appr.immediate'),
+      confirmLabel: t('appr.approve'),
     })
     if (!ok) return
     run(applicant, () => approveApplicant(applicant.personId))
@@ -127,7 +130,7 @@ export function AdminApprovalsClient({
     const ok = await confirm({
       title: `Admit ${name(applicant)} after all?`,
       description:
-        'They were declined before. Admitting them now gives them immediate access to everything your family has made visible to members, and they will be told.',
+        t('appr.wasDeclinedBefore'),
       confirmLabel: 'Admit',
     })
     if (!ok) return
@@ -171,8 +174,8 @@ export function AdminApprovalsClient({
           </h2>
           <p className="text-sm text-muted-foreground">
             {pending.length === 0
-              ? 'Nobody is waiting. Requests appear here when someone joins with your family code.'
-              : 'Check that you recognise the person before admitting them.'}
+              ? t('appr.nobodyWaiting')
+              : t('appr.checkRecognise')}
           </p>
         </div>
 
@@ -199,7 +202,7 @@ export function AdminApprovalsClient({
                         </span>
                       )}
                       {applicant.requestedAt && (
-                        <span>Asked {formatDate(applicant.requestedAt)}</span>
+                        <span>Asked {formatDate(applicant.requestedAt, intl)}</span>
                       )}
                       {/* THIS PERSON HAS BEEN HERE BEFORE. Since 20260811000001 a declined
                           person can be asked back, and accepting returns them to this
@@ -214,7 +217,7 @@ export function AdminApprovalsClient({
                       {applicant.decidedAt && (
                         <span className="inline-flex items-center gap-1">
                           <UserX className="h-3 w-3" />
-                          Previously declined {formatDate(applicant.decidedAt)}
+                          Previously declined {formatDate(applicant.decidedAt, intl)}
                           {applicant.note ? ` — ${applicant.note}` : ''}
                         </span>
                       )}
@@ -226,7 +229,7 @@ export function AdminApprovalsClient({
                         family's words — and this is text a stranger supplied. */}
                     {applicant.appeal && (
                       <blockquote className="mt-2 border-l-2 border-brand-primary/40 bg-brand-soft/40 px-3 py-2 text-xs">
-                        <p className="font-medium">They asked you to look again:</p>
+                        <p className="font-medium">{t('appr.lookAgain')}</p>
                         <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">
                           {applicant.appeal}
                         </p>
@@ -243,7 +246,7 @@ export function AdminApprovalsClient({
                         className="inline-flex items-center gap-1 rounded-lg bg-brand-primary px-2.5 py-1 text-xs font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
                       >
                         <UserCheck className="h-3 w-3" />
-                        {busy ? 'Saving…' : 'Approve'}
+                        {busy ? t('action.saving') : t('appr.approve')}
                       </button>
                       <button
                         type="button"
@@ -251,7 +254,7 @@ export function AdminApprovalsClient({
                         onClick={() => onReject(applicant)}
                         className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-60"
                       >
-                        <UserX className="h-3 w-3" /> Decline
+                        <UserX className="h-3 w-3" /> {t('consent.decline')}
                       </button>
                     </div>
                   )}
@@ -266,12 +269,9 @@ export function AdminApprovalsClient({
         <section className="space-y-3">
           <div>
             <h2 className="flex items-center gap-2 text-lg font-semibold">
-              <Mail className="h-4 w-4" /> Invitations sent
+              <Mail className="h-4 w-4" /> {t('appr.invitationsSent')}
             </h2>
-            <p className="text-sm text-muted-foreground">
-              Not yet accepted. Cancelling one stops the link working — worth doing if it
-              went to the wrong address, since only that address can use it.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('adm.notYetAcceptedCancelling')}</p>
           </div>
           <div className="space-y-2">
             {openInvitations.map(invitation => {
@@ -296,14 +296,14 @@ export function AdminApprovalsClient({
                       </span>
                       {invitation.preApproved && (
                         <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-on-primary">
-                          <ShieldCheck className="h-3 w-3" /> Pre-approved
+                          <ShieldCheck className="h-3 w-3" /> {t('appr.preApproved')}
                         </span>
                       )}
                     </p>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
                       {(invitation.firstName || invitation.lastName) ? `${invitation.email} · ` : ''}
-                      {invitation.invitedBy ? `Invited by ${invitation.invitedBy}` : 'Invited'}
-                      {invitation.expiresAt ? ` · expires ${formatDate(invitation.expiresAt)}` : ''}
+                      {invitation.invitedBy ? `Invited by ${invitation.invitedBy}` : t('appr.invited')}
+                      {invitation.expiresAt ? ` · expires ${formatDate(invitation.expiresAt, intl)}` : ''}
                     </p>
                   </div>
                   {canDecide && (
@@ -315,7 +315,7 @@ export function AdminApprovalsClient({
                         className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-60"
                       >
                         <Send className="h-3 w-3" />
-                        {busy ? 'Sending…' : 'Resend'}
+                        {busy ? t('security.sending') : t('appr.resend')}
                       </button>
                       <button
                         type="button"
@@ -327,12 +327,12 @@ export function AdminApprovalsClient({
                             const r = await revokeInvitation(invitation.id)
                             setBusyId('')
                             if (r.success) router.refresh()
-                            else setError(r.message ?? 'Something went wrong.')
+                            else setError(r.message ?? t('meet.wentWrong'))
                           })
                         }}
                         className="rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-60"
                       >
-                        {busy ? 'Cancelling…' : 'Cancel'}
+                        {busy ? t('appr.cancelling') : t('action.cancel')}
                       </button>
                     </div>
                   )}
@@ -354,22 +354,15 @@ export function AdminApprovalsClient({
               </p>
               <p className="mt-1 text-muted-foreground">
                 {resent.confirmationRequested
-                  ? <>They already have an account but never confirmed their email address, so
-                      they could not have signed in to accept. We have asked for the
-                      confirmation email to be sent again as well — they need to click that
-                      one first.</>
+                  ? <>{t('adm.theyAlreadyAccountBut')}</>
                   : resent.account === 'confirmed'
-                    ? <>Their account is confirmed, so the link will take them straight to
-                        sign-in and join.</>
+                    ? <>{t('adm.theirAccountConfirmedSo')}</>
                     : resent.account === 'none'
-                      ? <>There is no account for that address yet, so the link will take them
-                          to create one. They will not need the family code.</>
-                      : <>We could not check whether that address has an account, so if they
-                          still cannot get in, it is worth asking whether they ever confirmed
-                          their email.</>}
+                      ? <>{t('adm.thereNoAccountAddress')}</>
+                      : <>{t('adm.weCouldNotCheck')}</>}
               </p>
               <p className="mt-1 text-xs text-muted-foreground">
-                The previous link has stopped working — a resend always issues a new one.
+                {t('appr.resendNote')}
               </p>
             </div>
           )}
@@ -379,13 +372,11 @@ export function AdminApprovalsClient({
       {decided.length > 0 && (
         <section className="space-y-3">
           <div>
-            <h2 className="text-lg font-semibold">Declined</h2>
+            <h2 className="text-lg font-semibold">{t('fam.declined')}</h2>
             <p className="text-sm text-muted-foreground">
               {canDecide
-                ? <>Kept rather than deleted, so the record of the decision survives. You can
-                    admit somebody after all, and any member can send them a fresh
-                    invitation.</>
-                : <>Kept rather than deleted, so the record of the decision survives.</>}
+                ? <>{t('adm.keptRatherThanDeleted')}</>
+                : <>{t('appr.keptNote')}</>}
             </p>
           </div>
           <div className="space-y-2">
@@ -399,7 +390,7 @@ export function AdminApprovalsClient({
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{name(applicant)}</p>
                     <p className="mt-0.5 text-xs text-muted-foreground">
-                      Declined{applicant.decidedAt ? ` ${formatDate(applicant.decidedAt)}` : ''}
+                      Declined{applicant.decidedAt ? ` ${formatDate(applicant.decidedAt, intl)}` : ''}
                       {applicant.decidedBy ? ` by ${applicant.decidedBy}` : ''}
                       {applicant.note ? ` — ${applicant.note}` : ''}
                     </p>
@@ -416,7 +407,7 @@ export function AdminApprovalsClient({
                       className="inline-flex shrink-0 items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-medium transition-colors hover:bg-muted disabled:opacity-60"
                     >
                       <UserCheck className="h-3 w-3" />
-                      {busy ? 'Saving…' : 'Admit after all'}
+                      {busy ? t('action.saving') : t('appr.admitAfterAll')}
                     </button>
                   )}
                 </div>
@@ -432,13 +423,13 @@ export function AdminApprovalsClient({
         open={Boolean(rejecting)}
         onClose={() => setRejecting(null)}
         title={`Decline ${rejecting ? name(rejecting) : ''}?`}
-        description="They will be told, and may be given a reason. Their record is kept rather than deleted."
+        description={t('appr.declineBody')}
       >
         <div className="space-y-4">
           <Textarea
             value={reason}
             onChange={e => setReason(e.target.value)}
-            placeholder="Reason (optional — shown to them)"
+            placeholder={t('appr.reason')}
             rows={3}
           />
           <div className="flex justify-end gap-2">
@@ -447,14 +438,14 @@ export function AdminApprovalsClient({
               onClick={() => setRejecting(null)}
               className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
             >
-              Cancel
+              {t('action.cancel')}
             </button>
             <button
               type="button"
               onClick={submitRejection}
               className="rounded-lg bg-destructive px-3 py-1.5 text-sm font-medium text-destructive-foreground transition-opacity hover:opacity-90"
             >
-              Decline request
+              {t('appr.declineRequest')}
             </button>
           </div>
         </div>

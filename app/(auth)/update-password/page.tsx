@@ -1,7 +1,8 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
 import { UpdatePasswordForm } from '@/components/auth/UpdatePasswordForm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 // `noindex` as well as the `Disallow: /update-password` in robots.txt — same
 // reasoning as /invite/[token]. This page is only reachable holding a live
@@ -24,26 +25,21 @@ export const metadata = {
  * instead of trusting a cookie this page did not write.
  */
 export default async function UpdatePasswordPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
 
   if (!user) {
     return (
       <Card className="w-full max-w-md text-center">
         <CardHeader>
-          <CardTitle className="text-2xl">That link is no longer valid</CardTitle>
-          <CardDescription>
-            Reset links work once and expire after an hour. Request a new one and it will
-            arrive in a moment.
-          </CardDescription>
+          <CardTitle className="text-2xl">{t('auth.linkNoLongerValid')}</CardTitle>
+          <CardDescription>{t('auth.resetLinksWorkOnce')}</CardDescription>
         </CardHeader>
         <CardContent>
           <Link
             href="/forgot-password"
             className="text-primary font-medium hover:underline"
-          >
-            Send me a new link
-          </Link>
+          >{t('auth.sendMeNewLink')}</Link>
         </CardContent>
       </Card>
     )

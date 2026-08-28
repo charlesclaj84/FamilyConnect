@@ -4,7 +4,8 @@ import { requireScope } from '@/lib/auth/guard'
 import { canAny } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { todayLocal } from '@/lib/date-utils'
+import { resolveFamilyZone } from '@/lib/auth/zone'
+import { todayIn } from '@/lib/tz'
 import { electionPhase, ELECTION_PHASE_LABEL } from '@/lib/election-phase'
 import { electionAreaMatch, electionScopeLabel } from '@/lib/election-area'
 import type { PositionCategory, PositionScope } from '@/lib/board-positions'
@@ -14,6 +15,7 @@ import {
   type BoardReport, type ElectionReportInput, type ElectionsReport, type GatheringsReport,
   type MeetingReportInput, type MeetingsReport,
 } from '@/lib/activity-reports'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * The four ACTIVITY reports: Gatherings, Elections, Meetings, and Board & Offices.
@@ -119,7 +121,10 @@ export async function getGatheringsReport(): Promise<GatheringsReport | null> {
       due_on: (r.due_on as string | null) ?? null,
       budget_cents: (r.budget_cents as number | null) ?? null,
     })),
-    today: todayLocal(),
+    // THE FAMILY'S ZONE. Two members reading "12 overdue" and "11 overdue" would have no
+    // way to discover the difference was their own profiles — a family-wide figure has to
+    // have one value. See `resolveFamilyZone`.
+    today: todayIn(await resolveFamilyZone(g.familyCode)),
     money: showMoney,
   })
 }
@@ -159,7 +164,7 @@ export async function getElectionsReport(): Promise<ElectionsReport | null> {
   // one `Promise.all` — the ids have to exist before the second half can be asked.
   const electionsRes = await admin.from('elections')
     .select('id, title, status, scope, region_id, chapter_id, nominations_open_on, '
-      + 'nominations_close_on, voting_open_on, voting_close_on')
+      + 'nominations_close_on, voting_open_on, voting_close_on, time_zone')
     .eq('family_code', g.familyCode)
     .eq('status', 'published')
 
@@ -206,7 +211,7 @@ export async function getElectionsReport(): Promise<ElectionsReport | null> {
   const regionNames = new Map(rows(regionsRes.data).map(r => [r.id as string, r.name as string]))
   const people = rows(peopleRes.data)
 
-  const today = todayLocal()
+  const familyZone = await resolveFamilyZone(g.familyCode)
   const input: ElectionReportInput[] = electionRows.map(e => {
     const area = {
       scope: e.scope as string | null,
@@ -219,7 +224,15 @@ export async function getElectionsReport(): Promise<ElectionsReport | null> {
       nominations_close_on: (e.nominations_close_on as string | null) ?? null,
       voting_open_on: (e.voting_open_on as string | null) ?? null,
       voting_close_on: (e.voting_close_on as string | null) ?? null,
-    }, today)
+      // EACH ELECTION'S OWN ZONE, not one `today` shared across the report. A family running
+      // a national ballot and a chapter's may legitimately have stated them in different
+      // zones, and this figure has to match what the member's own screen says about the same
+      // election — otherwise the report contradicts the ballot. See 20260826000005.
+      // THE ELECTION'S OWN ZONE, THEN THE FAMILY'S — the same chain
+      // `election_window_open()` resolves in SQL (20260826000006). A report that disagreed
+      // with the ballot about which phase an election is in would be the worse of two wrong
+      // answers, because a figure is quoted later and a screen is not.
+    }, todayIn((e.time_zone as string | null) ?? familyZone))
     const nominations = rows(nominationsRes.data)
       .filter(n => n.election_id === e.id)
       .map(n => ({ positionId: n.position_id as string, accepted: Boolean(n.accepted) }))
@@ -404,7 +417,10 @@ export async function getBoardReport(): Promise<BoardReport | null> {
   const regionNames = new Map(rows(regionsRes.data).map(r => [r.id as string, r.name as string]))
   const byUserId = new Map(rows(peopleRes.data).map(p => [p.user_id as string, p]))
 
+  const { t } = await callerI18n(g.userId)
+
   return buildBoardReport({
+    t,
     positions: rows(positionsRes.data).map(p => ({
       id: p.id as string,
       name: p.name as string,

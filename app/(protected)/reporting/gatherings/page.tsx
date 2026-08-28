@@ -1,7 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { CalendarCheck, PartyPopper } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import { getGatheringsReport } from '@/app/actions/activity-reports'
 import { cn } from '@/lib/utils'
@@ -11,6 +10,8 @@ import { GATHERING_STATUS_LABEL } from '@/lib/gatherings'
 import { PageShell } from '@/components/layout/PageShell'
 import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Gatherings Report' }
 
@@ -35,11 +36,12 @@ export const metadata = { title: 'Gatherings Report' }
  * a table with two fewer columns rather than two columns of dashes.
  */
 export default async function GatheringsReportPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'reporting/gatherings')
+
+  const { t, intl } = await callerI18n(user.id)
   if (!(await canAny(user.id, 'reporting/gatherings', 'view'))) notFound()
 
   const report = await getGatheringsReport()
@@ -54,18 +56,22 @@ export default async function GatheringsReportPage() {
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Gatherings</h1>
-        <p className="text-muted-foreground">
-          What the family has planned, how much of the work is done, and who is behind.
-          Cancelled gatherings are left out entirely — their open tasks are not work anybody
-          owes.
-        </p>
+        <h1 className="text-3xl font-bold">{t('page./reporting/gatherings.title')}</h1>
       </div>
 
+      {/* THE EXCLUSION RIDES ON THE FIGURE IT QUALIFIES — see the same note on
+          /reporting/elections. Every figure on this screen leaves cancelled gatherings out,
+          rows and totals alike, because their open tasks are not work anybody owes; without
+          it a family that called one thing off reads as permanently behind. Argued in full in
+          `gatherings-report`. */}
       <ReportStats stats={[
-        { label: 'Gatherings', value: totals.gatherings, hint: `${totals.upcoming} still to come` },
         {
-          label: 'Tasks approved',
+          label: 'Gatherings',
+          value: totals.gatherings,
+          hint: `${totals.upcoming} still to come · cancelled excluded`,
+        },
+        {
+          label: t('rep.tasksApproved'),
           value: `${totals.tasks.approved} / ${totals.tasks.total}`,
           hint: `${totals.tasks.submitted} waiting on a decision`,
           tone: 'affirm',
@@ -77,7 +83,7 @@ export default async function GatheringsReportPage() {
           tone: totals.overdue > 0 ? 'withheld' : 'plain',
         },
         {
-          label: 'Nobody holding it',
+          label: t('rep.nobodyHolding'),
           value: totals.unassigned,
           hint: `${totals.helpers} relative${totals.helpers === 1 ? '' : 's'} helping`,
           tone: totals.unassigned > 0 ? 'withheld' : 'plain',
@@ -93,9 +99,7 @@ export default async function GatheringsReportPage() {
       ) : (
         <div className="overflow-hidden rounded-xl border">
           <table className="w-full border-collapse text-sm">
-            <caption className="sr-only">
-              Every gathering with its task progress and, where shown, its budget.
-            </caption>
+            <caption className="sr-only">{t('rep.everyGatheringItsTask')}</caption>
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <th scope="col" className="px-3 py-2">Gathering</th>
@@ -121,7 +125,7 @@ export default async function GatheringsReportPage() {
                       {row.title}
                     </Link>
                     <RowMeta>
-                      <span>{formatDate(row.startsOn)}</span>
+                      <span>{formatDate(row.startsOn, intl)}</span>
                       <MetaDot />
                       <span>{GATHERING_STATUS_LABEL[row.status]}</span>
                       {row.overdue > 0 && (
@@ -133,13 +137,13 @@ export default async function GatheringsReportPage() {
                       {row.allocatedCents !== null && (
                         <>
                           <MetaDot />
-                          <span>{formatCurrency(row.allocatedCents)} allocated</span>
+                          <span>{formatCurrency(row.allocatedCents, intl)} allocated</span>
                         </>
                       )}
                     </RowMeta>
                   </td>
                   <td className={cn('px-3 py-2 tabular-nums', COLLAPSING_CELL)}>
-                    {formatDate(row.startsOn)}
+                    {formatDate(row.startsOn, intl)}
                   </td>
                   <td className={cn('px-3 py-2', COLLAPSING_CELL)}>
                     {GATHERING_STATUS_LABEL[row.status]}
@@ -166,13 +170,13 @@ export default async function GatheringsReportPage() {
                           over-FUND, which this report does not compute. */}
                       {row.allocatedCents === null ? '—' : (
                         <>
-                          {formatCurrency(row.allocatedCents)}
+                          {formatCurrency(row.allocatedCents, intl)}
                           {row.budgetCents !== null && (
                             <span className={cn('block text-xs',
                               row.allocatedCents > row.budgetCents
                                 ? 'text-brand-withheld'
                                 : 'text-muted-foreground')}>
-                              of {formatCurrency(row.budgetCents)}
+                              of {formatCurrency(row.budgetCents, intl)}
                             </span>
                           )}
                         </>
@@ -187,10 +191,7 @@ export default async function GatheringsReportPage() {
       )}
 
       <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-        <CalendarCheck className="h-3.5 w-3.5" aria-hidden="true" />
-        A task counts as overdue when its date has passed and nobody has approved it — one that
-        has been submitted and not yet ruled on is still outstanding.
-      </p>
+        <CalendarCheck className="h-3.5 w-3.5" aria-hidden="true" />{t('rep.taskCountsOverdueWhen')}</p>
     </PageShell>
   )
 }

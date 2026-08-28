@@ -26,12 +26,20 @@ import { useServerState } from '@/lib/use-server-state'
  * as "1 Jan 2026 — —"; a schedule with neither date says nothing at all rather than
  * printing a bare dash under its own name.
  */
-function dateRange(start: string | null | undefined, end: string | null | undefined): string | null {
-  const from = formatDate(start)
-  const to = formatDate(end)
-  if (from && to) return `${from} – ${to}`
-  if (from) return `from ${from}`
-  if (to) return `until ${to}`
+function dateRange(
+  start: string | null | undefined,
+  end: string | null | undefined,
+  t: T,
+  intl: string,
+): string | null {
+  const from = formatDate(start, intl)
+  const to = formatDate(end, intl)
+  // WHOLE KEYS, not a concatenation: "from" and "until" are prepositions that each
+  // language attaches differently — Spanish and French both need an article with the
+  // date, which a bare `from ${x}` cannot express.
+  if (from && to) return t('inc.rangeBoth', { from, to })
+  if (from) return t('inc.rangeFrom', { from })
+  if (to) return t('inc.rangeUntil', { to })
   return null
 }
 import {
@@ -41,6 +49,8 @@ import {
 import {
   isIncomeSection, type AccountSection, type AccountRights,
 } from '@/components/admin/account-sections'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 interface Props {
   /** Which section the shell is showing. This component renders only its own. */
@@ -114,7 +124,7 @@ const FREQ_OPTIONS = ['annual', 'semi-annual', 'quarterly', 'monthly', 'one-time
  * the list, the editor, the payment form — is shared, which is the whole reason
  * donations are a `kind` on dues_schedules rather than a parallel feature.
  */
-const KIND_COPY: Record<ScheduleKind, {
+function kindCopy(t: T): Record<ScheduleKind, {
   noun: string
   title: string
   editTitle: string
@@ -122,25 +132,27 @@ const KIND_COPY: Record<ScheduleKind, {
   empty: string
   labelPlaceholder: string
   amountPlaceholder: string
-}> = {
-  dues: {
-    noun: 'dues',
-    title: 'New Dues',
-    editTitle: 'Edit Dues',
-    blurb: 'Dues every member of the family owes on this cadence.',
-    empty: 'No dues yet.',
-    labelPlaceholder: 'Annual Dues',
-    amountPlaceholder: '25.00',
-  },
-  donation: {
-    noun: 'donation',
-    title: 'New Donation',
-    editTitle: 'Edit Donation',
-    blurb: 'A drive members can give to between two dates. Nobody owes it, and it never counts against a member’s balance.',
-    empty: 'No donations yet.',
-    labelPlaceholder: 'Scholarship Drive',
-    amountPlaceholder: '500.00',
-  },
+}> {
+  return {
+    dues: {
+      noun: 'dues',
+      title: t('inc.newDues'),
+      editTitle: t('inc.editDues'),
+      blurb: t('inc.duesHint'),
+      empty: t('inc.noDues'),
+      labelPlaceholder: t('inc.annualDues'),
+      amountPlaceholder: '25.00',
+    },
+    donation: {
+      noun: 'donation',
+      title: t('inc.newDonation'),
+      editTitle: t('inc.editDonation'),
+      blurb: t('adm.driveMembersCanGive'),
+      empty: t('inc.noDonations'),
+      labelPlaceholder: t('inc.scholarshipDrive'),
+      amountPlaceholder: '500.00',
+    },
+  }
 }
 
 /**
@@ -265,6 +277,7 @@ function RequiredToggle({ checked, onChange }: {
   checked: boolean
   onChange: (next: boolean) => void
 }) {
+  const t = useT()
   return (
     <div className="space-y-1.5">
       <label className="flex cursor-pointer items-center gap-2 select-none">
@@ -274,12 +287,12 @@ function RequiredToggle({ checked, onChange }: {
           onChange={e => onChange(e.target.checked)}
           className="h-4 w-4 rounded border-input accent-primary"
         />
-        <span className="text-sm font-medium">Required</span>
+        <span className="text-sm font-medium">{t('common.required')}</span>
       </label>
       <p className="text-xs text-muted-foreground">
         {checked
-          ? 'Every member owes this and cannot decline it.'
-          : 'Members can opt out of this from their Summary, and it will not count toward what they owe.'}
+          ? t('inc.cannotDecline')
+          : t('inc.canOptOut')}
       </p>
     </div>
   )
@@ -323,12 +336,13 @@ function ScheduleFields({
   endDateMin?: string
   autoFocus?: boolean
 }) {
-  const copy = KIND_COPY[kind]
+  const t = useT()
+  const copy = kindCopy(t)[kind]
   const isDonation = kind === 'donation'
   return (
     <>
       <div className="space-y-1.5">
-        <Label required>Name</Label>
+        <Label required>{t('field.name')}</Label>
         <Input
           value={form.label}
           onChange={e => onChange({ label: e.target.value })}
@@ -342,18 +356,15 @@ function ScheduleFields({
           particular amount and does not recur. */}
       {isDonation ? (
         <div className="space-y-1.5">
-          <Label required>Goal Amount</Label>
+          <Label required>{t('inc.goalAmount')}</Label>
           <Input type="number" min="0" step="0.01" value={form.goal}
             onChange={e => onChange({ goal: e.target.value })} placeholder={copy.amountPlaceholder} />
-          <p className="text-xs text-muted-foreground">
-            What each member is encouraged to reach. Advisory — members give what they
-            like, and may go past it.
-          </p>
+          <p className="text-xs text-muted-foreground">{t('adm.whatEachMemberEncouraged')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
-            <Label required>Due Amount</Label>
+            <Label required>{t('inc.dueAmount')}</Label>
             <Input type="number" min="0" step="0.01" disabled={locked} value={form.amount}
               onChange={e => onChange({ amount: e.target.value })} placeholder={copy.amountPlaceholder} />
           </div>
@@ -361,7 +372,7 @@ function ScheduleFields({
               the other, so freezing the amount alone would leave the same restatement one
               field over. */}
           <div className="space-y-1.5">
-            <Label>Frequency</Label>
+            <Label>{t('inc.frequency')}</Label>
             <Select value={form.frequency} disabled={locked} onChange={e => onChange({ frequency: e.target.value })}>
               {FREQ_OPTIONS.map(f => <option key={f} value={f}>{f.charAt(0).toUpperCase() + f.slice(1)}</option>)}
             </Select>
@@ -407,7 +418,7 @@ function ScheduleFields({
           posted against. `locked` says so above the fields. */}
       {!isDonation && (
         <div className="space-y-1.5">
-          <Label htmlFor="schedule-start-age">Members start paying at age (optional)</Label>
+          <Label htmlFor="schedule-start-age">{t('inc.startAge')}</Label>
           <Input
             id="schedule-start-age"
             type="number"
@@ -422,7 +433,7 @@ function ScheduleFields({
           />
           <p className="text-xs text-muted-foreground">
             {form.startAge.trim() === ''
-              ? 'Leave blank and every member owes this, whatever their age.'
+              ? t('inc.blankAge')
               : `A member owes nothing until they turn ${form.startAge.trim()}, then the months of that year after their birthday — and the full amount every year after. Anyone with no date of birth recorded owes it in full.`}
           </p>
         </div>
@@ -451,14 +462,14 @@ function ScheduleFields({
               onChange={e => onChange({ bloodlineOnly: e.target.checked })}
               className="h-4 w-4 rounded border-input accent-primary"
             />
-            <span className="text-sm font-medium">Bloodline only</span>
+            <span className="text-sm font-medium">{t('inc.bloodlineOnly')}</span>
           </label>
           <p className="text-xs text-muted-foreground">
             {!hasBloodline
-              ? <>Your family has not said which ancestor its line descends from, so there is no bloodline to restrict this to. Set <strong className="font-medium">Bloodline descends from</strong> on the <a href="/community/family-tree">family tree</a> first.</>
+              ? <>{t('inc.noBloodline')} <strong className="font-medium">{t('tree.bloodlineFrom')}</strong> on the <a href="/community/family-tree">family tree</a> first.</>
               : form.bloodlineOnly
-                ? 'Only members descended from the family’s line owe this. Anybody who married in, and any step, adopted or foster relative, owes nothing and will not see it on their Dues screen.'
-                : 'Every member owes this, however they came into the family.'}
+                ? t('inc.bloodlineHint')
+                : t('inc.howeverCame')}
           </p>
         </div>
       )}
@@ -483,23 +494,23 @@ function ScheduleFields({
           billed; it restates whether they owed it at all. */}
       {!isDonation && (scopeOptions.regions.length > 0 || scopeOptions.chapters.length > 0) && (
         <div className="space-y-1.5">
-          <Label htmlFor="schedule-scope">Owed by</Label>
+          <Label htmlFor="schedule-scope">{t('inc.owedBy')}</Label>
           <Select
             id="schedule-scope"
             value={form.scope}
             disabled={locked}
             onChange={e => onChange({ scope: e.target.value })}
           >
-            <option value={NATIONAL}>National — the whole family</option>
+            <option value={NATIONAL}>{t('inc.nationalWhole')}</option>
             {scopeOptions.regions.length > 0 && (
-              <optgroup label="One region">
+              <optgroup label={t('ael.oneRegion')}>
                 {scopeOptions.regions.map(r => (
                   <option key={r.id} value={`region:${r.id}`}>{r.name} region</option>
                 ))}
               </optgroup>
             )}
             {scopeOptions.chapters.length > 0 && (
-              <optgroup label="One chapter">
+              <optgroup label={t('ael.oneChapter')}>
                 {scopeOptions.chapters.map(c => (
                   <option key={c.id} value={`chapter:${c.id}`}>{c.name} chapter</option>
                 ))}
@@ -508,10 +519,10 @@ function ScheduleFields({
           </Select>
           <p className="text-xs text-muted-foreground">
             {form.scope === NATIONAL
-              ? 'Every member of the family owes this.'
+              ? t('inc.everyMember')
               : form.scope.startsWith('region:')
-                ? 'Only members whose chapter is in that region owe this. A member with no chapter is under National and owes nothing regional.'
-                : 'Only members in that chapter owe this. A member with no chapter is under National and owes nothing scoped.'}
+                ? t('inc.regionHint')
+                : t('inc.chapterHint')}
           </p>
         </div>
       )}
@@ -528,7 +539,7 @@ function ScheduleFields({
           people={members}
           selected={form.beneficiaryIds}
           onChange={next => onChange({ beneficiaryIds: next })}
-          label="This drive is for (optional)"
+          label={t('inc.driveFor')}
           // Spelled out rather than left to the word "beneficiary". Ticking a name here
           // does something no other control in Accounting does — takes a page away from
           // someone holding every grant the family can confer — and the switch that
@@ -541,7 +552,7 @@ function ScheduleFields({
       )}
 
       <div className="space-y-1.5">
-        <Label>Description (optional)</Label>
+        <Label>{t('field.descriptionOptional')}</Label>
         <Input value={form.description} onChange={e => onChange({ description: e.target.value })}
           placeholder={`What this ${copy.noun} is for…`} />
       </div>
@@ -558,15 +569,15 @@ function ScheduleFields({
  * A missing name falls back to the bare word — never the uuid, which reads to a treasurer as
  * a fault.
  */
-function scopeCaption(s: DuesSchedule, options: ScopeOptions): string | null {
+function scopeCaption(s: DuesSchedule, options: ScopeOptions, t: T): string | null {
   if (s.kind === 'donation') return null
   if (s.scope === 'regional') {
     const name = options.regions.find(r => r.id === s.region_id)?.name
-    return name ? `${name} region` : 'One region'
+    return name ? t('inc.namedRegion', { name }) : t('ael.oneRegion')
   }
   if (s.scope === 'chapter') {
     const name = options.chapters.find(c => c.id === s.chapter_id)?.name
-    return name ? `${name} chapter` : 'One chapter'
+    return name ? t('inc.namedChapter', { name }) : t('ael.oneChapter')
   }
   return null
 }
@@ -594,15 +605,19 @@ function beneficiaryCaption(s: DuesSchedule, members: BeneficiaryOption[]): stri
 }
 
 /** What is frozen once a schedule has been transacted against, in the editor's words. */
-const LOCK_NOTE: Record<ScheduleKind, string> = {
-  dues: 'Payments have been recorded against this due, so its start date, amount, frequency, starting age, bloodline setting and who owes it are fixed — every one of those payments was made against these terms. The end date can still change.',
-  donation: 'This donation has received funds, so its start date is fixed.',
+function lockNote(t: T): Record<ScheduleKind, string> {
+  return {
+    dues: t('inc.fixedTerms'),
+    donation: t('inc.donationFixed'),
+  }
 }
 
 export function AdminIncomeClient({
   section, creating, onCloseCreate, initialSchedules, scheduleUsage, rights, members,
   hasBloodline, scopeOptions,
 }: Props) {
+  const intl = useIntlTag()
+  const t = useT()
   // The section on screen decides which grant applies: a Dues row is governed by
   // admin/account/dues, a Donation row by admin/account/donations.
   const mayEdit = rights[section]?.edit ?? false
@@ -674,7 +689,7 @@ export function AdminIncomeClient({
   // over the same table, split by kind — so one block renders both, and `copy`
   // carries every word that differs.
   const kind: ScheduleKind = tab === 'donations' ? 'donation' : 'dues'
-  const copy = KIND_COPY[creatingKind ?? kind]
+  const copy = kindCopy(t)[creatingKind ?? kind]
   const visibleSchedules = schedules.filter(s => s.kind === kind)
 
   function startEdit(s: DuesSchedule) {
@@ -699,9 +714,9 @@ export function AdminIncomeClient({
     // so the closure that runs after the await cannot see a different row.
     const { id, kind: editKind } = editing
     const isDonation = editKind === 'donation'
-    if (!editForm.label) { setError('Name required'); return }
+    if (!editForm.label) { setError(t('fnd.nameRequired')); return }
     if (isDonation && !editForm.goal) { setError('A donation needs a goal'); return }
-    if (!isDonation && !editForm.amount) { setError('Amount required'); return }
+    if (!isDonation && !editForm.amount) { setError(t('inc.amountRequired')); return }
 
     // Only when the value MOVES. A due that ended last March can still have its name
     // corrected, and rejecting the save over an end date nobody touched would make that
@@ -711,7 +726,7 @@ export function AdminIncomeClient({
         && editForm.endDate
         && editForm.endDate !== (stored?.end_date ?? '')
         && editForm.endDate < todayLocal()) {
-      setError('The end date cannot be in the past.')
+      setError(t('inc.endInPast'))
       return
     }
 
@@ -721,11 +736,11 @@ export function AdminIncomeClient({
     // z-[100] — and it is the reason ConfirmDialog takes Escape in the capture phase; see
     // the comment there.
     const ok = await confirm({
-      title: `Save ${KIND_COPY[editKind].noun}`,
+      title: `Save ${kindCopy(t)[editKind].noun}`,
       description: isDonation
         ? `Apply your edits to "${editForm.label}" (goal ${formatDollars(goalCents ?? 0)})?`
         : `Apply your edits to "${editForm.label}" (${formatDollars(amountCents)} ${editForm.frequency})?`,
-      confirmLabel: 'Save changes',
+      confirmLabel: t('action.saveChanges'),
     })
     if (!ok) return
     setError('')
@@ -768,7 +783,7 @@ export function AdminIncomeClient({
         description: editForm.description.trim() || null,
         ...changes,
       })
-      if (!result.success) { setError(result.message ?? 'Failed'); return }
+      if (!result.success) { setError(result.message ?? t('action.failed')); return }
       setSchedules(prev => prev.map(s => s.id === id
         ? {
             ...s,
@@ -789,9 +804,9 @@ export function AdminIncomeClient({
     // runs after the await cannot see a different one.
     const newKind = creatingKind ?? 'dues'
     const isDonation = newKind === 'donation'
-    if (!newForm.label) { setError('Name required'); return }
+    if (!newForm.label) { setError(t('fnd.nameRequired')); return }
     if (isDonation && !newForm.goal) { setError('A donation needs a goal'); return }
-    if (!isDonation && !newForm.amount) { setError('Amount required'); return }
+    if (!isDonation && !newForm.amount) { setError(t('inc.amountRequired')); return }
     setError('')
     startTransition(async () => {
       const result = await createDuesSchedule({
@@ -828,7 +843,7 @@ export function AdminIncomeClient({
         // this line — same belt-and-braces as `required` above.
         beneficiary_person_ids: isDonation ? newForm.beneficiaryIds : [],
       })
-      if (!result.success || !result.schedule) { setError(result.message ?? 'Failed'); return }
+      if (!result.success || !result.schedule) { setError(result.message ?? t('action.failed')); return }
       // Show it straight away, in the server's order (`getDuesSchedules` sorts by
       // label), so the list reads the same before and after the next refresh.
       const created = result.schedule
@@ -842,7 +857,7 @@ export function AdminIncomeClient({
     const schedule = schedules.find(s => s.id === id)
     // Named from the row's own kind, not the pane's, so the confirm can never say
     // "dues" over a donation.
-    const noun = KIND_COPY[schedule?.kind ?? 'dues'].noun
+    const noun = kindCopy(t)[schedule?.kind ?? 'dues'].noun
     const ok = await confirm({
       title: `Delete ${noun}`,
       description: schedule
@@ -866,7 +881,7 @@ export function AdminIncomeClient({
       {(tab === 'dues' || tab === 'donations') && (
         <div className="space-y-4">
           {visibleSchedules.length === 0 && (
-            <p className="text-sm text-muted-foreground">{KIND_COPY[kind].empty}</p>
+            <p className="text-sm text-muted-foreground">{kindCopy(t)[kind].empty}</p>
           )}
 
           <Dialog
@@ -889,10 +904,10 @@ export function AdminIncomeClient({
               <FormError message={error} />
               <div className="flex gap-2 pt-1">
                 <Button className="flex-1" onClick={handleCreateSchedule} disabled={isPending}>
-                  {isPending ? 'Adding…' : copy.title.replace('New', 'Add')}
+                  {isPending ? t('action.adding') : copy.title.replace('New', 'Add')}
                 </Button>
                 <Button variant="outline" onClick={onCloseCreate} disabled={isPending}>
-                  Cancel
+                  {t('action.cancel')}
                 </Button>
               </div>
             </div>
@@ -916,7 +931,7 @@ export function AdminIncomeClient({
           <Dialog
             open={editing !== null}
             onClose={cancelEdit}
-            title={editing ? KIND_COPY[editing.kind].editTitle : ''}
+            title={editing ? kindCopy(t)[editing.kind].editTitle : ''}
             /* The name as STORED, so it still says which record this is after the Name
                field has been typed in. */
             description={editing?.name}
@@ -929,7 +944,7 @@ export function AdminIncomeClient({
                     a bug. */}
                 {editing.locked && (
                   <p className="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-                    {LOCK_NOTE[editing.kind]}
+                    {lockNote(t)[editing.kind]}
                   </p>
                 )}
                 <ScheduleFields
@@ -946,10 +961,10 @@ export function AdminIncomeClient({
                 <FormError message={error} />
                 <div className="flex gap-2 pt-1">
                   <Button className="flex-1" onClick={handleSaveEdit} disabled={isPending}>
-                    {isPending ? 'Saving…' : 'Save changes'}
+                    {isPending ? t('action.saving') : t('action.saveChanges')}
                   </Button>
                   <Button variant="outline" onClick={cancelEdit} disabled={isPending}>
-                    Cancel
+                    {t('action.cancel')}
                   </Button>
                 </div>
               </div>
@@ -972,19 +987,19 @@ export function AdminIncomeClient({
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-semibold">Name</th>
+                    <th scope="col" className="px-3 py-2 font-semibold">{t('field.name')}</th>
                     {kind === 'donation' ? (
-                      <th scope="col" className="px-3 py-2 text-right font-semibold">Goal</th>
+                      <th scope="col" className="px-3 py-2 text-right font-semibold">{t('inc.goal')}</th>
                     ) : (
                       <>
-                        <th scope="col" className="px-3 py-2 text-right font-semibold">Due Amount</th>
-                        <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Frequency</th>
-                        <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Payment</th>
+                        <th scope="col" className="px-3 py-2 text-right font-semibold">{t('inc.dueAmount')}</th>
+                        <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('inc.frequency')}</th>
+                        <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('inc.payment')}</th>
                       </>
                     )}
-                    <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Start Date</th>
-                    <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>End Date</th>
-                    <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+                    <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('inc.startDate')}</th>
+                    <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('inc.endDate')}</th>
+                    <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1012,9 +1027,9 @@ export function AdminIncomeClient({
                             Only rendered when it is not the whole family: "National" on
                             every row of a family that has no chapters is noise on every row,
                             and National is what a due means when it says nothing. */}
-                        {scopeCaption(s, scopeOptions) && (
+                        {scopeCaption(s, scopeOptions, t) && (
                           <span className="ml-2 inline-block whitespace-nowrap rounded-full bg-brand-warm px-2 py-0.5 text-[11px] font-medium text-brand-on-warm">
-                            {scopeCaption(s, scopeOptions)}
+                            {scopeCaption(s, scopeOptions, t)}
                           </span>
                         )}
                         <RowMeta className="gap-x-2">
@@ -1027,7 +1042,7 @@ export function AdminIncomeClient({
                                   ? 'bg-brand-soft text-brand-on-soft'
                                   : 'bg-brand-warm text-brand-on-warm',
                               )}>
-                                {s.required ? 'Required' : 'Optional'}
+                                {s.required ? t('common.required') : t('common.optional')}
                               </span>
                               {/* WHO OWES IT. On the row rather than only inside the
                                   editor, because it changes what a member is billed and
@@ -1041,10 +1056,10 @@ export function AdminIncomeClient({
                                   reason the age is: it changes what a member is billed,
                                   and an administrator comparing two dues should not have
                                   to open both to find out which one the in-laws pay. */}
-                              <MetaIf value={s.bloodline_only ? 'Bloodline only' : null} />
+                              <MetaIf value={s.bloodline_only ? t('inc.bloodlineOnly') : null} />
                             </>
                           )}
-                          <MetaIf value={dateRange(s.start_date, s.end_date)} />
+                          <MetaIf value={dateRange(s.start_date, s.end_date, t, intl)} />
                           {/* Who the drive is for — which is also the list of people it
                               is hidden from, so it earns a place on the row rather than
                               living only inside the editor. A reader seeing this caption
@@ -1075,16 +1090,16 @@ export function AdminIncomeClient({
                                 ? 'bg-brand-soft text-brand-on-soft'
                                 : 'bg-brand-warm text-brand-on-warm',
                             )}>
-                              {s.required ? 'Required' : 'Optional'}
+                              {s.required ? t('common.required') : t('common.optional')}
                             </span>
                           </td>
                         </>
                       )}
                       <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
-                        {formatDate(s.start_date) ?? '—'}
+                        {formatDate(s.start_date, intl) ?? '—'}
                       </td>
                       <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
-                        {formatDate(s.end_date) ?? '—'}
+                        {formatDate(s.end_date, intl) ?? '—'}
                       </td>
                       <td className="w-px px-3 py-2.5">
                         <div className="flex items-center justify-end gap-1">

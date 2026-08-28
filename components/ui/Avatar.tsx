@@ -1,4 +1,17 @@
+'use client'
+
+// ── `'use client'` FOR ONE `alt`, AND IT IS WORTH IT ────────────────────────────────
+// A 40-line leaf with no state, and it was DUAL-USE: four of its five callers are already
+// client components and one (`WelcomeHero`) is a Server Component. Its `alt` is "Profile
+// photo", which a screen reader reads out and which therefore has to be in the reader's
+// language — and a dual-use module cannot call `useT()`.
+//
+// The alternative was an `alt` prop with a default, which pushes the sentence out to five
+// call sites and makes forgetting it the easy path. The directive costs the one server
+// caller about a kilobyte and removes the dual-use ambiguity, which is the same trade
+// `PlanningUpsell` took on the same day.
 import { UserCircle } from 'lucide-react'
+import { useT } from '@/components/layout/LocaleProvider'
 import { cn } from '@/lib/utils'
 
 const sizeClasses = {
@@ -16,6 +29,7 @@ interface AvatarProps {
 }
 
 export function Avatar({ url, initials, size = 'md', className }: AvatarProps) {
+  const t = useT()
   const s = sizeClasses[size]
   const isEmpty = !url && !initials
   return (
@@ -33,7 +47,7 @@ export function Avatar({ url, initials, size = 'md', className }: AvatarProps) {
     >
       {url ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={url} alt="Profile photo" className="w-full h-full object-cover" />
+        <img src={url} alt={t('ui.profilePhoto')} className="w-full h-full object-cover" />
       ) : initials ? (
         <span className={cn('font-semibold', s.text)}>{initials}</span>
       ) : (

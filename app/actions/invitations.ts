@@ -7,11 +7,14 @@ import { requireRead } from '@/lib/auth/guard'
 import { getMyFamilyCode, getMyNameInFamily } from '@/lib/auth/family'
 import { sendEmail, emailOrigin } from '@/lib/email/send'
 import { familyInvitationEmail } from '@/lib/email/templates'
+import { storedLocale } from '@/lib/i18n/locales'
 import { notifyMembershipRequest } from '@/lib/notifications'
 // Plain modules, never re-exported from here: one takes an email address and answers
 // whether it has an account, which as an endpoint is an enumeration oracle. See the
 // header of lib/auth/account-state.ts.
 import { accountStateForEmail, requestConfirmationResend } from '@/lib/auth/account-state'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Invitations to join a family.
@@ -127,11 +130,12 @@ export async function inviteMember(
   personId?: string,
 ): Promise<InviteResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   const normalized = (email ?? '').trim().toLowerCase()
-  if (!normalized) return { success: false, message: 'Enter an email address' }
+  if (!normalized) return { success: false, message: t('act.enterEmailAddress') }
 
   // THE NAME IS REQUIRED, since 20260813000002. Checked here for the message and again
   // in the RPC because that is where it binds: this is a `'use server'` export, so the
@@ -140,7 +144,7 @@ export async function inviteMember(
   const firstName = (name?.firstName ?? '').trim()
   const lastName = (name?.lastName ?? '').trim()
   if (!firstName || !lastName) {
-    return { success: false, message: 'Enter the first and last name of the person you are inviting' }
+    return { success: false, message: t('act.enterFirstLastNamePerson') }
   }
 
   // `familyCode` targets a family other than the one being viewed — /my-families offers
@@ -165,7 +169,7 @@ export async function inviteMember(
       pre_approved: boolean; message: string | null
     }>()
 
-  if (error) return { success: false, message: 'Could not create that invitation. Please try again.' }
+  if (error) return { success: false, message: t('act.couldNotCreateInvitationPlease') }
   if (!data?.ok || !data.token) {
     return { success: false, message: data?.message ?? 'Could not create that invitation.' }
   }
@@ -195,7 +199,7 @@ export async function inviteMember(
 
     const { data: inviter } = await admin
       .from('people')
-      .select('first_name, last_name')
+      .select('first_name, last_name, locale')
       .eq('family_code', targetFamily ?? '')
       .eq('user_id', user.id)
       .maybeSingle()
@@ -215,6 +219,16 @@ export async function inviteMember(
       token: data.token,
       preApproved: data.pre_approved,
       expiresInDays: INVITATION_EXPIRY_DAYS,
+      // THE INVITER'S LANGUAGE, which is the one email where the reader's own is unavailable
+      // rather than unused: they have no account, so there is no `people.locale` and no
+      // `Accept-Language` — nobody has made a request yet. The inviter is the only evidence
+      // there is, and it is decent evidence: somebody writing to a relative in Spanish is
+      // usually writing to a Spanish-speaking relative. See `familyInvitationEmail`'s header.
+      //
+      // It comes off the row read above rather than from a parameter, deliberately. A
+      // caller-chosen locale on a public HTTP endpoint would let anybody pick which language
+      // a stranger's invitation arrives in (§2).
+      locale: storedLocale(inviter?.locale as string | null),
     })
 
     const result = await sendEmail({
@@ -340,8 +354,9 @@ export type ResendResult =
  */
 export async function resendInvitation(invitationId: string): Promise<ResendResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   const { data: invitation, error } = await supabase
     .from('family_invitations')
@@ -351,18 +366,18 @@ export async function resendInvitation(invitationId: string): Promise<ResendResu
 
   // A refused query and a missing row are different things and `data` cannot tell them
   // apart — AGENTS.md §8. Both end here, but the error must not be discarded silently.
-  if (error) return { success: false, message: 'Could not resend that invitation.' }
-  if (!invitation) return { success: false, message: 'Invitation not found' }
+  if (error) return { success: false, message: t('act.couldNotResendInvitation') }
+  if (!invitation) return { success: false, message: t('act.invitationNotFound') }
 
   // Deliberately specific, unlike the redemption messages. The person reading this is an
   // administrator looking at their own family's list, so "which of these three happened"
   // is information they already hold and can act on — the reticence that governs
   // redeem_family_invitation is about a stranger holding a token, not about this screen.
   if (invitation.accepted_at) {
-    return { success: false, message: 'That invitation has already been accepted.' }
+    return { success: false, message: t('act.invitationAlreadyBeenAccepted') }
   }
   if (invitation.revoked_at) {
-    return { success: false, message: 'That invitation was cancelled. Send a new one instead.' }
+    return { success: false, message: t('act.invitationCancelledSendNewOne') }
   }
   // EXPIRY IS NOT CHECKED, deliberately. Resending is precisely the remedy for a lapsed
   // invitation, and the replacement carries a fresh 14 days — refusing here would leave an
@@ -390,8 +405,7 @@ export async function resendInvitation(invitationId: string): Promise<ResendResu
   if (!firstName || !lastName) {
     return {
       success: false,
-      message: 'This invitation was created before we started recording names. '
-        + 'Cancel it and send a new one instead.',
+      message: t('act.invitationCreatedBeforeWeStarted'),
     }
   }
 
@@ -430,14 +444,15 @@ export async function resendInvitation(invitationId: string): Promise<ResendResu
 /** Cancel an invitation that has not been used. The sender or an approver may. */
 export async function revokeInvitation(invitationId: string): Promise<InvitationActionResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   const { data, error } = await supabase
     .rpc('revoke_family_invitation', { p_id: invitationId })
     .maybeSingle<{ ok: boolean; message: string | null }>()
 
-  if (error) return { success: false, message: 'Could not cancel that invitation.' }
+  if (error) return { success: false, message: t('act.couldNotCancelInvitation') }
   if (!data?.ok) return { success: false, message: data?.message ?? 'Not authorized' }
 
   revalidatePath('/admin/members')
@@ -503,8 +518,9 @@ export type RedeemResult =
  */
 export async function redeemInvitation(token: string): Promise<RedeemResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Sign in to accept this invitation.' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.signAcceptInvitation') }
 
   const { data, error } = await supabase
     .rpc('redeem_family_invitation', { p_token: token })
@@ -513,7 +529,7 @@ export async function redeemInvitation(token: string): Promise<RedeemResult> {
       pre_approved: boolean; message: string | null
     }>()
 
-  if (error) return { success: false, message: 'Could not accept that invitation. Please try again.' }
+  if (error) return { success: false, message: t('act.couldNotAcceptInvitationPlease') }
   if (!data?.ok || !data.family_code) {
     return { success: false, message: data?.message ?? 'That invitation is no longer valid.' }
   }

@@ -12,9 +12,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { FormError } from '@/components/ui/form-message'
 import { GatheringStatusPill } from '@/components/gatherings/StatusPill'
 import { GATHERING_PREMIER_PILL } from '@/components/gatherings/status'
-import { formatDateRange, todayLocal } from '@/lib/date-utils'
+import { todayLocal } from '@/lib/date-utils'
+import { WhenFields } from '@/components/gatherings/WhenFields'
+import {
+  WHEN_PROBLEM_TEXT, formatWhenBrief, whenProblems, type GatheringWhen,
+} from '@/lib/gathering-when'
 import { cn } from '@/lib/utils'
 import { scheduleGathering, type GatheringSummary } from '@/app/actions/gatherings'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The Gatherings list, and the one dialog that starts a new one.
@@ -101,17 +106,50 @@ interface Props {
   templates: { id: string; name: string; description: string | null }[]
   /** Whether the "no templates" sentence may link to the library. */
   mayAuthorTemplates: boolean
+  /**
+   * The AUTHOR's timezone, resolved by the page — the default for a new gathering's times.
+   *
+   * A default and never a decision: `WhenFields` only shows the control once a time is given,
+   * and `scheduleGathering` validates whatever it is sent because the form is a convenience
+   * (§2). It is the SCHEDULER's zone rather than the reader's, because the zone being recorded
+   * is the one the times are being stated in.
+   */
+  zone: string
 }
 
-export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuthorTemplates }: Props) {
+/**
+ * A fresh `when`: today, one occasion, no times.
+ *
+ * `todayLocal()` rather than a `Date` read anywhere else in this file — it is the app's one
+ * answer to "what day is it here", and the reason the dialog re-seeds during render rather than
+ * in an effect is that this must not be a frame behind (see the re-seed below).
+ */
+function todayWhen(zone: string): GatheringWhen {
+  return {
+    // THE AUTHOR'S OWN ZONE AS THE DEFAULT, not blank. A member scheduling a picnic in the town
+    // they live in should not have to state which zone they are in — and `WhenFields` only shows
+    // the control once a time is given, so a date-only gathering never meets it. It stays a
+    // DEFAULT and decides nothing: `scheduleGathering` validates whatever it is sent (§2).
+    timeZone: zone,
+    isContinuous: true,
+    occurrences: [{ startsOn: todayLocal(), startTime: null, endsOn: null, endTime: null }],
+  }
+}
+
+export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuthorTemplates, zone }: Props) {
+  const t = useT()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [chosen, setChosen] = useState<string[]>([])
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
   const [location, setLocation] = useState('')
-  const [startsOn, setStartsOn] = useState(todayLocal())
-  const [endsOn, setEndsOn] = useState('')
+  /**
+   * WHEN it happens — one value covering the date, the times, and whether it is one block or
+   * several occasions. It was two date strings until 2026-08-26; `WhenFields` owns the controls
+   * and `lib/gathering-when.ts` owns the rules, so nothing about either is decided here.
+   */
+  const [when, setWhen] = useState<GatheringWhen>(() => todayWhen(zone))
   const [error, setError] = useState('')
   // Set when the gathering was created and something about it still needs saying — a template
   // whose steps could not be added. The row EXISTS, so navigating away silently would lose the
@@ -132,11 +170,12 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
     if (open) {
       setChosen([])
       setTitle(''); setSummary(''); setLocation('')
-      setStartsOn(todayLocal())
-      // A CLOSING date defaults to empty, never to today. `ends_on` is NULL for a one-day
-      // gathering, which is most of them, and pre-filling it would make every gathering a
-      // one-day range that reads as a mistake somebody has to undo.
-      setEndsOn('')
+      // TODAY, ONE OCCASION, NO TIMES — see `todayWhen`. A closing date defaults to empty and
+      // never to today: `ends_on` is NULL for a one-day gathering, which is most of them, and
+      // pre-filling it would make every gathering a one-day range somebody has to undo. The
+      // times default to empty for the same reason, and because most gatherings are entered as
+      // a date alone.
+      setWhen(todayWhen(zone))
     }
   }
 
@@ -162,9 +201,20 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
 
   function handleSchedule() {
     const name = title.trim()
-    if (!name) { setError('Give the gathering a title'); return }
-    if (!startsOn) { setError('Choose the day it starts'); return }
-    if (endsOn && endsOn < startsOn) { setError('The last day cannot be before the first'); return }
+    if (!name) { setError(t('gath.needTitle')); return }
+    // ── THE DATE RULES ARE `whenProblems`, NOT THREE LINES HERE ──────────────────
+    // They were: a start is required, and an end cannot precede it. `whenProblems` is the same
+    // function the ACTION runs, so the form and the endpoint cannot come to disagree — and it
+    // knows about the four rules those three lines did not (times, their order within a day, an
+    // end time with no start, a continuous gathering with several occasions).
+    //
+    // `WhenFields` has already shown each one against the row it belongs to, so the summary
+    // here is only for somebody who pressed the button anyway.
+    const problems = whenProblems(when)
+    if (problems.length > 0) {
+      setError(WHEN_PROBLEM_TEXT[problems[0].code])
+      return
+    }
 
     setError('')
     startTransition(async () => {
@@ -172,14 +222,13 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
         title: name,
         summary: summary.trim() || undefined,
         location: location.trim() || undefined,
-        startsOn,
-        endsOn: endsOn || undefined,
+        when,
         // Order matters: the tasks are instantiated template by template in the order they
         // were named, and `position` on the junction row is what preserves it.
         templateIds: chosen,
       })
       if (!result.success) {
-        setError(result.message ?? 'Could not schedule the gathering')
+        setError(result.message ?? t('gath.scheduleFailed'))
         return
       }
       // `success: true` WITH a message means the gathering exists and one of its templates did
@@ -215,7 +264,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
           {/* Affirm, never the default burgundy — that is what an active rail item looks
               like, and this is a create trigger. */}
           <Button variant="affirm" onClick={() => setOpen(true)}>
-            <CirclePlus className="h-4 w-4 mr-1" /> Schedule a gathering
+            <CirclePlus className="h-4 w-4 mr-1" /> {t('gath.schedule')}
           </Button>
         </div>
       )}
@@ -239,8 +288,20 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
       <Dialog
         open={open}
         onClose={closeDialog}
-        title="Schedule a gathering"
-        description="Say when and where. If there are templates, choose what it is built from."
+        title={t('gath.schedule')}
+        // ── THE DESCRIPTION STOPPED MENTIONING TEMPLATES CONDITIONALLY (2026-08-23) ─────
+        // It read "Say when and where. If there are templates, choose what it is built from."
+        // — one sentence covering both plans, and on Free the second clause is a hint about a
+        // thing that can never appear. "If there are" is exactly the shape that makes somebody
+        // hunt for a control they do not have.
+        //
+        // `templates.length > 0` is the honest discriminator and it is the SAME expression the
+        // fieldset below renders on, so the description cannot promise a picker that is not
+        // there — including for the three non-tier reasons that list is empty (nobody has
+        // authored one, all of them are `who_may_schedule = 'admin'`, or all are archived).
+        description={templates.length > 0
+          ? t('gath.sayWhenWhereAndTemplate')
+          : t('gath.sayWhenWhere')}
         className="max-w-lg"
       >
         <div className="mt-2 space-y-3">
@@ -269,7 +330,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
             <p className="rounded-xl border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
               This will be a date on the family calendar with no tasks.{' '}
               <Link href="/admin/gatherings/templates" className="font-medium underline">
-                Author a template
+                {t('gath.authorTemplate')}
               </Link>
               {' '}and a gathering can be built from it, with every step handed to a relative.
             </p>
@@ -282,7 +343,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
                 `RequiredMark` on it any more — a template is optional since 2026-08-19 — but
                 the reason for the `<fieldset>` is about NAMING the group and is unchanged: a
                 bare `<Label>` with no `htmlFor` and no nested input labels nothing at all. */}
-            <legend className="text-sm font-medium">Built from</legend>
+            <legend className="text-sm font-medium">{t('gath.builtFrom')}</legend>
             <div className="space-y-2 rounded-xl border p-3">
               {templates.map(template => (
                 <label key={template.id} className="flex cursor-pointer items-start gap-2 select-none">
@@ -301,71 +362,48 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
                 </label>
               ))}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Every step of every template you choose becomes a task on this gathering, ready to
-              hand out. Choose none and this is a date on the family calendar with no tasks —
-              an organizer can build it out later.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('gath.everyStepEveryTemplate')}</p>
           </fieldset>
           )}
 
           <div className="space-y-1.5">
-            <Label htmlFor="gathering-title" required>Title</Label>
+            <Label htmlFor="gathering-title" required>{t('field.title')}</Label>
             <Input
               id="gathering-title"
               value={title}
-              placeholder="e.g. Allen Family Reunion 2027"
+              placeholder={t('gath.titlePh')}
               onChange={e => { setTitle(e.target.value); setError('') }}
             />
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="gathering-starts" required>First day</Label>
-              <Input
-                id="gathering-starts"
-                type="date"
-                value={startsOn}
-                onChange={e => { setStartsOn(e.target.value); setError('') }}
-              />
-            </div>
-            <div className="space-y-1.5">
-              {/* `min` IS THE START DATE — added 2026-08-20 across every start/end pair in the
-                  app. `gatherings_dates_ordered` refuses `ends_on < starts_on` in the database
-                  and the action turns that 23514 into a sentence, which is the right boundary
-                  and the wrong first line of defence: a picker that greys out the impossible
-                  days never produces one, so nobody meets the refusal at all. The CHECK stays
-                  underneath for a caller that is not this form. */}
-              <Label htmlFor="gathering-ends">Last day</Label>
-              <Input
-                id="gathering-ends"
-                type="date"
-                min={startsOn || undefined}
-                value={endsOn}
-                onChange={e => { setEndsOn(e.target.value); setError('') }}
-              />
-              <p className="text-xs text-muted-foreground">Leave empty for one day.</p>
-            </div>
-          </div>
+          {/* WHEN — one component, shared with the organizer's edit panel. Two copies would be
+              two answers to "is the end allowed to be before the start" the moment one was
+              edited; see `WhenFields`. */}
+          <WhenFields
+            value={when}
+            onChange={next => { setWhen(next); setError('') }}
+            idPrefix="gathering"
+            disabled={isPending}
+          />
 
           <div className="space-y-1.5">
-            <Label htmlFor="gathering-location">Where</Label>
+            <Label htmlFor="gathering-location">{t('gath.where')}</Label>
             <Input
               id="gathering-location"
               value={location}
-              placeholder="e.g. Memorial Park, Houston"
+              placeholder={t('gath.wherePh')}
               onChange={e => setLocation(e.target.value)}
             />
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="gathering-summary">What it is</Label>
+            <Label htmlFor="gathering-summary">{t('gath.whatItIs')}</Label>
             <Textarea
               id="gathering-summary"
               autoGrow
               rows={1}
               value={summary}
-              placeholder="Optional — a sentence for the family"
+              placeholder={t('gath.descPh')}
               onChange={e => setSummary(e.target.value)}
             />
           </div>
@@ -381,15 +419,15 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
                 `affirm`: nothing is being created any more. */}
             {createdId ? (
               <Button className="flex-1" onClick={() => { setOpen(false); router.push(`/gatherings/${createdId}`) }}>
-                Open the gathering
+                {t('gath.open')}
               </Button>
             ) : (
               <Button className="flex-1" variant="affirm" onClick={handleSchedule} disabled={isPending}>
-                {isPending ? 'Scheduling…' : 'Schedule gathering'}
+                {isPending ? t('gath.scheduling') : t('gath.scheduleAction')}
               </Button>
             )}
             <Button variant="outline" onClick={closeDialog} disabled={isPending}>
-              Cancel
+              {t('action.cancel')}
             </Button>
           </div>
         </div>
@@ -435,7 +473,14 @@ function Section({ heading, rows, empty }: {
  * out terracotta (gold, in dark mode).
  */
 function GatheringCard({ row }: { row: GatheringRow }) {
-  const dates = formatDateRange(row.startsOn, row.endsOn)
+  const t = useT()
+  // ── THE WHOLE ANSWER, NOT A RANGE OVER THE ENVELOPE ─────────────────────────────
+  // A series of three Saturdays has an envelope of a fortnight, and `formatDateRange` over it
+  // claims a fortnight the family is not gathering for — which is the misreading the When
+  // feature exists to fix, so no list may reintroduce it. `formatWhenBrief` reads the four
+  // materialised envelope fields plus the occurrence count and says "3 days from July 4th"
+  // instead, and appends the times where there are any.
+  const dates = formatWhenBrief(row)
   const { total, approved } = row.taskCounts
 
   return (
@@ -459,12 +504,12 @@ function GatheringCard({ row }: { row: GatheringRow }) {
               because gold is already what a `scheduled` pill fills with. */}
           {row.isPremier && (
             <span className={GATHERING_PREMIER_PILL}>
-              <Star className="h-3 w-3" aria-hidden="true" /> Premier
+              <Star className="h-3 w-3" aria-hidden="true" /> {t('gath.premier')}
             </span>
           )}
           {row.happeningNow && (
             <span className="whitespace-nowrap rounded-full bg-brand-warm px-2 py-0.5 text-xs font-medium text-brand-on-warm">
-              Happening now
+              {t('gath.happeningNow')}
             </span>
           )}
           <GatheringStatusPill status={row.status} />
@@ -491,7 +536,7 @@ function GatheringCard({ row }: { row: GatheringRow }) {
           row.taskCounts.complete && 'text-brand-affirm',
         )}>
           {total === 0
-            ? 'No tasks yet'
+            ? t('gath.noTasks')
             : row.taskCounts.complete
               ? `All ${total} ${total === 1 ? 'task' : 'tasks'} approved`
               : `${approved} of ${total} tasks approved`}

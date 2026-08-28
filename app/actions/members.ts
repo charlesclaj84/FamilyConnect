@@ -4,9 +4,12 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { familyShowsPhotos } from '@/lib/auth/tier'
-import { computeIsMinor } from '@/lib/age-utils'
+import { isMinorOn } from '@/lib/age-utils'
+import { resolveFamilyZone } from '@/lib/auth/zone'
+import { todayIn } from '@/lib/tz'
 import { formatRoleTitle } from '@/lib/role-utils'
 import { chapterPlaces } from '@/lib/chapter-places'
+import { currentUser } from '@/lib/auth/current-user'
 
 export interface MemberRecord {
   id: string
@@ -103,7 +106,7 @@ interface RoleRow {
 
 export async function getMembers(): Promise<MemberRecord[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   // Fetch all people in the family (adults and minors).
@@ -170,6 +173,11 @@ export async function getMembers(): Promise<MemberRecord[]> {
   // curates the list, not who may see who holds what. §3's obligation is discharged by the
   // `family_code` conjunct, from the caller's own membership.
   const familyCode = await getMyFamilyCode(user.id)
+  // THE FAMILY'S ZONE for the age split. `computeIsMinor` read `todayLocal()` internally,
+  // which on the server is UTC — so a relative counted as an adult five hours early every
+  // evening, and two surfaces could disagree about the same person. `isMinorOn` is the pure
+  // rule and takes the date, which is what makes the answer stateable (§7b).
+  const familyToday = todayIn(await resolveFamilyZone(familyCode))
   const showPhotos = await familyShowsPhotos(user.id)
   const { data: roleAssignments, error: rolesError } = await createAdminClient()
     .from('user_roles')
@@ -242,7 +250,7 @@ export async function getMembers(): Promise<MemberRecord[]> {
       region_name: place?.regionName ?? null,
       primary_role_title: p.user_id ? (primaryRoleByUserId.get(p.user_id) ?? null) : null,
       is_active: !!p.user_id,
-      is_minor: computeIsMinor(p.date_of_birth),
+      is_minor: isMinorOn(p.date_of_birth, familyToday),
     }
   })
 }

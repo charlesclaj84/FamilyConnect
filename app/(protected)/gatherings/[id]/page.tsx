@@ -1,15 +1,20 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { CalendarDays, ChevronLeft, MapPin, Settings2, Star } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
+import { CalendarDays, ChevronLeft, Clock, MapPin, Settings2, Star } from 'lucide-react'
 import { can, requireView } from '@/lib/auth/permissions'
+import { familyPlansGatherings } from '@/lib/auth/tier'
 import { getGatheringDetail } from '@/app/actions/gatherings'
-import { formatDateRange } from '@/lib/date-utils'
+import { formatWhen, formatWhenBrief } from '@/lib/gathering-when'
+import { resolveZone } from '@/lib/auth/zone'
+import { StatedTime } from '@/components/ui/stated-time'
 import { PageShell } from '@/components/layout/PageShell'
 import { BudgetBand } from '@/components/gatherings/BudgetBand'
 import { GatheringStatusPill } from '@/components/gatherings/StatusPill'
 import { GATHERING_PREMIER_PILL } from '@/components/gatherings/status'
 import { GatheringDetailClient } from '@/components/gatherings/GatheringDetailClient'
+import { PlanningUpsell } from '@/components/gatherings/PlanningUpsell'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 export const metadata = { title: 'Gathering' }
 
@@ -52,22 +57,45 @@ export const metadata = { title: 'Gathering' }
 export default async function GatheringDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
   if (!user) redirect('/login')
+  const { intl } = await callerI18n(user.id)
 
   await requireView(user.id, 'gatherings')
 
   // `can`, not `canAny`, because `requireView` on the destination resolves through `can` — a
   // link offered on any other basis is a link to a 404. Resolved beside the fetch rather than
   // after it: it reads no family data, so there is nothing here to withhold.
-  const [gathering, mayOpenConsole] = await Promise.all([
+  const [gathering, mayOpenConsole, plansGatherings, zone] = await Promise.all([
     getGatheringDetail(id),
     can(user.id, 'admin/gatherings', 'view'),
+    // THE TIER, RESOLVED HERE RATHER THAN IN THE ACTION, which is AGENTS.md's rule about
+    // where a tier check belongs: where the withheld thing IS the whole answer, a check inside
+    // the action turns it into a function that answers nothing to everybody, and every
+    // assertion about it becomes evidence for the tier rather than for family isolation. What
+    // is withheld here is not rows — a gathering already carrying tasks keeps them — it is the
+    // organizing machinery and the words that describe it.
+    familyPlansGatherings(user.id),
+    // The READER's zone, for the secondary "your time" line. Distinct from the zone the
+    // gathering's times were STATED in, which is on the row and leads the display.
+    resolveZone(user.id),
   ])
   if (!gathering) notFound()
 
-  const dates = formatDateRange(gathering.startsOn, gathering.endsOn)
+  // ── THE WHOLE ANSWER, WITH ITS TIMES ────────────────────────────────────────────
+  // `formatWhen` names each occasion where there are several, because the envelope of three
+  // Saturdays is a fortnight and printing that as a range claims a fortnight the family is not
+  // gathering for. `formatWhenBrief` is the fallback for a failed occurrence read (§8: null
+  // means the read failed, not that there are no dates) and is an approximation rather than an
+  // invention.
+  const dates = gathering.occurrences
+    ? formatWhen({
+        isContinuous: gathering.isContinuous,
+        occurrences: gathering.occurrences,
+        timeZone: gathering.timeZone,
+      })
+    : formatWhenBrief(gathering)
 
   return (
     <PageShell className="space-y-8">
@@ -76,8 +104,7 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
           href="/gatherings"
           className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ChevronLeft className="h-3.5 w-3.5" /> Back to Gatherings
-        </Link>
+          <ChevronLeft className="h-3.5 w-3.5" />{t('gath.backGatherings')}</Link>
 
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
           <div className="min-w-0">
@@ -107,6 +134,25 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
               <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" /> {dates}
             </span>
           )}
+          {/* THE READER'S OWN TIME, SECOND AND SMALLER. `dates` above already carries the
+              stated time with its zone named — that is the primary and authoritative reading,
+              and `20260826000003` forbids inverting the two. This adds the local equivalent for
+              a relative who is not in the gathering's zone, and renders NOTHING when the two
+              clocks agree or when no time was given. First occurrence only: a series of five
+              Saturdays all share one zone, so repeating it per row would be noise. */}
+          {gathering.startTime && gathering.timeZone && (
+            <span className="flex items-center gap-1.5">
+              <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <StatedTime
+                intl={intl}
+                day={gathering.startsOn}
+                time={gathering.startTime}
+                endTime={gathering.endTime}
+                zone={gathering.timeZone}
+                readerZone={zone}
+              />
+            </span>
+          )}
           {gathering.location && (
             <span className="flex items-center gap-1.5">
               <MapPin className="h-3.5 w-3.5" aria-hidden="true" /> {gathering.location}
@@ -123,7 +169,15 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
               href={`/admin/gatherings/${gathering.id}`}
               className="flex items-center gap-1.5 font-medium text-brand-accent hover:underline"
             >
-              <Settings2 className="h-3.5 w-3.5" aria-hidden="true" /> Organize this gathering
+              {/* ── THE LABEL FOLLOWS THE PLAN, AND THE DESTINATION DOES NOT ────────
+                  On Free there is nothing to ORGANIZE: no templates to attach, no tasks to
+                  hand out, no budget band. The console is still where the title, the dates,
+                  the place and the status are changed — `/admin/gatherings` is Free — so the
+                  link stays and stops over-promising. "Organize this gathering" leading to a
+                  screen with no organizing on it is the shape AGENTS.md warns about for a
+                  disabled control: an affordance somebody keeps pressing. */}
+              <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
+              {plansGatherings ? 'Organize this gathering' : 'Edit this gathering'}
             </Link>
           )}
         </div>
@@ -134,8 +188,20 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
           `gatherings/budget:view` must not learn that money is attached), one honest line for
           `'unavailable'` (the caller holds the key and the read failed). Neither is the same
           thing as a gathering with no budget set, which is a `'shown'` band with a dash in it. */}
-      <BudgetBand budget={gathering.budget} state={gathering.budgetState} />
+      <BudgetBand budget={gathering.budget} state={gathering.budgetState} intl={intl} />
 
+      {/* ── THE TASK TABLE, OR WHAT WOULD BE IN IT ───────────────────────────────
+          A Free family has no tasks and never will while they are on Free, so the table would
+          render its empty state — "nothing has been handed out yet" — which is true and reads
+          as a feature that has not been used rather than one that is not included. The upsell
+          says which it is, and says what the gathering DOES have first.
+
+          It replaces the table rather than sitting above it, deliberately: two panels where
+          one says "no tasks" and the other says "tasks are a paid feature" is the product
+          arguing with itself. */}
+      {!plansGatherings ? (
+        <PlanningUpsell />
+      ) : (
       <GatheringDetailClient
         tasks={gathering.tasks}
         taskCounts={gathering.taskCounts}
@@ -160,6 +226,7 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
            nothing is a good design and a bad thing to forget. */
         segments={gathering.templates}
       />
+      )}
     </PageShell>
   )
 }

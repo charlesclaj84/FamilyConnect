@@ -8,8 +8,11 @@ import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { requireEdit, requireOwn, requireMember, requireRead } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addressedTo, readMyChapterId } from '@/lib/announcement-audience'
-import { todayLocal } from '@/lib/date-utils'
+import { resolveFamilyZone } from '@/lib/auth/zone'
+import { todayIn } from '@/lib/tz'
 import { upcomingBirthdays, type UpcomingBirthday } from '@/lib/birthdays'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Family announcements.
@@ -421,7 +424,7 @@ function byPinThenDate(a: Announcement, b: Announcement): number {
  */
 export async function getAnnouncements(): Promise<Announcement[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   // THE DISMISSALS ARE READ HERE TOO, since 2026-08-21. Without them this screen could only
@@ -459,7 +462,7 @@ export async function getAnnouncements(): Promise<Announcement[]> {
 /** Only what this member is addressed by — national/regional, plus their own chapter. */
 export async function getMyAnnouncements(): Promise<Announcement[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   const chapter = await readMyChapterId()
@@ -500,7 +503,7 @@ export async function getMyAnnouncements(): Promise<Announcement[]> {
  */
 export async function getAnnouncementFeed(limit = 20): Promise<FeedAnnouncement[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   const chapter = await readMyChapterId()
@@ -540,11 +543,11 @@ export async function getAnnouncementFeed(limit = 20): Promise<FeedAnnouncement[
 export async function createAnnouncement(
   input: AnnouncementInput
 ): Promise<{ success: boolean; id?: string; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
-  if (!input.title.trim() || !input.body.trim()) return { success: false, message: 'Title and message are required' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
+  if (!input.title.trim() || !input.body.trim()) return { success: false, message: t('act.titleMessageRequired') }
 
   const familyCode = await getMyFamilyCode(user.id)
   const { data: myPerson } = await admin.from('people').select('id')
@@ -570,7 +573,7 @@ export async function createAnnouncement(
   // addressed to no one — a foreign id filed inside this family's records either way.
   if (scope === 'chapter' && input.chapter_id
       && !(await belongsToFamily('chapters', input.chapter_id, familyCode))) {
-    return { success: false, message: 'Chapter not found' }
+    return { success: false, message: t('act.chapterNotFound') }
   }
 
   // Service-role insert so non-admin members can post (RLS limits inserts to admins).
@@ -599,13 +602,18 @@ export async function deleteAnnouncement(
   // The row is read first, family-scoped, so the ownership decision is made against
   // what the database holds rather than anything the caller sent. An author may
   // delete their own announcement (scope 'own'); deleting someone else's needs 'any'.
+  const { user } = await currentUser()
+  // The translator BEFORE the row read, because the "not found" below runs
+  // before the guard: `requireOwn` needs the row's owner, so the row has to
+  // be read first. `currentUser()` is cached and the guard calls it anyway.
+  const { t } = await callerI18n(user?.id ?? null)
   const { data: row } = await admin
     .from('announcements').select('author_id, family_code').eq('id', id).maybeSingle()
-  if (!row) return { success: false, message: 'Announcement not found' }
+  if (!row) return { success: false, message: t('act.announcementNotFound') }
 
   const g = await requireOwn('community/announcements', 'delete', row.author_id)
   if (!g.ok) return { success: false, message: g.message }
-  if (row.family_code !== g.familyCode) return { success: false, message: 'Announcement not found' }
+  if (row.family_code !== g.familyCode) return { success: false, message: t('act.announcementNotFound') }
 
   const { error } = await admin.from('announcements').delete().eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
@@ -652,9 +660,10 @@ export async function unpinAnnouncementForMe(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'Not a member of this family' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.notMemberFamily') }
   if (!(await belongsToFamily('announcements', announcementId, g.familyCode))) {
-    return { success: false, message: 'Announcement not found' }
+    return { success: false, message: t('act.announcementNotFound') }
   }
 
   const supabase = await createClient()
@@ -665,7 +674,7 @@ export async function unpinAnnouncementForMe(
       { onConflict: 'announcement_id,person_id' },
     )
 
-  if (error) return { success: false, message: 'Could not dismiss that announcement.' }
+  if (error) return { success: false, message: t('act.couldNotDismissAnnouncement') }
   // BOTH SURFACES, and the second line is the fix. This revalidated `/dashboard` alone, so a
   // dismissal made on either screen left the OTHER one showing the announcement still pinned
   // until something else happened to revalidate it. Recent Updates and the board render the
@@ -681,7 +690,8 @@ export async function repinAnnouncementForMe(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'Not a member of this family' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.notMemberFamily') }
 
   // No belongsToFamily here, and it is not an omission: this only ever DELETES a row
   // the policy already restricts to `person_id = auth_person_id()`, so an id from
@@ -694,7 +704,7 @@ export async function repinAnnouncementForMe(
     .eq('announcement_id', announcementId)
     .eq('person_id', g.personId)
 
-  if (error) return { success: false, message: 'Could not pin that announcement.' }
+  if (error) return { success: false, message: t('act.couldNotPinAnnouncement') }
   // Both, for `unpinAnnouncementForMe`'s reason.
   revalidatePath('/dashboard')
   revalidatePath('/community/announcements')
@@ -792,21 +802,25 @@ export async function repinAnnouncementForMe(
  * 'approved' by default, so they have always been listed. This pane simply does not add a
  * `user_id` filter that the surfaces which genuinely need one do add.
  *
- * ── `todayLocal()`, ON THE SERVER, BECAUSE AN ACTION IS THE LAYER ALLOWED TO DECIDE ─
- * `getPremierGathering` in app/actions/gatherings.ts says it in those words, and the same
- * rule holds here: the pure module takes `today` as a parameter so it can be tested, and an
- * action is where a clock may be read. `todayLocal()` rather than an ISO instant sliced to
- * ten characters, because `date_of_birth` is a bare `DATE` with no time and no zone — the
- * slice is UTC, which is a day out for half the country every evening, and that is precisely
- * the class of bug `lib/birthdays.ts` exists to make impossible downstream of this line.
+ * ── TODAY IS THE FAMILY'S TODAY, AND THIS PARAGRAPH USED TO SAY OTHERWISE ──────────
+ * The pure module takes `today` as a parameter so it can be tested, and an action is where a
+ * clock may be read — that half was always right. What was wrong was WHICH clock.
  *
- * The residual imprecision is worth naming so nobody reads more into this than is there:
- * "today" is the SERVER's today, and on hosted that is UTC, so between midnight and dawn UTC
- * a family in the Americas is told about a day that has not begun for them. Every date read
- * in this product has that property, `/gatherings/calendar` and `/gatherings` included, and the fix
- * would be a `today` parameter arriving from the browser — which is a value from a caller, on
- * a public endpoint, deciding what the answer is. Not worth it for a birthday, and it is a
- * horizon of sixty days: the row is on the list either way, one day out on its countdown.
+ * This said: *"'today' is the SERVER's today, and on hosted that is UTC, so between midnight
+ * and dawn UTC a family in the Americas is told about a day that has not begun for them …
+ * the fix would be a `today` parameter arriving from the browser — which is a value from a
+ * caller, on a public endpoint, deciding what the answer is. Not worth it for a birthday."*
+ *
+ * The reasoning was sound and the option set was short by one. Taking a date from the browser
+ * really would be a caller deciding the answer, and the reader's own zone really is the wrong
+ * question for a FAMILY list — two members would see the same relative under Today and
+ * Tomorrow. `families.time_zone` (`20260826000006`) is the third option: one answer for the
+ * whole family, resolved on the server, from a column an administrator sets.
+ *
+ * So the imprecision this paragraph used to name is gone rather than accepted. It was never
+ * only a countdown being a day out either — the pane's Today and Tomorrow LABELS were wrong
+ * for the last five hours of every day, which is when somebody is most likely to be reading
+ * a birthday list.
  *
  * ── NO ARGUMENTS, ON PURPOSE ───────────────────────────────────────────────────────
  * Not even the horizon. This is a public HTTP endpoint like every other export from a
@@ -853,5 +867,8 @@ export async function getUpcomingBirthdays(): Promise<UpcomingBirthday[]> {
   // No sort, no filter, no date comparison here — see the section header. `upcomingBirthdays`
   // returns a total order, soonest first, with a null or impossible `date_of_birth` already
   // dropped.
-  return upcomingBirthdays(roster, todayLocal())
+  // THE FAMILY'S ZONE. A birthday list is the family's, so "today" on it has to be one
+  // answer — otherwise two members see the same relative under Today and Tomorrow. The old
+  // `todayLocal()` read UTC here, which shifted every label after 7pm Central.
+  return upcomingBirthdays(roster, todayIn(await resolveFamilyZone(g.familyCode)))
 }

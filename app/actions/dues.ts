@@ -31,6 +31,9 @@ import {
 } from '@/lib/family-tree'
 import { routePaidPayment } from '@/lib/dues-routing'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * A dues schedule or a donation drive — see `kind`.
@@ -703,6 +706,9 @@ async function syncDonationBeneficiaries(
   scheduleId: string,
   familyCode: string,
   personIds: string[],
+  /** The caller's language, for the one refusal below. `t` last, so a call site gains an
+      argument rather than being re-ordered. */
+  t: T,
 ): Promise<{ ok: true } | { ok: false; message: string }> {
   // Deduplicated because the UNIQUE constraint would otherwise reject the whole insert
   // over a double-click, and empties dropped so a stray '' cannot reach the FK.
@@ -710,7 +716,7 @@ async function syncDonationBeneficiaries(
 
   for (const personId of ids) {
     if (!(await belongsToFamily('people', personId, familyCode))) {
-      return { ok: false, message: 'One of those people is not in this family.' }
+      return { ok: false, message: t('act.oneThosePeopleNotFamily2') }
     }
   }
 
@@ -775,8 +781,7 @@ async function myHiddenDonationScheduleIds(
  * its own whatever page renders it. Someone with neither grant gets nothing back.
  */
 export async function getScheduleUsage(): Promise<Record<string, ScheduleUsage>> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return {}
   const [mayDues, mayDonations] = await Promise.all([
     can(user.id, 'admin/accounting/dues', 'view'),
@@ -796,8 +801,9 @@ export async function createDuesSchedule(
   input: Omit<DuesSchedule, 'id' | 'active'>
 ): Promise<{ success: boolean; schedule?: DuesSchedule; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
   const familyCode = await getMyFamilyCode(user.id)
   // Never taken on trust: an unrecognized kind would be a schedule nobody owes and
   // nobody can donate to, invisible on both pages.
@@ -809,13 +815,13 @@ export async function createDuesSchedule(
   // row from the same value. Someone who may open a donation drive is not thereby
   // able to change what members owe.
   if (!(await canAny(user.id, SCHEDULE_RESOURCE[kind], 'create'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
   if (kind === 'donation' && !input.goal_cents) {
-    return { success: false, message: 'A donation needs a goal to work toward' }
+    return { success: false, message: t('act.donationNeedsGoalWorkToward') }
   }
   if (kind === 'dues' && !input.amount_cents) {
-    return { success: false, message: 'Dues need an amount' }
+    return { success: false, message: t('act.duesNeedAmount') }
   }
 
   // Pulled out of the spread: it is a join table, not a column, and spreading it onto
@@ -835,11 +841,11 @@ export async function createDuesSchedule(
   const scoped = normalizeScope(input)
   if (kind === 'dues' && scoped.region_id
       && !(await belongsToFamily('regions', scoped.region_id, familyCode ?? ''))) {
-    return { success: false, message: 'Region not found' }
+    return { success: false, message: t('act.regionNotFound') }
   }
   if (kind === 'dues' && scoped.chapter_id
       && !(await belongsToFamily('chapters', scoped.chapter_id, familyCode ?? ''))) {
-    return { success: false, message: 'Chapter not found' }
+    return { success: false, message: t('act.chapterNotFound') }
   }
 
   const { data, error } = await supabase
@@ -866,7 +872,7 @@ export async function createDuesSchedule(
   // exactly that reason — silence here would be a drive the beneficiary can read.
   if (beneficiaryIds.length > 0) {
     const synced = await syncDonationBeneficiaries(
-      createAdminClient(), data.id as string, familyCode ?? '', beneficiaryIds,
+      createAdminClient(), data.id as string, familyCode ?? '', beneficiaryIds, t,
     )
     if (!synced.ok) {
       return {
@@ -885,10 +891,10 @@ export async function updateDuesSchedule(
   id: string,
   input: Partial<Omit<DuesSchedule, 'id'>>
 ): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
   const familyCode = await getMyFamilyCode(user.id)
 
   // The row's own kind decides which fields are legal, so it is read rather than
@@ -904,18 +910,18 @@ export async function updateDuesSchedule(
     .from('dues_schedules')
     .select('kind, goal_cents, start_date, end_date, amount_cents, frequency, start_age, bloodline_only, scope, region_id, chapter_id')
     .eq('id', id).eq('family_code', familyCode).maybeSingle()
-  if (!existing) return { success: false, message: 'Schedule not found' }
+  if (!existing) return { success: false, message: t('act.scheduleNotFound') }
   const kind: ScheduleKind = existing.kind === 'donation' ? 'donation' : 'dues'
 
   // Gated on the ROW's kind, deliberately after it is read: this is family-wide
   // configuration with no personal copy to own, hence canAny. Checking before the read
   // would mean guessing the section from the caller's payload.
   if (!(await canAny(user.id, SCHEDULE_RESOURCE[kind], 'edit'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
   const goalCents = input.goal_cents === undefined ? existing.goal_cents : input.goal_cents
   if (kind === 'donation' && !goalCents) {
-    return { success: false, message: 'A donation needs a goal to work toward' }
+    return { success: false, message: t('act.donationNeedsGoalWorkToward') }
   }
 
   // ── Terms that stop being editable once the ledger has been posted against ──
@@ -942,7 +948,7 @@ export async function updateDuesSchedule(
     const floor = new Date()
     floor.setUTCDate(floor.getUTCDate() - 1)
     if (input.end_date < floor.toISOString().slice(0, 10)) {
-      return { success: false, message: 'The end date cannot be in the past.' }
+      return { success: false, message: t('act.endDateCannotPast') }
     }
   }
 
@@ -979,13 +985,13 @@ export async function updateDuesSchedule(
     if (kind === 'dues' && usage?.used) {
       return {
         success: false,
-        message: 'Payments have been recorded against this due, so its start date, amount, frequency, starting age, bloodline setting and who owes it can no longer change. You can still change the end date.',
+        message: t('act.paymentsBeenRecordedAgainstDue'),
       }
     }
     if (kind === 'donation' && usage?.funded && movingStart) {
       return {
         success: false,
-        message: 'This donation has received funds, so its start date can no longer change.',
+        message: t('act.donationReceivedFundsSoIts'),
       }
     }
   }
@@ -995,11 +1001,11 @@ export async function updateDuesSchedule(
   // these two checks are the whole of the defence.
   if (kind === 'dues' && scoped?.region_id
       && !(await belongsToFamily('regions', scoped.region_id, familyCode ?? ''))) {
-    return { success: false, message: 'Region not found' }
+    return { success: false, message: t('act.regionNotFound') }
   }
   if (kind === 'dues' && scoped?.chapter_id
       && !(await belongsToFamily('chapters', scoped.chapter_id, familyCode ?? ''))) {
-    return { success: false, message: 'Chapter not found' }
+    return { success: false, message: t('act.chapterNotFound') }
   }
 
   // Same reason as on create: a join table cannot ride along in the column spread.
@@ -1041,7 +1047,7 @@ export async function updateDuesSchedule(
 
   if (kind === 'donation' && beneficiary_person_ids !== undefined) {
     const synced = await syncDonationBeneficiaries(
-      admin, id, familyCode ?? '', beneficiary_person_ids,
+      admin, id, familyCode ?? '', beneficiary_person_ids, t,
     )
     if (!synced.ok) return { success: false, message: synced.message }
   }
@@ -1053,10 +1059,10 @@ export async function updateDuesSchedule(
 }
 
 export async function deleteDuesSchedule(id: string): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
   const familyCode = await getMyFamilyCode(user.id)
 
   // Family-scoped for the same reason as the update above: the service-role client
@@ -1065,10 +1071,10 @@ export async function deleteDuesSchedule(id: string): Promise<{ success: boolean
   // obligation with it, so it needs the unrestricted one.
   const { data: existing } = await admin
     .from('dues_schedules').select('kind, label').eq('id', id).eq('family_code', familyCode).maybeSingle()
-  if (!existing) return { success: false, message: 'Schedule not found' }
+  if (!existing) return { success: false, message: t('act.scheduleNotFound') }
   const kind: ScheduleKind = existing.kind === 'donation' ? 'donation' : 'dues'
   if (!(await canAny(user.id, SCHEDULE_RESOURCE[kind], 'delete'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   // MONEY FIRST, and this was missing until 2026-08-17 — a schedule with payments recorded
@@ -1106,7 +1112,7 @@ export async function deleteDuesSchedule(id: string): Promise<{ success: boolean
 
 export async function getMyDuesSummary(): Promise<DuesSummary[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   // Dues are owed per family, so this must be the active family's person row.
@@ -1362,7 +1368,7 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
 export async function getDonationProgress(): Promise<DonationSummary[]> {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   const familyCode = await getMyFamilyCode(user.id)
@@ -1416,11 +1422,12 @@ export async function setMyDuesPlan(
   cadence: PayCadence,
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
   const familyCode = await getMyFamilyCode(user.id)
   const myPersonId = await getMyPersonId(user.id)
-  if (!myPersonId) return { success: false, message: 'Profile not found' }
+  if (!myPersonId) return { success: false, message: t('act.profileNotFound') }
   const myPerson = { id: myPersonId }
 
   // scheduleId comes from the client. The plan row below is stamped with the
@@ -1428,7 +1435,7 @@ export async function setMyDuesPlan(
   // schedule belongs to — this check is the only thing stopping a member of one
   // family enrolling against another family's schedule.
   if (!(await belongsToFamily('dues_schedules', scheduleId, familyCode))) {
-    return { success: false, message: 'Schedule not found' }
+    return { success: false, message: t('act.scheduleNotFound') }
   }
 
   const { error } = await supabase
@@ -1481,14 +1488,15 @@ export async function setMyDuesOptOut(
   optedOut: boolean,
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
   const familyCode = await getMyFamilyCode(user.id)
   const myPersonId = await getMyPersonId(user.id)
-  if (!myPersonId) return { success: false, message: 'Profile not found' }
+  if (!myPersonId) return { success: false, message: t('act.profileNotFound') }
 
   if (!(await belongsToFamily('dues_schedules', scheduleId, familyCode))) {
-    return { success: false, message: 'Schedule not found' }
+    return { success: false, message: t('act.scheduleNotFound') }
   }
 
   // Family-scoped on the admin client for the same reason every other read of a
@@ -1498,10 +1506,10 @@ export async function setMyDuesOptOut(
   const { data: schedule } = await admin
     .from('dues_schedules').select('kind, required, label')
     .eq('id', scheduleId).eq('family_code', familyCode).maybeSingle()
-  if (!schedule) return { success: false, message: 'Schedule not found' }
+  if (!schedule) return { success: false, message: t('act.scheduleNotFound') }
   if (schedule.kind === 'donation') {
     // Nothing to decline: nobody owes a donation in the first place.
-    return { success: false, message: 'Donations are already optional — there is nothing to opt out of.' }
+    return { success: false, message: t('act.donationsAlreadyOptionalThereNothing') }
   }
   if (optedOut && schedule.required !== false) {
     return {
@@ -1530,15 +1538,16 @@ export async function setMyDuesOptOut(
 
 export async function clearMyDuesPlan(scheduleId: string): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
   const familyCode = await getMyFamilyCode(user.id)
   const myPersonId = await getMyPersonId(user.id)
-  if (!myPersonId) return { success: false, message: 'Profile not found' }
+  if (!myPersonId) return { success: false, message: t('act.profileNotFound') }
   const myPerson = { id: myPersonId }
 
   if (!(await belongsToFamily('dues_schedules', scheduleId, familyCode))) {
-    return { success: false, message: 'Schedule not found' }
+    return { success: false, message: t('act.scheduleNotFound') }
   }
 
   // The four policies on this table are all `family_code = auth_family_code() AND
@@ -1625,7 +1634,7 @@ export async function getAllDuesPayments(): Promise<DuesPayment[]> {
  */
 export async function getFamilyDuesCollected(): Promise<number | null> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return null
 
   const entitled =
@@ -1911,8 +1920,7 @@ export interface DuesProjectionResult {
  * that split (§7b).
  */
 export async function getDuesProjection(): Promise<DuesProjectionResult | null> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return null
 
   if (!(await canAny(user.id, 'reporting/dues-projections', 'view'))) return null
@@ -2130,8 +2138,7 @@ export async function getDuesScopeOptions(): Promise<{
   regions: { id: string; name: string }[]
   chapters: { id: string; name: string; region_id: string | null }[]
 }> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return { regions: [], chapters: [] }
   if (!(await can(user.id, 'admin/accounting/dues', 'view'))) return { regions: [], chapters: [] }
 
@@ -2160,7 +2167,7 @@ export async function getDuesScopeOptions(): Promise<{
 
 export async function getMyPaymentHistory(): Promise<DuesPayment[]> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   const myPersonId = await getMyPersonId(user.id)
@@ -2215,15 +2222,16 @@ export async function recordPayment(input: {
 }): Promise<{ success: boolean; message?: string }> {
   const admin = createAdminClient()
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
   const familyCode = await getMyFamilyCode(user.id)
   const { data: myPerson } = await supabase
     .from('people').select('id')
     .eq('user_id', user.id)
     .eq('family_code', familyCode)
     .maybeSingle()
-  if (!myPerson) return { success: false, message: 'Profile not found' }
+  if (!myPerson) return { success: false, message: t('act.profileNotFound') }
 
   // Required, and re-scoped to this family here: the insert below runs on the admin
   // client, which bypasses RLS, so nothing else would stop a schedule id belonging
@@ -2232,14 +2240,14 @@ export async function recordPayment(input: {
   // `kind` is read from the schedule ROW, never from the client: it decides which
   // permission is demanded, so accepting it as an argument would let a caller with
   // only donation rights post a dues payment by mislabelling it.
-  if (!input.schedule_id) return { success: false, message: 'A dues schedule is required' }
+  if (!input.schedule_id) return { success: false, message: t('act.duesScheduleRequired') }
   const { data: schedule } = await admin
     .from('dues_schedules')
     .select('id, kind')
     .eq('id', input.schedule_id)
     .eq('family_code', familyCode)
     .maybeSingle()
-  if (!schedule) return { success: false, message: 'Dues schedule not found' }
+  if (!schedule) return { success: false, message: t('act.duesScheduleNotFound') }
 
   // A drive's beneficiary may not record against it, and the wording is the same
   // "not found" the line above gives — telling them the id is real but forbidden is
@@ -2256,7 +2264,7 @@ export async function recordPayment(input: {
     .eq('person_id', myPerson.id)
     .eq('family_code', familyCode)
     .maybeSingle()
-  if (hiddenFromMe) return { success: false, message: 'Dues schedule not found' }
+  if (hiddenFromMe) return { success: false, message: t('act.duesScheduleNotFound') }
 
   // Recording a payment asserts that money changed hands. The person who OWES it does
   // not get to make that assertion — basic accounting, and the reason the old
@@ -2288,7 +2296,7 @@ export async function recordPayment(input: {
   // is written onto a row stamped with the caller's own family_code, which satisfies
   // RLS regardless of where that person actually lives.
   if (!(await belongsToFamily('people', input.person_id, familyCode))) {
-    return { success: false, message: 'Member not found' }
+    return { success: false, message: t('act.memberNotFound') }
   }
 
   // ── What a manual entry is allowed to say happened ──
@@ -2316,8 +2324,8 @@ export async function recordPayment(input: {
   const method = waived ? null : (input.payment_method?.trim() || null)
   const reference = waived ? null : (input.payment_reference?.trim() || null)
   if (!waived) {
-    if (!method) return { success: false, message: 'Record how the payment was made' }
-    if (!reference) return { success: false, message: 'Record a check number or reference for the payment' }
+    if (!method) return { success: false, message: t('act.recordHowPaymentMade') }
+    if (!reference) return { success: false, message: t('act.recordCheckNumberReferencePayment') }
   }
 
   const { data: payment, error } = await admin.from('dues_payments').insert({
@@ -2367,16 +2375,16 @@ export async function reversePayment(
   reason: string,
 ): Promise<{ success: boolean; message?: string }> {
   const admin = createAdminClient()
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
   const familyCode = await getMyFamilyCode(user.id)
   const myPersonId = await getMyPersonId(user.id)
-  if (!myPersonId) return { success: false, message: 'Profile not found' }
+  if (!myPersonId) return { success: false, message: t('act.profileNotFound') }
 
   // Its own grant: undoing a posting is not the same authority as making one.
   if (!(await canAny(user.id, 'accounting/transactions/reversals', 'create'))) {
-    return { success: false, message: 'You do not have permission to reverse payments.' }
+    return { success: false, message: t('act.youDoNotPermissionReverse') }
   }
 
   // Read the original family-scoped — the id is client-supplied and this runs on the
@@ -2387,10 +2395,10 @@ export async function reversePayment(
     .eq('id', paymentId)
     .eq('family_code', familyCode)
     .maybeSingle()
-  if (!original) return { success: false, message: 'Payment not found' }
+  if (!original) return { success: false, message: t('act.paymentNotFound') }
 
   if (original.reverses_id) {
-    return { success: false, message: 'That row is itself a reversal.' }
+    return { success: false, message: t('act.rowItselfReversal') }
   }
 
   // The unique index on reverses_id is the real guard against double-reversal; this
@@ -2400,7 +2408,7 @@ export async function reversePayment(
     .select('id')
     .eq('reverses_id', paymentId)
     .maybeSingle()
-  if (existing) return { success: false, message: 'That payment has already been reversed.' }
+  if (existing) return { success: false, message: t('act.paymentAlreadyBeenReversed') }
 
   const { data: reversal, error } = await admin.from('dues_payments').insert({
     family_code:    familyCode,
@@ -2477,9 +2485,8 @@ export async function reversePayment(
  * meeting. Same reasoning as `getDuesProjection`, and the page 404s on it.
  */
 export async function getFamilyPnL(): Promise<PnLData | null> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return null
   if (!(await canAny(user.id, 'reporting/pl-summary', 'view'))) return null
   const familyCode = await getMyFamilyCode(user.id)

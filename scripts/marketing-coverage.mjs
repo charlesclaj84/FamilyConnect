@@ -51,7 +51,7 @@
  *   4. no stale allowance — every `SOLD_ELSEWHERE` key is a live route, and none of them is
  *      also on the catalogue. Both directions, for `audit_global_lookups.sql`'s reason: a
  *      one-way assertion cannot see the half where the list itself has gone out of date.
- *   5. THE TWO PLAN LISTS SELL THE SAME THINGS — `PLANS[]` on `/pricing` and `PLAN_ADDS` in
+ *   5. THE TWO PLAN LISTS SELL THE SAME THINGS — `PLANS[]` on `/pricing` and `PLAN_ADD_CLAIMS` in
  *      `lib/plans.ts`, compared per tier by the `claim` id each bullet carries, never by its
  *      words. See the block above the check; it is the one mechanical question inside the
  *      pricing cards, and it was worth adding a field to make askable.
@@ -91,18 +91,18 @@
  * AND FOUR MORE FOR CHECK 5, added with it on 2026-08-22. Each reports every problem it
  * genuinely is rather than collapsing to one line, which is the same answer mutation 2 gives:
  *
- *   7. `premium/custom-domain` renamed in `PLAN_ADDS` only  -> plan claims, TWICE — sold on
- *      /pricing and unmentioned in-product, AND in PLAN_ADDS and on no card. Two findings for
+ *   7. `premium/custom-domain` renamed in `PLAN_ADD_CLAIMS` only  -> plan claims, TWICE — sold on
+ *      /pricing and unmentioned in-product, AND in PLAN_ADD_CLAIMS and on no card. Two findings for
  *      one edit, because from the two lists' point of view that is two disagreements
  *   8. `standard/ledger` -> `plus/ledger` on its pricing
  *      card, i.e. a bullet re-priced in one file only       -> plan claims, THREE times: the
  *      prefix does not match the card it sits on, and both set comparisons then miss
  *   9. a second `free/chat` bullet, replacing `free/manual`  -> plan claims — the duplicate,
  *      named, plus the claim it displaced
- *  10. `standard/ledger` -> `plus/ledger` in `PLAN_ADDS`,
+ *  10. `standard/ledger` -> `plus/ledger` in `PLAN_ADD_CLAIMS`,
  *      i.e. mutation 8 from the other side                  -> plan claims, three times again.
  *      Both sides of the prefix rule are checked because only one of them is protected by a
- *      type: `PLAN_ADDS` is keyed by tier and the pricing table is a flat array, and neither
+ *      type: `PLAN_ADD_CLAIMS` is keyed by tier and the pricing table is a flat array, and neither
  *      key nor position makes the prefix inside the bullet agree with either
  */
 import { readFileSync } from 'node:fs'
@@ -142,11 +142,11 @@ export async function resolve(specifier, context, next) {
 register(`data:text/javascript,${encodeURIComponent(HOOK)}`)
 
 const { FEATURES } = await import(pathToFileURL(join(ROOT, 'lib', 'features.ts')).href)
-// `PLAN_ADDS` and the tier vocabulary, for check 5. `lib/plans.ts` is pure by design — data,
+// `PLAN_ADD_CLAIMS` and the tier vocabulary, for check 5. `lib/plans.ts` is pure by design — data,
 // no React, no database, no `server-only` — which is exactly what makes it importable here;
 // the pricing page it is checked against is a React server component and has to be read as
 // text, the same limitation this file already accepts for the two catalogue surfaces.
-const { PLAN_ADDS } = await import(pathToFileURL(join(ROOT, 'lib', 'plans.ts')).href)
+const { PLAN_ADD_CLAIMS } = await import(pathToFileURL(join(ROOT, 'lib', 'plans.ts')).href)
 const { TIERS, TIER_LABEL } = await import(pathToFileURL(join(ROOT, 'lib', 'tiers.ts')).href)
 
 // ---------------------------------------------------------------- the surfaces
@@ -276,7 +276,7 @@ for (const route of Object.keys(SOLD_ELSEWHERE)) {
 //
 // ── WHAT THIS DOES AND DOES NOT CLAIM ───────────────────────────────────────────────────
 // It does NOT derive either list from the other, and it does not compare a single word of
-// copy. `PLANS[]` on `/pricing` is what a BUYER reads and `PLAN_ADDS` in `lib/plans.ts` is
+// copy. `PLANS[]` on `/pricing` is what a BUYER reads and the in-product list in `lib/plans.ts` is
 // what a MEMBER reads on `/admin/settings` and `/upgrade`; the two say the same things in
 // different words on purpose, and both files argue at length why generating either from the
 // other would mean inventing a correspondence that does not exist. That argument is sound and
@@ -296,6 +296,21 @@ for (const route of Object.keys(SOLD_ELSEWHERE)) {
 // that reason: the prefix is what lets a flat scan know which card a bullet is on, and check
 // 5c is what verifies the prefix against the card it is actually sitting in, so the prefix
 // cannot become a lie.
+//
+// ── WHAT THE TABLE LOOKS LIKE NOW, AND WHY THE SCAN GOT SIMPLER ────────────────────────
+// The bullets used to be `{ claim: 'x', label: '…', detail: '…' }` and the card was identified by
+// `name: 'Plus'`. Since the public site learned Spanish and French the words live in
+// `lib/marketing/strings` and each card states its `tier`, so a bullet is a bare string in an
+// `adds: [ … ]` block under a `tier: 'plus',` line.
+//
+// THAT MAKES CHECK 5c STRONGER RATHER THAN WEAKER. It used to compare a claim's prefix against a
+// card's LABEL — a join on rendered copy, which the pricing page has two other notes about — and
+// it now compares against the card's own `tier`. Same question, no string comparison.
+//
+// AND THE FAILURE MODE WAS MEASURED. When the table changed shape and this function still looked
+// for the old one, `open` did not match, the guard below fired, and every claim reported as
+// missing from `/pricing` — loudly, which is the right way round. A scan that had silently found
+// zero would have passed.
 // POSIX, deliberately: this string is printed in findings as well as used to open the file, and
 // `join()` on win32 would put backslashes into a path a reader is meant to paste.
 const PRICING_FILE = 'app/(marketing)/pricing/page.tsx'
@@ -304,9 +319,9 @@ function pricingClaims() {
   const src = readFileSync(join(ROOT, PRICING_FILE), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '')
-  const open = src.indexOf('const PLANS: readonly Plan[] = [')
+  const open = src.indexOf('const PLAN_SHAPES: readonly {')
   if (open === -1) {
-    fail('plan claims', `${PRICING_FILE} no longer declares \`const PLANS: readonly Plan[] = [\`. `
+    fail('plan claims', `${PRICING_FILE} no longer declares \`const PLAN_SHAPES: readonly {\`. `
       + `This check reads that table as text and has just stopped reading anything — which `
       + `would otherwise be a silent pass, so it is a finding.`)
     return new Map()
@@ -314,36 +329,42 @@ function pricingClaims() {
   const end = src.indexOf('\n]\n', open)
   const seg = src.slice(open, end === -1 ? undefined : end)
 
-  // ONE PASS, tracking the card. `name: '<Tier>'` is the first field of every entry in this
+  // ONE PASS, tracking the card. `tier: '<tier>'` is the first field of every entry in this
   // table, so the most recent one is the card a claim sits in.
-  const byCard = new Map()
-  let card = null
-  for (const m of seg.matchAll(/name: '([^']*)'|claim: '([^']*)'/g)) {
-    if (m[1] !== undefined) { card = m[1]; continue }
-    if (!byCard.has(card)) byCard.set(card, [])
-    byCard.get(card).push(m[2])
+  //
+  // A claim is matched as a quoted string CONTAINING A SLASH, which is what distinguishes a
+  // bullet from the other bare strings in the block — `inheritsFrom: 'Plus'`, `icon: 'crown'`,
+  // `accent: 'legacy'`. Narrow enough to be exact and wide enough that a new field cannot be
+  // mistaken for a bullet unless somebody puts a slash in it.
+  const byTier = new Map()
+  let tier = null
+  for (const m of seg.matchAll(/tier: '([a-z]+)'|'([a-z-]+\/[a-z0-9-]+)'/g)) {
+    if (m[1] !== undefined) { tier = m[1]; continue }
+    if (!byTier.has(tier)) byTier.set(tier, [])
+    byTier.get(tier).push(m[2])
   }
-  return byCard
+  return byTier
 }
 
 const cardClaims = pricingClaims()
-const labelToTier = new Map(TIERS.map(t => [TIER_LABEL[t], t]))
 
 // 5c — a claim's prefix names the card it is on. Checked FIRST, because 5a compares by prefix
 // and a mis-filed bullet would otherwise be reported as two unrelated set differences.
-for (const [cardName, claims] of cardClaims) {
-  const tier = labelToTier.get(cardName)
-  if (!tier) {
+//
+// THE CARD IS IDENTIFIED BY ITS `tier` NOW, not by its label. See `pricingClaims()`: the join on
+// `TIER_LABEL` was a comparison against rendered copy, and the table states the tier itself.
+for (const [tier, claims] of cardClaims) {
+  if (!TIERS.includes(tier)) {
     fail('plan claims',
-      `${PRICING_FILE} has a card named '${cardName}' carrying ${claims.length} claim(s), and `
-        + `that is not one of the four tier labels (${[...labelToTier.keys()].join(', ')}). `
-        + `TIER_LABEL is what /pricing and the in-product plan panel agree on.`)
+      `${PRICING_FILE} has a card whose tier is '${tier}', carrying ${claims.length} claim(s), `
+        + `and that is not one of the four (${TIERS.join(', ')}). \`FamilyTier\` in lib/tiers.ts `
+        + `is the whole vocabulary.`)
     continue
   }
   for (const claim of claims) {
     if (claim.startsWith(`${tier}/`)) continue
     fail('plan claims',
-      `${PRICING_FILE}: the ${cardName} card carries the claim '${claim}', whose prefix names `
+      `${PRICING_FILE}: the ${TIER_LABEL[tier]} card carries the claim '${claim}', whose prefix names `
         + `a different tier. A bullet moved between cards has to take its id with it, or the `
         + `two lists agree while selling the same thing at two prices.`)
   }
@@ -352,24 +373,24 @@ for (const [cardName, claims] of cardClaims) {
 // 5a and 5b — the sets match, per tier, and neither list says one thing twice.
 const dupes = list => list.filter((c, i) => list.indexOf(c) !== i)
 for (const tier of TIERS) {
-  const sold = cardClaims.get(TIER_LABEL[tier]) ?? []
-  const told = (PLAN_ADDS[tier] ?? []).map(h => h.claim)
+  const sold = cardClaims.get(tier) ?? []
+  const told = [...(PLAN_ADD_CLAIMS[tier] ?? [])]
 
-  for (const [where, list] of [[`${PRICING_FILE} PLANS[]`, sold], ['lib/plans.ts PLAN_ADDS', told]]) {
+  for (const [where, list] of [[`${PRICING_FILE} PLANS[]`, sold], ['lib/plans.ts PLAN_ADD_CLAIMS', told]]) {
     for (const claim of new Set(dupes(list))) {
       fail('plan claims', `${where} lists the claim '${claim}' twice under ${tier}. That card `
         + `says one thing twice, and both copies drift.`)
     }
   }
 
-  // 5c, the other side. `PLAN_ADDS` is a Record keyed by tier, so its filing is enforced by
+  // 5c, the other side. `PLAN_ADD_CLAIMS` is a Record keyed by tier, so its filing is enforced by
   // the type — but the PREFIX is a string and nothing makes it agree with the key it sits
   // under. Left unchecked, a bullet moved between tiers in this file with its old prefix
   // intact would report as two clean set differences and read as two unrelated edits.
   for (const claim of told) {
     if (claim.startsWith(`${tier}/`)) continue
     fail('plan claims',
-      `lib/plans.ts PLAN_ADDS.${tier} carries the claim '${claim}', whose prefix names a `
+      `lib/plans.ts PLAN_ADD_CLAIMS.${tier} carries the claim '${claim}', whose prefix names a `
         + `different tier. The prefix is what makes a re-pricing visible; keep it with the key.`)
   }
 
@@ -404,7 +425,7 @@ console.log(
     `(free ${byTier('free')}, standard ${byTier('standard')}, plus ${byTier('plus')}, ` +
     `premium ${byTier('premium')}), ${cards.length} catalogue cards, ` +
     `${Object.keys(SOLD_ELSEWHERE).length} stated allowances, ` +
-    `${claimCount} pricing claims against ${TIERS.reduce((n, t) => n + PLAN_ADDS[t].length, 0)} ` +
+    `${claimCount} pricing claims against ${TIERS.reduce((n, t) => n + PLAN_ADD_CLAIMS[t].length, 0)} ` +
     `in-product ones.`,
 )
 

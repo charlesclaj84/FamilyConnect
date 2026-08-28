@@ -1,9 +1,9 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getBylawRights, getBylaws } from '@/app/actions/bylaws'
 import { BylawsClient } from '@/components/bylaws/BylawsClient'
 import { PageShell } from '@/components/layout/PageShell'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Bylaws' }
 
@@ -23,8 +23,7 @@ export const metadata = { title: 'Bylaws' }
  * this screen so a family that has adopted none can switch it off; it decides no row.
  */
 export default async function BylawsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'library/bylaws')

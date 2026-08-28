@@ -13,6 +13,8 @@ import { HelpLink } from '@/components/help/HelpLink'
 import { cn } from '@/lib/utils'
 import { addRelative, type AddRelativeMode, type TreePerson } from '@/app/actions/family-tree'
 import { relationshipMeta, LINK_KINDS, linkKindLabel, type LinkKind } from '@/lib/family-tree'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Adding one relative to somebody already on the tree.
@@ -48,26 +50,16 @@ import { relationshipMeta, LINK_KINDS, linkKindLabel, type LinkKind } from '@/li
  * their cousin was contacted and the cousin waiting on nothing.
  */
 
-const MODES: { id: AddRelativeMode; label: string; hint: string; icon: typeof UserCheck }[] = [
-  {
-    id: 'existing',
-    label: 'Someone already here',
-    hint: 'Link a relative who is already in your family.',
-    icon: UserCheck,
-  },
-  {
-    id: 'invite',
-    label: 'Invite them',
-    hint: 'We email an invitation. They join once an administrator approves them.',
-    icon: Mail,
-  },
-  {
-    id: 'record',
-    label: 'No email address',
-    hint: 'Record them without one — for relatives who have passed, elders, and children.',
-    icon: FileText,
-  },
-]
+// A FUNCTION of `t` since Phase 5: the captions come from the reader's catalogue. The IDS
+// and the ICONS stay, which is what this list is for — `AddRelativeMode` is what the
+// action is sent.
+function modes(t: T): { id: AddRelativeMode; label: string; hint: string; icon: typeof UserCheck }[] {
+  return [
+    { id: 'existing', label: t('rel.alreadyHere'), hint: t('rel.alreadyHereHint'), icon: UserCheck },
+    { id: 'invite', label: t('rel.inviteThem'), hint: t('rel.inviteHint'), icon: Mail },
+    { id: 'record', label: t('rel.noEmail'), hint: t('rel.noEmailHint'), icon: FileText },
+  ]
+}
 
 /**
  * The record mode's hint, worded for what is being recorded.
@@ -78,10 +70,10 @@ const MODES: { id: AddRelativeMode; label: string; hint: string; icon: typeof Us
  * the child, and says why a birthday is being asked for, which is the one thing about
  * this form that is not self-evident.
  */
-function recordHint(isChild: boolean): string {
+function recordHint(isChild: boolean, t: T): string {
   return isChild
-    ? 'Record them without one — for a child too young for an account. We ask for their birthday because dues can start at an age.'
-    : MODES[2].hint
+    ? t('rel.noEmailChildHint')
+    : t('rel.noEmailHint')
 }
 
 export function AddRelativeDialog({
@@ -104,6 +96,7 @@ export function AddRelativeDialog({
    */
   coParents?: { id: string; name: string }[]
 }) {
+  const t = useT()
   const router = useRouter()
   const [mode, setMode] = useState<AddRelativeMode>('existing')
   const [existingPersonId, setExistingPersonId] = useState('')
@@ -205,8 +198,8 @@ export function AddRelativeDialog({
     <Dialog
       open={open}
       onClose={close}
-      title={result ? 'Added to the tree' : `Add ${anchorName}'s ${relationLabel}`}
-      description={result ? undefined : 'Choose how this person joins the tree.'}
+      title={result ? t('rel.addedToTree') : `Add ${anchorName}'s ${relationLabel}`}
+      description={result ? undefined : t('rel.chooseHow')}
     >
       {!result && (
         <form className="space-y-4" onSubmit={e => { e.preventDefault(); submit() }}>
@@ -215,9 +208,9 @@ export function AddRelativeDialog({
               each needs a sentence saying what it does. Same treatment the announcement
               composer gives its audience picker. */}
           <div className="space-y-2">
-            <Label>How</Label>
+            <Label>{t('rel.how')}</Label>
             <div className="grid gap-2 sm:grid-cols-3">
-              {MODES.map(m => {
+              {modes(t).map(m => {
                 const Icon = m.icon
                 const active = mode === m.id
                 return (
@@ -240,7 +233,7 @@ export function AddRelativeDialog({
               })}
             </div>
             <p className="text-xs text-muted-foreground">
-              {mode === 'record' ? recordHint(isChild) : MODES.find(m => m.id === mode)!.hint}
+              {mode === 'record' ? recordHint(isChild, t) : modes(t).find(m => m.id === mode)!.hint}
             </p>
             {/* ON THE RECORD MODE ONLY, because it is the only one of the three whose
                 consequences are not visible from the form. "No email address" reads like a
@@ -260,7 +253,7 @@ export function AddRelativeDialog({
                 variant="inline"
                 slug="family-tree"
                 section="records"
-                label="What a record is, and how they get an account later"
+                label={t('rel.whatRecordIs')}
                 className="text-xs"
               />
             )}
@@ -276,7 +269,7 @@ export function AddRelativeDialog({
               default is 'blood', which is the common case and the column default. */}
           {meta && meta.relation !== 'spouse' && (
             <div className="space-y-2">
-              <Label>How are they related?</Label>
+              <Label>{t('rel.howRelated')}</Label>
               <div className="grid gap-2 sm:grid-cols-4">
                 {LINK_KINDS.map(k => {
                   const active = linkKind === k
@@ -311,7 +304,7 @@ export function AddRelativeDialog({
                   ? 'A blood relationship — the bloodline travels down this link.'
                   : `Recorded as ${linkKindLabel(linkKind, meta.label)}. The bloodline does not travel down this link.`}
                 {meta.relation === 'parent' && (
-                  <> Who actually appears in the Bloodline view is decided by <strong className="font-medium">Bloodline descends from</strong>, above the tree — a parent of yours is your blood relative without being part of your family&apos;s line.</>
+                  <> {t('tree.decidedBy')} <strong className="font-medium">{t('tree.bloodlineFrom')}</strong>, above the tree — a parent of yours is your blood relative without being part of your family&apos;s line.</>
                 )}
               </p>
             </div>
@@ -366,29 +359,29 @@ export function AddRelativeDialog({
               value={existingPersonId}
               onChange={setExistingPersonId}
               label={`Who is ${anchorName}'s ${relationLabel}?`}
-              emptyMessage="Everyone in the family is already attached here. Invite somebody, or record them without an email."
+              emptyMessage={t('rel.everyoneAttached')}
             />
           )}
 
           {mode !== 'existing' && (
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label htmlFor="relative-first">First name</Label>
+                <Label htmlFor="relative-first">{t('field.firstNameLower')}</Label>
                 <Input
                   id="relative-first"
                   value={firstName}
                   onChange={e => setFirstName(e.target.value)}
-                  placeholder="Ada"
+                  placeholder={t('field.ph.firstName')}
                   autoComplete="off"
                 />
               </div>
               <div className="space-y-1.5">
-                <Label htmlFor="relative-last">Last name</Label>
+                <Label htmlFor="relative-last">{t('field.lastNameLower')}</Label>
                 <Input
                   id="relative-last"
                   value={lastName}
                   onChange={e => setLastName(e.target.value)}
-                  placeholder={anchor.lastName || 'Okonkwo'}
+                  placeholder={anchor.lastName || t('field.ph.lastName')}
                   autoComplete="off"
                 />
               </div>
@@ -398,20 +391,18 @@ export function AddRelativeDialog({
           {mode === 'invite' && (
             <>
               <div className="space-y-1.5">
-                <Label htmlFor="relative-email">Email address</Label>
+                <Label htmlFor="relative-email">{t('field.emailAddress')}</Label>
                 <Input
                   id="relative-email"
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  placeholder="cousin@example.com"
+                  placeholder={t('field.ph.cousinEmail')}
                   autoComplete="off"
                   spellCheck={false}
                 />
               </div>
-              <p className="text-sm text-muted-foreground">
-                They go on the tree straight away. We&apos;ll email them an invitation, and
-                when they accept it their account joins <em>this</em> card rather than
+              <p className="text-sm text-muted-foreground">{t('ui.theyGoTreeStraight')}<em>this</em> card rather than
                 making a second one. An administrator still approves them, the same as
                 anybody joining from My Families.
               </p>
@@ -441,32 +432,25 @@ export function AddRelativeDialog({
                   onChange={e => setDateOfBirth(e.target.value)}
                 />
                 {needsBirthday && (
-                  <p className="text-xs text-muted-foreground">
-                    Dues can start at an age. Without a birthday we cannot tell when this
-                    child starts owing them, and they would be billed as an adult.
-                  </p>
+                  <p className="text-xs text-muted-foreground">{t('ui.duesCanStartAge')}</p>
                 )}
               </div>
 
               <div className="space-y-1.5">
-                <Label htmlFor="relative-reason">Why is there no email address?</Label>
+                <Label htmlFor="relative-reason">{t('rel.whyNoEmail')}</Label>
                 <Textarea
                   id="relative-reason"
                   rows={2}
                   value={reason}
                   onChange={e => setReason(e.target.value)}
                   placeholder={isChild
-                    ? 'Too young for an account · No email yet'
-                    : 'Passed away in 1998 · No email, phone only · Too young for an account'}
+                    ? t('rel.tooYoung')
+                    : t('rel.reasonExamples')}
                 />
               </div>
               <div className="flex items-start gap-2 rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
                 <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-                <p>
-                  This should be rare. We generate an address so the record can exist, and
-                  we never send anything to it — so this person cannot sign in, and nothing
-                  will reach them. If they might ever want an account, invite them instead.
-                </p>
+                <p>{t('ui.shouldRareWeGenerate')}</p>
               </div>
             </>
           )}
@@ -479,14 +463,14 @@ export function AddRelativeDialog({
               onClick={close}
               className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
             >
-              Cancel
+              {t('action.cancel')}
             </button>
             <button
               type="submit"
               disabled={isPending || !complete}
               className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
             >
-              {isPending ? 'Adding…' : `Add ${relationLabel}`}
+              {isPending ? t('rel.adding') : `Add ${relationLabel}`}
             </button>
           </div>
         </form>
@@ -517,10 +501,10 @@ export function AddRelativeDialog({
                 : <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />}
               <p className={result.emailed ? 'text-muted-foreground' : ''}>
                 {result.emailed
-                  ? 'We emailed them an invitation. When they accept it, their account joins this card.'
+                  ? t('rel.emailedInvite')
                   : result.invited
-                    ? 'The invitation was created but we could not email it. Resend it from Admin › Members › Pending Approval.'
-                    : 'They are on the tree, but we could not create an invitation — most often because that address is already in your family. Link the existing person instead.'}
+                    ? t('rel.inviteNotEmailed')
+                    : t('rel.onTreeNoInvite')}
               </p>
             </div>
           )}
@@ -528,7 +512,7 @@ export function AddRelativeDialog({
           {result.placeholderEmail && (
             <div className="space-y-1.5 rounded-xl border bg-muted/40 px-4 py-3 text-sm">
               <p className="text-muted-foreground">
-                We generated an address so the record could exist. Nothing is ever sent to it.
+                {t('rel.generated')}
               </p>
               <p className="break-all font-mono text-xs">{result.placeholderEmail}</p>
             </div>
@@ -540,7 +524,7 @@ export function AddRelativeDialog({
               onClick={close}
               className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
             >
-              Done
+              {t('action.done')}
             </button>
           </div>
         </div>

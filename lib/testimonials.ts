@@ -26,6 +26,23 @@ import { APP_NAME } from '@/lib/brand'
  *    role or city — "Reunion chair, Atlanta GA" invented to balance a card is a fabricated
  *    detail attached to a real family's name, which is worse than the empty space it fixed.
  *
+ * 4. DO NOT TRANSLATE THEM. Added 2026-08-27, when the public site learned Spanish and
+ *    French. This is rule 2 rather than a new rule — **a translation IS an edit of the
+ *    words**, and one produced by a machine or by whoever is doing the i18n pass is by
+ *    construction a sentence the family did not say and did not approve. Putting it inside
+ *    quotation marks over their name is the fabrication rule 1 is about, arriving through a
+ *    door that feels like housekeeping.
+ *
+ *    So `TESTIMONIALS` is NOT in any catalogue and must not be moved into one. Spanish and
+ *    French readers see the quotes in the language the families gave them, and the section
+ *    says so in one line above the rail — `mkt.quotes.verbatim` — because an English
+ *    paragraph sitting unexplained in a Spanish page reads as a bug rather than as a
+ *    decision. The CHROME around them is fully translated: the eyebrow, the heading, the
+ *    two arrows and the rail's own label.
+ *
+ *    What would make a translation admissible is the same thing that would make an edit
+ *    admissible: the family approving the new words. That is a conversation, not a commit.
+ *
  * ── ON THE PRODUCT NAME INSIDE THE QUOTES ───────────────────────────────────
  * It is interpolated rather than typed, because AGENTS.md keeps it in exactly one place so
  * a rename cannot leave half the app behind. Note what that does and does not buy here: it

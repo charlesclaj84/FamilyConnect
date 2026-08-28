@@ -373,20 +373,49 @@ async function onInvoicePaid(admin: AdminClient, invoice: Stripe.Invoice): Promi
   }
 
   // The tier comes off the PRICE that was charged, not off metadata — see `tierForPriceId`.
-  // A subscription line is what carries it; a proration line on the same invoice carries the
-  // same price, so the first recurring line is the right one to read.
-  const line = invoice.lines?.data?.find(l => idOf(l.pricing?.price_details?.price) != null)
-  const priced = tierForPriceId(idOf(line?.pricing?.price_details?.price))
+  //
+  // ── FIND THE RECURRING LINE, DO NOT TAKE THE FIRST PRICED ONE ─────────────────────
+  // The same lesson `onCheckoutSession` learned on the prepaid path, arriving here because a
+  // subscription's FIRST invoice carries two kinds of line: the subscription itself, and the
+  // current month's remainder as an ad-hoc `price_data` line (every family bills on the 1st,
+  // so the first payment includes the part month). Stripe decides the order, and if the part
+  // month came first `tierForPriceId` would answer null for its throwaway price and a real
+  // payment would be refused as "not a price we sell" — which is a 500, which is Stripe
+  // redelivering it forever while the family sits on the tier they just paid for.
+  //
+  // A proration line on a later invoice carries the SAME price as the subscription line, so
+  // taking the first recurring match is still right for every renewal and every plan change.
+  const line = invoice.lines?.data?.find(l => {
+    const p = tierForPriceId(idOf(l.pricing?.price_details?.price))
+    return p != null && p.shape === 'recurring'
+  })
+
+  // ── AND IF THERE IS NO SUCH LINE, ASK THE SUBSCRIPTION ────────────────────────────
+  // The first invoice of a subscription that starts in a trial is the case: the days before
+  // the 1st are paid for by the ad-hoc line above, so the only thing on this invoice may be
+  // that line. Whether Stripe also renders a zero-amount line for the trial period is its
+  // decision and not one to depend on — and the consequence of guessing wrong is not a
+  // cosmetic one. A refusal here is a 500, Stripe redelivers forever, and a family that has
+  // paid sits on the tier they just left until the 1st.
+  //
+  // STILL A PRICE, not metadata: the subscription's own item is what it will be billed on,
+  // which is the same fact `tierForPriceId`'s header calls the only trustworthy one. And
+  // still the PERIOD Stripe is serving — during a trial that ends on the 1st, which is
+  // exactly what the part month bought.
+  const fallback = line ? null : await subscriptionPeriod(subscriptionId)
+  const priced = tierForPriceId(idOf(line?.pricing?.price_details?.price) ?? fallback?.priceId)
   if (!priced || priced.shape !== 'recurring') {
     return { handled: false, detail: `invoice ${invoice.id} is not on a recurring price we sell` }
   }
 
-  // The period the money actually covered, from the invoice line. `paid_through` is INCLUSIVE
-  // and a Stripe period end is EXCLUSIVE — the instant the next one begins — so the last day
-  // paid for is the day before it. Off by one here is a family losing or gaining a day on
-  // every renewal, compounding.
-  const periodStart = line?.period?.start ? isoFromUnix(line.period.start) : null
-  const periodEnd = line?.period?.end ? isoFromUnix(line.period.end) : null
+  // The period the money actually covered. `paid_through` is INCLUSIVE and a Stripe period
+  // end is EXCLUSIVE — the instant the next one begins — so the last day paid for is the day
+  // before it. Off by one here is a family losing or gaining a day on every renewal,
+  // compounding.
+  const start = line?.period?.start ?? fallback?.start
+  const end = line?.period?.end ?? fallback?.end
+  const periodStart = start ? isoFromUnix(start) : null
+  const periodEnd = end ? isoFromUnix(end) : null
   const paidThrough = periodEnd ? addDays(periodEnd, -1) : null
 
   const record = await loadRecord(admin, familyCode)
@@ -660,6 +689,37 @@ function idOf(value: unknown): string | null {
 /** A Stripe UNIX second as `YYYY-MM-DD`, UTC. */
 function isoFromUnix(seconds: number): string {
   return new Date(seconds * 1000).toISOString().slice(0, 10)
+}
+
+/**
+ * What a subscription is priced at and which period it is serving, straight from Stripe.
+ *
+ * The fallback `onInvoicePaid` uses when an invoice carries no line on a price we sell — see
+ * the comment there. Null on any failure, INCLUDING Stripe being unconfigured, because the
+ * caller's next move is the refusal it would have made anyway: this widens what can be
+ * recognised and must never be what decides that something is not ours.
+ *
+ * `current_period_end` lives on the ITEM in this API version, the same place `onSubscription`
+ * reads it from — the subscription-level field is `undefined` and would silently null the
+ * period.
+ */
+async function subscriptionPeriod(
+  subscriptionId: string,
+): Promise<{ priceId: string | null; start: number | null; end: number | null } | null> {
+  const stripe = stripeClient()
+  if (!stripe) return null
+  try {
+    const sub = await stripe.subscriptions.retrieve(subscriptionId)
+    const item = sub.items?.data?.[0]
+    return {
+      priceId: idOf(item?.price),
+      start: item?.current_period_start ?? null,
+      end: item?.current_period_end ?? null,
+    }
+  } catch (e) {
+    console.error(`[billing] could not read subscription ${subscriptionId}: ${describe(e)}`)
+    return null
+  }
 }
 
 function laterOf(a: string | null, b: string): string {

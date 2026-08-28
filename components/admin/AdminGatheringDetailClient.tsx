@@ -17,13 +17,19 @@ import { PersonPicker } from '@/components/ui/person-picker'
 import { HelpLink } from '@/components/help/HelpLink'
 import type { SelectablePerson } from '@/components/ui/person-multi-select'
 import { GatheringStatusPill, TaskStatusPill } from '@/components/gatherings/StatusPill'
+import { PlanningUpsell } from '@/components/gatherings/PlanningUpsell'
+import { WhenFields } from '@/components/gatherings/WhenFields'
+import {
+  WHEN_PROBLEM_TEXT, formatWhen, formatWhenBrief, whenProblems,
+  type GatheringWhen,
+} from '@/lib/gathering-when'
 import { BudgetBand } from '@/components/gatherings/BudgetBand'
 import { AnswerText } from '@/components/gatherings/AnswerText'
 import { GATHERING_PILL_SHAPE, GATHERING_PREMIER_PILL } from '@/components/gatherings/status'
 import { cn } from '@/lib/utils'
 import { useServerState } from '@/lib/use-server-state'
 import { disambiguatedName } from '@/lib/name-utils'
-import { formatDate, formatDateRange } from '@/lib/date-utils'
+import { formatDate } from '@/lib/date-utils'
 import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
 import {
   GATHERING_STATUSES, GATHERING_STATUS_LABEL, type GatheringStatus,
@@ -35,6 +41,7 @@ import {
   assignGatheringTask, setGatheringTaskBudget, reviewGatheringTask, reopenGatheringTask,
   type AdminGatheringDetail, type AdminGatheringTaskRow, type GatheringBudgetView,
 } from '@/app/actions/admin/gatherings'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * ONE GATHERING, from the organizer's side.
@@ -139,6 +146,16 @@ interface Props {
   members: SelectablePerson[]
   funds: FundOption[]
   templates: TemplateOption[]
+  /**
+   * Does the family's plan include the planning half at all?
+   *
+   * FALSE ON FREE, where a gathering is a date, a place and a description. It withholds the
+   * Segments and Tasks panels ENTIRELY rather than rendering their empty states, because both
+   * of those empty states are instructions — "add a template above and its steps become tasks
+   * here" — for a control the family does not have. The page resolves it from
+   * `admin/gatherings/templates`; see its header.
+   */
+  plansGatherings: boolean
   mayEdit: boolean
   mayDelete: boolean
   mayManageBudget: boolean
@@ -160,10 +177,40 @@ interface Props {
   mayViewAccounting: boolean
 }
 
+/**
+ * The gathering's `when`, from its occurrences — or from the ENVELOPE where those could not be
+ * read.
+ *
+ * The fallback is not a nicety: `occurrences` is null on a refused read, and a panel that
+ * refused to open over it would leave an organizer unable to edit a title. What it produces is
+ * exactly what the envelope already says, so saving it changes nothing about the dates.
+ */
+function whenOf(gathering: AdminGatheringDetail): GatheringWhen {
+  if (gathering.occurrences && gathering.occurrences.length > 0) {
+    return {
+      isContinuous: gathering.isContinuous,
+      occurrences: gathering.occurrences,
+      timeZone: gathering.timeZone,
+    }
+  }
+  return {
+    isContinuous: true,
+    timeZone: gathering.timeZone,
+    occurrences: [{
+      startsOn: gathering.startsOn,
+      startTime: gathering.startTime,
+      endsOn: gathering.endsOn,
+      endTime: gathering.endTime,
+    }],
+  }
+}
+
 export function AdminGatheringDetailClient({
-  gathering, members, funds, templates, mayEdit, mayDelete, mayManageBudget,
+  gathering, members, funds, templates, plansGatherings, mayEdit, mayDelete, mayManageBudget,
   mayViewMemberPage, mayViewAccounting,
 }: Props) {
+  const intl = useIntlTag()
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
 
@@ -174,8 +221,18 @@ export function AdminGatheringDetailClient({
   const [title, setTitle] = useServerState(gathering.title)
   const [summary, setSummary] = useServerState(gathering.summary ?? '')
   const [location, setLocation] = useServerState(gathering.location ?? '')
-  const [startsOn, setStartsOn] = useServerState(gathering.startsOn)
-  const [endsOn, setEndsOn] = useServerState(gathering.endsOn ?? '')
+  /**
+   * WHEN it happens — one value covering the dates, the times and the shape.
+   *
+   * `useServerState` on the WHOLE thing rather than on two date strings, so a save elsewhere on
+   * the page (or another organizer's) re-seeds it as one — a half-adopted `when` is two facts
+   * that disagree, which is what this feature's schema is arranged to prevent.
+   *
+   * THE ENVELOPE IS THE FALLBACK when `occurrences` is null, which means the read failed rather
+   * than that there are no dates. An approximate starting point beats a form that cannot open,
+   * and saving it writes exactly what the envelope already said.
+   */
+  const [when, setWhen] = useServerState<GatheringWhen>(whenOf(gathering))
   const [status, setStatus] = useServerState<GatheringStatus>(gathering.status)
   const [isPremier, setIsPremier] = useServerState(gathering.isPremier)
   const [budget, setBudget] = useServerState<GatheringBudgetView | null>(gathering.budget)
@@ -216,32 +273,39 @@ export function AdminGatheringDetailClient({
   const detailsDirty = title.trim() !== gathering.title
     || summary.trim() !== (gathering.summary ?? '')
     || location.trim() !== (gathering.location ?? '')
-    || startsOn !== gathering.startsOn
-    || endsOn !== (gathering.endsOn ?? '')
+    // A DEEP COMPARISON, because `when` is a structure and a shallow one would report every
+    // render as dirty. JSON is honest here: every field is a string, a boolean or null, in a
+    // fixed order that both sides build the same way.
+    || JSON.stringify(when) !== JSON.stringify(whenOf(gathering))
     || status !== gathering.status
 
   function handleSaveDetails() {
     const nextTitle = title.trim()
     if (!nextTitle) { setDetailsError('A gathering needs a title'); return }
-    if (!startsOn) { setDetailsError('Choose the date the gathering starts'); return }
-    // Checked here as well as in the action, which reads the STORED row to compare a field the
-    // form did not send. `gatherings_dates_ordered` is the boundary; this is the sentence.
-    if (endsOn && endsOn < startsOn) {
-      setDetailsError('The gathering cannot end before it starts')
+    // ── THE DATE RULES ARE `whenProblems`, NOT TWO LINES HERE ────────────────────
+    // They were: a start is required, and an end cannot precede it. `whenProblems` is the same
+    // function `updateGathering` runs, so the panel and the endpoint cannot come to disagree —
+    // and it knows about the rules those two lines did not (times, their order within a day, an
+    // end time with no start, a continuous gathering carrying several occasions).
+    //
+    // `WhenFields` has already shown each problem against the row it belongs to, so this is the
+    // summary for somebody who pressed Save anyway.
+    const problems = whenProblems(when)
+    if (problems.length > 0) {
+      setDetailsError(WHEN_PROBLEM_TEXT[problems[0].code])
       return
     }
-    setDetailsError('')
+
     startTransition(async () => {
       const result = await updateGathering({
         gatheringId: gathering.id,
         title:       nextTitle,
         summary:     summary.trim() || null,
         location:    location.trim() || null,
-        startsOn,
-        endsOn:      endsOn || null,
+        when,
         status,
       })
-      if (!result.success) { setDetailsError(result.message ?? 'Could not save that gathering'); return }
+      if (!result.success) { setDetailsError(result.message ?? t('agat.saveFailed')); return }
       setTitle(nextTitle)
     })
   }
@@ -254,7 +318,7 @@ export function AdminGatheringDetailClient({
     startTransition(async () => {
       const result = await setGatheringPremier({ gatheringId: gathering.id, isPremier: next })
       if (!result.success) {
-        setPremierError(result.message ?? 'Could not change that')
+        setPremierError(result.message ?? t('agat.changeFailed'))
         setIsPremier(!next)
       }
     })
@@ -276,7 +340,7 @@ export function AdminGatheringDetailClient({
     startTransition(async () => {
       const result = await setGatheringPhoto(formData)
       if (!result.success) {
-        setPhotoError(result.message ?? 'Could not upload that photo')
+        setPhotoError(result.message ?? t('agat.uploadFailed'))
         return
       }
       // Re-read rather than guessing the URL: the path is composed server-side from the MIME
@@ -291,7 +355,7 @@ export function AdminGatheringDetailClient({
     startTransition(async () => {
       const result = await clearGatheringPhoto({ gatheringId: gathering.id })
       if (!result.success) {
-        setPhotoError(result.message ?? 'Could not remove that photo')
+        setPhotoError(result.message ?? t('agat.removePhotoFailed'))
         return
       }
       router.refresh()
@@ -312,7 +376,7 @@ export function AdminGatheringDetailClient({
         gatheringId: gathering.id, templateId: addingTemplateId,
         occursOn, location: stated,
       })
-      if (!result.success) { setTemplateError(result.message ?? 'Could not add that template'); return }
+      if (!result.success) { setTemplateError(result.message ?? t('agat.addTemplateFailed')); return }
       setAddingTemplateId('')
       setAddingDay('')
       setAddingPlace('')
@@ -335,11 +399,11 @@ export function AdminGatheringDetailClient({
 
   async function handleRemoveTemplate(template: { id: string; name: string }) {
     const ok = await confirm({
-      title: 'Remove template',
+      title: t('agat.removeTemplate'),
       description: `Take “${template.name}” off this gathering? Its steps that nobody has been `
         + 'given yet are deleted. If any of them has been assigned or answered, nothing is '
         + 'removed and you will be told how many — reassign or approve those first.',
-      confirmLabel: 'Remove template',
+      confirmLabel: t('agat.removeTemplate'),
       destructive: true,
     })
     if (!ok) return
@@ -351,7 +415,7 @@ export function AdminGatheringDetailClient({
       if (!result.success) {
         // Verbatim: the action refuses when any task from this template is assigned or
         // answered, and its sentence names how many and what to do about it.
-        setTemplateError(result.message ?? 'Could not remove that template')
+        setTemplateError(result.message ?? t('agat.removeTemplateFailed'))
         return
       }
       setUsedTemplates(prev => prev.filter(t => t.id !== template.id))
@@ -361,12 +425,12 @@ export function AdminGatheringDetailClient({
 
   async function handleDelete() {
     const ok = await confirm({
-      title: 'Delete gathering',
+      title: t('agat.delete'),
       description: `Delete “${gathering.title}”? Every task on it goes with it, and so does `
         + 'every answer and note anybody has written. If it is simply not happening, set its '
         + 'status to Cancelled instead — nothing is lost and it can be reopened. This cannot '
         + 'be undone.',
-      confirmLabel: 'Delete gathering',
+      confirmLabel: t('agat.delete'),
       destructive: true,
     })
     if (!ok) return
@@ -374,7 +438,7 @@ export function AdminGatheringDetailClient({
     startTransition(async () => {
       const result = await deleteGathering(gathering.id)
       if (!result.success) {
-        setDetailsError(result.message ?? 'Could not delete that gathering')
+        setDetailsError(result.message ?? t('agat.deleteFailed'))
         return
       }
       router.push('/admin/gatherings')
@@ -417,13 +481,22 @@ export function AdminGatheringDetailClient({
             `globals.css` paints every anchor `--brand-accent` anyway and being explicit is what
             keeps a future `className` from silently recolouring it. */}
         <Link href="/admin/gatherings" className="inline-flex items-center gap-1 text-sm text-brand-accent">
-          <ArrowLeft className="h-3.5 w-3.5" /> Gathering Management
+          <ArrowLeft className="h-3.5 w-3.5" /> {t('agat.management')}
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
             <h1 className="mb-1 text-3xl font-bold">{gathering.title}</h1>
             <p className="text-muted-foreground">
-              {formatDateRange(gathering.startsOn, gathering.endsOn) ?? 'No dates yet'}
+              {/* THE WHOLE ANSWER, not a range over the envelope. A series of three Saturdays
+                  has an envelope of a fortnight, and printing that as a range claims a
+                  fortnight the family is not gathering for — see `formatWhen`. */}
+              {(gathering.occurrences
+                ? formatWhen({
+                  isContinuous: gathering.isContinuous,
+                  occurrences: gathering.occurrences,
+                  timeZone: gathering.timeZone,
+                })
+                : formatWhenBrief(gathering)) ?? t('agat.noDates')}
               {gathering.location && ` · ${gathering.location}`}
               {gathering.createdBy && ` · started by ${nameOf(gathering.createdBy)}`}
             </p>
@@ -435,7 +508,7 @@ export function AdminGatheringDetailClient({
                 every screen that renders it, and gold is already what `scheduled` fills with. */}
             {isPremier && (
               <span className={GATHERING_PREMIER_PILL}>
-                <Star className="h-3 w-3" aria-hidden="true" /> Premier
+                <Star className="h-3 w-3" aria-hidden="true" /> {t('gath.premier')}
               </span>
             )}
             {/* `Link`, and only when the caller may open it. A raw `<a>` here was a full
@@ -449,7 +522,7 @@ export function AdminGatheringDetailClient({
                 href={`/gatherings/${gathering.id}`}
                 className={buttonVariants({ size: 'sm', variant: 'outline' })}
               >
-                Member view
+                {t('agat.memberView')}
               </Link>
             )}
           </div>
@@ -461,15 +534,12 @@ export function AdminGatheringDetailClient({
       {mayEdit ? (
         <section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5">
           <div>
-            <h2 className="text-lg">Details</h2>
-            <p className="text-sm text-muted-foreground">
-              Status is a statement rather than something the calendar works out: a gathering can
-              be cancelled without moving its dates, and Complete is your word for it.
-            </p>
+            <h2 className="text-lg">{t('agat.details')}</h2>
+            <p className="text-sm text-muted-foreground">{t('adm.statusStatementRatherThan')}</p>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="gathering-title" required>Title</Label>
+              <Label htmlFor="gathering-title" required>{t('field.title')}</Label>
               <Input
                 id="gathering-title"
                 value={title}
@@ -478,46 +548,32 @@ export function AdminGatheringDetailClient({
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="gathering-status">Status</Label>
+              <Label htmlFor="gathering-status">{t('money.status')}</Label>
               <Select
                 id="gathering-status"
                 value={status}
                 disabled={isPending}
                 onChange={e => setStatus(e.target.value as GatheringStatus)}
               >
-                {GATHERING_STATUSES.map(s => (
-                  <option key={s} value={s}>{GATHERING_STATUS_LABEL[s]}</option>
-                ))}
+                {/* ── PLANNING IS NOT OFFERED WHERE NOTHING CAN BE PLANNED ─────
+                    On Free a gathering has no templates and no tasks, so "Planning" is a
+                    state it can be put into and never come out of by doing anything. The
+                    other three are all real there: Scheduled is where it starts, and
+                    Complete and Cancelled are both statements an organizer makes about a date.
+
+                    THE CURRENT VALUE IS KEPT IF IT IS ALREADY PLANNING, which covers the
+                    family that planned a gathering on Standard and has since lapsed. A select
+                    whose options exclude its own value renders as the first option instead,
+                    and the next save would silently move a status nobody touched. */}
+                {GATHERING_STATUSES
+                  .filter(s => plansGatherings || s !== 'planning' || gathering.status === 'planning')
+                  .map(s => (
+                    <option key={s} value={s}>{GATHERING_STATUS_LABEL[s]}</option>
+                  ))}
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="gathering-starts" required>Starts</Label>
-              <Input
-                id="gathering-starts" type="date"
-                value={startsOn}
-                disabled={isPending}
-                onChange={e => { setStartsOn(e.target.value); setDetailsError('') }}
-              />
-            </div>
-            <div className="space-y-1.5">
-              {/* `min` IS THE START DATE — added 2026-08-20 across every start/end pair in the
-                  app. `gatherings_dates_ordered` refuses `ends_on < starts_on` in the database
-                  and the action turns that 23514 into a sentence, which is the right boundary
-                  and the wrong first line of defence: a picker that greys out the impossible
-                  days never produces one, so nobody meets the refusal at all. The CHECK stays
-                  underneath for a caller that is not this form. */}
-              <Label htmlFor="gathering-ends">Ends</Label>
-              <Input
-                id="gathering-ends" type="date"
-                min={startsOn || undefined}
-                value={endsOn}
-                disabled={isPending}
-                onChange={e => { setEndsOn(e.target.value); setDetailsError('') }}
-              />
-              <p className="text-xs text-muted-foreground">Leave empty for a single day.</p>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="gathering-location">Location</Label>
+              <Label htmlFor="gathering-location">{t('agat.location')}</Label>
               <Input
                 id="gathering-location"
                 value={location}
@@ -526,8 +582,18 @@ export function AdminGatheringDetailClient({
               />
             </div>
           </div>
+          {/* WHEN — one component, shared with the member's scheduling dialog. Outside the
+              two-column grid above because it is a fieldset with its own layout: squeezed into
+              one column its own date/time pairs would stack into a ladder. */}
+          <WhenFields
+            value={when}
+            onChange={next => { setWhen(next); setDetailsError('') }}
+            idPrefix="gathering-when"
+            disabled={isPending}
+          />
+
           <div className="space-y-1.5">
-            <Label htmlFor="gathering-summary">Summary</Label>
+            <Label htmlFor="gathering-summary">{t('agat.summary')}</Label>
             <Textarea
               id="gathering-summary"
               autoGrow rows={1}
@@ -538,11 +604,11 @@ export function AdminGatheringDetailClient({
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button disabled={!detailsDirty || isPending} onClick={handleSaveDetails}>
-              {isPending ? 'Saving…' : 'Save changes'}
+              {isPending ? t('action.saving') : t('action.saveChanges')}
             </Button>
             {mayDelete && (
               <Button variant="destructive" disabled={isPending} onClick={handleDelete}>
-                <Trash2 className="h-4 w-4" /> Delete gathering
+                <Trash2 className="h-4 w-4" /> {t('agat.delete')}
               </Button>
             )}
           </div>
@@ -550,14 +616,14 @@ export function AdminGatheringDetailClient({
         </section>
       ) : (
         <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          You can see this gathering’s plan but not change it.
+          {t('agat.readOnly')}
         </div>
       )}
 
       {/* ── Premier ──────────────────────────────────────────────────────────────── */}
       {mayEdit && (
         <section className="space-y-2 rounded-xl border bg-card p-4 sm:p-5">
-          <h2 className="text-lg">Dashboard band</h2>
+          <h2 className="text-lg">{t('agat.dashboardBand')}</h2>
           <label className="flex cursor-pointer items-center gap-2 select-none">
             <input
               type="checkbox"
@@ -566,13 +632,9 @@ export function AdminGatheringDetailClient({
               onChange={e => handlePremier(e.target.checked)}
               className="h-4 w-4 rounded border-input accent-primary"
             />
-            <span className="text-sm font-medium">Show this across the top of the Dashboard</span>
+            <span className="text-sm font-medium">{t('agat.showAcrossTop')}</span>
           </label>
-          <p className="text-sm text-muted-foreground">
-            Several gatherings may be flagged at once — the Dashboard shows the soonest one that
-            has not finished yet, so last year’s reunion never blocks this year’s. Nothing
-            appears there when no flagged gathering is still upcoming.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('adm.severalGatheringsMayFlagged')}</p>
           <FormError message={premierError} />
 
           {/* ── THE PHOTOGRAPH ──────────────────────────────────────────────────────────
@@ -585,12 +647,8 @@ export function AdminGatheringDetailClient({
               checkbox would mean unflagging a gathering hid a control that still had a file
               behind it. */}
           <div className="space-y-2 border-t pt-4">
-            <h3 className="text-sm font-medium">Band photo</h3>
-            <p className="text-sm text-muted-foreground">
-              One photograph, cropped to the band’s shape. Without one the band draws the
-              GENORRA tree instead. Anyone with the link can view an uploaded photo, the same as
-              a family photo — so it is published to whoever it is shared with.
-            </p>
+            <h3 className="text-sm font-medium">{t('agat.bandPhoto')}</h3>
+            <p className="text-sm text-muted-foreground">{t('adm.onePhotographCroppedBand')}</p>
 
             {gathering.photoUrl && (
               <div className="flex items-center gap-3">
@@ -599,7 +657,7 @@ export function AdminGatheringDetailClient({
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={gathering.photoUrl}
-                  alt="The photo currently on the Dashboard band"
+                  alt={t('adm.photoCurrentlyDashboardBand')}
                   className="h-16 w-24 rounded-md border object-cover"
                 />
                 <Button
@@ -609,7 +667,7 @@ export function AdminGatheringDetailClient({
                   disabled={isPending}
                   onClick={handleClearPhoto}
                 >
-                  Remove photo
+                  {t('agat.removePhoto')}
                 </Button>
               </div>
             )}
@@ -659,25 +717,21 @@ export function AdminGatheringDetailClient({
                 `icon`: the words would compete with the heading, and the lede under it is
                 already carrying a sentence. */}
             <div className="flex items-center gap-1">
-              <h2 className="text-lg">Fund and budget</h2>
+              <h2 className="text-lg">{t('agat.fundAndBudget')}</h2>
               <HelpLink
                 slug="gathering-management"
                 section="money"
-                label="How a gathering's fund and budget work"
+                label={t('agat.fundHelp')}
               />
             </div>
-            <p className="text-sm text-muted-foreground">
-              A budget is always drawn on a fund, and it may exceed what that fund holds — the
-              figures say so rather than refusing it, because a family plans a reunion before it
-              has raised the money for one.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('adm.budgetAlwaysDrawnFund')}</p>
           </div>
           {/* Read-only, and shared with the member-facing gathering page so the two cannot
               disagree about what the money says. */}
           {/* `budgetState`, not `budget !== null`: a failed money read is not a withheld one,
               and this screen is the sharper case of the two because its caller holds the console
               and expects the figures to be there. */}
-          <BudgetBand budget={budget} state={gathering.budgetState} />
+          <BudgetBand budget={budget} state={gathering.budgetState} intl={intl} />
           {mayEdit && (
             <BudgetForm
               gatheringId={gathering.id}
@@ -690,21 +744,30 @@ export function AdminGatheringDetailClient({
         </section>
       )}
 
+      {/* ── PLANNING, OR THE ONE SENTENCE THAT SAYS IT IS NOT INCLUDED ───────────
+          Segments and Tasks are the whole planning half and they go together: a segment is a
+          template attached to this gathering and a task is a step of one. On Free the page
+          above has already declined to fetch any template, so both panels would render their
+          empty states — and both of those empty states are INSTRUCTIONS ("add a template above
+          and its steps become tasks here") for a control that is not on the screen. That is
+          worse than absence: it reads as a broken feature rather than an unbought one.
+
+          Everything ABOVE this line stays: what the gathering is, when and where, its status,
+          and the budget band where the plan includes it. A Free family's organizer console is a
+          real console — it just edits a date rather than running a plan. */}
+      {!plansGatherings ? (
+        <PlanningUpsell />
+      ) : (
+      <>
       {/* ── Segments ─────────────────────────────────────────────────────────────── */}
       <section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5">
         <div>
-          <h2 className="text-lg">Segments</h2>
-          <p className="text-sm text-muted-foreground">
-            A gathering is made of parts, and each is an occasion of its own: a reunion is the
-            Welcome, the Picnic and the Send Off, on their own days in their own places. Every
-            template you add is one of those, and its steps become tasks here. Nothing about the
-            template reaches the tasks already on this gathering — each one keeps its own copy of
-            what it asked.
-          </p>
+          <h2 className="text-lg">{t('agat.segments')}</h2>
+          <p className="text-sm text-muted-foreground">{t('adm.gatheringMadePartsEach')}</p>
         </div>
         {usedTemplates.length === 0 ? (
           <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-            No templates are linked to this gathering, so it has no segments yet.
+            {t('agat.noSegments')}
           </p>
         ) : (
           /* `overflow-visible` and NO `min-w-*` floor: the table folds on a phone rather than
@@ -714,15 +777,15 @@ export function AdminGatheringDetailClient({
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-semibold">Segment</th>
+                  <th scope="col" className="px-3 py-2 font-semibold">{t('agat.segment')}</th>
                   {/* Day, Place and Tasks fold, and each `<th>` folds WITH its cells — hide the
                       cells and leave the headings and every remaining cell is announced under the
                       wrong column. Both halves of the day and the place are the same control
                       rendered twice; see `SegmentRow`. */}
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Day</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Place</th>
-                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Tasks</th>
-                  <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('agat.day')}</th>
+                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('agat.place')}</th>
+                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('gath.tasks')}</th>
+                  <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -749,7 +812,7 @@ export function AdminGatheringDetailClient({
           <div className="space-y-2 border-t pt-4">
             <div className="flex flex-wrap items-end gap-2">
               <div className="min-w-0 flex-1 space-y-1.5 sm:max-w-xs">
-                <Label htmlFor="add-template">Add another segment</Label>
+                <Label htmlFor="add-template">{t('agat.addSegment')}</Label>
                 <Select
                   id="add-template"
                   value={addingTemplateId}
@@ -771,7 +834,7 @@ export function AdminGatheringDetailClient({
                 </Select>
               </div>
               <div className="min-w-0 space-y-1.5 sm:w-44">
-                <Label htmlFor="add-template-day">Day</Label>
+                <Label htmlFor="add-template-day">{t('agat.day')}</Label>
                 {/* `type="date"` over a bare `YYYY-MM-DD` string, which is what the column holds
                     and what the action validates — no `Date` is constructed on either side of
                     the wire. */}
@@ -783,23 +846,20 @@ export function AdminGatheringDetailClient({
                 />
               </div>
               <div className="min-w-0 flex-1 space-y-1.5 sm:max-w-xs">
-                <Label htmlFor="add-template-place">Place</Label>
+                <Label htmlFor="add-template-place">{t('agat.place')}</Label>
                 <Input
                   id="add-template-place"
-                  placeholder="The template’s usual place"
+                  placeholder={t('agat.usualPlace')}
                   value={addingPlace}
                   disabled={isPending || !addingTemplateId}
                   onChange={e => { setAddingPlace(e.target.value); setTemplateError('') }}
                 />
               </div>
               <Button variant="affirm" disabled={!addingTemplateId || isPending} onClick={handleAddTemplate}>
-                <Plus className="h-4 w-4" /> {isPending ? 'Adding…' : 'Add its steps'}
+                <Plus className="h-4 w-4" /> {isPending ? t('action.adding') : t('agat.addSteps')}
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Both are optional. Leave the day empty for a gathering that happens all at once, and
-              the place empty to use whatever the template usually uses.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('adm.bothOptionalLeaveDay')}</p>
           </div>
         )}
         {/* WITHHELD, NOT DESTRUCTIVE, and not a `FormError`: this arrives beside `success: true`
@@ -813,10 +873,10 @@ export function AdminGatheringDetailClient({
       {/* ── Tasks ────────────────────────────────────────────────────────────────── */}
       <section className="space-y-3">
         <div>
-          <h2 className="text-lg">Tasks</h2>
+          <h2 className="text-lg">{t('gath.tasks')}</h2>
           <p className="text-sm text-muted-foreground">
             {gathering.taskCounts.total === 0
-              ? 'No tasks yet. Add a template above and its steps become tasks here.'
+              ? t('agat.noTasksAddTemplate')
               : `${gathering.taskCounts.approved} of ${gathering.taskCounts.total} approved`
                 + (gathering.taskCounts.submitted > 0 ? ` · ${gathering.taskCounts.submitted} waiting for review` : '')
                 + (gathering.taskCounts.denied > 0 ? ` · ${gathering.taskCounts.denied} sent back` : '')}
@@ -828,14 +888,14 @@ export function AdminGatheringDetailClient({
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-semibold">Task</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Assigned to</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Due</th>
+                  <th scope="col" className="px-3 py-2 font-semibold">{t('gath.task')}</th>
+                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('gath.assignedTo')}</th>
+                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('gath.due')}</th>
                   {mayManageBudget && (
-                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Budget</th>
+                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('budget.heading')}</th>
                   )}
-                  <th scope="col" className="px-3 py-2 font-semibold">Status</th>
-                  <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+                  <th scope="col" className="px-3 py-2 font-semibold">{t('money.status')}</th>
+                  <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -848,7 +908,7 @@ export function AdminGatheringDetailClient({
                           <span className="font-medium">{task.label}</span>
                           {task.required && (
                             <span className={cn(GATHERING_PILL_SHAPE, 'bg-brand-soft text-brand-on-soft')}>
-                              Required
+                              {t('common.required')}
                             </span>
                           )}
                         </div>
@@ -863,28 +923,28 @@ export function AdminGatheringDetailClient({
                           </div>
                         )}
                         <RowMeta className="gap-x-2">
-                          <MetaIf value={assignee ?? 'Nobody yet'} />
+                          <MetaIf value={assignee ?? t('gath.nobodyYet')} />
                           {task.dueOn && <MetaDot />}
-                          <MetaIf value={task.dueOn ? `due ${formatDate(task.dueOn)}` : null} />
+                          <MetaIf value={task.dueOn ? `due ${formatDate(task.dueOn, intl)}` : null} />
                           {mayManageBudget && task.budgetCents != null && (
                             <>
                               <MetaDot />
-                              <MetaIf value={formatCurrency(task.budgetCents)} />
+                              <MetaIf value={formatCurrency(task.budgetCents, intl)} />
                             </>
                           )}
                         </RowMeta>
                       </td>
                       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>
-                        {assignee ?? <span className="text-muted-foreground">Nobody yet</span>}
+                        {assignee ?? <span className="text-muted-foreground">{t('gath.nobodyYet')}</span>}
                       </td>
                       <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
-                        {task.dueOn ? formatDate(task.dueOn) : '—'}
+                        {task.dueOn ? formatDate(task.dueOn, intl) : '—'}
                       </td>
                       {mayManageBudget && (
                         <td className={cn('px-3 py-2.5 text-right tabular-nums', COLLAPSING_CELL)}>
                           {task.budgetCents == null
                             ? <span className="text-muted-foreground">—</span>
-                            : formatCurrency(task.budgetCents)}
+                            : formatCurrency(task.budgetCents, intl)}
                         </td>
                       )}
                       <td className="px-3 py-2.5">
@@ -898,7 +958,7 @@ export function AdminGatheringDetailClient({
                             disabled={isPending}
                             onClick={() => { setTaskError(''); setManagingTaskId(task.id) }}
                           >
-                            {task.status === 'submitted' ? 'Review' : mayEdit ? 'Manage' : 'Open'}
+                            {task.status === 'submitted' ? t('agat.review') : mayEdit ? t('agat.manage') : 'Open'}
                           </Button>
                         </div>
                       </td>
@@ -911,6 +971,9 @@ export function AdminGatheringDetailClient({
         )}
         <FormError message={taskError} />
       </section>
+
+      </>
+      )}
 
       {managing && (
         // Keyed by the task, so opening a different row remounts the dialog and its drafts are
@@ -977,6 +1040,8 @@ function SegmentRow({
   onSaved: (next: { occursOn: string | null; location: string | null }) => void
   onRemove: () => void
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   const [day, setDay] = useServerState(segment.occursOn ?? '')
   const [place, setPlace] = useServerState(segment.location ?? '')
   const [error, setError] = useState('')
@@ -998,7 +1063,7 @@ function SegmentRow({
         occursOn: nextOccursOn, location: nextLocation,
       })
       if (!result.success) {
-        setError(result.message ?? 'Could not save that segment')
+        setError(result.message ?? t('agat.segmentFailed'))
         return
       }
       // VERBATIM AND UNCONDITIONALLY WHEN PRESENT. The comparison against the gathering's span
@@ -1024,7 +1089,7 @@ function SegmentRow({
   ) : (
     // An em-dash holds the grid open in a COLUMN; the meta line below simply omits what is not
     // there, which is why the read-only branch is the one place the two copies differ.
-    <span className="text-muted-foreground">{formatDate(segment.occursOn) ?? '—'}</span>
+    <span className="text-muted-foreground">{formatDate(segment.occursOn, intl) ?? '—'}</span>
   )
 
   const placeControl = mayEdit ? (
@@ -1032,7 +1097,7 @@ function SegmentRow({
       className="h-7 w-full"
       value={place}
       disabled={isPending}
-      placeholder="Not stated"
+      placeholder={t('agat.notStated')}
       aria-label={`Where “${segment.name}” is held`}
       onChange={e => { setPlace(e.target.value); setError('') }}
     />
@@ -1043,13 +1108,13 @@ function SegmentRow({
   return (
     <tr className="border-b align-top last:border-0 sm:align-middle">
       <td className="px-3 py-2.5">
-        <span className="font-medium">{segment.name || 'Template'}</span>
+        <span className="font-medium">{segment.name || t('agat.template')}</span>
         {/* THE COUNT, which is the segment's own share of the task table below. It is here as
             well as in its folding column because it is the one figure that says whether adding
             this template actually put any work on the board. */}
         <p className="mt-0.5 text-xs text-muted-foreground">
           {taskCount === 0
-            ? 'No tasks from this one'
+            ? t('agat.noTasksFromThis')
             : `${taskCount} ${taskCount === 1 ? 'task' : 'tasks'}`}
         </p>
         {/* THE CONTROLS THEMSELVES, not a description of them — the folded `<td>` is
@@ -1062,10 +1127,10 @@ function SegmentRow({
             stacked lines reads as a bullet rather than as a separator. */}
         <RowMeta className="flex-col items-stretch gap-2">
           <span className="flex items-center gap-1.5">
-            <span className="w-10 shrink-0">Day</span>{dayControl}
+            <span className="w-10 shrink-0">{t('agat.day')}</span>{dayControl}
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-10 shrink-0">Place</span>{placeControl}
+            <span className="w-10 shrink-0">{t('agat.place')}</span>{placeControl}
           </span>
         </RowMeta>
         {warning && <p className="mt-1 text-xs text-brand-withheld">{warning}</p>}
@@ -1078,7 +1143,7 @@ function SegmentRow({
         <div className="flex items-center justify-end gap-1">
           {mayEdit && dirty && (
             <Button size="sm" disabled={isPending} onClick={handleSave}>
-              {isPending ? 'Saving…' : 'Save'}
+              {isPending ? t('action.saving') : 'Save'}
             </Button>
           )}
           {/* REMOVAL RUNS IN THE PARENT'S TRANSITION, not this row's: unlinking a template also
@@ -1127,6 +1192,8 @@ function BudgetForm({
   mayViewAccounting: boolean
   onSaved: (next: GatheringBudgetView) => void
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   const [fundId, setFundId] = useServerState(budget.fundId ?? '')
   const [amount, setAmount] = useServerState(
     budget.budgetCents == null ? '' : (budget.budgetCents / 100).toFixed(2),
@@ -1141,7 +1208,7 @@ function BudgetForm({
       const result = await setGatheringBudget({
         gatheringId, fundId: fundId || null, budgetCents,
       })
-      if (!result.success) { setError(result.message ?? 'Could not save that budget'); return }
+      if (!result.success) { setError(result.message ?? t('agat.budgetFailed')); return }
       const fund = funds.find(f => f.id === fundId) ?? null
       const fundChanged = (fundId || null) !== budget.fundId
       onSaved({
@@ -1177,8 +1244,8 @@ function BudgetForm({
             from here to a 404. Unlinked words in that case; the sentence still says what has to
             happen and who it needs. */}
         {mayViewAccounting
-          ? <>Create one under <Link href="/admin/accounting?section=funds">Accounting</Link> and it becomes available here.</>
-          : <>Somebody who runs the family&rsquo;s Accounting has to create one, and it becomes available here.</>}
+          ? <>{t('agat.createOneUnder')} <Link href="/admin/accounting?section=funds">{t('acct.heading')}</Link> and it becomes available here.</>
+          : <>{t('agat.somebodyAccounting')}</>}
       </p>
     )
   }
@@ -1187,7 +1254,7 @@ function BudgetForm({
     <div className="space-y-3 border-t pt-4">
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="budget-fund">Fund</Label>
+          <Label htmlFor="budget-fund">{t('fnd.fund')}</Label>
           <Select
             id="budget-fund"
             value={fundId}
@@ -1196,19 +1263,19 @@ function BudgetForm({
           >
             <option value="">— No fund —</option>
             {funds.map(f => (
-              <option key={f.id} value={f.id}>{f.name} — {formatCurrency(f.balanceCents)}</option>
+              <option key={f.id} value={f.id}>{f.name} — {formatCurrency(f.balanceCents, intl)}</option>
             ))}
           </Select>
           <p className="text-xs text-muted-foreground">
-            Several gatherings may draw on one fund. Clearing the fund clears the budget with it.
+            {t('agat.severalMayDraw')}
           </p>
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="budget-amount">Budget ($)</Label>
+          <Label htmlFor="budget-amount">{t('agat.budgetDollars')}</Label>
           <Input
             id="budget-amount"
             type="number" min="0" step="0.01"
-            placeholder={fundId ? 'No budget set' : 'Choose a fund first'}
+            placeholder={fundId ? t('agat.noBudgetSet') : t('agat.chooseFundFirst')}
             value={amount}
             disabled={isPending || !fundId}
             onChange={e => setAmount(e.target.value)}
@@ -1216,7 +1283,7 @@ function BudgetForm({
         </div>
       </div>
       <Button disabled={isPending} onClick={handleSave}>
-        {isPending ? 'Saving…' : 'Save budget'}
+        {isPending ? t('action.saving') : t('agat.saveBudget')}
       </Button>
       <FormError message={error} />
     </div>
@@ -1253,6 +1320,8 @@ function TaskDialog({
   onClose: () => void
   onPatch: (next: Partial<AdminGatheringTaskRow>) => void
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   const confirm = useConfirm()
   const [assigneeId, setAssigneeId] = useState(task.assignee?.id ?? '')
   const [dueOn, setDueOn] = useState(task.dueOn ?? '')
@@ -1286,7 +1355,7 @@ function TaskDialog({
         assigneeId: assigneeId || null,
         dueOn:      dueOn || null,
       })
-      if (!result.success) { setError(result.message ?? 'Could not save that'); return }
+      if (!result.success) { setError(result.message ?? t('agat.saveThatFailed')); return }
       onPatch({
         assignee: assigneeId
           ? { id: assigneeId, name: nameFor(assigneeId) ?? '' }
@@ -1300,24 +1369,24 @@ function TaskDialog({
     setError('')
     startTransition(async () => {
       const result = await setGatheringTaskBudget({ taskId: task.id, budgetCents: nextLineCents })
-      if (!result.success) { setError(result.message ?? 'Could not save that budget line'); return }
+      if (!result.success) { setError(result.message ?? t('agat.budgetLineFailed')); return }
       onPatch({ budgetCents: nextLineCents })
     })
   }
 
   async function handleApprove() {
     const ok = await confirm({
-      title: 'Approve this answer',
+      title: t('agat.approveThis'),
       description: `Approve “${task.label}” on ${gatheringTitle}? Approving is final — it `
         + 'becomes the family’s record of it and the person who submitted it cannot change it '
         + 'afterwards. Send it back instead if anything still needs work.',
-      confirmLabel: 'Approve',
+      confirmLabel: t('agat.approve'),
     })
     if (!ok) return
     setError('')
     startTransition(async () => {
       const result = await reviewGatheringTask({ taskId: task.id, decision: 'approved' })
-      if (!result.success) { setError(result.message ?? 'Could not approve that answer'); return }
+      if (!result.success) { setError(result.message ?? t('agat.approveFailed')); return }
       onPatch({ status: 'approved' })
       onClose()
     })
@@ -1328,7 +1397,7 @@ function TaskDialog({
     // Required here as well as in the action. Being refused after deciding to hand something
     // back is the worst moment to discover the notes were the whole point of doing so.
     if (!trimmed) {
-      setNotesError('Say what needs to change — this is what they read before trying again.')
+      setNotesError(t('agat.sayWhatChanges'))
       return
     }
     setNotesError('')
@@ -1337,7 +1406,7 @@ function TaskDialog({
       const result = await reviewGatheringTask({
         taskId: task.id, decision: 'denied', reviewNotes: trimmed,
       })
-      if (!result.success) { setError(result.message ?? 'Could not send that task back'); return }
+      if (!result.success) { setError(result.message ?? t('agat.sendBackFailed')); return }
       onPatch({ status: 'denied' })
       onClose()
     })
@@ -1359,12 +1428,12 @@ function TaskDialog({
   async function handleReopen() {
     const trimmed = reason.trim()
     const ok = await confirm({
-      title: 'Reopen this task',
+      title: t('agat.reopenThis'),
       description: `Reopen “${task.label}” on ${gatheringTitle}? It goes back to `
         + `${task.assignee ? nameFor(task.assignee.id) ?? 'the person holding it' : 'nobody, because it is unassigned'}`
         + ', who can then change the answer and submit it again. Nothing is erased — their answer '
         + 'stays on the task as a starting point and every submission stays in the record.',
-      confirmLabel: 'Reopen',
+      confirmLabel: t('agat.reopen'),
     })
     if (!ok) return
     setError('')
@@ -1373,7 +1442,7 @@ function TaskDialog({
         taskId: task.id,
         ...(trimmed ? { reason: trimmed } : {}),
       })
-      if (!result.success) { setError(result.message ?? 'Could not reopen that task'); return }
+      if (!result.success) { setError(result.message ?? t('agat.reopenFailed')); return }
       // The action clears both, so the local row must too or the card goes on printing
       // "Approved by … on …" under a task that is open again.
       onPatch({ status: 'open', decidedAt: null, decidedBy: null })
@@ -1394,7 +1463,7 @@ function TaskDialog({
           <TaskStatusPill status={task.status} />
           {task.required && (
             <span className={cn(GATHERING_PILL_SHAPE, 'bg-brand-soft text-brand-on-soft')}>
-              Required
+              {t('common.required')}
             </span>
           )}
           {task.templateName && (
@@ -1406,7 +1475,7 @@ function TaskDialog({
         {task.status !== 'open' && (
           <div className="space-y-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm">
             <p className="text-xs font-medium text-muted-foreground">
-              {task.status === 'approved' ? 'The approved answer' : 'Their answer'}
+              {task.status === 'approved' ? t('agat.approvedAnswerLabel') : t('agat.theirAnswer')}
             </p>
             <AnswerText kind={task.kind} answer={task.answer} />
             {latest?.note && (
@@ -1416,9 +1485,9 @@ function TaskDialog({
             )}
             {task.decidedAt && (
               <p className="text-xs text-muted-foreground">
-                {task.status === 'approved' ? 'Approved' : 'Sent back'}
+                {task.status === 'approved' ? t('agat.approved') : t('agat.sentBack')}
                 {task.decidedBy && ` by ${memberNames.get(task.decidedBy.id) ?? task.decidedBy.name}`}
-                {` on ${formatDate(task.decidedAt.slice(0, 10))}`}
+                {` on ${formatDate(task.decidedAt.slice(0, 10), intl)}`}
               </p>
             )}
           </div>
@@ -1433,7 +1502,7 @@ function TaskDialog({
               {task.submissions.map(submission => (
                 <li key={submission.id} className="border-t pt-2 first:border-0 first:pt-0">
                   <p className="text-xs text-muted-foreground">
-                    {formatDate(submission.createdAt.slice(0, 10))}
+                    {formatDate(submission.createdAt.slice(0, 10), intl)}
                     {submission.submittedBy && ` · ${memberNames.get(submission.submittedBy.id) ?? submission.submittedBy.name}`}
                     {submission.decision !== 'pending' && ` · ${submission.decision === 'approved' ? 'approved' : 'sent back'}`}
                   </p>
@@ -1451,7 +1520,7 @@ function TaskDialog({
 
         {!mayEdit && (
           <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-            You can read this task but not assign it or rule on it.
+            {t('agat.taskReadOnly')}
           </div>
         )}
 
@@ -1463,20 +1532,20 @@ function TaskDialog({
                 people={members}
                 value={assigneeId}
                 onChange={setAssigneeId}
-                label="Assigned to"
-                hint="Anybody the family has approved, whether or not they have an account — a relative with no login can still be asked to bring the photographs."
-                emptyMessage="Nobody in this family has been approved yet."
+                label={t('gath.assignedTo')}
+                hint={t('agat.assigneeHint')}
+                emptyMessage={t('agat.nobodyApproved')}
               />
               {assigneeId && (
                 <Button
                   size="sm" variant="ghost" disabled={isPending}
                   onClick={() => setAssigneeId('')}
                 >
-                  Leave it unassigned
+                  {t('agat.leaveUnassigned')}
                 </Button>
               )}
               <div className="space-y-1.5">
-                <Label htmlFor={`due-${task.id}`}>Due</Label>
+                <Label htmlFor={`due-${task.id}`}>{t('gath.due')}</Label>
                 <Input
                   id={`due-${task.id}`}
                   type="date"
@@ -1486,28 +1555,25 @@ function TaskDialog({
                 />
               </div>
               <Button disabled={!assignmentDirty || isPending} onClick={handleSaveAssignment}>
-                {isPending ? 'Saving…' : 'Save who and when'}
+                {isPending ? t('action.saving') : t('agat.saveWhoWhen')}
               </Button>
             </div>
 
             {/* ── What it may spend ─────────────────────────────────────────────── */}
             {mayManageBudget && (
               <div className="space-y-1.5 border-t pt-4">
-                <Label htmlFor={`line-${task.id}`}>Budget line ($)</Label>
+                <Label htmlFor={`line-${task.id}`}>{t('agat.budgetLine')}</Label>
                 <Input
                   id={`line-${task.id}`}
                   type="number" min="0" step="0.01"
-                  placeholder="Nothing set"
+                  placeholder={t('agat.nothingSet')}
                   value={amount}
                   disabled={isPending}
                   onChange={e => setAmount(e.target.value)}
                 />
-                <p className="text-xs text-muted-foreground">
-                  What this one task is expected to cost. Empty means it costs the family
-                  nothing. The lines together are what the band above compares to the budget.
-                </p>
+                <p className="text-xs text-muted-foreground">{t('adm.whatOneTaskExpected')}</p>
                 <Button disabled={!budgetDirty || isPending} onClick={handleSaveBudget}>
-                  {isPending ? 'Saving…' : 'Save budget line'}
+                  {isPending ? t('action.saving') : t('agat.saveBudgetLine')}
                 </Button>
               </div>
             )}
@@ -1517,14 +1583,14 @@ function TaskDialog({
               <div className="space-y-3 border-t pt-4">
                 {/* Preflight resets `h3` size and weight to `inherit` and the base layer gives
                     it only a colour, so a class-less `<h3>` is body text in terracotta. */}
-                <h3 className="text-sm font-semibold">Review</h3>
+                <h3 className="text-sm font-semibold">{t('agat.review')}</h3>
                 {sendingBack && (
                   <div className="space-y-1.5">
-                    <Label htmlFor={`notes-${task.id}`} required>What needs to change</Label>
+                    <Label htmlFor={`notes-${task.id}`} required>{t('agat.whatNeedsChange')}</Label>
                     <Textarea
                       id={`notes-${task.id}`}
                       autoGrow rows={2}
-                      placeholder="The caterer needs a phone number as well as a name."
+                      placeholder={t('agat.notePh1')}
                       value={notes}
                       disabled={isPending}
                       onChange={e => { setNotes(e.target.value); setNotesError('') }}
@@ -1539,23 +1605,23 @@ function TaskDialog({
                 )}
                 <div className="flex flex-wrap items-center gap-2">
                   <Button variant="affirm" disabled={isPending} onClick={handleApprove}>
-                    {isPending ? 'Saving…' : 'Approve'}
+                    {isPending ? t('action.saving') : t('agat.approve')}
                   </Button>
                   {sendingBack ? (
                     <>
                       <Button variant="outline" disabled={isPending} onClick={handleSendBack}>
-                        {isPending ? 'Sending…' : 'Send back with notes'}
+                        {isPending ? t('security.sending') : t('agat.sendBackWithNotes')}
                       </Button>
                       <Button
                         variant="ghost" disabled={isPending}
                         onClick={() => { setSendingBack(false); setNotes(''); setNotesError('') }}
                       >
-                        Cancel
+                        {t('action.cancel')}
                       </Button>
                     </>
                   ) : (
                     <Button variant="outline" disabled={isPending} onClick={() => setSendingBack(true)}>
-                      Send back…
+                      {t('agat.sendBack')}
                     </Button>
                   )}
                 </div>
@@ -1572,7 +1638,7 @@ function TaskDialog({
                 refused is worse than one that appears when it applies. */}
             {task.status === 'approved' && (
               <div className="space-y-3 border-t pt-4">
-                <h3 className="text-sm font-semibold">This answer is approved</h3>
+                <h3 className="text-sm font-semibold">{t('agat.approvedAnswer')}</h3>
                 <p className="text-xs text-muted-foreground">
                   It is the family’s record of {task.label.toLowerCase()} and the person who
                   submitted it cannot change it. Reopen it if it has to change — the answer and
@@ -1580,11 +1646,11 @@ function TaskDialog({
                 </p>
                 {reopening && (
                   <div className="space-y-1.5">
-                    <Label htmlFor={`reason-${task.id}`}>Why, if you want to say (optional)</Label>
+                    <Label htmlFor={`reason-${task.id}`}>{t('agat.whyOptional')}</Label>
                     <Textarea
                       id={`reason-${task.id}`}
                       autoGrow rows={2}
-                      placeholder="The hall changed the booking, so the time needs redoing."
+                      placeholder={t('agat.notePh2')}
                       value={reason}
                       disabled={isPending}
                       onChange={e => setReason(e.target.value)}
@@ -1598,18 +1664,18 @@ function TaskDialog({
                   {reopening ? (
                     <>
                       <Button variant="outline" disabled={isPending} onClick={handleReopen}>
-                        {isPending ? 'Reopening…' : 'Reopen'}
+                        {isPending ? t('agat.reopening') : t('agat.reopen')}
                       </Button>
                       <Button
                         variant="ghost" disabled={isPending}
                         onClick={() => { setReopening(false); setReason('') }}
                       >
-                        Cancel
+                        {t('action.cancel')}
                       </Button>
                     </>
                   ) : (
                     <Button variant="outline" disabled={isPending} onClick={() => setReopening(true)}>
-                      Reopen…
+                      {t('agat.reopenEllipsis')}
                     </Button>
                   )}
                 </div>
@@ -1622,7 +1688,7 @@ function TaskDialog({
 
         <div className="flex gap-2 pt-1">
           <Button variant="outline" className="flex-1" onClick={onClose} disabled={isPending}>
-            Close
+            {t('action.close')}
           </Button>
         </div>
       </div>

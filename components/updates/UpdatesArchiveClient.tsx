@@ -9,8 +9,10 @@ import { Input } from '@/components/ui/input'
 import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import { timeAgo } from '@/lib/date-utils'
+import { formatTimeAgo } from '@/lib/i18n/catalogues'
 import { UPDATES_PAGE_SIZE } from '@/lib/updates-archive'
 import type { UpdatesArchive } from '@/app/actions/updates'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * `/community/updates` — the archive of the dashboard's Recent Updates feed.
@@ -64,11 +66,14 @@ interface Props {
    * names. Anything else on the URL belongs to a pane this list is not.
    */
   keepParams?: Record<string, string>
+  /** The reader's language. A string, not a `t` — see lib/i18n/catalogues.ts. */
+  locale: string
 }
 
 export function UpdatesArchiveClient({
-  archive, basePath = '/community/updates', keepParams,
+  archive, basePath = '/community/updates', keepParams, locale,
 }: Props) {
+  const t = useT()
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   // `useServerState`, not `useState`: the box has to ADOPT the query the server actually ran, or
@@ -109,32 +114,32 @@ export function UpdatesArchiveClient({
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search titles and messages…"
-            aria-label="Search updates"
+            placeholder={t('upd.searchPh')}
+            aria-label={t('upd.searchLabel')}
             value={draft}
             onChange={e => setDraft(e.target.value)}
             className="pl-8"
           />
         </div>
         <div className="flex gap-2">
-          <Button type="submit" disabled={pending}>Search</Button>
+          <Button type="submit" disabled={pending}>{t('action.search')}</Button>
           {query && (
             <Button type="button" variant="outline" onClick={() => { setDraft(''); go({ q: '', pages: 1 }) }}>
-              Clear
+              {t('action.clear')}
             </Button>
           )}
         </div>
       </form>
 
       <p className="text-xs text-muted-foreground">
-        Whole words, in any order — searching <strong>hotel block</strong> finds &ldquo;the block
+        {t('upd.wholeWords')} <strong>hotel block</strong> finds &ldquo;the block
         at the hotel&rdquo;, and <strong>rooms</strong> finds &ldquo;room&rdquo;. Put a
         <strong> -</strong> in front of a word to leave it out. Part of a word does not match.
       </p>
 
       <FormError
         message={failed
-          ? 'Something went wrong reading your updates, so this list may be incomplete. Try again in a moment.'
+          ? t('upd.readFailed')
           : ''}
       />
 
@@ -142,7 +147,7 @@ export function UpdatesArchiveClient({
         <p className="rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
           This list is what has been sent to you. Family announcements are not included, because
           your family has not given you the board — see{' '}
-          <Link href="/help/who-can-do-what#missing">Who can do what</Link>.
+          <Link href="/help/who-can-do-what#missing">{t('ui.whoCanDoWhat')}</Link>.
         </p>
       )}
 
@@ -155,8 +160,8 @@ export function UpdatesArchiveClient({
         failed ? null : (
           <p className="text-sm text-muted-foreground">
             {query
-              ? <>Nothing matches <strong>{query}</strong>.</>
-              : 'Nothing yet. Announcements your family posts and anything sent to you will appear here.'}
+              ? <>{t('common.nothingMatches')} <strong>{query}</strong>.</>
+              : t('upd.empty')}
           </p>
         )
       ) : (
@@ -182,7 +187,7 @@ export function UpdatesArchiveClient({
                     {item.unread && (
                       <span
                         className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-brand-accent"
-                        aria-label="Unread"
+                        aria-label={t('upd.unread')}
                       />
                     )}
                   </div>
@@ -190,9 +195,9 @@ export function UpdatesArchiveClient({
                     <p className="mt-0.5 line-clamp-2 text-sm text-muted-foreground">{item.body}</p>
                   )}
                   <p className="mt-1 text-xs text-muted-foreground">
-                    {item.kind === 'announcement' ? 'Announcement' : 'Sent to you'}
+                    {item.kind === 'announcement' ? t('upd.kindAnnouncement') : t('upd.kindSentToYou')}
                     {item.author && <> · {item.author}</>}
-                    {' · '}{timeAgo(item.at)}
+                    {' · '}{formatTimeAgo(timeAgo(item.at), locale)}
                   </p>
                 </div>
               </li>
@@ -206,17 +211,14 @@ export function UpdatesArchiveClient({
             </p>
             {hasMore && !atCeiling && (
               <Button variant="outline" disabled={pending} onClick={() => go({ pages: pages + 1 })}>
-                {pending ? 'Loading…' : `Show ${UPDATES_PAGE_SIZE} older`}
+                {pending ? t('action.loading') : `Show ${UPDATES_PAGE_SIZE} older`}
               </Button>
             )}
             {/* THE CEILING IS SAID OUT LOUD. A list that stops while looking complete is how
                 somebody concludes their family's older news is gone — and it is not: a search
                 filters in the database, so it reaches every row there has ever been. */}
             {hasMore && atCeiling && (
-              <p className="text-xs text-muted-foreground">
-                That is as far as scrolling goes. There are older updates — search for a word in
-                one to find it.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('ui.farScrollingGoesThere')}</p>
             )}
           </div>
         </>

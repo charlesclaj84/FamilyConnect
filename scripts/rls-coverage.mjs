@@ -199,6 +199,7 @@ const NO_CASE_YET = {
   'app/actions/pay-dues.ts': {
     getDuesOnlineStatus: 'STRIPE-INERT', startDuesCheckout: 'STRIPE-INERT',
     startDuesAutopay: 'STRIPE-INERT', cancelDuesAutopay: 'STRIPE-INERT',
+    startDonationCheckout: 'STRIPE-INERT',
   },
   'app/actions/staff/accounts.ts': {
     listStaffAccounts: 'STAFF', lookupStaffAccount: 'STAFF', getStaffMembershipCount: 'STAFF',
@@ -229,13 +230,21 @@ const NO_CASE_YET = {
  * mutation-checked cases in the same commit, and they are the ones where a cross-family
  * assertion is evidence.
  *
+ * ── RAISED FROM 68 TO 69 ON 2026-08-26, AND HERE IS ITS SENTENCE ───────────────────────
+ * One entry: `pay-dues.startDonationCheckout`, which is how a member gives to a drive by card.
+ * It is the twelfth `STRIPE-INERT` action and inert for exactly the same reason as the four
+ * beside it — `stripeUnavailableReason()` and `readyAccount()` both answer before it reads a
+ * drive, so with no key in the harness it refuses without touching the database. A case would
+ * assert the credential check and stay green with `getDonationProgress`'s family conjunct
+ * deleted, which is worse than no case because it LOOKS like coverage.
+ *
  * HOW TO LOWER IT BY ELEVEN: give the harness a Stripe TEST key and a stub or sandbox to talk
  * to. The actions become reachable, their family conjuncts become assertable, and every one of
  * these verdicts turns into a case. That is a real piece of work — a suite that makes network
  * calls is a slower and flakier suite — and TODO.md carries it rather than this comment
  * pretending it is a five-minute job.
  */
-const BACKLOG_CEILING = 68
+const BACKLOG_CEILING = 69
 
 // ---------------------------------------------------------------- reading both sides
 

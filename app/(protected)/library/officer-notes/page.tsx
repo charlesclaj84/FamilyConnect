@@ -1,11 +1,14 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { BookText } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
+import { resolveZone } from '@/lib/auth/zone'
 import { getJournalEntries, getMyOffices } from '@/app/actions/journal'
 import { OfficerNotesClient } from '@/components/library/OfficerNotesClient'
+import { HelpLink } from '@/components/help/HelpLink'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Officer' }
 
@@ -59,11 +62,12 @@ export const metadata = { title: 'Officer' }
  * fetch, not the button" forbids.
  */
 export default async function JournalPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'library/officer-notes')
+
+  const { t } = await callerI18n(user.id)
 
   const offices = await getMyOffices()
   // NOT FETCHED AT ALL for a member with no office. The action would answer `[]` on its own —
@@ -76,19 +80,42 @@ export default async function JournalPage() {
   // roster went with it, which means this page now reads nothing but the caller's own offices
   // and one office's notes.
   const entries = offices.length ? await getJournalEntries(offices[0].role_id) : []
+  // Every timestamp on a note is an instant, so it is read in the member's own zone.
+  const zone = await resolveZone(user.id)
 
   return (
     <PageShell className="space-y-8">
       {/* THE HEADING IS THE RAIL CAPTION, which is the convention every other page here
           follows (AGENTS.md, "Captions come from the screen"): "Members", "Membership", "Dues
           & Donations" are each their own rail word. The section heading above it in the rail
-          supplies the rest, and the lede says what an officer's journal IS. */}
-      <div>
-        <h1 className="mb-1 text-3xl font-bold">Officer</h1>
-        <p className="text-muted-foreground">
-          A journal for each office you hold. Notes stay with the office — whoever holds it
-          next will read them.
-        </p>
+          supplies the rest.
+
+          ── THE LEDE WENT ON 2026-08-25 AND LEFT A LINK BEHIND ──────────────────────────
+          It read "A journal for each office you hold. Notes stay with the office — whoever
+          holds it next will read them." The first sentence restated the heading; the second
+          is the single most surprising rule in this screen, and it is not furniture — a
+          notebook that a successor inherits is the whole feature, and nothing on the page
+          shows it, because it is a fact about a handover that has not happened yet.
+
+          So the sentence moved rather than being deleted. It is stated twice in `journal` —
+          once in "What this screen is" and once in "Who can read it" — and this is the link
+          to it. A `HelpLink` rather than a paragraph because the rule is read ONCE, by
+          somebody who has just been given an office, and then never needed again; a caption
+          every officeholder scrolls past on every visit is what the sweep was removing.
+
+          THE EMPTY STATE BELOW ALREADY SAYS IT IN FULL, for the opposite reader — somebody
+          with no office at all, who has no notebook to look at and needs to be told what the
+          screen would be for. That branch is untouched. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-bold">{t('page./library/officer-notes.title')}</h1>
+        {offices.length > 0 && (
+          <HelpLink
+            variant="inline"
+            slug="journal"
+            section="what-it-is"
+            label="Why notes stay with the office"
+          />
+        )}
       </div>
 
       {offices.length === 0 ? (
@@ -97,20 +124,11 @@ export default async function JournalPage() {
         // refusal: nothing has gone wrong for a member who holds no office.
         <div className="rounded-xl border bg-card px-4 py-12 text-center">
           <BookText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
-          <p className="text-sm text-muted-foreground">
-            An officer&rsquo;s journal is for members who hold an office, and you do not hold
-            one yet.
-          </p>
-          <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">
-            Every office in the family has a notebook of its own — what a treasurer worked out
-            about the bank, what an events chair learned about the hall. It belongs to the
-            office rather than to the person, so it is still there for whoever comes next.
-          </p>
+          <p className="text-sm text-muted-foreground">{t('lib.officerSJournalMembers')}</p>
+          <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">{t('lib.everyOfficeFamilyNotebook')}</p>
           <p className="mt-3 text-xs text-muted-foreground">
             Offices are recorded under{' '}
-            <Link href="/admin/members/board-positions" className="underline underline-offset-4">
-              Members &amp; Access &rsaquo; Board Positions
-            </Link>
+            <Link href="/admin/members/board-positions" className="underline underline-offset-4">{t('lib.membersAccessBoardPositions')}</Link>
             .
           </p>
         </div>
@@ -119,6 +137,7 @@ export default async function JournalPage() {
           offices={offices}
           initialOffice={offices[0].role_id}
           initialEntries={entries}
+          zone={zone}
         />
       )}
     </PageShell>

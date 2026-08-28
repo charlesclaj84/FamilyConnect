@@ -1,6 +1,5 @@
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
 import { requireView } from '@/lib/auth/permissions'
 import { getElectionsForMember } from '@/app/actions/elections'
 import { ChevronRight, Vote } from 'lucide-react'
@@ -9,6 +8,8 @@ import { ELECTION_PHASE_PILL } from '@/components/elections/status'
 import { ELECTION_PHASE_LABEL, electionIsCurrent } from '@/lib/election-phase'
 import { formatDateRange } from '@/lib/date-utils'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Elections' }
 
@@ -35,11 +36,12 @@ export const metadata = { title: 'Elections' }
  * the days between nominations and voting and came back would read as a bug.
  */
 export default async function ElectionsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'community/elections')
+
+  const { t } = await callerI18n(user.id)
 
   const elections = await getElectionsForMember()
   const active = elections.filter(e => electionIsCurrent(e.phase))
@@ -48,19 +50,14 @@ export default async function ElectionsPage() {
   return (
     <PageShell>
       <div className="mb-8">
-        <h1 className="mb-1 text-3xl font-bold">Elections</h1>
-        <p className="text-muted-foreground">
-          Nominate somebody, accept your own nomination, and vote — while the windows are open.
-        </p>
+        <h1 className="text-3xl font-bold">{t('page./community/elections.title')}</h1>
       </div>
 
       {elections.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <Vote className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">
-              No elections for your part of the family yet.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('comm.noElectionsPartFamily')}</p>
           </CardContent>
         </Card>
       ) : (

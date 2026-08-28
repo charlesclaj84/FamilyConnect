@@ -5,6 +5,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
 import { dollarsToCents } from '@/lib/currency-utils'
 import { parseAnswer, type GatheringTaskKind } from '@/lib/gatherings'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The control an assignee answers ONE gathering task with, and the two conversions either
@@ -142,6 +143,7 @@ const NARROW = 'sm:max-w-48'
 export function AnswerInput({
   kind, value, onChange, disabled, fieldId, groupName, ariaLabel,
 }: AnswerInputProps) {
+  const t = useT()
   switch (kind) {
     case 'yes_no':
       return (
@@ -250,7 +252,7 @@ export function AnswerInput({
           // Said in the placeholder because the shape of the answer is the whole instruction
           // here, and `GATHERING_STEP_KIND_HINT` is written for the person AUTHORING the
           // template rather than for the assignee.
-          placeholder="One item per line"
+          placeholder={t('tasks.onePerLine')}
           value={value}
           disabled={disabled}
           onChange={e => onChange(e.target.value)}
@@ -284,7 +286,7 @@ export function AnswerInput({
           id={fieldId}
           aria-label={ariaLabel}
           autoComplete="street-address"
-          placeholder="Where it is — a venue, an address, a room"
+          placeholder={t('tasks.wherePh')}
           value={value}
           disabled={disabled}
           onChange={e => onChange(e.target.value)}

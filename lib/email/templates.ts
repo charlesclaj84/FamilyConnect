@@ -22,6 +22,8 @@ import { APP_NAME } from '@/lib/brand'
 // resolve extensionless relative specifiers — a bare './layout' fails every case that
 // touches invitations or approvals with "Cannot find module".
 import { esc, renderEmailFrom } from '@/lib/email/layout'
+import { emailT } from '@/lib/email/strings'
+import { BASE_LOCALE } from '@/lib/i18n/locales'
 
 export interface ComposedEmail {
   subject: string
@@ -38,30 +40,57 @@ export interface ComposedEmail {
  * open the app again on the day the decision is made, and that gap was measured in days
  * rather than minutes.
  */
+/**
+ * Six digits in a monospace box.
+ *
+ * ── NOT A TRANSLATABLE STRING, AND THAT IS THE POINT ──────────────────────────────
+ * It holds no words, so there is nothing to translate — and putting the markup in a catalogue
+ * would put CSS in front of a translator, who would then own a `letter-spacing` by accident.
+ * The two code emails both call this, so the presentation cannot drift between them either.
+ *
+ * MONOSPACE AND SPACED OUT, because this is read off one screen and typed into another. The
+ * inline style is the same sanctioned exception every colour in this module is: a mail client
+ * loads no stylesheet of ours.
+ */
+function codeBlock(escapedCode: string): string {
+  return '<div style="font-family:\'SF Mono\',Consolas,Menlo,monospace; font-size:32px; '
+    + 'font-weight:700; letter-spacing:8px; text-align:center; padding:8px 0;">'
+    + `${escapedCode}</div>`
+}
+
 export function membershipApprovedEmail(o: {
   origin: string
   firstName: string
   familyName: string
+  /**
+   * The RECIPIENT's language. They have an account and a `people.locale` by the time this is
+   * sent — approval is the last step of joining — so this is the one email where the reader's
+   * own stated preference is available. `approveApplicant` resolves it.
+   */
+  locale?: string
 }): ComposedEmail {
+  const t = emailT(o.locale ?? BASE_LOCALE)
   const name = o.firstName.trim()
   return {
-    subject: `You have been approved to join ${o.familyName}`,
+    // RAW, not escaped: a subject line is not HTML, and `&amp;` in one is a visible defect.
+    subject: t('email.approved.subject', { family: o.familyName }),
     tag: 'membership-approved',
     html: renderEmailFrom(o.origin, {
-      preheader: `You&rsquo;re in. ${esc(o.familyName)} is ready when you are.`,
-      heading: name ? `Welcome, ${name}` : 'Welcome',
+      t,
+      preheader: t('email.approved.preheader', { family: esc(o.familyName) }),
+      heading: name
+        ? t('email.approved.headingNamed', { name })
+        : t('email.approved.heading'),
       paragraphs: [
-        `Your request to join <strong style="font-weight:600;">${esc(o.familyName)}</strong> on ${esc(APP_NAME)} has been approved.`,
-        'Everything is open to you now — the family tree, photographs, gatherings, announcements and the rest. A good first step is filling in your own details, so the people who know you can find you.',
+        t('email.approved.p1', { family: esc(o.familyName), app: esc(APP_NAME) }),
+        t('email.approved.p2'),
       ],
       button: {
         href: `${o.origin}/dashboard`,
-        label: 'Open GENORRA',
+        label: t('email.approved.button'),
         widthPx: 200,
       },
-      footnote:
-        'You are receiving this because someone with this address asked to join a family '
-        + `on ${esc(APP_NAME)}.`,
+      footnote: t('email.approved.footnote', { app: esc(APP_NAME) }),
     }),
   }
 }
@@ -104,39 +133,69 @@ export function familyInvitationEmail(o: {
   preApproved: boolean
   /** Days until it lapses, for the fine print. */
   expiresInDays: number
+  /**
+   * THE INVITER'S LANGUAGE, WHICH IS THE ONE EMAIL WHERE IT IS NOT THE READER'S.
+   *
+   * ── WHY NOT ENGLISH ─────────────────────────────────────────────────────────────
+   * The invitee has no account, so there is no `people.locale` to read and no request of
+   * theirs to negotiate an `Accept-Language` from. English was the first answer here and it
+   * is the worse one: a Spanish-speaking family inviting their cousin is inviting somebody
+   * who almost certainly reads Spanish, and sending them English is a guess that ignores the
+   * only evidence available.
+   *
+   * The inviter's language IS that evidence. It is not certain — a relative abroad may not
+   * share it — but it is a far better prior than a default, and this message is a personal
+   * one: it names the family and the person sending it, so the sender's language matches what
+   * it already is.
+   *
+   * ── AND IT SELF-CORRECTS ────────────────────────────────────────────────────────
+   * Whatever language the mail arrives in, the invitee lands on `/register` with their OWN
+   * browser, so `resolveLocale` negotiates `Accept-Language` and the product speaks to them in
+   * their language from the first screen. The mail is the only thing that has to guess.
+   *
+   * ── THE ONE THING THIS MUST NOT BECOME ──────────────────────────────────────────
+   * A parameter the CALLER chooses freely. `inviteMember` resolves it from the session, the
+   * same way it resolves everything else about the sender — a `locale` accepted from the wire
+   * would be a caller picking the language of mail sent over our SPF and DKIM to an address
+   * they also chose, which is a knob on the open-relay shape the email rules forbid.
+   */
+  locale?: string
 }): ComposedEmail {
+  const t = emailT(o.locale ?? BASE_LOCALE)
   const link = `${o.origin}/invite/${encodeURIComponent(o.token)}`
   const family = esc(o.familyName)
   const inviter = o.inviterName?.trim() ? esc(o.inviterName.trim()) : null
   const greetingName = o.inviteeFirstName?.trim() ? esc(o.inviteeFirstName.trim()) : null
-  const greeting = greetingName ? `Hi ${greetingName},` : null
+  const greeting = greetingName ? t('email.invitation.greeting', { name: greetingName }) : null
 
   const opening = inviter
-    ? `<strong style="font-weight:600;">${inviter}</strong> has invited you to join <strong style="font-weight:600;">${family}</strong> on ${esc(APP_NAME)} — where a family keeps its stories, its photographs, its plans and the record of who belongs to whom.`
-    : `You have been invited to join <strong style="font-weight:600;">${family}</strong> on ${esc(APP_NAME)} — where a family keeps its stories, its photographs, its plans and the record of who belongs to whom.`
+    ? t('email.invitation.opening', { inviter, family, app: esc(APP_NAME) })
+    : t('email.invitation.openingNoInviter', { family, app: esc(APP_NAME) })
 
   const second = o.preApproved
-    ? 'Accept below and you are in straight away. There is no family code to find and nothing to fill in first.'
-    : 'Accept below to set up your account. An administrator will then admit you, so there may be a short wait after that step.'
+    ? t('email.invitation.preApproved')
+    : t('email.invitation.needsReview')
 
   return {
+    // RAW values in the subject — not HTML.
     subject: inviter
-      ? `${o.inviterName!.trim()} invited you to join ${o.familyName}`
-      : `You are invited to join ${o.familyName}`,
+      ? t('email.invitation.subject', {
+        inviter: o.inviterName!.trim(), family: o.familyName,
+      })
+      : t('email.invitation.subjectNoInviter', { family: o.familyName }),
     tag: 'family-invitation',
     html: renderEmailFrom(o.origin, {
-      preheader: `${family} kept a place for you. The invitation lasts ${o.expiresInDays} days.`,
-      heading: 'Your family kept a place for you',
+      t,
+      preheader: t('email.invitation.preheader', { family, days: o.expiresInDays }),
+      heading: t('email.invitation.heading'),
       // The greeting is its own paragraph and is DROPPED rather than defaulted when
       // there is no name — invitations created before 20260813000002 have none, and
       // "Hi ," reads worse than no greeting at all.
       paragraphs: greeting ? [greeting, opening, second] : [opening, second],
-      button: { href: link, label: 'Accept the invitation', widthPx: 240 },
-      fine: `This invitation is for this address only and expires in ${o.expiresInDays} days.`,
+      button: { href: link, label: t('email.invitation.button'), widthPx: 240 },
+      fine: t('email.invitation.fine', { days: o.expiresInDays }),
       fallbackUrl: esc(link),
-      footnote:
-        'If this is not something you were expecting, you can safely ignore it. No '
-        + 'account is created until you accept, and nobody is told either way.',
+      footnote: t('email.invitation.footnote'),
     }),
   }
 }
@@ -171,27 +230,88 @@ export function familyRemovalCodeEmail(o: {
   code: string
   /** How long it lasts, for the fine print. Comes from the action, so the two agree. */
   expiresInMinutes: number
+  /**
+   * The RECIPIENT's language. `requestFamilyRemovalCode` takes no arguments and resolves the
+   * address from the session, so the reader here is by construction the acting administrator —
+   * whose `people.locale` the action reads. The one email where the reader is certainly the
+   * caller.
+   */
+  locale?: string
 }): ComposedEmail {
+  const t = emailT(o.locale ?? BASE_LOCALE)
   const family = esc(o.familyName)
   return {
-    subject: `Your code to remove ${o.familyName}`,
+    subject: t('email.removal.subject', { family: o.familyName }),
     tag: 'family-removal-code',
     html: renderEmailFrom(o.origin, {
-      preheader: `The code lasts ${o.expiresInMinutes} minutes and can be used once.`,
-      heading: 'Confirm removing this family',
+      t,
+      preheader: t('email.removal.preheader', { minutes: o.expiresInMinutes }),
+      heading: t('email.removal.heading'),
       paragraphs: [
-        `Somebody signed in as you asked to remove <strong style="font-weight:600;">${family}</strong> from ${esc(APP_NAME)}. Type this code into the confirmation to finish:`,
-        // MONOSPACE AND SPACED OUT, because this is read off a screen and typed into
-        // another one. The inline style is the same sanctioned exception every colour in
-        // this module is: a mail client loads no stylesheet of ours.
-        `<div style="font-family:'SF Mono',Consolas,Menlo,monospace; font-size:32px; font-weight:700; letter-spacing:8px; text-align:center; padding:8px 0;">${esc(o.code)}</div>`,
-        'Removing a family closes it for everybody in it — nobody can open it, join it or accept an invitation to it. <strong style="font-weight:600;">Nothing is deleted.</strong> Every payment, photograph, event and person stays exactly where it is, and GENORRA support can put the family back.',
+        t('email.removal.p1', { family, app: esc(APP_NAME) }),
+        codeBlock(esc(o.code)),
+        t('email.removal.p2'),
       ],
-      fine: `This code lasts ${o.expiresInMinutes} minutes and can be used once.`,
-      footnote:
-        'If you did not ask for this, do nothing — the code expires on its own and the '
-        + 'family stays exactly as it is. Then change your password, because somebody '
-        + 'else is signed in as you.',
+      fine: t('email.removal.fine', { minutes: o.expiresInMinutes }),
+      footnote: t('email.removal.footnote'),
+    }),
+  }
+}
+
+/**
+ * The six-digit code that confirms disconnecting a family's Stripe account.
+ *
+ * ── THE SAME SHAPE AS THE REMOVAL CODE, AND FOR THE SAME REASONS ───────────────────
+ * It goes to the person who asked, because `requestProcessorDisconnectCode` takes no
+ * arguments and resolves the address from the session. There is NO BUTTON, because the code
+ * is a factor in a confirmation already open in another window and a one-click disconnect
+ * reachable from a forwarded inbox would defeat the gate. And it states plainly what the act
+ * does, because if somebody else has got at the account this message is the first and
+ * possibly only notice its owner gets. `familyRemovalCodeEmail` argues each of those.
+ *
+ * ── WHAT IT SAYS THAT THE SCREEN CANNOT ────────────────────────────────────────────
+ * The irreversible half. Reconnecting is one click and brings the same Stripe account back —
+ * so a reader who stopped at "you can undo this" would be right about the connection and
+ * wrong about the money: every relative's recurring payment is CANCELLED at Stripe, and a
+ * cancelled subscription cannot be un-cancelled. The count is interpolated because "4
+ * relatives" is a different decision from "nobody", and the caller has already counted them.
+ */
+export function processorDisconnectCodeEmail(o: {
+  origin: string
+  familyName: string
+  /** The digits. Never logged, never put in the subject, never stored in plaintext. */
+  code: string
+  /** How long it lasts, for the fine print. Comes from the action, so the two agree. */
+  expiresInMinutes: number
+  /** Members currently paying automatically, all of whom would be cancelled. */
+  autopayCount: number
+  /** The RECIPIENT's language — the acting administrator, as with the removal code. */
+  locale?: string
+}): ComposedEmail {
+  const t = emailT(o.locale ?? BASE_LOCALE)
+  const family = esc(o.familyName)
+  // ONE AND SEVERAL ARE TWO KEYS, not one string with a number in it. English needs
+  // "relative"/"relatives" and "that relative"/"each of them"; a language with more plural forms
+  // than two can add them in its own catalogue, which a single `{n}` string could never allow.
+  const autopay = o.autopayCount === 1
+    ? t('email.disconnect.autopayOne')
+    : t('email.disconnect.autopayMany', { n: o.autopayCount })
+
+  return {
+    subject: t('email.disconnect.subject', { family: o.familyName }),
+    tag: 'processor-disconnect-code',
+    html: renderEmailFrom(o.origin, {
+      t,
+      preheader: t('email.disconnect.preheader', { minutes: o.expiresInMinutes }),
+      heading: t('email.disconnect.heading'),
+      paragraphs: [
+        t('email.disconnect.p1', { family }),
+        codeBlock(esc(o.code)),
+        t('email.disconnect.p2'),
+        ...(o.autopayCount > 0 ? [autopay] : []),
+      ],
+      fine: t('email.disconnect.fine', { minutes: o.expiresInMinutes }),
+      footnote: t('email.disconnect.footnote'),
     }),
   }
 }
@@ -239,33 +359,54 @@ export function distributionEmail(o: {
   paragraphs: readonly string[]
   /** Display name of whoever sent it. Omitted rather than faked when unknown. */
   senderName?: string | null
+  /**
+   * The SENDER's language, not the reader's — the one template where that is the answer, and
+   * the division is a rule rather than a convenience:
+   *
+   *   * **A message whose substance is OURS follows the READER's language.** A decision, a
+   *     code, an ask. The approval, both action codes and the safety check-in.
+   *   * **A message whose substance is one member's own WORDS follows THAT member's
+   *     language.** Here the email *is* their message; a Spanish footnote wrapped around an
+   *     English paragraph reads as a fault in the product rather than as a courtesy, and there
+   *     is nothing we could translate to fix it — we do not paraphrase what a member wrote.
+   *
+   * The invitation looks like a third rule and is not: its substance is ours, and the inviter's
+   * language is simply the only evidence available for a reader who has no account yet.
+   *
+   * It also keeps `sendDistributionBatch`'s one composition per BATCH intact. That is a
+   * consequence, not the reason — if the rule pointed the other way the batch would have to
+   * compose per recipient, and it would.
+   */
+  locale?: string
 }): ComposedEmail {
+  const t = emailT(o.locale ?? BASE_LOCALE)
   const family = esc(o.familyName)
   const sender = o.senderName?.trim() ? esc(o.senderName.trim()) : null
 
   return {
     // The member's own words, verbatim. A prefix like "[Family name]" was considered and
     // dropped: it eats the part of the subject an inbox actually shows on a phone, and the
-    // From name already says who this is from.
+    // From name already says who this is from. NOT A CATALOGUE KEY for the same reason: there
+    // is no sentence of ours in it to translate.
     subject: o.subject,
     tag: 'distribution',
     html: renderEmailFrom(o.origin, {
+      t,
       // NOT the first paragraph. A preheader that repeats the opening line wastes the one
       // extra sentence an inbox will show — the rule stated on `EmailOptions.preheader`.
       preheader: sender
-        ? `From ${sender}, to everyone in ${family}.`
-        : `A message to everyone in ${family}.`,
+        ? t('email.distribution.preheaderFrom', { sender, family })
+        : t('email.distribution.preheaderAnon', { family }),
       heading: esc(o.subject),
       // ESCAPED, ONE BY ONE. See the header. An empty body cannot reach here — the action
       // refuses it and `bodyParagraphs` returns `[]` for whitespace — but a fallback line is
       // cheaper than an email with chrome and no content in it.
       paragraphs: o.paragraphs.length > 0
         ? o.paragraphs.map(esc)
-        : ['(No message was included.)'],
+        : [t('email.distribution.empty')],
       footnote: sender
-        ? `${sender} sent this to everyone in ${family} on ${esc(APP_NAME)}. Reply to this `
-          + 'email to answer them directly.'
-        : `This was sent to everyone in ${family} on ${esc(APP_NAME)}.`,
+        ? t('email.distribution.footnoteFrom', { sender, family, app: esc(APP_NAME) })
+        : t('email.distribution.footnoteAnon', { family, app: esc(APP_NAME) }),
     }),
   }
 }
@@ -309,7 +450,26 @@ export function safetyCheckInEmail(o: {
   raisedByName?: string | null
   /** Absolute URL of the screen where they answer. */
   link: string
+  /**
+   * The READER's language — resolved per recipient by the sender, which no other template needs
+   * and this one earns twice over.
+   *
+   * ── IT IS THE ONE EMAIL COMPOSED INSIDE THE LOOP ALREADY ───────────────────────────
+   * `sendCheckInAsks` builds a fresh message per relative because the `to` and the reply-to
+   * differ, so a per-recipient locale costs one extra read of `people.locale` for the batch
+   * rather than a change of shape. `distributionEmail` composes once per batch and is the
+   * counter-example; see its header for the rule the two of them divide on.
+   *
+   * ── AND IT IS DELIBERATELY BILINGUAL ──────────────────────────────────────────────
+   * `title` and `detail` are the raiser's own words and pass through untranslated. So a reader
+   * whose language is Spanish gets the ask, the two answers and the footnote in Spanish, with
+   * the description of what happened in whatever language it was written in. That is the honest
+   * split: paraphrasing what somebody said about an emergency is the last thing this feature
+   * should do, and leaving the ask in a language the reader does not use is the first.
+   */
+  locale?: string
 }): ComposedEmail {
+  const t = emailT(o.locale ?? BASE_LOCALE)
   const family = esc(o.familyName)
   const title = esc(o.title)
   const raiser = o.raisedByName?.trim() ? esc(o.raisedByName.trim()) : null
@@ -317,16 +477,11 @@ export function safetyCheckInEmail(o: {
 
   const paragraphs = [
     raiser
-      ? `${raiser} has asked everyone in ${family} who may be affected by <strong>${title}</strong> `
-        + 'to say whether they are safe.'
-      : `${family} has asked everyone who may be affected by <strong>${title}</strong> to say `
-        + 'whether they are safe.',
+      ? t('email.checkIn.askRaiser', { raiser, family, title })
+      : t('email.checkIn.askAnon', { family, title }),
   ]
   if (detail) paragraphs.push(detail)
-  paragraphs.push(
-    'Open the check-in and choose <strong>I am safe</strong> or <strong>I need help</strong>. '
-    + 'It takes one tap, and whoever asked will see your answer straight away.',
-  )
+  paragraphs.push(t('email.checkIn.answer'))
 
   return {
     // THE FAMILY NAME IS IN THE SUBJECT, unlike a distribution's — and the reason is the
@@ -334,21 +489,25 @@ export function safetyCheckInEmail(o: {
     // the part of the subject a phone shows. Here the message has to be recognisable at a
     // glance in a crowded inbox during an actual emergency, when the reader may be getting
     // messages from several directions, so it says who is asking before it says why.
-    subject: `Are you safe? — ${o.familyName}`,
+    subject: t('email.checkIn.subject', { family: o.familyName }),
     tag: 'safety-check-in',
     html: renderEmailFrom(o.origin, {
-      preheader: `${o.title} — your family is asking you to check in.`,
-      heading: 'Are you safe?',
+      t,
+      // THE RAW TITLE, not the escaped one — a preheader is plain text, like a subject.
+      preheader: t('email.checkIn.preheader', { title: o.title }),
+      heading: t('email.checkIn.heading'),
       paragraphs,
-      button: { href: o.link, label: 'Answer the check-in', widthPx: 210 },
+      // THE BUTTON IS WIDER THAN ITS ENGLISH LABEL NEEDS, deliberately: *Responder el aviso*
+      // and *Répondre à l'appel* are both longer, and a fixed pixel width is the only kind of
+      // width a mail client reliably honours. Check a new language against this rather than
+      // trusting it to wrap.
+      button: { href: o.link, label: t('email.checkIn.button'), widthPx: 240 },
       // NO EXPIRY LINE. A check-in stays answerable until it is closed, and inventing a
       // deadline would tell somebody who reads this late that it is too late to answer —
       // which for this feature specifically is the worst possible thing to say.
       footnote: raiser
-        ? `${raiser} raised this check-in in ${family} on ${esc(APP_NAME)}. If you cannot open `
-          + 'the link, reply to this email and they will see it.'
-        : `This check-in was raised in ${family} on ${esc(APP_NAME)}. If you cannot open the `
-          + 'link, reply to this email.',
+        ? t('email.checkIn.footnoteRaiser', { raiser, family, app: esc(APP_NAME) })
+        : t('email.checkIn.footnoteAnon', { family, app: esc(APP_NAME) }),
     }),
   }
 }

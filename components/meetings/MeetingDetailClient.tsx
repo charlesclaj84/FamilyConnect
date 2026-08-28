@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  CalendarCheck, Check, ChevronDown, ChevronRight, Lock, LockOpen, Pencil, Plus, Trash2,
+  CalendarCheck, Check, ChevronDown, ChevronRight, Clock, Lock, LockOpen, Pencil, Plus, Trash2,
   Users, Vote,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -14,17 +14,24 @@ import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
 import { formatDate } from '@/lib/date-utils'
+import { StatedTime } from '@/components/ui/stated-time'
 import {
   addMeetingNote, addMeetingTopic, castMeetingVote, deleteMeeting, deleteMeetingNote,
   deleteMeetingTopic, setMeetingClosed, setTopicVoting, updateMeetingNote, updateMeetingTopic,
   type MeetingDetail, type MeetingTopic,
 } from '@/app/actions/meetings'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
-const CHOICES = [
-  { value: 'for', label: 'For' },
-  { value: 'against', label: 'Against' },
-  { value: 'abstain', label: 'Abstain' },
-] as const
+// A FUNCTION of `t`: the labels come from the reader's catalogue and cannot be resolved at
+// module load. The VALUES are what `meeting_votes` stores and never move.
+function choices(t: T) {
+  return [
+    { value: 'for', label: t('meet.vote.for') },
+    { value: 'against', label: t('meet.vote.against') },
+    { value: 'abstain', label: t('meet.vote.abstain') },
+  ] as const
+}
 
 /**
  * One meeting: who was there, what was discussed, and what the room decided.
@@ -51,7 +58,13 @@ const CHOICES = [
  * `meeting_votes_are_final` refuses an UPDATE in the database for every role, so a control
  * that offered it would be a control that cannot work.
  */
-export function MeetingDetailClient({ meeting: initialMeeting }: { meeting: MeetingDetail }) {
+export function MeetingDetailClient({ meeting: initialMeeting, zone }: {
+  meeting: MeetingDetail
+  /** The READER's timezone, for the secondary "your time" line beside the stated one. */
+  zone: string
+}) {
+  const intl = useIntlTag()
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [meeting] = useServerState(initialMeeting)
@@ -67,7 +80,7 @@ export function MeetingDetailClient({ meeting: initialMeeting }: { meeting: Meet
     setError('')
     startTransition(async () => {
       const result = await fn()
-      if (!result.success) { setError(result.message ?? 'Something went wrong.'); return }
+      if (!result.success) { setError(result.message ?? t('meet.wentWrong')); return }
       router.refresh()
     })
   }
@@ -75,13 +88,11 @@ export function MeetingDetailClient({ meeting: initialMeeting }: { meeting: Meet
   async function toggleClosed() {
     const closing = open
     const ok = await confirm({
-      title: closing ? 'Close these minutes' : 'Reopen these minutes',
+      title: closing ? t('meet.closeConfirmTitle') : t('meet.reopenConfirmTitle'),
       description: closing
-        ? 'Nothing about this meeting changes after it is closed — no more topics, no more notes, '
-          + 'and no more votes. It can be reopened.'
-        : 'Reopening lets the secretary write again. The votes already cast stay exactly as they '
-          + 'are; they cannot be changed by anybody.',
-      confirmLabel: closing ? 'Close minutes' : 'Reopen',
+        ? t('meet.closeConfirmBody')
+        : t('meet.reopenConfirmBody'),
+      confirmLabel: closing ? t('meet.closeMinutes') : t('meet.reopen'),
     })
     if (!ok) return
     run(() => setMeetingClosed(meeting.id, closing))
@@ -90,16 +101,15 @@ export function MeetingDetailClient({ meeting: initialMeeting }: { meeting: Meet
   async function removeMeeting() {
     const ok = await confirm({
       title: `Delete “${meeting.title}”?`,
-      description: 'The whole meeting goes — its topics, its minutes and every vote cast in it. '
-        + 'This cannot be undone.',
-      confirmLabel: 'Delete meeting',
+      description: t('meet.deleteMeetingBody'),
+      confirmLabel: t('meet.deleteMeeting'),
       destructive: true,
     })
     if (!ok) return
     setError('')
     startTransition(async () => {
       const result = await deleteMeeting(meeting.id)
-      if (!result.success) { setError(result.message ?? 'Could not delete that.'); return }
+      if (!result.success) { setError(result.message ?? t('meet.deleteFailed')); return }
       router.push('/library/meeting-minutes')
     })
   }
@@ -112,23 +122,39 @@ export function MeetingDetailClient({ meeting: initialMeeting }: { meeting: Meet
             <h1 className="text-2xl font-bold">{meeting.title}</h1>
             <p className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1.5">
-                <CalendarCheck className="h-3.5 w-3.5" /> {formatDate(meeting.meetsOn)}
+                <CalendarCheck className="h-3.5 w-3.5" /> {formatDate(meeting.meetsOn, intl)}
               </span>
+              {/* THE STATED TIME LEADS, the reader's own follows underneath and only when the
+                  two differ. `StatedTime` owns that relationship so the gathering page and this
+                  one cannot drift apart — see its header and 20260826000003's. */}
+              {meeting.startTime && (
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5 shrink-0" />
+                  <StatedTime
+                    intl={intl}
+                    day={meeting.meetsOn}
+                    time={meeting.startTime}
+                    endTime={meeting.endTime}
+                    zone={meeting.timeZone}
+                    readerZone={zone}
+                  />
+                </span>
+              )}
               {meeting.secretaryName && (
-                <span>Minutes by <span className="font-medium text-foreground">{meeting.secretaryName}</span></span>
+                <span>{t('meet.minutesBy')} <span className="font-medium text-foreground">{meeting.secretaryName}</span></span>
               )}
             </p>
           </div>
           <div className="flex gap-2">
             {(meeting.mayManage || meeting.iAmSecretary) && (
               <Button size="sm" variant="outline" onClick={toggleClosed} disabled={isPending}>
-                {open ? <><Lock /> Close minutes</> : <><LockOpen /> Reopen</>}
+                {open ? <><Lock /> {t('meet.closeMinutes')}</> : <><LockOpen /> {t('meet.reopen')}</>}
               </Button>
             )}
             {meeting.mayDelete && (
               <Button size="sm" variant="ghost" onClick={removeMeeting} disabled={isPending}
                 className="text-destructive hover:text-destructive">
-                <Trash2 /> Delete
+                <Trash2 /> {t('action.delete')}
               </Button>
             )}
           </div>
@@ -136,10 +162,7 @@ export function MeetingDetailClient({ meeting: initialMeeting }: { meeting: Meet
       </div>
 
       {!open && (
-        <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-          These minutes are closed. Nothing about the meeting changes now — which is what makes
-          them the record.
-        </p>
+        <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-sm text-muted-foreground">{t('ui.theseMinutesClosedNothing')}</p>
       )}
 
       <FormError message={error} />
@@ -154,7 +177,7 @@ export function MeetingDetailClient({ meeting: initialMeeting }: { meeting: Meet
           In the room ({meeting.attendees.length})
         </h2>
         {meeting.attendees.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nobody is on the list.</p>
+          <p className="text-sm text-muted-foreground">{t('meet.nobodyOnList')}</p>
         ) : (
           <p className="flex flex-wrap gap-1.5">
             {meeting.attendees.map(a => (
@@ -171,36 +194,36 @@ export function MeetingDetailClient({ meeting: initialMeeting }: { meeting: Meet
       {/* ── THE MINUTES ───────────────────────────────────────────────────────────── */}
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg">Topics</h2>
+          <h2 className="text-lg">{t('meet.topics')}</h2>
           {mayWrite && !addingTopic && (
             <Button size="sm" variant="affirm" onClick={() => setAddingTopic(true)}>
-              <Plus /> Add a topic
+              <Plus /> {t('meet.addTopic')}
             </Button>
           )}
         </div>
 
         {mayWrite && addingTopic && (
           <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-            <Label htmlFor="new-topic">What is the topic?</Label>
+            <Label htmlFor="new-topic">{t('meet.whatTopic')}</Label>
             <Input id="new-topic" value={topicTitle} onChange={e => setTopicTitle(e.target.value)}
-              placeholder="Approving the reunion budget" autoFocus />
+              placeholder={t('meet.topicPh')} autoFocus />
             <div className="flex gap-2">
               <Button size="sm" variant="affirm" disabled={isPending}
                 onClick={() => {
-                  if (!topicTitle.trim()) { setError('Give the topic a title'); return }
+                  if (!topicTitle.trim()) { setError(t('meet.needTopicTitle')); return }
                   setError('')
                   startTransition(async () => {
                     const result = await addMeetingTopic(meeting.id, topicTitle)
-                    if (!result.success) { setError(result.message ?? 'Could not add that.'); return }
+                    if (!result.success) { setError(result.message ?? t('meet.addFailed')); return }
                     setTopicTitle(''); setAddingTopic(false)
                     router.refresh()
                   })
                 }}>
-                Add topic
+                {t('meet.addTopicAction')}
               </Button>
               <Button size="sm" variant="ghost" disabled={isPending}
                 onClick={() => { setAddingTopic(false); setTopicTitle('') }}>
-                Cancel
+                {t('action.cancel')}
               </Button>
             </div>
           </div>
@@ -209,8 +232,8 @@ export function MeetingDetailClient({ meeting: initialMeeting }: { meeting: Meet
         {meeting.topics.length === 0 ? (
           <p className="rounded-xl border bg-card px-4 py-10 text-center text-sm text-muted-foreground">
             {mayWrite
-              ? 'Nothing minuted yet. Add a topic, then write notes under it.'
-              : 'Nothing has been minuted yet.'}
+              ? t('meet.nothingMinuted')
+              : t('meet.nothingMinutedShort')}
           </p>
         ) : (
           <ul className="space-y-3">
@@ -248,6 +271,8 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
   onRun: (fn: () => Promise<{ success: boolean; message?: string }>) => void
   onError: (message: string) => void
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   const confirm = useConfirm()
   const [expanded, setExpanded] = useState(meeting.closedAt === null)
   const [noteBody, setNoteBody] = useState('')
@@ -272,10 +297,11 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
       description: topic.votes.length > 0
         // THE ONE WAY A VOTE EVER GOES, said in those words. `meeting_votes_are_final` refuses
         // every other route, so deleting the topic is deleting the QUESTION.
-        ? `This removes the topic, its notes, and all ${topic.votes.length} vote${topic.votes.length === 1 ? '' : 's'} cast on it. `
-          + 'Deleting the question is the only way a vote is ever removed. This cannot be undone.'
-        : 'This removes the topic and its notes. This cannot be undone.',
-      confirmLabel: 'Delete topic',
+        ? topic.votes.length === 1
+          ? t('meet.deleteTopicVotesOne')
+          : t('meet.deleteTopicVotesMany', { n: topic.votes.length })
+        : t('meet.deleteTopicBody'),
+      confirmLabel: t('meet.deleteTopic'),
       destructive: true,
     })
     if (!ok) return
@@ -301,19 +327,19 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
         {voteCalled && (
           <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ${
             voteOpen ? 'bg-brand-legacy text-brand-on-legacy' : 'bg-brand-soft text-brand-on-soft'}`}>
-            {voteOpen ? 'Vote open' : 'Vote closed'}
+            {voteOpen ? t('meet.voteOpen') : t('meet.voteClosed')}
           </span>
         )}
 
         {mayWrite && (
           <span className="flex shrink-0 gap-1">
             <button type="button" onClick={() => { setEditingTitle(true); setTitle(topic.title) }}
-              aria-label="Rename this topic" title="Rename"
+              aria-label={t('meet.renameTopic')} title={t('action.rename')}
               className="rounded-md p-1.5 text-muted-foreground hover:text-foreground">
               <Pencil className="h-3.5 w-3.5" />
             </button>
             <button type="button" onClick={removeTopic} disabled={busy || isPending}
-              aria-label="Delete this topic" title="Delete topic"
+              aria-label={t('meet.deleteTopicTitle')} title={t('meet.deleteTopic')}
               className="rounded-md p-1.5 text-destructive hover:bg-muted disabled:opacity-50">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
@@ -324,20 +350,20 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
       {editingTitle && mayWrite && (
         <div className="flex flex-wrap items-center gap-2 border-t px-4 py-3">
           <Input value={title} onChange={e => setTitle(e.target.value)} className="max-w-sm"
-            aria-label="Topic title" autoFocus />
+            aria-label={t('meet.topicTitleLabel')} autoFocus />
           <Button size="sm" variant="affirm" disabled={isPending}
             onClick={() => {
               startTransition(async () => {
                 const result = await updateMeetingTopic(topic.id, title)
-                if (!result.success) { onError(result.message ?? 'Could not rename that.'); return }
+                if (!result.success) { onError(result.message ?? t('meet.renameFailed')); return }
                 setEditingTitle(false)
                 onRun(async () => ({ success: true }))
               })
             }}>
-            <Check /> Save
+            <Check /> {t('action.save')}
           </Button>
           <Button size="sm" variant="ghost" onClick={() => setEditingTitle(false)} disabled={isPending}>
-            Cancel
+            {t('action.cancel')}
           </Button>
         </div>
       )}
@@ -346,27 +372,27 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
         <div className="space-y-4 border-t px-4 py-3">
           {/* ── THE NOTES ──────────────────────────────────────────────────────────── */}
           {topic.notes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Nothing written under this yet.</p>
+            <p className="text-sm text-muted-foreground">{t('notes.nothingUnder')}</p>
           ) : (
             <ul className="space-y-3">
               {topic.notes.map(note => (
                 <li key={note.id} className="border-l-2 border-brand-soft pl-3">
                   {editingNote === note.id && mayWrite ? (
                     <div className="space-y-2">
-                      <Textarea value={noteDraft} rows={4} aria-label="Note"
+                      <Textarea value={noteDraft} rows={4} aria-label={t('notes.note')}
                         onChange={e => setNoteDraft(e.target.value)} />
                       <div className="flex gap-2">
                         <Button size="sm" variant="affirm" disabled={isPending}
                           onClick={() => {
                             startTransition(async () => {
                               const result = await updateMeetingNote(note.id, noteDraft)
-                              if (!result.success) { onError(result.message ?? 'Could not save that.'); return }
+                              if (!result.success) { onError(result.message ?? t('meet.saveFailed')); return }
                               setEditingNote(null)
                               onRun(async () => ({ success: true }))
                             })
-                          }}>Save</Button>
+                          }}>{t('action.save')}</Button>
                         <Button size="sm" variant="ghost" onClick={() => setEditingNote(null)}>
-                          Cancel
+                          {t('action.cancel')}
                         </Button>
                       </div>
                     </div>
@@ -375,21 +401,21 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
                       {/* `whitespace-pre-wrap` so a list a secretary typed stays a list. */}
                       <p className="whitespace-pre-wrap text-sm">{note.body}</p>
                       <p className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                        <span>{note.authorName ?? 'Somebody no longer in this family'}</span>
+                        <span>{note.authorName ?? t('meet.noLongerInFamily')}</span>
                         <span>·</span>
-                        <span>{formatDate(note.createdAt)}</span>
+                        <span>{formatDate(note.createdAt, intl)}</span>
                         {note.updatedAt !== note.createdAt && <span>· edited</span>}
                         {mayWrite && (
                           <>
                             <button type="button"
                               onClick={() => { setEditingNote(note.id); setNoteDraft(note.body) }}
                               className="underline underline-offset-4 hover:text-foreground">
-                              Edit
+                              {t('action.edit')}
                             </button>
                             <button type="button" disabled={busy || isPending}
                               onClick={() => onRun(() => deleteMeetingNote(note.id))}
                               className="underline underline-offset-4 hover:text-destructive">
-                              Delete
+                              {t('action.delete')}
                             </button>
                           </>
                         )}
@@ -403,20 +429,20 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
 
           {mayWrite && (
             <div className="space-y-2">
-              <Label htmlFor={`note-${topic.id}`} className="text-xs">Add a note</Label>
+              <Label htmlFor={`note-${topic.id}`} className="text-xs">{t('notes.addNote')}</Label>
               <Textarea id={`note-${topic.id}`} value={noteBody} rows={3}
                 onChange={e => setNoteBody(e.target.value)}
-                placeholder="What was said, and what was agreed" />
+                placeholder={t('meet.notePh')} />
               <Button size="sm" variant="affirm" disabled={isPending || !noteBody.trim()}
                 onClick={() => {
                   startTransition(async () => {
                     const result = await addMeetingNote(topic.id, noteBody)
-                    if (!result.success) { onError(result.message ?? 'Could not add that.'); return }
+                    if (!result.success) { onError(result.message ?? t('meet.addFailed')); return }
                     setNoteBody('')
                     onRun(async () => ({ success: true }))
                   })
                 }}>
-                Add note
+                {t('notes.addNoteAction')}
               </Button>
             </div>
           )}
@@ -426,12 +452,12 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h3 className="flex items-center gap-2 text-sm font-semibold">
                 <Vote className="h-4 w-4 text-brand-accent" />
-                {voteCalled ? 'The vote' : 'No vote called'}
+                {voteCalled ? t('meet.theVote') : t('meet.noVote')}
               </h3>
               {mayWrite && (
                 <Button size="sm" variant="outline" disabled={busy || isPending}
                   onClick={() => onRun(() => setTopicVoting(topic.id, !voteOpen))}>
-                  {voteOpen ? 'Close the vote' : voteCalled ? 'Vote closed' : 'Call a vote'}
+                  {voteOpen ? t('meet.closeVote') : voteCalled ? t('meet.voteClosed') : t('meet.callVote')}
                 </Button>
               )}
             </div>
@@ -439,8 +465,8 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
             {!voteCalled ? (
               <p className="mt-2 text-xs text-muted-foreground">
                 {mayWrite
-                  ? 'Call a vote and everybody in the room can answer. A vote cannot be changed once cast.'
-                  : 'The secretary has not called a vote on this topic.'}
+                  ? t('meet.callVoteHint')
+                  : t('meet.noVoteCalled')}
               </p>
             ) : (
               <>
@@ -461,7 +487,7 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
                   <ul className="mt-2 space-y-0.5 text-xs text-muted-foreground">
                     {topic.votes.map(v => (
                       <li key={v.voterId}>
-                        {v.voterName} — {CHOICES.find(c => c.value === v.choice)?.label}
+                        {v.voterName} — {choices(t).find(c => c.value === v.choice)?.label}
                       </li>
                     ))}
                   </ul>
@@ -470,10 +496,10 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
                 {meeting.iAmAttendee && voteOpen && !myVote && (
                   <div className="mt-3 space-y-1.5">
                     <p className="text-xs text-muted-foreground">
-                      Your vote is final once cast — it cannot be changed or withdrawn.
+                      {t('meet.voteFinal')}
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {CHOICES.map(c => (
+                      {choices(t).map(c => (
                         <Button key={c.value} size="sm"
                           variant={c.value === 'for' ? 'affirm' : 'outline'}
                           disabled={busy || isPending}
@@ -496,14 +522,14 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
 
                 {myVote && (
                   <p className="mt-3 text-xs font-medium text-brand-on-soft">
-                    You voted {CHOICES.find(c => c.value === myVote.choice)?.label.toLowerCase()}.
+                    You voted {choices(t).find(c => c.value === myVote.choice)?.label.toLowerCase()}.
                     That cannot be changed.
                   </p>
                 )}
 
                 {!meeting.iAmAttendee && voteOpen && (
                   <p className="mt-3 text-xs text-muted-foreground">
-                    Only people on the attendee list can vote in this meeting.
+                    {t('meet.onlyAttendees')}
                   </p>
                 )}
               </>

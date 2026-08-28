@@ -12,6 +12,7 @@ import {
 } from '@/app/actions/elections'
 import { formatDate } from '@/lib/date-utils'
 import { nominationsOpen, votingOpen } from '@/lib/election-phase'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The member's ballot.
@@ -61,6 +62,8 @@ interface Props {
 export function BallotForm({
   election, positions, nominations, myVotes, nominees, myPersonId, myNominations,
 }: Props) {
+  const intl = useIntlTag()
+  const t = useT()
   const confirm = useConfirm()
   const [votes, setVotes] = useState<Record<string, string>>(myVotes)
   const [error, setError] = useState('')
@@ -75,16 +78,16 @@ export function BallotForm({
     const nominee = nominations.find(n => n.position_id === positionId && n.nominee_id === nomineePersonId)
     const alreadyVoted = !!votes[positionId]
     const ok = await confirm({
-      title: alreadyVoted ? 'Change your vote' : 'Cast your vote',
-      description: `${alreadyVoted ? 'Change your vote' : 'Vote'} for ${nominee?.nominee_name ?? 'this nominee'} as ${position?.title ?? 'this position'}?`,
-      confirmLabel: alreadyVoted ? 'Change vote' : 'Cast vote',
+      title: alreadyVoted ? t('elec.changeYourVote') : t('elec.castYourVoteAction'),
+      description: `${alreadyVoted ? t('elec.changeYourVote') : 'Vote'} for ${nominee?.nominee_name ?? 'this nominee'} as ${position?.title ?? 'this position'}?`,
+      confirmLabel: alreadyVoted ? t('elec.changeVote') : t('elec.castVote'),
     })
     if (!ok) return
     setVotes(prev => ({ ...prev, [positionId]: nomineePersonId }))
     startTransition(async () => {
       const result = await castVote(election.id, positionId, nomineePersonId)
       if (!result.success) {
-        setError(result.message ?? 'Vote failed')
+        setError(result.message ?? t('elec.voteFailed'))
         // The optimistic marker is rolled back, because the refusal here is not always
         // transient: the window may have closed since this page was rendered, and leaving the
         // radio filled in would tell a member their vote stands when the database refused it.
@@ -102,15 +105,15 @@ export function BallotForm({
     const nomination = myNominations.find(n => n.id === nominationId)
     const position = positions.find(p => p.id === nomination?.position_id)
     const ok = await confirm({
-      title: accepted ? 'Accept nomination' : 'Decline nomination',
-      description: `${accepted ? 'Accept' : 'Decline'} the nomination for ${position?.title ?? 'this position'}? This cannot be changed.`,
-      confirmLabel: accepted ? 'Accept' : 'Decline',
+      title: accepted ? t('elec.acceptNomination') : t('elec.declineNomination'),
+      description: `${accepted ? t('elec.accept') : t('elec.decline')} the nomination for ${position?.title ?? 'this position'}? This cannot be changed.`,
+      confirmLabel: accepted ? t('elec.accept') : t('elec.decline'),
       destructive: !accepted,
     })
     if (!ok) return
     startTransition(async () => {
       const result = await respondToNomination(nominationId, accepted, election.id)
-      if (!result.success) setError(result.message ?? 'Could not record your answer.')
+      if (!result.success) setError(result.message ?? t('elec.answerFailed'))
     })
   }
 
@@ -123,14 +126,14 @@ export function BallotForm({
           self-expression is what keeps their own row reachable. */}
       {pendingMyNominations.length > 0 && (
         <div className="rounded-xl border border-brand-legacy/50 bg-brand-soft p-4 space-y-3">
-          <p className="text-sm font-medium text-brand-on-soft">You have been nominated!</p>
+          <p className="text-sm font-medium text-brand-on-soft">{t('elec.nominated')}</p>
           {pendingMyNominations.map(nom => {
             const pos = positions.find(p => p.id === nom.position_id)
             return (
               <div key={nom.id} className="flex items-center gap-3">
-                <p className="flex-1 text-sm">{pos?.title ?? 'Position'}</p>
-                <Button size="sm" onClick={() => handleRespond(nom.id, true)}>Accept</Button>
-                <Button size="sm" variant="outline" onClick={() => handleRespond(nom.id, false)}>Decline</Button>
+                <p className="flex-1 text-sm">{pos?.title ?? t('elec.position')}</p>
+                <Button size="sm" onClick={() => handleRespond(nom.id, true)}>{t('elec.accept')}</Button>
+                <Button size="sm" variant="outline" onClick={() => handleRespond(nom.id, false)}>{t('elec.decline')}</Button>
               </div>
             )
           })}
@@ -157,7 +160,7 @@ export function BallotForm({
       {canVote && (
         <div className="space-y-6">
           <h2 className="font-semibold flex items-center gap-2">
-            <Vote className="h-5 w-5 text-primary" /> Cast Your Vote
+            <Vote className="h-5 w-5 text-primary" /> {t('elec.castYourVote')}
           </h2>
           <FormError message={error} />
           {positions.map(pos => {
@@ -167,7 +170,7 @@ export function BallotForm({
               <div key={pos.id} className="space-y-3">
                 <h3 className="font-medium">{pos.title}</h3>
                 {posNoms.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No candidates for this position.</p>
+                  <p className="text-sm text-muted-foreground">{t('elec.noCandidates')}</p>
                 ) : (
                   <div className="space-y-2">
                     {posNoms.map(nom => (
@@ -196,9 +199,9 @@ export function BallotForm({
           early wants the date, and one who arrives late wants to know they did. */}
       {election.phase === 'scheduled' && (
         <div className="rounded-xl border bg-muted/30 p-4 text-center">
-          <p className="text-sm text-muted-foreground">Nominations have not opened yet.</p>
+          <p className="text-sm text-muted-foreground">{t('elec.nominationsNotOpen')}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            They open {formatDate(election.nominations_open_on)}.
+            They open {formatDate(election.nominations_open_on, intl)}.
           </p>
         </div>
       )}
@@ -206,10 +209,10 @@ export function BallotForm({
       {election.phase === 'between' && (
         <div className="rounded-xl border bg-muted/30 p-4 text-center">
           <p className="text-sm text-muted-foreground">
-            Nominations closed on {formatDate(election.nominations_close_on)}.
+            Nominations closed on {formatDate(election.nominations_close_on, intl)}.
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Voting opens {formatDate(election.voting_open_on)}.
+            Voting opens {formatDate(election.voting_open_on, intl)}.
           </p>
         </div>
       )}
@@ -217,14 +220,14 @@ export function BallotForm({
       {election.phase === 'closed' && (
         <div className="rounded-xl border bg-muted/30 p-4 text-center">
           <p className="text-sm text-muted-foreground">
-            Voting closed on {formatDate(election.voting_close_on)}.
+            Voting closed on {formatDate(election.voting_close_on, intl)}.
           </p>
         </div>
       )}
 
       {election.phase === 'draft' && (
         <div className="rounded-xl border bg-muted/30 p-4 text-center">
-          <p className="text-sm text-muted-foreground">This election has not been published yet.</p>
+          <p className="text-sm text-muted-foreground">{t('elec.notPublished')}</p>
         </div>
       )}
     </div>

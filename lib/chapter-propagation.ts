@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { minorCutoff } from '@/lib/age-utils'
-import { todayLocal } from '@/lib/date-utils'
+import { resolveFamilyZone } from '@/lib/auth/zone'
+import { todayIn } from '@/lib/tz'
 
 /*
  * NO `import 'server-only'`, and that is deliberate rather than an omission. Nothing in this
@@ -185,11 +186,16 @@ export async function propagateChapterToChildren(
     // adult child sets their own whether they have one or not.
     .is('user_id', null)
     // UNDER EIGHTEEN, as one filter rather than a sieve in TypeScript — and NULL is excluded
-    // by the comparison itself, which is the same answer `computeIsMinor` gives for a birthday
-    // nobody has recorded. `todayLocal()` is read here rather than taken as a parameter
-    // because this function already reaches the network and is not the pure module §7b is
-    // about; the arithmetic that IS testable lives in `minorCutoff`.
-    .gt('date_of_birth', minorCutoff(todayLocal()))
+    // by the comparison itself, which is the same answer `isMinorOn` gives for a birthday
+    // nobody has recorded.
+    //
+    // ── THE FAMILY'S ZONE, AND IT USED TO BE `todayLocal()` ─────────────────────────
+    // This function already reaches the network, so it is not the pure module §7b is about and
+    // reading a clock here is fine — what was wrong was WHICH clock. `todayLocal()` on the
+    // server is UTC, which rolls over at 7pm Central, so for the last five hours of every day
+    // this stopped carrying a child five hours before their eighteenth birthday in the
+    // family's own zone. The arithmetic that IS testable still lives in `minorCutoff`.
+    .gt('date_of_birth', minorCutoff(todayIn(await resolveFamilyZone(familyCode))))
     .select('id')
   if (error) return { moved: 0, error: error.message }
 

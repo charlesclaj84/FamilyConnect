@@ -5,8 +5,9 @@ import { ClipboardCheck, PartyPopper } from 'lucide-react'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 import { GatheringsClient, type GatheringRow } from '@/components/gatherings/GatheringsClient'
 import { MyTasksClient } from '@/components/gatherings/MyTasksClient'
-import { GATHERING_PANE_LEDE, type GatheringPane } from '@/lib/gathering-panes'
+import { type GatheringPane } from '@/lib/gathering-panes'
 import type { MyTaskRow } from '@/app/actions/gatherings'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * THE `/gatherings` RAIL — the family's gatherings, and the caller's own share of them.
@@ -53,6 +54,8 @@ import type { MyTaskRow } from '@/app/actions/gatherings'
 interface Props {
   /** Resolved on the server from `?pane=`, so the first paint is already the right pane. */
   initialPane: GatheringPane
+  /** The scheduler's own timezone — the default for a new gathering's times. */
+  zone: string
   /** `gatherings:view`. False means the list was not fetched at all, not merely hidden. */
   mayViewGatherings: boolean
   /** `gatherings/my-tasks:view`. Same standing: false means the tasks were never read. */
@@ -76,9 +79,10 @@ interface Props {
 
 export function GatheringsShell({
   initialPane, mayViewGatherings, mayViewMyTasks,
-  upcoming, past, mayCreate, templates, mayAuthorTemplates,
+  upcoming, past, mayCreate, templates, mayAuthorTemplates, zone,
   tasks, today,
 }: Props) {
+  const t = useT()
   const [pane, setPane] = useState<GatheringPane>(initialPane)
 
   function selectPane(next: GatheringPane) {
@@ -99,13 +103,13 @@ export function GatheringsShell({
   const items: MainRailItem<GatheringPane>[] = [
     ...(mayViewGatherings ? [{
       id: 'gatherings' as const,
-      label: 'Gatherings',
+      label: t('gath.pane.gatherings'),
       icon: PartyPopper,
       href: '/gatherings',
     }] : []),
     ...(mayViewMyTasks ? [{
       id: 'my-tasks' as const,
-      label: waiting > 0 ? `My Tasks (${waiting})` : 'My Tasks',
+      label: waiting > 0 ? `My Tasks (${waiting})` : t('gath.pane.myTasks'),
       icon: ClipboardCheck,
       href: '/gatherings?pane=my-tasks',
     }] : []),
@@ -114,13 +118,11 @@ export function GatheringsShell({
   return (
     <div className="space-y-5">
       <MainRail
-        label="Gathering areas"
+        label={t('gath.rail')}
         items={items}
         active={pane}
         onSelect={selectPane}
       />
-
-      <p className="text-muted-foreground">{GATHERING_PANE_LEDE[pane]}</p>
 
       {/* Both conjuncts are kept: the page falls back to a pane the caller can see, so the
           second should never decide anything — which is exactly why it is written down. A
@@ -132,6 +134,7 @@ export function GatheringsShell({
           past={past}
           mayCreate={mayCreate}
           templates={templates}
+          zone={zone}
           mayAuthorTemplates={mayAuthorTemplates}
         />
       )}

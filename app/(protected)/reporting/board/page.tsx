@@ -1,13 +1,14 @@
 import { notFound, redirect } from 'next/navigation'
 import { ShieldCheck } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import { getBoardReport } from '@/app/actions/activity-reports'
 import { cn } from '@/lib/utils'
-import { POSITION_CATEGORY_LABELS } from '@/lib/board-positions'
+import { positionCategoryLabel } from '@/lib/board-positions'
 import { PageShell } from '@/components/layout/PageShell'
 import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Board & Offices Report' }
 
@@ -31,11 +32,12 @@ export const metadata = { title: 'Board & Offices Report' }
  * filled offices would be a report that cannot state its most useful fact.
  */
 export default async function BoardReportPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'reporting/board')
+
+  const { t } = await callerI18n(user.id)
   if (!(await canAny(user.id, 'reporting/board', 'view'))) notFound()
 
   const report = await getBoardReport()
@@ -46,10 +48,7 @@ export default async function BoardReportPage() {
   return (
     <PageShell className="space-y-8">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Board &amp; Offices</h1>
-        <p className="text-muted-foreground">
-          Every office the family has defined, who holds it, and which ones are standing empty.
-        </p>
+        <h1 className="text-3xl font-bold">{t('page./reporting/board.title')}</h1>
       </div>
 
       <ReportStats stats={[
@@ -67,7 +66,7 @@ export default async function BoardReportPage() {
           tone: totals.vacant > 0 ? 'withheld' : 'plain',
         },
         {
-          label: 'Wearing two hats',
+          label: t('rep.wearingTwoHats'),
           value: multiHolders.length,
           hint: 'holding more than one office',
           tone: multiHolders.length > 0 ? 'withheld' : 'plain',
@@ -83,24 +82,20 @@ export default async function BoardReportPage() {
       ) : (
         <>
           <section className="space-y-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Every office
-            </h2>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('rep.everyOffice')}</h2>
             {/* THE ORDER IS THE FAMILY'S OWN `sort_order`, not vacancies first. An
                 administrator reading this is matching it against the board list they already
                 know; re-ordering by finding would make the two impossible to read side by
                 side. The COLOUR is what makes a vacancy findable. */}
             <div className="overflow-hidden rounded-xl border">
               <table className="w-full border-collapse text-sm">
-                <caption className="sr-only">
-                  Every board position in the family&rsquo;s own order, with who holds it.
-                </caption>
+                <caption className="sr-only">{t('rep.everyBoardPositionFamily')}</caption>
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <th scope="col" className="px-3 py-2">Office</th>
                     <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Level</th>
                     <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Kind</th>
-                    <th scope="col" className="px-3 py-2">Held by</th>
+                    <th scope="col" className="px-3 py-2">{t('rep.held')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -112,12 +107,12 @@ export default async function BoardReportPage() {
                         <RowMeta>
                           <span>{row.scopeLabel}</span>
                           <MetaDot />
-                          <span>{POSITION_CATEGORY_LABELS[row.category]}</span>
+                          <span>{positionCategoryLabel(t, row.category)}</span>
                         </RowMeta>
                       </td>
                       <td className={cn('px-3 py-2', COLLAPSING_CELL)}>{row.scopeLabel}</td>
                       <td className={cn('px-3 py-2', COLLAPSING_CELL)}>
-                        {POSITION_CATEGORY_LABELS[row.category]}
+                        {positionCategoryLabel(t, row.category)}
                       </td>
                       <td className="px-3 py-2">
                         {row.holders.length === 0 ? (
@@ -146,9 +141,7 @@ export default async function BoardReportPage() {
               broken rather than as a finding the family does not have. */}
           {multiHolders.length > 0 && (
             <section className="space-y-2">
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-                Holding more than one office
-              </h2>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">{t('rep.holdingMoreThanOne')}</h2>
               <ul className="divide-y rounded-xl border">
                 {multiHolders.map(person => (
                   <li key={person.personId} className="px-3 py-2">
@@ -159,10 +152,7 @@ export default async function BoardReportPage() {
                   </li>
                 ))}
               </ul>
-              <p className="text-xs text-muted-foreground">
-                Not a problem in itself — a small chapter often has one person doing two jobs.
-                It is here because it is usually the sign of a gap somebody has quietly covered.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('rep.notProblemItselfSmall')}</p>
             </section>
           )}
         </>

@@ -1,11 +1,12 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import { getDuesProjection } from '@/app/actions/dues'
 import { PageShell } from '@/components/layout/PageShell'
 import {
   DuesProjectionsClient, ProjectionsLegend,
 } from '@/components/dues/DuesProjectionsClient'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Dues Projections' }
 
@@ -41,11 +42,12 @@ export const metadata = { title: 'Dues Projections' }
  * page is fetched and then hidden.
  */
 export default async function DuesProjectionsPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'reporting/dues-projections')
+
+  const { t } = await callerI18n(user.id)
   if (!(await canAny(user.id, 'reporting/dues-projections', 'view'))) notFound()
 
   const result = await getDuesProjection()
@@ -57,11 +59,7 @@ export default async function DuesProjectionsPage() {
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Dues Projections</h1>
-        <p className="text-muted-foreground">
-          What the family is owed this year, what has been collected against it, and which
-          members still have something outstanding.
-        </p>
+        <h1 className="text-3xl font-bold">{t('page./reporting/dues-projections.title')}</h1>
       </div>
 
       <ProjectionsLegend />

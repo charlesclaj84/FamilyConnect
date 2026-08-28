@@ -9,6 +9,9 @@ import { getMyFamilyCode, getMyFamilies } from '@/lib/auth/family'
 import { createNotification } from '@/lib/notifications'
 import { sendEmail, emailOrigin } from '@/lib/email/send'
 import { membershipApprovedEmail } from '@/lib/email/templates'
+import { storedLocale } from '@/lib/i18n/locales'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Member Approvals: review, admit or refuse the people who have asked to join.
@@ -224,8 +227,7 @@ export interface PendingQueue {
 }
 
 export async function getPendingApprovalQueues(): Promise<PendingQueue[]> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return []
 
   const [families, scopes] = await Promise.all([
@@ -282,14 +284,15 @@ async function decide(
   note?: string,
 ): Promise<ApprovalResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   // The friendly layer. canAny and not can(): admitting a stranger to the family has
   // no coherent "own" version — the row a member would own is their own application,
   // and self-approval is the abuse case the RPC also refuses outright.
   if (!(await canAny(user.id, 'admin/members/approvals', 'edit'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   // USER client. See the header.
@@ -301,7 +304,7 @@ async function decide(
     })
     .maybeSingle<{ ok: boolean; message: string | null }>()
 
-  if (error) return { success: false, message: 'Could not record that decision. Please try again.' }
+  if (error) return { success: false, message: t('act.couldNotRecordDecisionPlease') }
   if (!data?.ok) return { success: false, message: data?.message ?? 'Not authorized' }
 
   // Tell the applicant. Their own notification, in the family they applied to — the
@@ -350,7 +353,7 @@ async function decide(
       // true of the query rather than merely true of the argument.
       const { data: person } = await admin
         .from('people')
-        .select('first_name, user_id')
+        .select('first_name, user_id, locale')
         .eq('family_code', familyCode)
         .eq('id', personId)
         .maybeSingle()
@@ -376,6 +379,12 @@ async function decide(
           origin: emailOrigin(),
           firstName: (person?.first_name as string) ?? '',
           familyName: (family?.family_name as string) ?? familyCode,
+          // THE APPLICANT'S OWN CHOICE, off the row already read above — never
+          // `resolveLocale`, which would fall through to the APPROVER's `Accept-Language`
+          // and mail a Spanish-speaking applicant in the administrator's language. A
+          // pending member can set this on My Profile while they wait, so it is real
+          // evidence rather than a column nobody has touched.
+          locale: storedLocale(person?.locale as string | null),
         })
         await sendEmail({ to: authEmail, subject: mail.subject, html: mail.html, tag: mail.tag })
       }

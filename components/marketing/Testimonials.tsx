@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { Quote, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Reveal } from '@/components/marketing/Reveal'
+import { useMarketingLocale, useMarketingT } from '@/components/marketing/MarketingLocale'
+import { BASE_LOCALE } from '@/lib/i18n/locales'
 import {
   TESTIMONIALS, TESTIMONIAL_DISPLAY_LIMIT, shuffleSeeded,
 } from '@/lib/testimonials'
@@ -376,12 +378,22 @@ const getMotion = () => window.matchMedia(REDUCED_MOTION).matches
 const getMotionOnServer = () => false
 
 export function Testimonials({
-  heading = 'Families do not go back',
+  heading,
   lede,
 }: {
+  /**
+   * The section heading. Each page passes its own; the default is resolved from the
+   * catalogue INSIDE the component rather than in this parameter list, because a default
+   * cannot call a hook. See `headingText` below.
+   */
   heading?: string
   lede?: string
 }) {
+  const locale = useMarketingLocale()
+  const t = useMarketingT()
+  // English readers are told nothing, because for them there is nothing to tell — the
+  // quotes are already in their language. See the note beside where this renders.
+  const verbatim = locale === BASE_LOCALE ? null : t('mkt.quotes.verbatim')
   const seed = useSyncExternalStore(subscribeSeed, getClientSeed, getServerSeed)
   const reducedMotion = useSyncExternalStore(subscribeMotion, getMotion, getMotionOnServer)
 
@@ -638,12 +650,26 @@ export function Testimonials({
         <Reveal>
           <div className="max-w-2xl">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-accent">
-              In their words
+              {t('mkt.quotes.eyebrow')}
             </p>
             <h2 id="testimonials-heading" className="mt-3 text-3xl sm:text-4xl">
-              {heading}
+              {heading ?? t('mkt.quotes.heading')}
             </h2>
             {lede && <p className="mt-4 text-lg text-muted-foreground">{lede}</p>}
+            {/* ── WHY THE QUOTES BELOW ARE IN ENGLISH ────────────────────────────────
+                Shown only to a reader who is not reading English, because that is the only
+                reader for whom it is information. See rule 4 in lib/testimonials.ts: a
+                translated testimonial is a sentence the family never approved, so these stay
+                verbatim — and an English paragraph sitting unexplained in a Spanish page
+                reads as a bug rather than as a decision.
+
+                It is `text-sm text-muted-foreground` rather than a notice or a badge. This is
+                a footnote about provenance, not a warning, and dressing it as one would make
+                the quotes look doubtful — which is the opposite of what leaving them
+                untouched is protecting. */}
+            {verbatim && (
+              <p className="mt-3 text-sm text-muted-foreground">{verbatim}</p>
+            )}
           </div>
         </Reveal>
       </div>
@@ -678,7 +704,7 @@ export function Testimonials({
           ref={rail}
           tabIndex={0}
           role="group"
-          aria-label="Quotes from families, scrollable"
+          aria-label={t('mkt.quotes.railLabel')}
           className="flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-pl-6 scroll-smooth pt-2 pr-4 pb-8 pl-6 sm:px-6 motion-reduce:scroll-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         >
           {/* `pt-2 pb-8` above is for the current card's shadow, which the scroll container
@@ -769,7 +795,7 @@ export function Testimonials({
           onClick={() => { setStopped(true); nudge(-1) }}
           style={{ left: 'var(--arrow-prev, 1.5rem)', top: 'var(--arrow-y, 50%)' }}
           className="absolute z-10 inline-flex size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-card text-foreground shadow-[var(--shadow-card)] transition-colors hover:bg-muted sm:size-10"
-          aria-label="Previous quote"
+          aria-label={t('mkt.quotes.prev')}
         >
           <ChevronLeft className="h-5 w-5" aria-hidden="true" />
         </button>
@@ -778,7 +804,7 @@ export function Testimonials({
           onClick={() => { setStopped(true); nudge(1) }}
           style={{ left: 'var(--arrow-next, calc(100% - 1.5rem))', top: 'var(--arrow-y, 50%)' }}
           className="absolute z-10 inline-flex size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-card text-foreground shadow-[var(--shadow-card)] transition-colors hover:bg-muted sm:size-10"
-          aria-label="Next quote"
+          aria-label={t('mkt.quotes.next')}
         >
           <ChevronRight className="h-5 w-5" aria-hidden="true" />
         </button>

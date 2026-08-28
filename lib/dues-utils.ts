@@ -1,3 +1,5 @@
+import type { T } from '@/lib/i18n/t'
+
 // Single source of truth for dues cadence math, shared by the server action and
 // the client so they always compute identical installment amounts / dates.
 //
@@ -36,10 +38,23 @@ export type ScheduleKind = 'dues' | 'donation'
  * is how an online payment will land — and a row in that state must read as something
  * rather than as a raw column value.
  */
-export const PAYMENT_STATUS_LABELS: Record<string, string> = {
-  paid: 'Paid',
-  waived: 'Waived',
-  pending: 'Pending',
+/**
+ * A payment status, in the reader's language.
+ *
+ * A FUNCTION TAKING `t` rather than a map — same shape as `channelLabel` and
+ * `profileSectionLabel`, and for the same reason: this module is pure arithmetic that
+ * `npm test` reaches without React, and the `T` import is type-only and erased.
+ *
+ * A status the database allows but this list does not name falls back to the raw column value,
+ * which is what the old map's `?? p.status` did at every call site. Kept here so there is one
+ * fallback rather than one per caller.
+ */
+export function paymentStatusLabel(t: T, status: string): string {
+  const key = `payStatus.${status}`
+  const label = t(key)
+  // `translate` answers the KEY for an unknown one, which is how this tells "no such status"
+  // from "translated to something". See lib/i18n/t.ts.
+  return label === key ? status : label
 }
 
 /** How many of the schedule's native period occur per year (for annualizing). */

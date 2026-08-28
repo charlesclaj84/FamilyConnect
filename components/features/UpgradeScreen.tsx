@@ -3,9 +3,10 @@ import { Lock, ArrowRight, Check, Crown } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { FEATURES } from '@/lib/features'
 import {
-  PLAN_ADDS, TIER_IS_SOLD, TIER_PRICE, formatPlanPrice,
+  planAdds, TIER_IS_SOLD, TIER_PRICE, formatPlanPrice,
 } from '@/lib/plans'
-import { TIER_LABEL, TIER_TAGLINE, tierMeets, type FamilyTier } from '@/lib/tiers'
+import { TIER_LABEL, tierTagline, tierMeets, type FamilyTier } from '@/lib/tiers'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Served in place of a page the family's PLAN does not include.
@@ -27,16 +28,21 @@ import { TIER_LABEL, TIER_TAGLINE, tierMeets, type FamilyTier } from '@/lib/tier
  * is the real figure and the same one `/pricing` renders, so this screen is quoting rather
  * than guessing — which is what makes it safe on a page a member reads as authoritative.
  *
- * And it says in the same breath that nothing can be bought yet (`TIER_IS_SOLD`). This is
- * the screen where that matters most: it is the one place in the product where somebody
- * WANTED a feature and was refused, so it is the one place a price with no way to pay would
- * read as a broken checkout rather than as information.
+ * And it says in the same breath whether the plan can be bought at all (`TIER_IS_SOLD`).
+ * This is the screen where that matters most: it is the one place in the product where
+ * somebody WANTED a feature and was refused, so it is the one place a price with no way to
+ * pay would read as a broken checkout rather than as information.
+ *
+ * SINCE 2026-08-23 THAT CLAUSE IS USUALLY ABSENT, because Standard and Plus went on sale and
+ * the sentence is derived rather than typed — which is the whole reason this needed no edit
+ * when they did. It still appears for Premium, and it is what stops "Change your plan" below
+ * reading as a checkout for a plan nothing can charge for.
  *
  * ── IT NO LONGER LINKS TO `/pricing`, since 2026-08-13 ──────────────────────────────
  * That link took a signed-in member out of the Dashboard and onto Home, where the answer
  * to "what is on this plan?" is wrapped in a hero, a testimonial carousel and a button
  * offering to create the account they are already using. The answer is now on this screen:
- * `PLAN_ADDS` from `lib/plans.ts` says what the plan includes, in the product's own words.
+ * `planAdds` from `lib/plans.ts` says what the plan includes, in the product's own words.
  *
  * `settingsHref` is the one way OUT of here, and it is null for most people on purpose —
  * see the prop.
@@ -45,12 +51,16 @@ import { TIER_LABEL, TIER_TAGLINE, tierMeets, type FamilyTier } from '@/lib/tier
  * The "also on this plan" rows come from the registry, filtered to what is both live and
  * on the required tier — so a feature that ships, or one that moves between tiers, is
  * described correctly here without anybody remembering this file exists. That is a
- * different list from `PLAN_ADDS` and both belong: one is the ROUTES this family would
+ * different list from `planAdds` and both belong: one is the ROUTES this family would
  * gain today, the other is what the plan is sold as.
  */
 export function UpgradeScreen({
-  label, blurb, currentTier, requiredTier: required, settingsHref,
+  label, blurb, currentTier, requiredTier: required, settingsHref, t, intl,
 }: {
+  /** The reader's language, bound. A prop — this is a Server Component. */
+  t: T
+  /** The reader's `Intl` tag, for the price. Threaded beside `t` for the same reason. */
+  intl: string
   label: string
   blurb: string
   currentTier: FamilyTier
@@ -94,14 +104,27 @@ export function UpgradeScreen({
       <h1 className="mb-2 text-xl font-semibold sm:text-2xl">{label}</h1>
       <p className="mb-2 text-sm text-muted-foreground">{blurb}</p>
       <p className="mb-8 text-sm text-muted-foreground">
-        Your family is on <span className="font-medium text-foreground">{TIER_LABEL[currentTier]}</span>.
-        {' '}{TIER_LABEL[required]} is for families who need more: {TIER_TAGLINE[required].toLowerCase()}
+        {t('upg.familyIsOn')} <span className="font-medium text-foreground">{TIER_LABEL[currentTier]}</span>.
+        {' '}
+        {/* ── `.toLowerCase()` IS GONE, AND THAT IS THE POINT ────────────────────────
+            The tagline was lowercased so it would read as a clause mid-sentence. That is an
+            English typographic move and it does not travel: a Spanish or French tagline can
+            open on a proper noun, and lowercasing it there produces *genorra* or a lowered
+            place name in the middle of a sentence nobody can correct from here.
+
+            So the whole sentence is one catalogue entry with the tagline interpolated, and
+            each language writes the join it needs — including, if it wants, a colon and a
+            capital. */}
+        {t('upg.forFamilies', {
+          tier: TIER_LABEL[required],
+          tagline: tierTagline(t, required),
+        })}
       </p>
 
       {alsoIncluded.length > 0 && (
         <div className="mb-6 rounded-2xl border bg-card px-4 py-5 text-left shadow-[var(--shadow-card)]">
           <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Also on {TIER_LABEL[required]}
+            {t('upg.alsoOn', { tier: TIER_LABEL[required] })}
           </p>
           <ul className="flex flex-col gap-1">
             {alsoIncluded.map(feature => (
@@ -126,10 +149,10 @@ export function UpgradeScreen({
           leaves the product to read it. */}
       <div className="mb-8 rounded-2xl border bg-card px-4 py-5 text-left shadow-[var(--shadow-card)]">
         <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          What {TIER_LABEL[required]} includes
+          {t('upg.whatIncludes', { tier: TIER_LABEL[required] })}
         </p>
         <ul className="flex flex-col gap-2.5">
-          {PLAN_ADDS[required].map(item => (
+          {planAdds(t, required).map(item => (
             <li key={item.label} className="flex items-start gap-2 text-sm">
               <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-affirm" aria-hidden="true" />
               <span>
@@ -156,7 +179,7 @@ export function UpgradeScreen({
         {price && (
           <p className="mt-2 text-xs text-muted-foreground">
             <span className="font-medium text-foreground">
-              {formatPlanPrice(price.monthlyCents)} a month
+              {t('bill.perMonth', { amount: formatPlanPrice(price.monthlyCents, intl) })}
             </span>
             . No annual plan, no contract.
             {!TIER_IS_SOLD[required] && ' Not on sale yet; nothing is billed today.'}
@@ -167,20 +190,20 @@ export function UpgradeScreen({
       <div className="flex flex-wrap justify-center gap-2">
         {settingsHref && (
           <Link href={settingsHref} className={buttonVariants() + ' justify-center'}>
-            Change your plan
+            {t('upg.changePlan')}
           </Link>
         )}
         <Link
           href="/dashboard"
           className={buttonVariants({ variant: settingsHref ? 'outline' : 'default' }) + ' justify-center'}
         >
-          Back to dashboard
+          {t('soon.back')}
         </Link>
       </div>
 
       {!settingsHref && (
         <p className="mt-4 text-sm text-muted-foreground">
-          Ask one of your family&rsquo;s administrators to change the plan.
+          {t('upg.askAdmin')}
         </p>
       )}
     </div>

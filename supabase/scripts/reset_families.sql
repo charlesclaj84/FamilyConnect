@@ -303,7 +303,7 @@ BEGIN
   DELETE FROM family_invitations;
   DELETE FROM person_relationships;
   -- ADDED 2026-08-22, and it was the LAST table §11 was reporting once §6b and §6c landed.
-  -- `family_removal_challenges` (20260817000006) is keyed on `family_code` with no foreign key
+  -- `family_action_challenges` (20260817000006, renamed 20260825000000) is keyed on `family_code` with no foreign key
   -- to `families`, and its `requested_by` is ON DELETE SET NULL — so nothing above removes it
   -- and nothing ever would have. `tests/rls/seed.mjs` lists it in its own reset sweep with the
   -- same observation, which is where the shape was borrowed from.
@@ -311,7 +311,7 @@ BEGIN
   -- DELETED RATHER THAN KEPT, and it is not a close call: a row here is a 15-minute one-shot
   -- hash for a removal somebody started before the reset. Keeping it would leave a live
   -- challenge against a family whose members have just been deleted.
-  DELETE FROM family_removal_challenges;
+  DELETE FROM family_action_challenges;
   -- `family_role_exclusions` WAS DELETED HERE and the table is gone: it recorded
   -- which of the 25 built-in board positions a family did not use, and
   -- 20260819000004 retired the built-ins along with the table.

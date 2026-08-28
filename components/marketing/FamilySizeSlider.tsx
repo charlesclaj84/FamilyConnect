@@ -2,6 +2,9 @@
 
 import { useState } from 'react'
 import { Users } from 'lucide-react'
+import { useMarketingIntl, useMarketingT } from '@/components/marketing/MarketingLocale'
+import { formatCurrency } from '@/lib/currency-utils'
+import { type T } from '@/lib/i18n/t'
 import { cn } from '@/lib/utils'
 
 /**
@@ -60,16 +63,40 @@ export interface SizedPlan {
  * bottoms out at "under 1¢" rather than at "0¢": a rounded zero would be a claim
  * that the plan is free at that size, which is a different offer from the one on
  * the cards above.
+ *
+ * ── THE CENT SIGN IS A US CONVENTION, SO THE SUB-DOLLAR CASE OFFERS BOTH FORMS ──────
+ * "nothing" and "under 1¢" are words and are keyed. The interesting one is "4¢": the sign
+ * itself does not travel — Spanish and French write a fraction of a currency unit as a decimal
+ * with the symbol after the number — and neither does the CHOICE to use it, which is the whole
+ * argument of the paragraph above.
+ *
+ * So `mkt.slider.cents` is handed BOTH a whole number of cents and a properly formatted
+ * currency string, and each language uses the one it wants: English takes `{n}¢`, Spanish and
+ * French take `{amount}`. That is why the key has two placeholders where one would have done —
+ * a single `{n}` forced every language into the cent-sign shape, and a single `{amount}` would
+ * have taken the fast-reading form away from the language the argument was written for.
+ *
+ * The DOLLAR branch is `formatCurrency` too, and that is a fix rather than a tidy-up: it was
+ * ``$${(each / 100).toFixed(2)}`` — a hard-coded dollar sign in front of an English decimal
+ * point, which is the shape `i18n:check`'s PINNED-FORMATTER count exists to drive to zero.
  */
-function perRelative(monthlyCents: number | null, members: number): string {
-  if (monthlyCents === null) return 'nothing'
+function perRelative(
+  t: T,
+  intl: string,
+  monthlyCents: number | null,
+  members: number,
+): string {
+  if (monthlyCents === null) return t('mkt.slider.nothing')
   const each = monthlyCents / members
-  if (each < 1) return 'under 1¢'
-  if (each < 100) return `${Math.round(each)}¢`
-  return `$${(each / 100).toFixed(2)}`
+  if (each < 1) return t('mkt.slider.underCent')
+  const amount = formatCurrency(Math.round(each), intl) ?? ''
+  if (each < 100) return t('mkt.slider.cents', { n: Math.round(each), amount })
+  return amount
 }
 
 export function FamilySizeSlider({ plans }: { plans: readonly SizedPlan[] }) {
+  const t = useMarketingT()
+  const intl = useMarketingIntl()
   const [members, setMembers] = useState(DEFAULT_MEMBERS)
   const fill = ((members - MIN_MEMBERS) / (MAX_MEMBERS - MIN_MEMBERS)) * 100
 
@@ -86,13 +113,18 @@ export function FamilySizeSlider({ plans }: { plans: readonly SizedPlan[] }) {
         <div className="lg:self-center">
           <div className="flex items-baseline gap-3">
             <span className="text-5xl font-semibold text-brand-ink sm:text-6xl">{members}</span>
+            {/* ONE KEY PER CASE, not a word plus an appended clause. "relatives or more" is
+                English word order; Spanish and French both put the qualifier elsewhere, and a
+                language could need a different noun form for the capped case. */}
             <span className="text-lg text-muted-foreground">
-              relatives{members === MAX_MEMBERS && ' or more'}
+              {members === MAX_MEMBERS
+                ? t('mkt.slider.relativesOrMore')
+                : t('mkt.slider.relatives')}
             </span>
           </div>
 
           <label htmlFor="family-size" className="mt-6 block text-sm font-medium">
-            Drag it to the size of your family
+            {t('mkt.slider.dragLabel')}
           </label>
           <input
             id="family-size"
@@ -102,7 +134,7 @@ export function FamilySizeSlider({ plans }: { plans: readonly SizedPlan[] }) {
             step={STEP}
             value={members}
             onChange={e => setMembers(Number(e.target.value))}
-            aria-valuetext={`${members} relatives`}
+            aria-valuetext={t('mkt.slider.valueText', { n: members })}
             // A percentage, never a colour — the fill's two tones are in globals.css
             // with the rest of the ramp. See `.gn-range` there.
             style={{ '--gn-range-fill': `${fill}%` } as React.CSSProperties}
@@ -150,7 +182,7 @@ export function FamilySizeSlider({ plans }: { plans: readonly SizedPlan[] }) {
         <div className="lg:border-l lg:pl-10">
           <p className="flex items-center gap-2 text-sm font-semibold">
             <Users className="h-4 w-4 text-brand-accent" aria-hidden="true" />
-            Your bill, at {members} relatives
+            {t('mkt.slider.yourBill', { n: members })}
           </p>
 
           <dl className="mt-5 space-y-3">
@@ -163,7 +195,9 @@ export function FamilySizeSlider({ plans }: { plans: readonly SizedPlan[] }) {
                 <dd className="text-right">
                   <span className="block font-semibold text-brand-ink">{plan.amount}</span>
                   <span className="block text-xs text-muted-foreground">
-                    {perRelative(plan.monthlyCents, members)} each
+                    {t('mkt.slider.each', {
+                      amount: perRelative(t, intl, plan.monthlyCents, members),
+                    })}
                   </span>
                 </dd>
               </div>
@@ -171,9 +205,7 @@ export function FamilySizeSlider({ plans }: { plans: readonly SizedPlan[] }) {
           </dl>
 
           <p className="mt-5 text-sm leading-relaxed text-muted-foreground">
-            Move it as far as you like. The figures on the left never change — there is no
-            per-member charge on any plan, so the cousin you nearly left off the list costs
-            nothing to add.
+            {t('mkt.slider.foot')}
           </p>
         </div>
       </div>

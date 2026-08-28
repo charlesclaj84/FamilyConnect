@@ -552,6 +552,50 @@ inactivity_timeout = "168h"
 # nothing anywhere reporting it. If a timebox is ever wanted, pick a duration well over 24h.
 # timebox = "24h"
 
+# ─────────────────────────────────────────────────────────────────────────────────────
+# THE SEND EMAIL HOOK — the five auth emails, composed by us instead of by GoTrue
+#
+# With this ON, GoTrue renders and sends NOTHING itself. Every one of the five templates
+# below is bypassed and `app/api/auth/send-email/route.ts` composes the message instead,
+# from `lib/email/auth-mail.ts` and the email catalogue — which is what makes them readable
+# in Spanish and French. Measured against v2.195.0: with the hook enabled, a signup put
+# zero messages in Mailpit and one call on the endpoint.
+#
+# ── IT IS OFF BY DEFAULT, AND THAT IS ABOUT THE LOCAL STACK RATHER THAN CAUTION ──────
+# GoTrue calls the hook SYNCHRONOUSLY and a non-2xx rolls the whole operation back — a
+# failed hook on a signup leaves no `auth.users` row at all (measured; see the route). So
+# with this on, every local signup needs `npm run dev` answering on the port below, and
+# without it a developer poking `/auth/v1/signup` gets a 500 and a rollback that reads as a
+# database problem rather than as a missing process.
+#
+# `npm run auth-email:check` turns it on for you, walks all five flows against Mailpit, and
+# reports. That is the same arrangement `realtime:check` has: the thing that proves this
+# works needs the stack in a particular state, so it asks for that state rather than making
+# it the default.
+#
+# ── THE URI IS `host.docker.internal`, WHICH IS NOT A GUESS ─────────────────────────
+# GoTrue runs in a container and the Next dev server does not. Verified from inside
+# `supabase_auth_GENORRA`: a POST to `http://host.docker.internal:3199/…` reached a listener
+# on the host. Port 3000 is `npm run dev`'s default — a different one needs an edit here.
+#
+# ── AND `secrets` IS PLURAL ─────────────────────────────────────────────────────────
+# `secret` singular fails the CLI's own validation with
+# `Missing required field in config: auth.hook.send_email.secrets`, which is a clear error
+# and is easy to write wrong twice. The value is `v1,whsec_` + base64; the app reads the
+# same string from `SUPABASE_AUTH_HOOK_SECRET` and
+# `lib/auth/hook-signature.ts` derives the key from it.
+#
+# ── ON HOSTED THIS IS NOT SET FROM HERE ─────────────────────────────────────────────
+# `npm run email:push` sends only the ten mailer template fields, deliberately — see
+# `scripts/auth-templates.mjs`. Enabling the hook on the hosted project is an auth-config
+# change and a GO LIVE item, because a hook enabled before the endpoint is deployed stops
+# every auth email in the product. TODO.md carries the order it has to happen in.
+# ─────────────────────────────────────────────────────────────────────────────────────
+[auth.hook.send_email]
+enabled = false
+uri = "http://host.docker.internal:3000/api/auth/send-email"
+secrets = "env(SUPABASE_AUTH_HOOK_SECRET)"
+
 # This hook runs before a new user is created and allows developers to reject the request based on the incoming user object.
 # [auth.hook.before_user_created]
 # enabled = true

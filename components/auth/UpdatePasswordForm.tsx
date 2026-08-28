@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { FieldError, FormError } from '@/components/ui/form-message'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Set a new password, at the end of a recovery link.
@@ -32,25 +34,29 @@ import { FieldError, FormError } from '@/components/ui/form-message'
  * case is answered before any form appears rather than by a failed submit.
  */
 
-const schema = z.object({
+// A FACTORY, not a constant: the messages are copy and a schema built at module load
+// cannot reach the reader's catalogue. `FormData` is inferred from the RETURN type, so
+// the shape is still checked exactly as before.
+const schema = (t: T) => z.object({
   // 8, matching RegisterForm. config.toml's minimum_password_length is 6, so the server
   // would accept less — a UI stricter than the server is safe, the reverse is a rejection
   // the user cannot see coming. If that floor moves, move it in both places.
-  password: z.string().min(8, 'Password must be at least 8 characters'),
+  password: z.string().min(8, t('auth.tooShort')),
   confirmPassword: z.string(),
 }).refine(d => d.password === d.confirmPassword, {
-  message: 'Passwords do not match',
+  message: t('auth.noMatch'),
   path: ['confirmPassword'],
 })
 
-type FormData = z.infer<typeof schema>
+type FormData = z.infer<ReturnType<typeof schema>>
 
 export function UpdatePasswordForm() {
+  const t = useT()
   const router = useRouter()
   const [serverError, setServerError] = useState('')
 
   const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
-    resolver: zodResolver(schema),
+    resolver: zodResolver(schema(t)),
   })
 
   async function onSubmit(data: FormData) {
@@ -63,7 +69,7 @@ export function UpdatePasswordForm() {
       // submitting — say what to do rather than repeating GoTrue's wording.
       setServerError(
         error.message.toLowerCase().includes('session')
-          ? 'That reset link has expired. Request a new one and try again.'
+          ? t('auth.expiredLink')
           : error.message,
       )
       return
@@ -78,20 +84,17 @@ export function UpdatePasswordForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle as="h1" className="text-2xl">Choose a new password</CardTitle>
-        <CardDescription>
-          Pick something you have not used here before. You will be signed in as soon as
-          it is saved.
-        </CardDescription>
+        <CardTitle as="h1" className="text-2xl">{t('auth.chooseNew')}</CardTitle>
+        <CardDescription>{t('ui.pickSomethingNotUsed')}</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="password">New password</Label>
+            <Label htmlFor="password">{t('security.newPassword')}</Label>
             <Input
               id="password"
               type="password"
-              placeholder="Min. 8 characters"
+              placeholder={t('security.ph.minChars')}
               autoComplete="new-password"
               {...register('password')}
             />
@@ -99,7 +102,7 @@ export function UpdatePasswordForm() {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor="confirmPassword">Confirm new password</Label>
+            <Label htmlFor="confirmPassword">{t('security.confirmPassword')}</Label>
             <Input
               id="confirmPassword"
               type="password"
@@ -113,13 +116,13 @@ export function UpdatePasswordForm() {
           <FormError message={serverError} />
 
           <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving…' : 'Save new password'}
+            {isSubmitting ? t('action.saving') : t('security.savePassword')}
           </Button>
         </form>
       </CardContent>
       <CardFooter className="justify-center text-sm">
         <Link href="/login" className="text-primary font-medium hover:underline">
-          Back to sign in
+          {t('auth.backToSignIn')}
         </Link>
       </CardFooter>
     </Card>

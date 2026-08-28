@@ -125,6 +125,54 @@ jobs:
       - name: Every server action has an RLS case or a stated verdict
         run: npm run audit:rls-cases
 
+      # The fourth static audit, added 2026-08-26 with the timezone work. There are two kinds
+      # of time in the product and the bug is one being handled as the other: `formatDate` does
+      # string surgery on its argument, so handing it a `timestamptz` prints the UTC calendar
+      # date. Ten call sites did exactly that -- Payment History, Transactions, Documents,
+      # Officer Notes -- and every row entered after 7pm Central was filed a day late, with
+      # nothing to report it: the date rendered, it was plausible, and it was wrong.
+      #
+      # Also catches `toLocale*` and an `Intl.DateTimeFormat` with no `timeZone`, both of which
+      # resolve to whichever zone the RUNTIME is in -- the browser's in a client component and
+      # UTC on the server, so one row renders two ways depending on which side drew it.
+      #
+      # Same promise as the three above: it checks that a verdict EXISTS, never that it is true.
+      # It also fails on a STALE verdict, because an entry left behind after its call site was
+      # fixed is a claim about code that no longer exists. Static; no database, no network.
+      - name: Every rendered time is a label or a zoned instant
+        run: npm run audit:time
+
+      # The fifth static audit, added 2026-08-26 with the translation catalogue. Four of its five
+      # findings are ordinary hygiene; the fifth is the one nothing else can see. `marketing:check`
+      # already gates that the SET of plan claims matches per tier and cannot tell whether a
+      # bullet's words still say the true thing — and the same gap opens for every string the
+      # moment a second language exists: somebody edits the English, does not touch the other
+      # catalogues, and that page renders a fluent sentence that is no longer true.
+      #
+      # So every translation records a hash of the English it was made from, and this reports a
+      # mismatch as STALE, by name. It also catches a key used and not defined (which renders as
+      # the key itself), a key nobody reads (a string somebody is asked to translate for no
+      # reason), an orphan, and a placeholder a translation invented (which renders literally).
+      #
+      # It cannot judge whether a translation is any good. Static; no database, no network.
+      - name: Every translation key is defined, used and current
+        run: npm run i18n:check
+
+      # THE OTHER HALF, and the one that found the bigger hole. The step above proves every
+      # KEY is consistent; it is structurally blind to a string nobody keyed, which renders
+      # English to every reader in silence and passes every gate here including the type
+      # checker. That is not a corner case — on 2026-08-27, with four bundles and 3,900 keys
+      # in place and `i18n:check` clean, a probe against a real server found 224 lines
+      # identical in all three languages: the sign-in page, the sign-up page, the quote
+      # carousel's chrome and every page title on the auth flow.
+      #
+      # This counts them, and the count is a RATCHET — `CEILING` in the script, lowered as
+      # batches are keyed, raised only deliberately. Same shape as `BACKLOG_CEILING` in
+      # `scripts/rls-coverage.mjs`, and for the same reason: without a ceiling a new screen
+      # ships un-keyed in the same commit that adds it. Static; no database, no network.
+      - name: No new screen ships in English only
+        run: npm run i18n:literals
+
       - uses: supabase/setup-cli@v1
         with:
           # Pinned. This is the version that will also apply migrations to production in

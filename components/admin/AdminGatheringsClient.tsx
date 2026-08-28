@@ -20,9 +20,10 @@ import type { GatheringTemplate } from '@/app/actions/admin/gathering-templates'
 import { GatheringStatusPill } from '@/components/gatherings/StatusPill'
 import { AnswerText } from '@/components/gatherings/AnswerText'
 import { GATHERING_PILL_SHAPE, GATHERING_PREMIER_PILL } from '@/components/gatherings/status'
+import { formatWhenBrief } from '@/lib/gathering-when'
 import { cn } from '@/lib/utils'
 import { useServerState } from '@/lib/use-server-state'
-import { formatDate, formatDateRange, todayLocal } from '@/lib/date-utils'
+import { formatDate, todayLocal } from '@/lib/date-utils'
 import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
 import { gatheringBudgetMath } from '@/lib/gathering-budget'
 import type { TaskProgress } from '@/lib/gatherings'
@@ -30,6 +31,8 @@ import {
   createGathering, deleteGathering, reviewGatheringTask,
   type AdminGatheringRow, type ReviewQueueRow, type GatheringBudgetView,
 } from '@/app/actions/admin/gatherings'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * THE ORGANIZER CONSOLE — the gathering list and the review queue, on one `MainRail`.
@@ -87,10 +90,12 @@ import {
  * that, `ANNOUNCEMENT_PANES.includes is not a function` — so ids and order are pure data and
  * only the ICONS and LABELS, which are client concerns, are here.
  */
-const PANE_LABEL: Record<AdminGatheringPane, string> = {
-  gatherings: 'Gatherings',
-  queue:      'Review queue',
-  templates:  'Templates',
+function paneLabel(t: T): Record<AdminGatheringPane, string> {
+  return {
+    gatherings: t('agat.pane.gatherings'),
+    queue:      t('agat.pane.queue'),
+    templates:  t('agat.pane.templates'),
+  }
 }
 
 const PANE_ICON = {
@@ -153,10 +158,12 @@ interface Props {
 }
 
 /** "6 of 9 approved · 2 waiting", or the honest empty version. */
-function progressCaption(counts: TaskProgress): string {
-  if (counts.total === 0) return 'No tasks yet'
-  const parts = [`${counts.approved} of ${counts.total} approved`]
-  if (counts.submitted > 0) parts.push(`${counts.submitted} waiting`)
+function progressCaption(counts: TaskProgress, t: T): string {
+  if (counts.total === 0) return t('gath.noTasks')
+  // BOTH HALVES ARE WHOLE KEYS. `${a} of ${b} approved` puts an English word order and a
+  // participle agreement in the source; Spanish and French both inflect the participle.
+  const parts = [t('agat.progress', { done: counts.approved, total: counts.total })]
+  if (counts.submitted > 0) parts.push(t('agat.waiting', { n: counts.submitted }))
   if (counts.denied > 0) parts.push(`${counts.denied} sent back`)
   return parts.join(' · ')
 }
@@ -167,6 +174,7 @@ export function AdminGatheringsClient({
   mayViewConsole, mayViewTemplates, libraryTemplates,
   mayCreateTemplates, mayEditTemplates, mayDeleteTemplates,
 }: Props) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [pane, setPane] = useState<AdminGatheringPane>(initialPane)
@@ -188,12 +196,12 @@ export function AdminGatheringsClient({
 
   async function handleDelete(row: AdminGatheringRow) {
     const ok = await confirm({
-      title: 'Delete gathering',
+      title: t('agat.delete'),
       description: `Delete “${row.title}”? Every task on it goes with it, and so does every `
         + 'answer and note anybody has already written. If it is simply not happening, set its '
         + 'status to Cancelled instead — nothing is lost and it can be reopened. This cannot '
         + 'be undone.',
-      confirmLabel: 'Delete gathering',
+      confirmLabel: t('agat.delete'),
       destructive: true,
     })
     if (!ok) return
@@ -203,7 +211,7 @@ export function AdminGatheringsClient({
       if (!result.success) {
         // Verbatim: the action refuses once anybody's answer has been approved and its
         // sentence names how many and what to do instead.
-        setListError(result.message ?? 'Could not delete that gathering')
+        setListError(result.message ?? t('agat.deleteFailed'))
         return
       }
       setGatherings(prev => prev.filter(g => g.id !== row.id))
@@ -221,14 +229,14 @@ export function AdminGatheringsClient({
           non sequitur over the library, whose own inline "Add a template" form is part of the
           pane (see `AdminGatheringTemplatesClient`) rather than a rail action. */}
       <MainRail
-        label="Gathering management areas"
+        label={t('agat.rail')}
         items={ADMIN_GATHERING_PANES
           .filter(id => (id === 'templates' ? mayViewTemplates : mayViewConsole))
           .map(id => ({
             id,
             label: id === 'queue' && queue.length > 0
-              ? `${PANE_LABEL[id]} (${queue.length})`
-              : PANE_LABEL[id],
+              ? `${paneLabel(t)[id]} (${queue.length})`
+              : paneLabel(t)[id],
             icon: PANE_ICON[id],
             href: `/admin/gatherings?pane=${id}`,
           }))}
@@ -236,7 +244,7 @@ export function AdminGatheringsClient({
         onSelect={selectPane}
         action={pane !== 'templates' && mayCreate && (
           <Button variant="affirm" onClick={() => setCreating(true)}>
-            <CirclePlus className="h-4 w-4 mr-1" /> New gathering
+            <CirclePlus className="h-4 w-4 mr-1" /> {t('agat.new')}
           </Button>
         )}
       />
@@ -262,26 +270,26 @@ export function AdminGatheringsClient({
               <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
                 No gatherings yet.{' '}
                 {mayCreate
-                  ? 'Press New gathering and pick the templates it should be built from.'
-                  : 'Somebody who can schedule gatherings has to create the first one.'}
+                  ? t('agat.pressNew')
+                  : t('agat.somebodySchedule')}
               </p>
             ) : (
               <div className="overflow-visible rounded-xl border">
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      <th scope="col" className="px-3 py-2 font-semibold">Gathering</th>
-                      <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>When</th>
-                      <th scope="col" className="px-3 py-2 font-semibold">Status</th>
+                      <th scope="col" className="px-3 py-2 font-semibold">{t('cal.kind.gathering')}</th>
+                      <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('agat.when')}</th>
+                      <th scope="col" className="px-3 py-2 font-semibold">{t('money.status')}</th>
                       {/* The money column exists only where the money was fetched. A caller
                           without `gatherings/budget:view` has `budget: null` on every row, so
                           a rendered column would be a column of em-dashes suggesting nothing
                           is budgeted. */}
                       {mayManageBudget && (
-                        <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Budget</th>
+                        <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('budget.heading')}</th>
                       )}
-                      <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Tasks</th>
-                      <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+                      <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('gath.tasks')}</th>
+                      <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -298,9 +306,10 @@ export function AdminGatheringsClient({
                             <p className="mt-0.5 text-xs text-muted-foreground">{row.location}</p>
                           )}
                           <RowMeta className="gap-x-2">
-                            <MetaIf value={formatDateRange(row.startsOn, row.endsOn)} />
+                            {/* The whole answer, never a range over the envelope — see `formatWhenBrief`. */}
+                            <MetaIf value={formatWhenBrief(row)} />
                             <MetaDot />
-                            <MetaIf value={progressCaption(row.taskCounts)} />
+                            <MetaIf value={progressCaption(row.taskCounts, t)} />
                             {mayManageBudget && row.budget && (
                               <>
                                 <MetaDot />
@@ -313,13 +322,13 @@ export function AdminGatheringsClient({
                             {mayManageBudget && row.budgetState === 'unavailable' && (
                               <>
                                 <MetaDot />
-                                <span>Budget unavailable</span>
+                                <span>{t('agat.budgetUnavailable')}</span>
                               </>
                             )}
                           </RowMeta>
                         </td>
                         <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
-                          {formatDateRange(row.startsOn, row.endsOn) ?? '—'}
+                          {formatWhenBrief(row) ?? '—'}
                         </td>
                         <td className="px-3 py-2.5">
                           <GatheringStatusPill status={row.status} />
@@ -336,12 +345,12 @@ export function AdminGatheringsClient({
                             {row.budget
                               ? <MoneyCell budget={row.budget} />
                               : row.budgetState === 'unavailable'
-                                ? <span className="text-muted-foreground italic">Unavailable</span>
+                                ? <span className="text-muted-foreground italic">{t('agat.unavailable')}</span>
                                 : <span className="text-muted-foreground">—</span>}
                           </td>
                         )}
                         <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
-                          {progressCaption(row.taskCounts)}
+                          {progressCaption(row.taskCounts, t)}
                         </td>
                         <td className="w-px px-3 py-2.5">
                           <div className="flex items-center justify-end gap-1">
@@ -354,7 +363,7 @@ export function AdminGatheringsClient({
                               href={`/admin/gatherings/${row.id}`}
                               className={buttonVariants({ size: 'sm', variant: 'outline' })}
                             >
-                              Open
+                              {t('agat.open')}
                             </Link>
                             {mayDelete && (
                               <Button
@@ -412,12 +421,13 @@ export function AdminGatheringsClient({
  * upcoming one, which is not deducible from a chip saying "Premier".
  */
 function PremierPill() {
+  const t = useT()
   return (
     <span
       className={GATHERING_PREMIER_PILL}
-      title="Flagged for the Dashboard. Several gatherings may be flagged; the soonest upcoming one is the one shown."
+      title={t('agat.premierHint')}
     >
-      <Star className="h-3 w-3" aria-hidden="true" /> Premier
+      <Star className="h-3 w-3" aria-hidden="true" /> {t('gath.premier')}
     </span>
   )
 }
@@ -434,6 +444,8 @@ function PremierPill() {
  * capability being held back (spec §3.2).
  */
 function MoneyCell({ budget }: { budget: GatheringBudgetView }) {
+  const intl = useIntlTag()
+  const t = useT()
   const math = gatheringBudgetMath({
     budgetCents:         budget.budgetCents,
     lineCents:           budget.lineCents,
@@ -444,7 +456,7 @@ function MoneyCell({ budget }: { budget: GatheringBudgetView }) {
   if (math.budgetCents == null) {
     return (
       <span className="text-muted-foreground">
-        {budget.fundName ? `No budget · ${budget.fundName}` : 'No budget'}
+        {budget.fundName ? `No budget · ${budget.fundName}` : t('agat.noBudget')}
       </span>
     )
   }
@@ -452,20 +464,20 @@ function MoneyCell({ budget }: { budget: GatheringBudgetView }) {
   return (
     <div className="space-y-0.5">
       <p className={cn('tabular-nums', math.overFund && 'text-destructive')}>
-        {formatCurrency(math.budgetCents)}
+        {formatCurrency(math.budgetCents, intl)}
       </p>
       <p className="text-xs text-muted-foreground">
-        {budget.fundName ?? 'No fund'}
-        {math.fundBalanceCents != null && ` · ${formatCurrency(math.fundBalanceCents)} in it`}
+        {budget.fundName ?? t('agat.noFund')}
+        {math.fundBalanceCents != null && ` · ${formatCurrency(math.fundBalanceCents, intl)} in it`}
       </p>
       {math.overFund && (
         <p className="text-xs text-destructive">
-          Over by {formatCurrency(math.overFundByCents)}
+          Over by {formatCurrency(math.overFundByCents, intl)}
         </p>
       )}
       {!math.overFund && math.overFundWithOthers && (
         <p className="text-xs text-destructive">
-          Over with the other gatherings on this fund by {formatCurrency(math.overFundWithOthersByCents)}
+          Over with the other gatherings on this fund by {formatCurrency(math.overFundWithOthersByCents, intl)}
         </p>
       )}
     </div>
@@ -474,17 +486,19 @@ function MoneyCell({ budget }: { budget: GatheringBudgetView }) {
 
 /** The same figures as one line, for the folded meta row. */
 function MoneyText({ budget }: { budget: GatheringBudgetView }) {
+  const intl = useIntlTag()
+  const t = useT()
   const math = gatheringBudgetMath({
     budgetCents:         budget.budgetCents,
     lineCents:           budget.lineCents,
     fundBalanceCents:    budget.fundBalanceCents,
     otherCommittedCents: budget.otherCommittedCents,
   })
-  if (math.budgetCents == null) return <>No budget</>
+  if (math.budgetCents == null) return <>{t('agat.noBudget')}</>
   const over = math.overFund || math.overFundWithOthers
   return (
     <span className={cn(over && 'text-destructive')}>
-      {formatCurrency(math.budgetCents)}
+      {formatCurrency(math.budgetCents, intl)}
       {budget.fundName && ` on ${budget.fundName}`}
       {over && ' · over the fund'}
     </span>
@@ -500,12 +514,10 @@ function ReviewQueuePane({
   mayEdit: boolean
   onDecided: (taskId: string) => void
 }) {
+  const t = useT()
   if (queue.length === 0) {
     return (
-      <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-        Nothing is waiting for review. A task appears here the moment the relative it was
-        handed to submits an answer.
-      </p>
+      <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">{t('adm.nothingWaitingReviewTask')}</p>
     )
   }
 
@@ -513,7 +525,7 @@ function ReviewQueuePane({
     <div className="space-y-4">
       {!mayEdit && (
         <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          You can see what is waiting but not rule on it.
+          {t('agat.queueReadOnly')}
         </div>
       )}
       {queue.map(row => (
@@ -530,6 +542,8 @@ function ReviewCard({
   mayEdit: boolean
   onDecided: (taskId: string) => void
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   const confirm = useConfirm()
   const [sendingBack, setSendingBack] = useState(false)
   const [notes, setNotes] = useState('')
@@ -539,17 +553,17 @@ function ReviewCard({
 
   async function handleApprove() {
     const ok = await confirm({
-      title: 'Approve this answer',
+      title: t('agat.approveThis'),
       description: `Approve “${row.label}” on ${row.gatheringTitle}? Approving is final — `
         + 'the answer is the family’s record of it and the person who submitted it cannot '
         + 'change it afterwards. Send it back instead if anything still needs work.',
-      confirmLabel: 'Approve',
+      confirmLabel: t('agat.approve'),
     })
     if (!ok) return
     setError('')
     startTransition(async () => {
       const result = await reviewGatheringTask({ taskId: row.taskId, decision: 'approved' })
-      if (!result.success) { setError(result.message ?? 'Could not approve that answer'); return }
+      if (!result.success) { setError(result.message ?? t('agat.approveFailed')); return }
       onDecided(row.taskId)
     })
   }
@@ -559,7 +573,7 @@ function ReviewCard({
     // Checked here as well as in the action, because being refused AFTER deciding to send
     // something back is the worst moment to find out the notes were the point.
     if (!trimmed) {
-      setNotesError('Say what needs to change — this is what the member reads before trying again.')
+      setNotesError(t('agat.sayWhatChangesMember'))
       return
     }
     setNotesError('')
@@ -568,7 +582,7 @@ function ReviewCard({
       const result = await reviewGatheringTask({
         taskId: row.taskId, decision: 'denied', reviewNotes: trimmed,
       })
-      if (!result.success) { setError(result.message ?? 'Could not send that task back'); return }
+      if (!result.success) { setError(result.message ?? t('agat.sendBackFailed')); return }
       onDecided(row.taskId)
     })
   }
@@ -589,29 +603,29 @@ function ReviewCard({
               {row.gatheringTitle}
             </Link>
             {row.assignee && ` · ${row.assignee.name}`}
-            {row.dueOn && ` · due ${formatDate(row.dueOn)}`}
-            {row.submittedAt && ` · submitted ${formatDate(row.submittedAt.slice(0, 10))}`}
+            {row.dueOn && ` · due ${formatDate(row.dueOn, intl)}`}
+            {row.submittedAt && ` · submitted ${formatDate(row.submittedAt.slice(0, 10), intl)}`}
           </p>
         </div>
         {row.required && (
           <span className={cn(GATHERING_PILL_SHAPE, 'bg-brand-soft text-brand-on-soft')}>
-            Required
+            {t('common.required')}
           </span>
         )}
       </div>
 
       <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm">
-        <p className="text-xs font-medium text-muted-foreground">Their answer</p>
+        <p className="text-xs font-medium text-muted-foreground">{t('agat.theirAnswer')}</p>
         {/* `describeAnswer` returns '' for anything it cannot read, and `AnswerText` renders
             null for that — so the screen decides what absence looks like rather than printing
             an empty line where a figure should be. */}
         <AnswerText kind={row.kind} answer={row.answer} />
-        {!row.answer && <p className="text-muted-foreground">Nothing was recorded with this submission.</p>}
+        {!row.answer && <p className="text-muted-foreground">{t('agat.nothingRecorded')}</p>}
       </div>
 
       {row.note && (
         <div className="rounded-lg border px-3 py-2 text-sm">
-          <p className="text-xs font-medium text-muted-foreground">Their note</p>
+          <p className="text-xs font-medium text-muted-foreground">{t('agat.theirNote')}</p>
           <p className="whitespace-pre-wrap">{row.note}</p>
         </div>
       )}
@@ -620,11 +634,11 @@ function ReviewCard({
         <div className="space-y-3">
           {sendingBack && (
             <div className="space-y-1.5">
-              <Label htmlFor={`notes-${row.taskId}`} required>What needs to change</Label>
+              <Label htmlFor={`notes-${row.taskId}`} required>{t('agat.whatNeedsChange')}</Label>
               <Textarea
                 id={`notes-${row.taskId}`}
                 autoGrow rows={2}
-                placeholder="The caterer needs a phone number as well as a name."
+                placeholder={t('agat.notePh1')}
                 value={notes}
                 disabled={isPending}
                 onChange={e => { setNotes(e.target.value); setNotesError('') }}
@@ -639,23 +653,23 @@ function ReviewCard({
           )}
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="affirm" disabled={isPending} onClick={handleApprove}>
-              {isPending ? 'Saving…' : 'Approve'}
+              {isPending ? t('action.saving') : t('agat.approve')}
             </Button>
             {sendingBack ? (
               <>
                 <Button variant="outline" disabled={isPending} onClick={handleSendBack}>
-                  {isPending ? 'Sending…' : 'Send back with notes'}
+                  {isPending ? t('security.sending') : t('agat.sendBackWithNotes')}
                 </Button>
                 <Button
                   variant="ghost" disabled={isPending}
                   onClick={() => { setSendingBack(false); setNotes(''); setNotesError('') }}
                 >
-                  Cancel
+                  {t('action.cancel')}
                 </Button>
               </>
             ) : (
               <Button variant="outline" disabled={isPending} onClick={() => setSendingBack(true)}>
-                Send back…
+                {t('agat.sendBack')}
               </Button>
             )}
           </div>
@@ -699,6 +713,8 @@ function NewGatheringDialog({
   mayAuthorTemplates: boolean
   onCreated: (gatheringId: string) => void
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   const [templateIds, setTemplateIds] = useState<string[]>([])
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
@@ -749,7 +765,7 @@ function NewGatheringDialog({
         isPremier,
       })
       if (!result.success || !result.gatheringId) {
-        setError(result.message ?? 'Could not create that gathering')
+        setError(result.message ?? t('agat.createFailed'))
         return
       }
       // `success: true` WITH a message means the gathering exists and one of its templates
@@ -767,8 +783,8 @@ function NewGatheringDialog({
     <Dialog
       open={open}
       onClose={onClose}
-      title="New gathering"
-      description="Pick the templates it is built from, then say when and where."
+      title={t('agat.new')}
+      description={t('agat.pickTemplates')}
       className="max-w-lg"
     >
       <div className="mt-2 space-y-3">
@@ -780,7 +796,7 @@ function NewGatheringDialog({
             about NAMING the group and is unaffected by that.) `GatheringsClient`'s copy of this dialog already does
             it this way; the two must not diverge. */}
         <fieldset className="space-y-1.5">
-          <legend className="text-sm font-medium">Built from</legend>
+          <legend className="text-sm font-medium">{t('gath.builtFrom')}</legend>
           {templates.length === 0 ? (
             // NOT AN OBSTACLE ANY MORE, WHICH IS WHY THE SENTENCE CHANGED. It used to say a
             // gathering "needs at least one" template, which was true and is not. What it says
@@ -792,10 +808,9 @@ function NewGatheringDialog({
               There are no templates to build from, so this will be a date on the family
               calendar with no tasks.{' '}
               {mayAuthorTemplates
-                ? <>Add one in the <Link href="/admin/gatherings/templates">template library</Link> and a
+                ? <>{t('agat.addOneIn')} <Link href="/admin/gatherings/templates">template library</Link> and a
                     gathering becomes a checklist handed out as tasks.</>
-                : <>A template is a checklist handed out as tasks — somebody who can author
-                    templates has to add the first.</>}
+                : <>{t('adm.templateChecklistHandedOut')}</>}
             </p>
           ) : (
             <>
@@ -826,7 +841,7 @@ function NewGatheringDialog({
               </div>
               <p className="text-xs text-muted-foreground">
                 {templateIds.length === 0
-                  ? 'Every step of the templates you pick becomes a task you can hand out. Pick none and this is a date with no tasks.'
+                  ? t('agat.everyStep')
                   : `${templateIds.length} chosen · their steps become this gathering’s tasks, in the order shown`}
               </p>
             </>
@@ -834,10 +849,10 @@ function NewGatheringDialog({
         </fieldset>
 
         <div className="space-y-1.5">
-          <Label htmlFor="gathering-title" required>Title</Label>
+          <Label htmlFor="gathering-title" required>{t('field.title')}</Label>
           <Input
             id="gathering-title"
-            placeholder="e.g. Allen Family Reunion 2027"
+            placeholder={t('gath.titlePh')}
             value={title}
             onChange={e => { setTitle(e.target.value); setError('') }}
           />
@@ -845,7 +860,7 @@ function NewGatheringDialog({
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="gathering-starts" required>Starts</Label>
+            <Label htmlFor="gathering-starts" required>{t('agat.starts')}</Label>
             <Input
               id="gathering-starts" type="date"
               value={startsOn}
@@ -859,33 +874,33 @@ function NewGatheringDialog({
                 and the wrong first line of defence: a picker that greys out the impossible
                 days never produces one, so nobody meets the refusal at all. The CHECK stays
                 underneath for a caller that is not this form. */}
-            <Label htmlFor="gathering-ends">Ends</Label>
+            <Label htmlFor="gathering-ends">{t('agat.ends')}</Label>
             <Input
               id="gathering-ends" type="date"
               min={startsOn || undefined}
               value={endsOn}
               onChange={e => setEndsOn(e.target.value)}
             />
-            <p className="text-xs text-muted-foreground">Leave empty for a single day.</p>
+            <p className="text-xs text-muted-foreground">{t('agat.singleDay')}</p>
           </div>
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="gathering-location">Location</Label>
+          <Label htmlFor="gathering-location">{t('agat.location')}</Label>
           <Input
             id="gathering-location"
-            placeholder="e.g. Memorial Park, Houston"
+            placeholder={t('gath.wherePh')}
             value={location}
             onChange={e => setLocation(e.target.value)}
           />
         </div>
 
         <div className="space-y-1.5">
-          <Label htmlFor="gathering-summary">Summary</Label>
+          <Label htmlFor="gathering-summary">{t('agat.summary')}</Label>
           <Textarea
             id="gathering-summary"
             autoGrow rows={1}
-            placeholder="What this gathering is, for the people being asked to help."
+            placeholder={t('agat.summaryPh')}
             value={summary}
             onChange={e => setSummary(e.target.value)}
           />
@@ -894,7 +909,7 @@ function NewGatheringDialog({
         {mayManageBudget && funds.length > 0 && (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="gathering-fund">Fund</Label>
+              <Label htmlFor="gathering-fund">{t('fnd.fund')}</Label>
               <Select
                 id="gathering-fund"
                 value={fundId}
@@ -903,25 +918,22 @@ function NewGatheringDialog({
                 <option value="">— No fund —</option>
                 {funds.map(f => (
                   <option key={f.id} value={f.id}>
-                    {f.name} — {formatCurrency(f.balanceCents)}
+                    {f.name} — {formatCurrency(f.balanceCents, intl)}
                   </option>
                 ))}
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="gathering-budget">Budget ($)</Label>
+              <Label htmlFor="gathering-budget">{t('agat.budgetDollars')}</Label>
               <Input
                 id="gathering-budget"
                 type="number" min="0" step="0.01"
-                placeholder={fundId ? 'Optional' : 'Choose a fund first'}
+                placeholder={fundId ? t('common.optional') : t('agat.chooseFundFirst')}
                 value={budget}
                 disabled={!fundId}
                 onChange={e => setBudget(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground">
-                A budget is always drawn on a fund. It may exceed what the fund holds — the
-                gathering says so in red rather than refusing it.
-              </p>
+              <p className="text-xs text-muted-foreground">{t('adm.budgetAlwaysDrawnFund2')}</p>
             </div>
           </div>
         )}
@@ -934,12 +946,9 @@ function NewGatheringDialog({
               onChange={e => setIsPremier(e.target.checked)}
               className="h-4 w-4 rounded border-input accent-primary"
             />
-            <span className="text-sm font-medium">Show this across the top of the Dashboard</span>
+            <span className="text-sm font-medium">{t('agat.showAcrossTop')}</span>
           </label>
-          <p className="text-xs text-muted-foreground">
-            Several gatherings may be flagged at once — the Dashboard shows the soonest one that
-            has not finished, so last year’s reunion never blocks this year’s.
-          </p>
+          <p className="text-xs text-muted-foreground">{t('adm.severalGatheringsMayFlagged2')}</p>
         </div>
 
         <FormError message={error} />
@@ -947,7 +956,7 @@ function NewGatheringDialog({
         <div className="flex gap-2 pt-1">
           {createdId ? (
             <Button className="flex-1" onClick={() => onCreated(createdId)}>
-              Open the gathering
+              {t('agat.openGathering')}
             </Button>
           ) : (
             <Button
@@ -955,10 +964,10 @@ function NewGatheringDialog({
               disabled={isPending || templates.length === 0}
               onClick={handleCreate}
             >
-              {isPending ? 'Creating…' : 'Create gathering'}
+              {isPending ? t('action.creating') : t('agat.create')}
             </Button>
           )}
-          <Button variant="outline" onClick={onClose} disabled={isPending}>Cancel</Button>
+          <Button variant="outline" onClick={onClose} disabled={isPending}>{t('action.cancel')}</Button>
         </div>
       </div>
     </Dialog>

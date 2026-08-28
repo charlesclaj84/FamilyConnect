@@ -208,6 +208,43 @@ export function connectConfigured(): boolean {
   return stripeSecretKey() != null && connectWebhookSecret() != null
 }
 
+/**
+ * The country a family's connected account is created in. ISO 3166-1 alpha-2, lowercase.
+ *
+ * ── STRIPE REFUSES THE ACCOUNT WITHOUT IT, WHICH IS HOW THIS ARRIVED ───────────────
+ * `POST /v2/core/accounts` answers `identity_country_required` — "The field identity.country
+ * is required before setting configuration.merchant" — for any account that asks for the
+ * merchant configuration, which every family's does. It is not an optional refinement: with
+ * no country there is no account.
+ *
+ * ── IT IS A CONSTANT BECAUSE THERE IS NOTHING TO DERIVE IT FROM ────────────────────
+ * `families` has no country column, and inventing one from the connecting administrator's
+ * `people.country` would be exactly the derived-fact-that-is-not-a-fact this codebase keeps
+ * refusing elsewhere: that column is free text ("United States"), it describes where one
+ * relative lives, and a family's merchant country is a legal question about the family, not
+ * an address on one member's row.
+ *
+ * `'us'` is the honest default rather than a guess. Every price in the product is USD
+ * (`formatCurrency`, and `currency: 'usd'` on every session), phone numbers assume +1, and
+ * `lib/regions.ts` carries US states in full. A family somewhere else is not supported by the
+ * rest of the product either, so this constant is not the thing narrowing them.
+ *
+ * ── WHAT IT COSTS, STATED RATHER THAN DISCOVERED ───────────────────────────────────
+ * `identity.country` is what Stripe validates the whole account against — payout currency,
+ * which identity documents are demanded, which regulations apply — and it cannot be changed
+ * afterwards. `lib/regions.ts` already admits Canada and Mexico for a MEMBER's address, so a
+ * Canadian family can exist in this product today and would be created here as American. That
+ * is a real gap and TODO.md carries it; the fix is a country picked in the Connect panel and
+ * passed through, not a cleverer default.
+ *
+ * ── AND `entity_type` IS DELIBERATELY NOT SET ──────────────────────────────────────
+ * Optional, and Stripe collects it during hosted onboarding. Whether a family association is
+ * a company, a non-profit or an individual is a question about that family's paperwork, and
+ * the reference warns the value decides which identity fields apply and how the account is
+ * validated — so guessing it would misvalidate the account rather than save anybody a step.
+ */
+export const CONNECT_ACCOUNT_COUNTRY = 'us'
+
 export function platformWebhookSecret(): string | null {
   return process.env.STRIPE_PLATFORM_WEBHOOK_SECRET?.trim() || null
 }
@@ -253,4 +290,8 @@ export const INTEGRATION_IDS = {
   platformPrepaid: 'genorra-plan-prepaid-hvkrdnps',
   familyDuesOnce: 'genorra-dues-once-tzmlqvbf',
   familyDuesAutopay: 'genorra-dues-autopay-jxnpwsdc',
+  // Its OWN heading rather than sharing `familyDuesOnce`, because the whole purpose of this
+  // field is to let two flows be compared in the Dashboard — and "what did our members owe"
+  // and "what were we given" are exactly the two figures a treasurer wants separated.
+  familyDonation: 'genorra-donation-once-rkvhpszd',
 } as const

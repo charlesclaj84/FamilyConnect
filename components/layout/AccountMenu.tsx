@@ -1,6 +1,8 @@
 'use client'
 
 import { useRef, useState } from 'react'
+import { useT } from '@/components/layout/LocaleProvider'
+import { LocaleSwitcher } from '@/components/layout/LocaleSwitcher'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronDown, ExternalLink, LogOut, ShieldCheck, UserCircle, Users } from 'lucide-react'
@@ -66,6 +68,7 @@ interface Props {
  * Golden Master for most people.
  */
 export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false }: Props) {
+  const t = useT()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
@@ -135,7 +138,7 @@ export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false 
                 onClick={() => setOpen(false)}
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-card-foreground transition-colors hover:bg-muted"
               >
-                <UserCircle className="h-4 w-4 shrink-0 opacity-70" /> My Profile
+                <UserCircle className="h-4 w-4 shrink-0 opacity-70" /> {t('account.profile')}
               </Link>
               <Link
                 href="/my-families"
@@ -143,7 +146,7 @@ export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false 
                 onClick={() => setOpen(false)}
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-card-foreground transition-colors hover:bg-muted"
               >
-                <Users className="h-4 w-4 shrink-0 opacity-70" /> My Families
+                <Users className="h-4 w-4 shrink-0 opacity-70" /> {t('account.families')}
               </Link>
 
               {/* The label sits beside the toggle rather than wrapping it, because
@@ -155,8 +158,19 @@ export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false 
                   The row also does not close the menu: cycling Light → Dark → System is
                   something people do two or three times in a row to compare. */}
               <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-card-foreground">
-                <span className="opacity-90">Appearance</span>
+                <span className="opacity-90">{t('account.appearance')}</span>
                 <ThemeToggle />
+              </div>
+              {/* ── LANGUAGE, BESIDE APPEARANCE ────────────────────────────────────────
+                  The two are the same kind of thing — how the product presents itself to
+                  this one person, changed in place, not a page to visit. Neither closes the
+                  menu, for the reason the Appearance row gives above: comparing is something
+                  people do two or three times in a row.
+
+                  IT RENDERS NOTHING while the product speaks one language, so this row is
+                  absent rather than a picker with a single option. See LocaleSwitcher. */}
+              <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-card-foreground">
+                <LocaleSwitcher className="ml-auto" />
               </div>
               {/* THE STAFF CONSOLE, and only for staff.
                   ─────────────────────────────────────────────────────────────────
@@ -191,12 +205,12 @@ export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false 
                   >
                     <ShieldCheck className="h-4 w-4 shrink-0 opacity-70" />
                     <span className="min-w-0 flex-1">
-                      GENORRA staff console
+                      {t('account.staff')}
                       {/* Said in words, not left to the icon. "Opens in a new window" is
                           the one thing a link that changes context owes its reader, and a
                           bare arrow glyph is decoration to anyone using a screen reader. */}
                       <span className="block text-xs text-muted-foreground">
-                        Every family · opens in a new window
+                        {t('account.staffHint')}
                       </span>
                     </span>
                     <ExternalLink className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden="true" />
@@ -212,7 +226,7 @@ export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false 
                 onClick={handleSignOut}
                 className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10"
               >
-                <LogOut className="h-4 w-4 shrink-0" /> Sign out
+                <LogOut className="h-4 w-4 shrink-0" /> {t('account.signOut')}
               </button>
             </div>
           </div>

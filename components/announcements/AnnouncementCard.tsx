@@ -3,14 +3,17 @@ import { ChevronRight, Pin, Vote } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import type { Announcement } from '@/app/actions/announcements'
 import { formatDate } from '@/lib/date-utils'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
-function formatRelative(iso: string): string {
+// TAKES `t` AND `intl` rather than reading a hook: it is a plain helper, not a component.
+function formatRelative(iso: string, t: T, intl: string): string {
   const diff = Date.now() - new Date(iso).getTime()
   const days = Math.floor(diff / 86400000)
-  if (days === 0) return 'Today'
-  if (days === 1) return 'Yesterday'
-  if (days < 7) return `${days} days ago`
-  return formatDate(iso) ?? ''
+  if (days === 0) return t('common.today')
+  if (days === 1) return t('common.yesterday')
+  if (days < 7) return t('common.daysAgo', { n: days })
+  return formatDate(iso, intl) ?? ''
 }
 
 /**
@@ -35,6 +38,8 @@ function formatRelative(iso: string): string {
  * it a linked title comes out terracotta and reads as a different KIND of announcement.
  */
 export function AnnouncementCard({ announcement }: { announcement: Announcement }) {
+  const t = useT()
+  const intl = useIntlTag()
   const electionHref = announcement.election_id
     ? `/community/elections/${announcement.election_id}`
     : null
@@ -59,7 +64,7 @@ export function AnnouncementCard({ announcement }: { announcement: Announcement 
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           {announcement.author_name && <span>{announcement.author_name}</span>}
           <span>·</span>
-          <span>{formatRelative(announcement.published_at)}</span>
+          <span>{formatRelative(announcement.published_at, t, intl)}</span>
           {announcement.scope !== 'national' && (
             <>
               <span>·</span>
@@ -77,7 +82,7 @@ export function AnnouncementCard({ announcement }: { announcement: Announcement 
         {electionHref && (
           <Link href={electionHref}
             className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-accent hover:underline underline-offset-4">
-            Open this election <ChevronRight className="h-3 w-3" aria-hidden="true" />
+            {t('ann.openElection')} <ChevronRight className="h-3 w-3" aria-hidden="true" />
           </Link>
         )}
       </CardContent>

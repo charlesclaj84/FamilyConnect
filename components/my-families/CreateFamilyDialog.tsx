@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { FormError } from '@/components/ui/form-message'
 import { createFamily } from '@/app/actions/my-families'
 import { trackPixelEvent } from '@/lib/meta/pixel'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Start a new family from an account that already has one.
@@ -27,6 +28,7 @@ type Step =
   | { kind: 'done'; familyCode: string; familyName: string }
 
 export function CreateFamilyDialog() {
+  const t = useT()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [step, setStep] = useState<Step>({ kind: 'form' })
@@ -92,38 +94,34 @@ export function CreateFamilyDialog() {
         onClick={() => { reset(); setOpen(true) }}
         className="inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
       >
-        <Plus className="h-4 w-4" /> Create a new family
+        <Plus className="h-4 w-4" /> {t('fam.create')}
       </button>
 
       <Dialog
         open={open}
         onClose={close}
-        title={step.kind === 'done' ? 'Family created' : 'Create a new family'}
+        title={step.kind === 'done' ? t('fam.created') : t('fam.create')}
         description={
           step.kind === 'form'
-            ? 'You will be its first administrator. Your profile carries over.'
+            ? t('fam.firstAdmin')
             : undefined
         }
       >
         {step.kind === 'form' && (
           <form className="space-y-4" onSubmit={e => { e.preventDefault(); submit() }}>
             <div className="space-y-1.5">
-              <Label htmlFor="new-family-name">Family name</Label>
+              <Label htmlFor="new-family-name">{t('fam.nameLabel')}</Label>
               <Input
                 id="new-family-name"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                placeholder="The Okonkwo Family"
+                placeholder={t('fam.namePh')}
                 autoComplete="off"
                 maxLength={100}
               />
             </div>
 
-            <p className="text-sm text-muted-foreground">
-              We will generate a family code you can share. Your name and contact details
-              are copied from the profile you already have, and stay in step across every
-              family you belong to.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('ui.weWillGenerateFamily')}</p>
 
             <FormError message={error} />
 
@@ -133,14 +131,14 @@ export function CreateFamilyDialog() {
                 onClick={close}
                 className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
               >
-                Cancel
+                {t('action.cancel')}
               </button>
               <button
                 type="submit"
                 disabled={isPending || !name.trim()}
                 className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
               >
-                {isPending ? 'Creating…' : 'Create family'}
+                {isPending ? t('action.creating') : t('fam.createAction')}
               </button>
             </div>
           </form>
@@ -155,17 +153,14 @@ export function CreateFamilyDialog() {
 
             <div className="rounded-xl border-2 border-brand-primary/30 bg-brand-soft/40 px-6 py-4 text-center">
               <p className="mb-1 text-xs uppercase tracking-widest text-muted-foreground">
-                Family Code
+                {t('fam.codeHeading')}
               </p>
               <p className="font-mono text-3xl font-bold tracking-widest text-brand-ink">
                 {step.familyCode}
               </p>
             </div>
 
-            <p className="text-sm text-muted-foreground">
-              Share this with your relatives so they can join. Everyone who joins waits in
-              Member Approvals until you admit them.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('ui.shareRelativesSoThey')}</p>
 
             <div className="flex justify-end gap-2">
               <button
@@ -174,14 +169,14 @@ export function CreateFamilyDialog() {
                 className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
               >
                 {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {copied ? 'Copied' : 'Copy code'}
+                {copied ? t('action.copied') : t('fam.copyCode')}
               </button>
               <button
                 type="button"
                 onClick={close}
                 className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
               >
-                Done
+                {t('action.done')}
               </button>
             </div>
           </div>

@@ -1,13 +1,14 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Vote } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { canAny, requireView } from '@/lib/auth/permissions'
 import { getElectionsReport } from '@/app/actions/activity-reports'
 import { cn } from '@/lib/utils'
 import { PageShell } from '@/components/layout/PageShell'
 import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Elections Report' }
 
@@ -25,11 +26,12 @@ export const metadata = { title: 'Elections Report' }
  * told about.
  */
 export default async function ElectionsReportPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
 
   await requireView(user.id, 'reporting/elections')
+
+  const { t } = await callerI18n(user.id)
   if (!(await canAny(user.id, 'reporting/elections', 'view'))) notFound()
 
   const report = await getElectionsReport()
@@ -41,24 +43,29 @@ export default async function ElectionsReportPage() {
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Elections</h1>
-        <p className="text-muted-foreground">
-          Turnout, nominations and offices nobody stood for, one row per published election.
-          Drafts are not counted — an election nobody has been told about has no electorate.
-        </p>
+        <h1 className="text-3xl font-bold">{t('page./reporting/elections.title')}</h1>
       </div>
 
+      {/* THE EXCLUSION RIDES ON THE FIGURE IT QUALIFIES. It was the second sentence of a lede
+          above the heading until 2026-08-25; a reader who does not know that drafts are left
+          out reads this count as "every election we have", and the place that misreading
+          happens is at the number rather than four lines above it. The full argument — an
+          election nobody has been told about has no electorate — is in `elections-report`. */}
       <ReportStats stats={[
-        { label: 'Elections', value: totals.elections, hint: `${totals.open} open right now` },
+        {
+          label: 'Elections',
+          value: totals.elections,
+          hint: `${totals.open} open now · published only`,
+        },
         { label: 'Nominations', value: totals.nominations, hint: 'across every election' },
         {
-          label: 'Offices nobody stood for',
+          label: t('rep.officesNobodyStood'),
           value: uncontested,
           hint: 'nothing on the ballot',
           tone: uncontested > 0 ? 'withheld' : 'plain',
         },
         {
-          label: 'Members who have voted',
+          label: t('rep.membersWhoVoted'),
           value: totals.voters,
           hint: 'distinct people, not ballots',
           tone: 'affirm',
@@ -74,9 +81,7 @@ export default async function ElectionsReportPage() {
       ) : (
         <div className="overflow-hidden rounded-xl border">
           <table className="w-full border-collapse text-sm">
-            <caption className="sr-only">
-              Every published election with its phase, nominations and turnout.
-            </caption>
+            <caption className="sr-only">{t('rep.everyPublishedElectionIts')}</caption>
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <th scope="col" className="px-3 py-2">Election</th>
@@ -144,9 +149,7 @@ export default async function ElectionsReportPage() {
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        Turnout counts PEOPLE, not ballots: somebody voting for three offices in one election is
-        one voter. An election whose area holds no approved members reads <strong>n/a</strong>
+      <p className="text-xs text-muted-foreground">{t('rep.turnoutCountsPeopleNot')}<strong>n/a</strong>
         {' '}rather than 0% — nobody could have voted in it.
       </p>
     </PageShell>

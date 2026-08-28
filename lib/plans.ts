@@ -1,3 +1,4 @@
+import { type T } from '@/lib/i18n/t'
 /**
  * What each plan includes, in the words a member reads INSIDE the product.
  *
@@ -50,7 +51,7 @@
  */
 
 import { TIER_RANK, TIERS, tierMeets, type FamilyTier } from '@/lib/tiers'
-import { formatCurrency } from '@/lib/currency-utils'
+import { DEFAULT_MONEY_LOCALE, formatMoney } from '@/lib/currency-utils'
 
 export interface PlanHighlight {
   /**
@@ -82,7 +83,17 @@ export interface PlanHighlight {
  * less than the free one; and "everything in Free, and…" is the honest shape of the offer.
  * `tiersIncludedIn()` is what a caller uses to render the inheritance.
  */
-export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
+/**
+ * Which claims each tier adds, in order. The ids and nothing else.
+ *
+ * ── EXPORTED FOR `marketing:check`, WHICH NOW WANTS EXACTLY THIS AND NOTHING MORE ───
+ * That gate asserts the SET of claim ids per tier matches `/pricing`'s, and it used to import
+ * `PLAN_ADDS` and map `h => h.claim` off it — reading a whole list of English prose to get at a
+ * list of ids. It imports this instead, which is both narrower and no longer language-dependent:
+ * the gate is about ids, and a gate that pulls a catalogue in to reach them is one that breaks
+ * the day the catalogue moves.
+ */
+export const PLAN_ADD_CLAIMS: Record<FamilyTier, readonly string[]> = {
   // ── FREE LOST THREE BULLETS TO STANDARD ON 2026-08-19 ─────────────────────────────
   // The tree, the ledger and separation of duties went up a rung, and the calendar bullet was
   // NARROWED rather than moved: Free still puts a gathering on a shared calendar with its
@@ -90,52 +101,20 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
   // Standard. What is left is the promise the product is built on — get every relative in, at
   // no charge, and be able to find them and talk to them.
   free: [
-    {
-      claim: 'free/every-relative-free',
-      label: 'Every relative, at no charge',
-      detail: 'Unlimited members, with no per-person fee.',
-    },
-    {
-      claim: 'free/directory',
-      label: 'A directory of the whole family',
-      detail: 'Who is who, and how to reach them.',
-    },
-    {
-      claim: 'free/shared-calendar',
-      label: 'The gathering on a shared calendar',
-      detail: 'The date, the place and the details, on one page everybody can see.',
-    },
-    {
-      claim: 'free/announcements',
-      label: 'Announcements the whole family sees',
-      detail: 'Family news on everyone’s dashboard instead of buried in a group text.',
-    },
-    {
-      claim: 'free/chat',
-      label: 'Chat, family-wide and private',
-      detail: 'Keep talking between gatherings.',
-    },
+    'free/every-relative-free',
+    'free/directory',
+    'free/shared-calendar',
+    'free/announcements',
+    'free/chat',
     // ── THREE ADDED 2026-08-22, in step with `PLANS[]` on /pricing ────────────────────
     // `npm run marketing:check` found eleven live screens the feature catalogue named
     // nowhere, and three of them were Free. That checker deliberately cannot see this list
     // or `PLANS[]` — a bullet is prose about a benefit and corresponds to no route — so
     // both hand-written lists were edited in the same commit, which is the discipline the
     // header above asks for and the thing that had already drifted twice.
-    {
-      claim: 'free/one-account-many-families',
-      label: 'One account, however many families',
-      detail: 'Belong to both sides, and switch between them without a second login.',
-    },
-    {
-      claim: 'free/nothing-scrolls-away',
-      label: 'Nothing is lost when it scrolls away',
-      detail: 'Every announcement, and everything sent to you, searchable long afterwards.',
-    },
-    {
-      claim: 'free/manual',
-      label: 'A manual your relatives will actually use',
-      detail: 'Every screen explained by name, reachable from the corner of the screen they are on.',
-    },
+    'free/one-account-many-families',
+    'free/nothing-scrolls-away',
+    'free/manual',
   ],
   // ── STANDARD, ADDED 2026-08-19 ────────────────────────────────────────────────────
   // Four bullets came UP from Free and one came DOWN from Plus, and the two directions carry
@@ -151,121 +130,45 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
   // grid records who may do which. Free is the family in one place; Standard is the family
   // being run.
   standard: [
-    {
-      claim: 'standard/family-tree',
-      label: 'The family tree, traced back',
-      detail: 'How everyone is related, generation by generation, with blood and marriage told apart.',
-    },
-    {
-      claim: 'standard/ledger',
-      label: 'A real ledger for the money you collect',
-      detail: 'Dues plans and a contribution ledger for cash, recorded instead of remembered.',
-    },
-    {
-      claim: 'standard/gathering-budget',
-      label: 'Plan the gathering, not just the date',
-      detail: 'Checklists a gathering is built from, and a budget drawn on one of your funds.',
-    },
-    {
-      claim: 'standard/duties',
-      label: 'Everybody knows their duties',
-      detail: 'Every step handed to a named relative, with what came back and whether it was accepted.',
-    },
-    {
-      claim: 'standard/separation-of-duties',
-      label: 'Separation of duties',
-      detail: 'Per-feature permissions, so recording dues is not the same as paying money out.',
-    },
-    {
-      claim: 'standard/profile-pictures',
-      label: 'A face against every name',
-      detail: 'Profile pictures, on the directory, the tree and everywhere a member is listed.',
-    },
+    'standard/family-tree',
+    'standard/ledger',
+    'standard/gathering-budget',
+    'standard/duties',
+    'standard/separation-of-duties',
+    'standard/profile-pictures',
   ],
   plus: [
-    {
-      claim: 'plus/card-payments',
-      label: 'Take payment the way your family pays',
-      detail: 'Card, debit, PayPal, Apple Pay, Google Pay and Cash App, with funds behind them.',
-    },
+    'plus/card-payments',
     // THIS BULLET SOLD RSVPs, MEAL TOTALS AND DAY-OF CHECK-IN until 2026-08-19, and all three
     // went with the Events product. What replaced it is what the family actually gets:
     // Dues Projections, which IS a Plus route (`lib/features.ts`) and is the one figure
     // leadership asks for that this tier really delivers today.
-    {
-      claim: 'plus/dues-projections',
-      label: 'Know what is still owed, before you have to ask',
-      detail: 'Every relative who owes this year, what has come in, and who has still to pay.',
-    },
-    {
-      claim: 'plus/pnl',
-      label: 'A profit and loss for your treasurer',
-      detail: 'The statement the board asks for, plus transfers between your funds.',
-    },
+    'plus/dues-projections',
+    'plus/pnl',
     // ── "THE FAMILY'S SIZE OVER TIME" WAS FALSE AND IS GONE, 2026-08-22 ───────────────
     // Nothing in this product records a membership figure over time; `/reporting/membership`
     // is a snapshot. `/features` corrected the same sentence on 2026-08-20 and both copies of
     // it survived here and on `/pricing` — which is the hand-maintained drift the header warns
     // about, in the direction that matters most, since a member can check this one.
-    {
-      claim: 'plus/membership-report',
-      label: 'The numbers leadership asks for',
-      detail: 'Dues collected against outstanding, and your membership by region and chapter.',
-    },
+    'plus/membership-report',
     // ADDED 2026-08-22 with the four activity reports. This tier's reporting story was
     // entirely money, so nothing told a family it could also answer "did the reunion work get
     // done" or "which offices are empty".
-    {
-      claim: 'plus/activity-reports',
-      label: 'Reports on more than the money',
-      detail: 'Reunion work returned, election turnout, meetings held, and the offices nobody holds.',
-    },
-    {
-      claim: 'plus/elections',
-      label: 'Elect your officers properly',
-      detail: 'Nominate, accept or decline, then vote — family-wide, or one region or chapter.',
-    },
-    {
-      claim: 'plus/library',
-      label: 'The paperwork, and the structure to match',
-      detail: 'Searchable bylaws, minutes that record how the room voted, and regions and chapters with their own leadership.',
-    },
+    'plus/activity-reports',
+    'plus/elections',
+    'plus/library',
     // ADDED 2026-08-22 — the Library's officer notebooks were sold on no surface at all.
-    {
-      claim: 'plus/officer-notes',
-      label: 'Every office keeps its own notebook',
-      detail: 'Notes that stay with the role rather than the person, read only by whoever holds it.',
-    },
+    'plus/officer-notes',
     // THE FACE HALF OF THIS BULLET MOVED TO STANDARD on 2026-08-19. Profile pictures are sold
     // a rung lower now, and leaving them named here would sell one capability twice — the
     // drift the note above `PLANS[]` on /pricing is about, in miniature.
-    {
-      claim: 'plus/gallery',
-      label: 'Photographs, findable',
-      detail: 'Collections per gathering, with tagging.',
-    },
+    'plus/gallery',
   ],
   premium: [
-    {
-      claim: 'premium/dues-reminders',
-      label: 'Stop chasing relatives for their dues',
-      detail: 'Reminders go out as each installment falls due, and stop when it is paid.',
-    },
-    {
-      claim: 'premium/notifications',
-      label: 'News that arrives rather than waiting to be found',
-      detail: 'Notifications on the phone and in the browser, for announcements, messages and the tasks you have been given.',
-    },
-    {
-      claim: 'premium/mobile-apps',
-      label: 'The family in everybody’s pocket',
-      detail: 'Apps for iPhone and Android, on the same family account.',
-    },
-    {
-      claim: 'premium/email-distributions',
-      label: 'Email the whole family without building a list',
-      detail: 'Distributions drawn straight from your membership.',
-    },
+    'premium/dues-reminders',
+    'premium/notifications',
+    'premium/mobile-apps',
+    'premium/email-distributions',
     // The member-facing half of `premium/safety-check-ins`, added 2026-08-23 in the same commit
     // as its `PLANS[]` counterpart — which is what `marketing:check`'s claim-set comparison
     // enforces, and what the two-bullet drift recorded below is the cost of forgetting.
@@ -273,27 +176,15 @@ export const PLAN_ADDS: Record<FamilyTier, readonly PlanHighlight[]> = {
     // SHORTER AND FLATTER THAN THE PRICING COPY, as every entry here is: a member reading
     // /admin/settings already belongs to the family and does not need selling. Same claim, same
     // absence of any promise about text messages.
-    {
-      claim: 'premium/safety-check-ins',
-      label: 'Check that everyone is safe, in one tap each',
-      detail: 'Ask the relatives in one area whether they are safe, and see who has not answered.',
-    },
-    {
-      claim: 'premium/family-website',
-      label: 'Your family’s own website, keeping itself current',
-      detail: 'It builds itself from your next gathering, newest photographs and latest announcement.',
-    },
+    'premium/safety-check-ins',
+    'premium/family-website',
     // ── THE TWO-BULLET DRIFT AGAINST `PLANS[]` IS CLOSED, 2026-08-22 ──────────────────
     // This list was five where /pricing was six, and the missing one was not a merge: a family
     // put on Premium was never told, anywhere INSIDE the product, that the address comes with
     // the website. FutureFeature.md had carried that diff since 2026-08-19. The Plus row of
     // that same table is a genuine merge ("A face against every name" folded into
     // "Photographs, findable") and stays merged.
-    {
-      claim: 'premium/custom-domain',
-      label: 'A proper address for it, ready to go',
-      detail: 'No hosting bill, no plugins, and nobody in the family maintaining it.',
-    },
+    'premium/custom-domain',
   ],
 }
 
@@ -337,51 +228,95 @@ export const TIER_PRICE: Record<FamilyTier, TierPrice | null> = {
   // in one place — the alternative was a figure typed into six surfaces, one of which would
   // still say $5 today.
   //
-  // NOTHING IS GRANDFATHERED, because nothing has been sold: `TIER_IS_SOLD` is false for all
-  // three and no family has ever been charged. Re-pricing after that is a different job with
-  // a migration in it, and 20260819000009's header is the precedent for what it costs.
+  // NOTHING IS GRANDFATHERED, because at the time of the re-pricing nothing had been sold.
+  // THAT WINDOW CLOSED ON 2026-08-23, when `TIER_IS_SOLD` flipped for Standard and Plus: a
+  // figure edited here now moves what a family with a live subscription is billed at their
+  // next renewal, and it moves it WITHOUT their agreeing to it. Two things follow, and the
+  // second is the one that bites.
+  //
+  // A change here has to be made in Stripe TOO, on the Price objects
+  // `STRIPE_PRICE_*` name — this constant is what every screen quotes, and Stripe is what
+  // actually charges. Edit one and the family is shown one number and billed another.
+  //
+  // And a genuine re-pricing is no longer an edit at all: Stripe Prices are immutable, so it
+  // is a NEW Price per tier, existing subscriptions migrated or left on the old one
+  // deliberately, and a decision about who is grandfathered. 20260819000009's header is the
+  // precedent for what a restructure costs once there is somebody to grandfather.
   standard: { monthlyCents: 1_000 },
   plus: { monthlyCents: 2_000 },
   premium: { monthlyCents: 3_000 },
 }
 
 /**
- * "$10" rather than "$10.00" for a whole number of dollars.
+ * "$10" rather than "$10.00" for a whole number of dollars, in the reader's conventions.
  *
  * A price is scanned, not audited, and the two trailing zeroes are noise at 48px. Anything
- * with cents in it keeps them, so a future $12.50 renders correctly without a second helper —
- * which is the reason this wraps `formatCurrency` instead of replacing it.
+ * with cents in it keeps them, so a future $12.50 renders correctly without a second helper.
  *
- * NO `cents % 100 === 0` GUARD, and its absence is deliberate rather than an omission. The
- * first version had one, and mutation-testing this file found it to be dead code: `$12.50`
- * and `$12.05` do not end in `.00`, so the anchored regex already declines to touch them and
- * the guard could not change an answer. Two expressions of one condition, one of which never
- * decides anything, is a thing a later reader has to work out from scratch — so the regex is
- * left to do the whole job. `lib/plans.test.ts` pins both branches by value.
+ * ── THE `.00` STRIP WAS A REGEX AND IT ONLY EVER WORKED IN ENGLISH ──────────────────
+ * This used to be `formatCurrency(cents).replace(/\.00$/, '')`, with a long note arguing that
+ * a `cents % 100 === 0` guard beside it would be dead code. That argument was correct and it
+ * rested on a premise the note stated out loud: *`formatCurrency` always emits exactly two
+ * decimals*, and `lib/plans.test.ts` pinned it as `/^\$[\d,]+\.\d{2}$/`.
+ *
+ * The premise was about `en-US`. Measured the day the public site learned Spanish and French:
+ *
+ *   en-US   $10.00      → the regex matches      → "$10"
+ *   es-MX   USD 10.00   → matches                → "USD 10"
+ *   fr-FR   10,00 $US   → does NOT match         → "10,00 $US"
+ *
+ * So French price cards were rendering the zero cents the whole mechanism existed to remove,
+ * and nothing failed. The GUARD is what asks the real question — is this a whole number of
+ * dollars — and `Intl` is what answers it in the reader's own punctuation, so the condition
+ * that was dead code against a regex is load-bearing against a formatter.
+ *
+ * ── THE LOCALE IS A SECOND POSITIONAL ARGUMENT, DEFAULTED ──────────────────────────
+ * Same shape as `formatCurrency(value, intl)` and `formatDate(value, intl)` — the whole family
+ * of formatters is threaded identically, which is what `i18n:check`'s PINNED-FORMATTER count
+ * counts. It defaults so a caller with no reader-locale in hand still renders US conventions
+ * rather than throwing; every call site in the tree passes one.
  */
-export function formatPlanPrice(cents: number): string {
-  return formatCurrency(cents).replace(/\.00$/, '')
+export function formatPlanPrice(cents: number, intl: string = DEFAULT_MONEY_LOCALE): string {
+  return formatMoney(cents, {
+    locale: intl,
+    // Whole dollars lose the cents; anything else keeps the currency's own two.
+    ...(cents % 100 === 0 ? { fractionDigits: 0 } : {}),
+  })
 }
 
 /**
  * Whether a tier can be BOUGHT today, as opposed to merely existing.
  *
- * Mirrors `PLANS[].available` on `/pricing`, which says "Available now" on Free and "Not
- * yet available" on the other two — because nothing has been sold and there is no billing.
- * Read it before writing any copy that implies a purchase: the plan panel is scaffolding
- * for a decision, not a checkout, and it says so.
+ * Mirrors `PLANS[].available` on `/pricing`, and the two must move together — that page's
+ * card says "Available now" or "Not yet available" off its own field, so a tier flipped here
+ * and not there is a checkout behind a card that says it cannot be bought.
  *
- * A PRICE AND A PURCHASE ARE NOW SEPARATE FACTS, since 2026-08-17. `TIER_PRICE` says what
- * Plus and Premium cost; this says neither can be bought yet. Both are true, and collapsing
- * them was the temptation to resist: a figure on the card with no way to pay is honest —
- * "here is what it will cost" — whereas a button that takes a decision nothing can charge
- * for is not. Every surface that shows a price must still read this before it shows a
- * control.
+ * A PRICE AND A PURCHASE ARE SEPARATE FACTS, since 2026-08-17, and that is what let the
+ * figures be announced a week before anything could be charged: a price on a card with no
+ * way to pay is honest — "here is what it will cost" — whereas a button that takes a
+ * decision nothing can charge for is not.
+ *
+ * ── STANDARD AND PLUS WENT ON SALE 2026-08-23; PREMIUM DID NOT ──────────────────────
+ * This was `false` for all three until the Stripe integration landed. The two that flipped
+ * are the two whose catalogue exists: each needs a real recurring Price and a real prepaid
+ * Price in Stripe, named by `STRIPE_PRICE_<TIER>_{RECURRING,PREPAID}`, and
+ * `platformBillingConfigured()` is what reports a tier that is sold here and unpriced there.
+ *
+ * SO THIS FLAG IS THE PRODUCT DECISION AND NEVER THE CAPABILITY. It says "we sell this",
+ * not "this deployment can take the money" — a laptop with no Stripe key sells Standard by
+ * this flag and refuses the checkout two lines later in `startPlanCheckout`. Keeping them
+ * separate is what makes the refusal a sentence about the deployment rather than a claim
+ * that the plan does not exist.
+ *
+ * PREMIUM STAYS FALSE deliberately rather than by omission: it is sold as the tier that
+ * comes with a mailbox and a website, and neither is provisioned by anything yet. Charging
+ * for it would be selling something nobody can deliver. Every surface that shows a price
+ * must still read this before it shows a control.
  */
 export const TIER_IS_SOLD: Record<FamilyTier, boolean> = {
   free: true,
-  standard: false,
-  plus: false,
+  standard: true,
+  plus: true,
   premium: false,
 }
 
@@ -417,14 +352,41 @@ export interface PlanChange {
  * `after` is `undefined` for "from the bottom", which is not an edge case — it is how the
  * whole of a plan's stack is asked for, and Free has nothing beneath it.
  */
+
+/**
+ * What each tier ADDS on top of the one below it, in the reader's language.
+ *
+ * ── THE CLAIM IDS STAYED EXACTLY WHERE THEY WERE ───────────────────────────────────
+ * `PLAN_ADD_CLAIMS` above is the same list in the same order with the same ids; only the words
+ * moved, into the SHELL catalogue as `plan.adds.<claim>.label` and `.detail`. That matters more
+ * than it looks: `npm run marketing:check` asserts the SET of ids per tier matches `/pricing`'s,
+ * and that gate is untouched by this because it walks ids and never words.
+ *
+ * ── AND THE SHELL CATALOGUE, NOT THE MARKETING ONE ─────────────────────────────────
+ * This list is read by `/admin/settings` and `/upgrade` — both signed in, both behind the
+ * Dashboard's own language resolution. `/pricing`'s list is read by a visitor with no session
+ * and lives in `lib/marketing/strings`. Two bundles for two audiences, which is the same split
+ * the two lists already had in prose: this file's header argues at length that they must stay
+ * separately WORDED, and putting them in one catalogue would have been the first step toward
+ * somebody consolidating them.
+ */
+export function planAdds(t: T, tier: FamilyTier): readonly PlanHighlight[] {
+  return PLAN_ADD_CLAIMS[tier].map(claim => ({
+    claim,
+    label: t(`plan.adds.${claim}.label`),
+    detail: t(`plan.adds.${claim}.detail`),
+  }))
+}
+
 export function planAddsBetween(
+  t: T,
   after: FamilyTier | undefined,
   through: FamilyTier,
 ): readonly PlanHighlight[] {
   const floor = after ? TIER_RANK[after] : -1
   return TIERS
-    .filter(t => TIER_RANK[t] > floor && TIER_RANK[t] <= TIER_RANK[through])
-    .flatMap(t => PLAN_ADDS[t])
+    .filter(tier => TIER_RANK[tier] > floor && TIER_RANK[tier] <= TIER_RANK[through])
+    .flatMap(tier => planAdds(t, tier))
 }
 
 /**
@@ -445,15 +407,21 @@ export function planAddsBetween(
  * `from === to` is not an error — it yields an empty `changing`, since nothing moves.
  *
  * PURE, like everything else here: no React, no database. `tests` need no fixture.
+ *
+ * ── IT TAKES `t` NOW, AND THAT IS STILL PURE ───────────────────────────────────────
+ * A translator is a function of a locale over two plain objects; it reads no request, no
+ * session and no database, so `npm test` still calls this with `tFor('en')` and no fixture.
+ * The parameter is FIRST rather than last, matching `planAdds` and `planAddsBetween`, so the
+ * three read the same way at a call site.
  */
-export function planChange(from: FamilyTier, to: FamilyTier): PlanChange {
+export function planChange(t: T, from: FamilyTier, to: FamilyTier): PlanChange {
   const up = tierMeets(to, from)
   const lower = up ? from : to
   const higher = up ? to : from
 
   return {
     up,
-    changing: planAddsBetween(lower, higher),
-    keeping: planAddsBetween(undefined, lower),
+    changing: planAddsBetween(t, lower, higher),
+    keeping: planAddsBetween(t, undefined, lower),
   }
 }

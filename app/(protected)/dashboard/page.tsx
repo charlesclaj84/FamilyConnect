@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { callerI18n } from '@/lib/i18n/server'
 import { requireViewOrPending, can, canAny } from '@/lib/auth/permissions'
 import { PendingApproval } from '@/components/membership/PendingApproval'
 import { FamilyRemoved } from '@/components/membership/FamilyRemoved'
@@ -17,6 +18,7 @@ import { LINK_EXISTING_PERSON_ENABLED } from '@/lib/feature-flags'
 import { ChapterReminderBanner } from '@/components/dashboard/ChapterReminderBanner'
 import { ProfileReminderBanner } from '@/components/dashboard/ProfileReminderBanner'
 import { SafetyCheckInBanner } from '@/components/dashboard/SafetyCheckInBanner'
+import { PlanSetupBanner } from '@/components/dashboard/PlanSetupBanner'
 import { profileCompleteness } from '@/lib/profile-completeness'
 import { familyShowsPhotos } from '@/lib/auth/tier'
 import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
@@ -32,6 +34,8 @@ import {
   getPremierGathering, getUpcomingGatheringCount, getMyGatheringTaskCount,
 } from '@/app/actions/gatherings'
 import { getMyActionableElection } from '@/app/actions/elections'
+import { getSignupPlanPrompt } from '@/app/actions/billing'
+import { anyPlatformBillingConfigured } from '@/lib/stripe/config'
 import { PremierGatheringHero } from '@/components/dashboard/PremierGatheringHero'
 import { RecentUpdates } from '@/components/dashboard/RecentUpdates'
 import { mergeUpdates } from '@/components/dashboard/updates'
@@ -41,6 +45,7 @@ import {
   type ResolvedTile, type ResolvedQuickAction,
 } from '@/components/dashboard/tiles'
 import { isFeatureLive } from '@/lib/features'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Dashboard' }
 
@@ -112,8 +117,14 @@ export const metadata = { title: 'Dashboard' }
  */
 export default async function DashboardPage() {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
+
+  // The reader's language. `t` is threaded into the SERVER cards below — they cannot read
+  // `LocaleProvider`, and a `T` crossing a server-to-server boundary is passed by reference
+  // rather than serialized. The client ones (RecentUpdates, QuickActions, the three
+  // banners) take nothing and call `useT()`. See lib/i18n/server.ts.
+  const { t, intl } = await callerI18n(user.id)
 
   // requireViewOrPending, not requireView: a pending member must be able to LAND
   // somewhere that tells them what is happening. The early return is above every fetch
@@ -251,12 +262,23 @@ export default async function DashboardPage() {
       : false,
   ])
 
+  // ── The plan they chose at signup, if they are still owed the checkout ─────────────
+  //
+  // NO GRANT RESOLVED HERE, unlike everything above, and that is deliberate rather than an
+  // omission: `getSignupPlanPrompt` opens with `requireEdit('admin/settings')` and answers
+  // null for anybody who could not act on it, so the §5 narrowing is inside the action. It
+  // returns one word or nothing, so there is nothing to withhold by not calling it.
+  //
+  // NOT TIER-GATED. It is a prompt to BUY a tier — asking whether the family's current plan
+  // permits it would be exactly backwards.
+
   // ── Now fetch, and only what the answers above allow ────────────────────────────────
   const [
     myRoles, linkBannerData, announcements, duesSummary,
     notifications, memberCountResult, myPersonResult, chapters,
     pendingApprovals, duesCollectedCents, treeSummary, donations,
     premierGathering, upcomingGatheringCount, myTaskCount, actionableElection,
+    signupPlan,
   ] = await Promise.all([
     getMyRoles(),
     // "Were you already added to the family?" — parked, see lib/feature-flags.ts.
@@ -376,6 +398,17 @@ export default async function DashboardPage() {
     // the RSC payload whether the chip renders or not. The action checks the same grant itself
     // (it is a public endpoint), so this line is about not asking rather than about safety.
     canViewElections ? getMyActionableElection() : Promise.resolve(null),
+    // NO GRANT CONDITION, which every other line here has — `getSignupPlanPrompt` resolves
+    // `admin/settings:edit` itself and returns one tier or null, so there is no roster and
+    // no figure to withhold by not asking.
+    //
+    // WHAT IS CONDITIONAL IS WHETHER THIS DEPLOYMENT CAN TAKE A PAYMENT AT ALL, and it is
+    // asked HERE rather than inside the action on purpose. A credential check inside a read
+    // makes it answer null to everybody, which is perfectly isolated and therefore untestable
+    // — `tests/rls` has no Stripe key, so the two cases covering that action would become
+    // evidence about the key. Measured: it was written there first and the positive control
+    // caught it on the first run. Skipping the CALL is the same §5 shape as every line above.
+    anyPlatformBillingConfigured() ? getSignupPlanPrompt() : Promise.resolve(null),
   ])
 
   const memberCount = memberCountResult?.count ?? 0
@@ -514,6 +547,7 @@ export default async function DashboardPage() {
       {premierGathering ? (
         <div>
           <WelcomeHero
+            t={t}
             firstName={firstName}
             initials={initials}
             avatarUrl={heroAvatarUrl}
@@ -522,10 +556,11 @@ export default async function DashboardPage() {
             photoUrl={premierGathering.photoUrl}
             ground="page"
           />
-          <PremierGatheringHero gathering={premierGathering} />
+          <PremierGatheringHero gathering={premierGathering} t={t} />
         </div>
       ) : (
         <WelcomeHero
+          t={t}
           firstName={firstName}
           initials={initials}
           avatarUrl={heroAvatarUrl}
@@ -548,7 +583,7 @@ export default async function DashboardPage() {
 
           It renders `null` for nobody most of the time: one filtered read that returns
           nothing for a member on no open check-in. */}
-      <SafetyCheckInBanner />
+      <SafetyCheckInBanner t={t} />
 
       {/* Banners sit between the hero and the grid: each one is a thing this member has
           to do, and burying an action item under four metric tiles is how it gets
@@ -557,11 +592,29 @@ export default async function DashboardPage() {
         <LinkPersonBanner unlinkedPeople={linkBannerData.unlinkedPeople} />
       )}
 
-      {/* BOTH BANNERS CAN SHOW AT ONCE, and the profile one goes first: it is the broader
-          ask, and the chapter picker below it is one of the things a member would otherwise
-          go looking for on the profile page. Neither is dismissible in the same way — see
-          ProfileReminderBanner on why this one has no X. */}
-      <ProfileReminderBanner completeness={completeness} />
+      {/* FIRST IN THE MARKUP SINCE 2026-08-26, AND IT USED TO BE LAST. The old ordering was
+          argued from the reader's side — the two banners below are things the MEMBER has not
+          finished, this is a thing the FAMILY has not finished, and a payment prompt above
+          "add a photograph to your profile" would make the product's first word to a new
+          administrator a request for money.
+
+          Right instinct, wrong reader. This renders ONLY for somebody who holds
+          `admin/family:edit` and whose family recorded a paid plan at signup: they chose it,
+          they are expecting to be charged, and finishing it is the thing they are most likely
+          to have come looking for. Reported as: created a family on Standard, logged in, and
+          was never reminded or directed to complete the payment. A prompt nobody notices is
+          not restraint — see PlanSetupBanner.
+
+          It is its own component and not a row in Recent Updates because it is not news —
+          it is a decision waiting on somebody, and it goes away when they take it either
+          way. */}
+      {signupPlan && <PlanSetupBanner tier={signupPlan.tier} />}
+
+      {/* BOTH OF THESE CAN SHOW AT ONCE, and the profile one goes first of the two: it is
+          the broader ask, and the chapter picker below it is one of the things a member would
+          otherwise go looking for on the profile page. Neither is dismissible in the same way
+          — see ProfileReminderBanner on why this one has no X. */}
+      <ProfileReminderBanner completeness={completeness} t={t} />
       {needsChapter && <ChapterReminderBanner chapters={chapters} />}
 
       {/* NO ANNOUNCEMENTS BANNER, since 2026-08-13, and its absence is the change rather
@@ -619,9 +672,9 @@ export default async function DashboardPage() {
               and what lets the balance fill the row on its own when no drive is open. The
               order here is the order they appear in: what you owe, then what you are being
               asked to give. */}
-          <AtAGlance tiles={tiles}>
-            <DuesBalanceKpi summary={duesSummary} showViewLink />
-            <DonationDrivesCard donations={donations} />
+          <AtAGlance tiles={tiles} t={t}>
+            <DuesBalanceKpi summary={duesSummary} showViewLink intl={intl} />
+            <DonationDrivesCard donations={donations} t={t} intl={intl} />
           </AtAGlance>
           {/* Merged and ordered on the server: pinned announcements first, then
               notifications and dismissed announcements interleaved by date. The rule is
@@ -641,7 +694,7 @@ export default async function DashboardPage() {
               and it was the one tile whose figure grew without bound and set the width of
               every tile beside it. It renders nothing at all when the caller holds neither
               ledger grant — `null` is "not entitled" and `0` is a real zero. */}
-          <FamilyDuesCollectedCard collectedCents={duesCollectedCents} />
+          <FamilyDuesCollectedCard collectedCents={duesCollectedCents} t={t} intl={intl} />
           {/* THE KIT'S "Family Tree Highlights", finally answerable — see the header of
               this file, which listed it among four omitted panels because the tree was a
               scaffold and nothing computed a generation depth. Both are now false.
@@ -651,7 +704,7 @@ export default async function DashboardPage() {
               their family IS. It renders whether or not the tree has anything in it, which
               is the one place it departs from every other card here, and the component
               says why. */}
-          {treeSummary && <FamilyTreeCard summary={treeSummary} />}
+          {treeSummary && <FamilyTreeCard summary={treeSummary} t={t} />}
         </div>
       </div>
     </PageShell>

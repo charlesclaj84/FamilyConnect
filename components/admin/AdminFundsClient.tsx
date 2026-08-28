@@ -22,6 +22,7 @@ import {
 import {
   isFundsSection, type AccountSection, type AccountRights,
 } from '@/components/admin/account-sections'
+import { useT } from '@/components/layout/LocaleProvider'
 
 // Member "open contributions" feature is hidden for now; flip to re-enable.
 const SHOW_OPEN_CONTRIBUTIONS = false
@@ -32,7 +33,7 @@ const SHOW_OPEN_CONTRIBUTIONS = false
  * Every other currency figure on this screen is a magnitude whose direction is the
  * column it sits in — Collected is in, Disbursed is out. Net transfers is the one that
  * can point either way for the same fund, so "$300" alone would be unreadable and
- * `formatCurrency(-30000)` renders "-$300.00", which reads as a negative amount of
+ * `formatCurrency(-30000, intl)` renders "-$300.00", which reads as a negative amount of
  * money rather than money going the other way.
  */
 function signedFmt(cents: number): string {
@@ -63,6 +64,7 @@ export function AdminFundsClient({
   initialFunds, allMilestones, initialAllocations,
   rights,
 }: Props) {
+  const t = useT()
   // This one component renders three sections that are now three separate resources,
   // so the grants are read per section rather than once for the panel.
   const mayEditFunds       = rights.funds.edit
@@ -129,7 +131,7 @@ export function AdminFundsClient({
   const routingGap = Math.round((100 - totalPct) * 100) / 100
   const routingHint =
     totalPct === 0
-      ? 'Routing is off. Contributions stay in the fund they were given to until these add up to 100%.'
+      ? t('fnd.routingOff')
       : routingGap > 0
         ? `${routingGap.toFixed(2)}% more to go — add it to any fund below, or spread it across several.`
         : routingGap < 0
@@ -155,9 +157,9 @@ export function AdminFundsClient({
 
   async function handleSaveAllocations() {
     const ok = await confirm({
-      title: 'Save routing',
-      description: 'Save this routing configuration? Future dues payments will be split across funds using these percentages and priorities.',
-      confirmLabel: 'Save routing',
+      title: t('fnd.saveRouting'),
+      description: t('fnd.saveRoutingConfirm'),
+      confirmLabel: t('fnd.saveRouting'),
     })
     if (!ok) return
     setRoutingMsg(''); setError('')
@@ -171,7 +173,7 @@ export function AdminFundsClient({
       }))
       const res = await saveFundAllocations(rows)
       if (res.success) setEditingRouting(false)
-      setRoutingMsg(res.success ? 'Routing saved.' : (res.message ?? 'Failed to save'))
+      setRoutingMsg(res.success ? t('fnd.routingSaved') : (res.message ?? t('fnd.saveFailed')))
     })
   }
 
@@ -196,7 +198,7 @@ export function AdminFundsClient({
   }
 
   function handleCreateFund() {
-    if (!nfName) { setError('Name required'); return }
+    if (!nfName) { setError(t('fnd.nameRequired')); return }
     setError('')
     // One reading of the field, used for the write AND for both optimistic rows below.
     // Parsed once because the Routing pane is fed from `alloc` and the Balances table from
@@ -209,7 +211,7 @@ export function AdminFundsClient({
         minimum_cents: minimumCents,
         open_contributions: nfOpen,
       })
-      if (!result.success || !result.id) { setError(result.message ?? 'Failed'); return }
+      if (!result.success || !result.id) { setError(result.message ?? t('action.failed')); return }
       // Optimistically show the new fund without a page refresh.
       const maxPriority = funds.reduce((m, f) => Math.max(m, f.priority), 0)
       const newFund: FundWithStats = {
@@ -251,11 +253,11 @@ export function AdminFundsClient({
   async function handleDeleteFund(id: string) {
     const fund = funds.find(f => f.id === id)
     const ok = await confirm({
-      title: 'Delete fund',
+      title: t('fnd.delete'),
       description: fund
         ? `Delete the fund "${fund.name}"? Its balance of ${fmt(fund.balance_cents)} and its milestones go with it. This cannot be undone.`
-        : 'Delete this fund and its milestones? This cannot be undone.',
-      confirmLabel: 'Delete fund',
+        : t('fnd.deleteBody'),
+      confirmLabel: t('fnd.delete'),
       destructive: true,
     })
     if (!ok) return
@@ -268,11 +270,11 @@ export function AdminFundsClient({
   async function handleToggleOpen(fund: FundWithStats) {
     const next = !fund.open_contributions
     const ok = await confirm({
-      title: next ? 'Open fund to contributions' : 'Close fund to contributions',
+      title: next ? t('fnd.openToContrib') : t('fnd.closeToContrib'),
       description: next
         ? `Let members contribute to "${fund.name}" directly?`
         : `Stop members from contributing to "${fund.name}" directly?`,
-      confirmLabel: next ? 'Open fund' : 'Close fund',
+      confirmLabel: next ? t('fnd.openFund') : t('fnd.closeFund'),
       destructive: !next,
     })
     if (!ok) return
@@ -280,14 +282,14 @@ export function AdminFundsClient({
     startTransition(async () => {
       const res = await updateFund(fund.id, { open_contributions: next })
       if (!res.success) {
-        setError(res.message ?? 'Failed')
+        setError(res.message ?? t('action.failed'))
         setFunds(prev => prev.map(f => f.id === fund.id ? { ...f, open_contributions: !next } : f))
       }
     })
   }
 
   function handleCreateMilestone() {
-    if (!nmFundId || !nmName || !nmAmount) { setError('Fund, name and amount required'); return }
+    if (!nmFundId || !nmName || !nmAmount) { setError(t('fnd.needAll')); return }
     setError('')
     startTransition(async () => {
       const result = await createMilestone(nmFundId, {
@@ -295,7 +297,7 @@ export function AdminFundsClient({
         description: nmDesc,
         amount_cents: Math.round(parseFloat(nmAmount) * 100),
       })
-      if (!result.success || !result.milestone) { setError(result.message ?? 'Failed'); return }
+      if (!result.success || !result.milestone) { setError(result.message ?? t('action.failed')); return }
       // Also puts it in the disbursement form's milestone dropdown right away.
       const created = result.milestone
       setMilestones(prev => [...prev, created])
@@ -310,17 +312,17 @@ export function AdminFundsClient({
   async function handleDeleteMilestone(id: string) {
     const milestone = milestones.find(m => m.id === id)
     const ok = await confirm({
-      title: 'Delete milestone',
+      title: t('fnd.deleteMilestone'),
       description: milestone
         ? `Delete the milestone "${milestone.name}" (${fmt(milestone.amount_cents)})? This cannot be undone.`
-        : 'Delete this milestone? This cannot be undone.',
-      confirmLabel: 'Delete milestone',
+        : t('fnd.deleteMilestoneBody'),
+      confirmLabel: t('fnd.deleteMilestone'),
       destructive: true,
     })
     if (!ok) return
     startTransition(async () => {
       const result = await deleteMilestone(id)
-      if (!result.success) { setError(result.message ?? 'Failed'); return }
+      if (!result.success) { setError(result.message ?? t('action.failed')); return }
       setMilestones(prev => prev.filter(m => m.id !== id))
       if (milestone) {
         setFunds(prev => prev.map(f => f.id === milestone.fund_id
@@ -337,32 +339,28 @@ export function AdminFundsClient({
       {tab === 'funds' && (
         <div className="space-y-4">
           {funds.length === 0 && (
-            <p className="text-sm text-muted-foreground">No funds yet.</p>
+            <p className="text-sm text-muted-foreground">{t('fnd.none')}</p>
           )}
 
           <Dialog
             open={creatingFund}
             onClose={onCloseCreate}
-            title="New Fund"
-            description="A pot that dues route into and disbursements come out of."
+            title={t('acct.newFund')}
+            description={t('fnd.newFundHint')}
           >
             <div className="space-y-3 mt-2">
               <div className="space-y-1.5">
-                <Label required>Name</Label>
-                <Input value={nfName} onChange={e => setNfName(e.target.value)} placeholder="College Fund" autoFocus />
+                <Label required>{t('field.name')}</Label>
+                <Input value={nfName} onChange={e => setNfName(e.target.value)} placeholder={t('fnd.namePh')} autoFocus />
               </div>
               <div className="space-y-1.5">
-                <Label>Minimum Balance ($, optional)</Label>
-                <Input type="number" min="0" step="0.01" value={nfMinimum} onChange={e => setNfMinimum(e.target.value)} placeholder="5000.00" />
-                <p className="text-xs text-muted-foreground">
-                  What this fund is topped up to before any fund below it receives
-                  anything. You can change it, and the order funds fill in, under
-                  Funds&nbsp;→&nbsp;Routing.
-                </p>
+                <Label>{t('fnd.minBalance')}</Label>
+                <Input type="number" min="0" step="0.01" value={nfMinimum} onChange={e => setNfMinimum(e.target.value)} placeholder={t('fnd.minPh')} />
+                <p className="text-xs text-muted-foreground">{t('adm.whatFundToppedUp')}</p>
               </div>
               <div className="space-y-1.5">
-                <Label>Description</Label>
-                <Input value={nfDesc} onChange={e => setNfDesc(e.target.value)} placeholder="For graduates…" />
+                <Label>{t('common.description')}</Label>
+                <Input value={nfDesc} onChange={e => setNfDesc(e.target.value)} placeholder={t('fnd.descPh')} />
               </div>
               {SHOW_OPEN_CONTRIBUTIONS && (
                 <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
@@ -372,17 +370,17 @@ export function AdminFundsClient({
                     onChange={e => setNfOpen(e.target.checked)}
                     className="h-4 w-4 rounded border-input accent-primary"
                   />
-                  Open to member contributions
+                  {t('fnd.openToMembers')}
                   <span className="text-xs text-muted-foreground">(any family member can contribute any amount)</span>
                 </label>
               )}
               <FormError message={error} />
               <div className="flex gap-2 pt-1">
                 <Button className="flex-1" onClick={handleCreateFund} disabled={isPending}>
-                  {isPending ? 'Adding…' : 'Add Fund'}
+                  {isPending ? t('action.adding') : t('fnd.addFund')}
                 </Button>
                 <Button variant="outline" onClick={onCloseCreate} disabled={isPending}>
-                  Cancel
+                  {t('action.cancel')}
                 </Button>
               </div>
             </div>
@@ -403,14 +401,14 @@ export function AdminFundsClient({
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-semibold">Fund</th>
+                    <th scope="col" className="px-3 py-2 font-semibold">{t('fnd.fund')}</th>
                     <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>% of dues</th>
-                    <th scope="col" className="px-3 py-2 text-right font-semibold">Balance</th>
-                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Collected</th>
-                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Disbursed</th>
-                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Transferred</th>
-                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Minimum</th>
-                    <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+                    <th scope="col" className="px-3 py-2 text-right font-semibold">{t('fnd.balance')}</th>
+                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('fnd.collected')}</th>
+                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('fnd.disbursed')}</th>
+                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('fnd.transferred')}</th>
+                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('fnd.minimum')}</th>
+                    <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -423,19 +421,19 @@ export function AdminFundsClient({
                               or absent button with no explanation reads as a bug. */}
                           {f.system_key && (
                             <span className="shrink-0 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft"
-                              title="Created automatically. Holds every donation the family receives, can be given a share of dues like any other fund, and cannot be deleted or switched off.">
-                              Built in
+                              title={t('fnd.donationsFundHint')}>
+                              {t('fnd.builtIn')}
                             </span>
                           )}
                           {SHOW_OPEN_CONTRIBUTIONS && f.open_contributions && (
-                            <span className="shrink-0 rounded-full bg-brand-affirm px-2 py-0.5 text-[11px] font-medium text-brand-on-affirm">Open</span>
+                            <span className="shrink-0 rounded-full bg-brand-affirm px-2 py-0.5 text-[11px] font-medium text-brand-on-affirm">{t('fnd.open')}</span>
                           )}
                         </div>
                         {f.description && <p className="text-xs text-muted-foreground">{f.description}</p>}
                         <RowMeta className="gap-x-2">
-                          <MetaIf value={fmt(f.total_contributed_cents)} prefix="Collected" />
+                          <MetaIf value={fmt(f.total_contributed_cents)} prefix={t('fnd.collected')} />
                           <MetaDot />
-                          <MetaIf value={fmt(f.total_disbursed_cents)} prefix="Disbursed" />
+                          <MetaIf value={fmt(f.total_disbursed_cents)} prefix={t('fnd.disbursed')} />
                           {/* Only when there is one. On a fund that has never taken part
                               in a transfer this line would be a zero explaining nothing;
                               on one that has, its absence is the reason Collected minus
@@ -443,7 +441,7 @@ export function AdminFundsClient({
                           {f.net_transfers_cents !== 0 && (
                             <>
                               <MetaDot />
-                              <MetaIf value={signedFmt(f.net_transfers_cents)} prefix="Transferred" />
+                              <MetaIf value={signedFmt(f.net_transfers_cents)} prefix={t('fnd.transferred')} />
                             </>
                           )}
                           {/* EVERY FUND SHOWS ITS SHARE SINCE 2026-08-20, the Donations fund
@@ -459,7 +457,7 @@ export function AdminFundsClient({
                           {f.minimum_cents > 0 && (
                             <>
                               <MetaDot />
-                              <MetaIf value={fmt(f.minimum_cents)} prefix="Minimum" />
+                              <MetaIf value={fmt(f.minimum_cents)} prefix={t('fnd.minimum')} />
                             </>
                           )}
                         </RowMeta>
@@ -491,7 +489,7 @@ export function AdminFundsClient({
                         <div className="flex items-center justify-end gap-1">
                           {SHOW_OPEN_CONTRIBUTIONS && mayEditFunds && (
                             <Button size="sm" variant={f.open_contributions ? 'outline' : 'ghost'} disabled={isPending} onClick={() => handleToggleOpen(f)}>
-                              {f.open_contributions ? 'Open to members' : 'Make open'}
+                              {f.open_contributions ? t('fnd.openToMembersShort') : t('fnd.makeOpen')}
                             </Button>
                           )}
                           {/* No delete for a system fund, and not merely disabled: the
@@ -521,57 +519,54 @@ export function AdminFundsClient({
       {tab === 'milestones' && (
         <div className="space-y-4">
           {funds.length === 0 && (
-            <p className="text-sm text-muted-foreground">Create a fund first — a milestone is awarded out of one.</p>
+            <p className="text-sm text-muted-foreground">{t('fnd.createFirst')}</p>
           )}
           {funds.length > 0 && milestones.length === 0 && (
-            <p className="text-sm text-muted-foreground">No milestones yet.</p>
+            <p className="text-sm text-muted-foreground">{t('fnd.noMilestones')}</p>
           )}
 
           <Dialog
             open={creatingMilestone}
             onClose={onCloseCreate}
-            title="New Milestone"
-            description="An award a member can be paid out of a fund when they reach it."
+            title={t('acct.newMilestone')}
+            description={t('fnd.newMilestoneHint')}
           >
             {/* The rail's trigger is always live, so the "no fund yet" case has to be
                 answered in here — where the live fund list is — rather than by a
                 disabled button the admin cannot interrogate. */}
             {funds.length === 0 ? (
               <div className="space-y-3 mt-2">
-                <p className="text-sm text-muted-foreground">
-                  A milestone is awarded out of a fund, and there are none yet. Add a fund
-                  under Funds → Balances first.
-                </p>
-                <Button variant="outline" onClick={onCloseCreate}>Close</Button>
+                <p className="text-sm text-muted-foreground">{t('adm.milestoneAwardedOutFund')}</p>
+                <Button variant="outline" onClick={onCloseCreate}>{t('action.close')}</Button>
               </div>
             ) : (
               <div className="space-y-3 mt-2">
                 <div className="space-y-1.5">
-                  <Label required>Fund</Label>
+                  <Label required>{t('fnd.fund')}</Label>
                   <Select value={nmFundId} onChange={e => setNmFundId(e.target.value)}>
                     <option value="">— Select fund —</option>
                     {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label required>Milestone Name</Label>
-                  <Input value={nmName} onChange={e => setNmName(e.target.value)} placeholder="Graduate high school" autoFocus />
+                  <Label required>{t('fnd.milestoneName')}</Label>
+                  <Input value={nmName} onChange={e => setNmName(e.target.value)} placeholder={t('fnd.milestonePh')} autoFocus />
                 </div>
                 <div className="space-y-1.5">
-                  <Label required>Award Amount ($)</Label>
-                  <Input type="number" min="0" step="0.01" value={nmAmount} onChange={e => setNmAmount(e.target.value)} placeholder="250.00" />
+                  <Label required>{t('fnd.awardAmount')}</Label>
+                  <Input type="number" min="0" step="0.01" value={nmAmount} onChange={e => setNmAmount(e.target.value)} placeholder={t('fnd.awardPh')} />
                 </div>
                 <div className="space-y-1.5">
-                  <Label>Description</Label>
-                  <Input value={nmDesc} onChange={e => setNmDesc(e.target.value)} placeholder="High school diploma or GED" />
+                  <Label>{t('common.description')}</Label>
+                  <Input value={nmDesc} onChange={e => setNmDesc(e.target.value)} placeholder={t('fnd.milestoneDescPh')} />
                 </div>
                 <FormError message={error} />
                 <div className="flex gap-2 pt-1">
                   <Button className="flex-1" onClick={handleCreateMilestone} disabled={isPending}>
-                    {isPending ? 'Adding…' : 'Add Milestone'}
+                    {isPending ? t('action.adding') : t('fnd.addMilestone')}
                   </Button>
                   <Button variant="outline" onClick={onCloseCreate} disabled={isPending}>
-                    Cancel
+                    {t('action.cancel')}
                   </Button>
                 </div>
               </div>
@@ -583,10 +578,10 @@ export function AdminFundsClient({
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-semibold">Milestone</th>
-                    <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Fund</th>
-                    <th scope="col" className="px-3 py-2 text-right font-semibold">Award</th>
-                    <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">Actions</span></th>
+                    <th scope="col" className="px-3 py-2 font-semibold">{t('fnd.milestone')}</th>
+                    <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('fnd.fund')}</th>
+                    <th scope="col" className="px-3 py-2 text-right font-semibold">{t('fnd.award')}</th>
+                    <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -628,20 +623,17 @@ export function AdminFundsClient({
           <div className="rounded-xl border bg-card p-4 space-y-3">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold">Dues Routing</h3>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Set the share of each dues payment that flows to each fund. Funds higher in the list fill first;
-                  a fund below its minimum is topped up before lower ones receive anything.
-                </p>
+                <h3 className="text-sm font-semibold">{t('fnd.duesRouting')}</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">{t('adm.setShareEachDues')}</p>
               </div>
               {alloc.length > 0 && !editingRouting && mayEditRouting && (
                 <Button size="sm" variant="outline" onClick={startEditRouting}>
-                  <Pencil className="h-3.5 w-3.5" /> Edit
+                  <Pencil className="h-3.5 w-3.5" /> {t('action.edit')}
                 </Button>
               )}
             </div>
             {alloc.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Create a fund first to configure routing.</p>
+              <p className="text-sm text-muted-foreground">{t('fnd.createFirstRouting')}</p>
             ) : !editingRouting ? (
               // ── View mode ──
               // The routing table is the one AGENTS.md names as the reason MainRail
@@ -653,9 +645,9 @@ export function AdminFundsClient({
                   <thead>
                     <tr className="border-b">
                       <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">#</th>
-                      <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">Fund</th>
-                      <th className="py-2 pr-3 text-right text-xs font-medium text-muted-foreground">Allocation</th>
-                      <th className={cn('py-2 text-right text-xs font-medium text-muted-foreground', COLLAPSING_CELL)}>Minimum</th>
+                      <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">{t('fnd.fund')}</th>
+                      <th className="py-2 pr-3 text-right text-xs font-medium text-muted-foreground">{t('fnd.allocation')}</th>
+                      <th className={cn('py-2 text-right text-xs font-medium text-muted-foreground', COLLAPSING_CELL)}>{t('fnd.minimum')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -665,7 +657,7 @@ export function AdminFundsClient({
                         <td className="py-2 pr-3 font-medium">
                           {a.fund_name}
                           <RowMeta>
-                            <MetaIf value={fmt(dollarsToCents(a.minimum))} prefix="Minimum" />
+                            <MetaIf value={fmt(dollarsToCents(a.minimum))} prefix={t('fnd.minimum')} />
                           </RowMeta>
                         </td>
                         <td className="py-2 pr-3 text-right">{(parseFloat(a.percent || '0') || 0).toFixed(2)}%</td>
@@ -689,10 +681,10 @@ export function AdminFundsClient({
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b">
-                        <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">Priority</th>
-                        <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">Fund</th>
-                        <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">Allocation&nbsp;%</th>
-                        <th className={cn('py-2 text-left text-xs font-medium text-muted-foreground', COLLAPSING_CELL)}>Minimum&nbsp;$</th>
+                        <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">{t('fnd.priority')}</th>
+                        <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">{t('fnd.fund')}</th>
+                        <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">{t('fnd.allocationPct')}</th>
+                        <th className={cn('py-2 text-left text-xs font-medium text-muted-foreground', COLLAPSING_CELL)}>{t('fnd.minimumDollars')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -710,7 +702,7 @@ export function AdminFundsClient({
                               <span className="text-xs text-muted-foreground w-4 text-center">{i + 1}</span>
                               <button
                                 type="button"
-                                aria-label="Move up"
+                                aria-label={t('fnd.moveUp')}
                                 disabled={i === 0 || isPending}
                                 onClick={() => moveAlloc(i, -1)}
                                 className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
@@ -719,7 +711,7 @@ export function AdminFundsClient({
                               </button>
                               <button
                                 type="button"
-                                aria-label="Move down"
+                                aria-label={t('fnd.moveDown')}
                                 disabled={i === alloc.length - 1 || isPending}
                                 onClick={() => moveAlloc(i, 1)}
                                 className="rounded p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none"
@@ -731,7 +723,7 @@ export function AdminFundsClient({
                           <td className="py-2 pr-3 font-medium">
                             {a.fund_name}
                             <RowMeta className="flex-col items-start">
-                              <span>Minimum $</span>
+                              <span>{t('fnd.minimumDollarsPlain')}</span>
                               {minimumInput}
                             </RowMeta>
                           </td>
@@ -766,10 +758,10 @@ export function AdminFundsClient({
                     </span>
                   )}
                   <Button size="sm" onClick={handleSaveAllocations} disabled={isPending || !pctValid}>
-                    {isPending ? 'Saving…' : 'Save Routing'}
+                    {isPending ? t('action.saving') : t('fnd.saveRoutingAction')}
                   </Button>
                   <Button size="sm" variant="ghost" onClick={cancelEditRouting} disabled={isPending}>
-                    <X className="h-3.5 w-3.5" /> Cancel
+                    <X className="h-3.5 w-3.5" /> {t('action.cancel')}
                   </Button>
                 </div>
               </>

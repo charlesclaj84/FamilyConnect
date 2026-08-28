@@ -18,6 +18,7 @@ import {
   type MemberProfileForEdit,
 } from '@/app/actions/admin/users'
 import type { PersonalInfoData } from '@/app/actions/personal-info'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Edit another member's profile, from Members & Access.
@@ -75,8 +76,18 @@ import type { PersonalInfoData } from '@/app/actions/personal-info'
  */
 
 /** The form's own state — every writable profile column, as strings. */
+/**
+ * `locale` IS EXCLUDED, and it is the same argument `primary_email` is excluded on.
+ *
+ * An administrator editing a member's record fixes facts about that person — their name, their
+ * address, the spelling of their surname. Which language they read the product in is not a fact
+ * about them, it is a preference they express, and choosing it on their behalf would silently
+ * change the interface under somebody who never asked. `updateUserProfile` deletes it from the
+ * patch as well, for the reason that action deletes `primary_email`: the dialog in front of it
+ * is a convenience and not a gate (§2).
+ */
 type FormState = Required<Omit<PersonalInfoData,
-  'primary_email' | 'chapter_id'
+  'primary_email' | 'chapter_id' | 'locale'
 >>
 
 const EMPTY: FormState = {
@@ -130,6 +141,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
   /** Called after a successful save, so the roster behind this can reload. */
   onSaved: () => void
 }) {
+  const t = useT()
   const confirm = useConfirm()
   const [profile, setProfile] = useState<MemberProfileForEdit | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY)
@@ -178,7 +190,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
       if (!live) return
       setLoading(false)
       if (!result.success || !result.profile) {
-        setError(result.error ?? 'That member could not be loaded.')
+        setError(result.error ?? t('mpe.loadFailed'))
         return
       }
       setProfile(result.profile)
@@ -186,21 +198,21 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
       setChapterId(result.profile.chapterId)
     })
     return () => { live = false }
-  }, [peopleId])
+  }, [peopleId, t])
 
   const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm(prev => ({ ...prev, [key]: value }))
 
   const country = form.country as Country | ''
   const availableRegions = country && country in REGIONS ? REGIONS[country as Country] : []
-  const stateLabel = country === 'Canada' ? 'Province' : 'State'
+  const stateLabel = country === 'Canada' ? t('field.province') : 'State'
   const category = form.tshirt_category as TshirtCategory | ''
   const availableSizes = category && category in TSHIRT_SIZES ? TSHIRT_SIZES[category as TshirtCategory] : []
 
   async function handleSave() {
     if (!profile) return
     if (!form.first_name.trim() || !form.last_name.trim()) {
-      setError('First name and last name are both required.')
+      setError(t('mpe.bothRequired'))
       return
     }
 
@@ -209,9 +221,9 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
     // about to change is not in the room, and the confirmation is the one place their name
     // is stated back before it does.
     const ok = await confirm({
-      title: 'Save this member’s profile',
+      title: t('mpe.saveThis'),
       description: `Save your changes to ${profile.name}’s profile? They are not notified.`,
-      confirmLabel: 'Save changes',
+      confirmLabel: t('action.saveChanges'),
     })
     if (!ok) return
 
@@ -224,7 +236,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
     const result = await updateUserProfile(profile.peopleId, form)
     if (!result.success) {
       setSaving(false)
-      setError(result.error ?? 'Those changes could not be saved.')
+      setError(result.error ?? t('mpe.saveFailed'))
       return
     }
 
@@ -261,10 +273,10 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
   async function handleReset() {
     if (!profile) return
     const ok = await confirm({
-      title: 'Send a password reset',
+      title: t('mpe.sendReset'),
       description: `Email ${profile.name} a link to choose a new password? `
-        + 'Their current password keeps working until they use it.',
-      confirmLabel: 'Send the link',
+        + t('mpe.currentKeeps'),
+      confirmLabel: t('mpe.sendLink'),
     })
     if (!ok) return
 
@@ -273,7 +285,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
     setResetting(true)
     const result = await sendMemberPasswordReset(profile.peopleId)
     setResetting(false)
-    if (!result.success) setError(result.error ?? 'That link could not be sent.')
+    if (!result.success) setError(result.error ?? t('mpe.linkFailed'))
     // ONE SENTENCE FOR EVERY OUTCOME THAT IS NOT A REFUSAL WE MADE OURSELVES. GoTrue
     // answers 200 for an address with an account, one without, and one it has never seen,
     // so "Sent" would be a claim nothing here can support — see the action's own header.
@@ -285,9 +297,9 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
       // Always open: this component exists only while the panel does. See the effect.
       open
       onClose={onClose}
-      title={profile ? `Edit ${profile.name}` : 'Edit profile'}
+      title={profile ? `Edit ${profile.name}` : t('dir.editProfile')}
       description={profile
-        ? 'Their sign-in email and password are not editable here.'
+        ? t('mpe.signInNotEditable')
         : undefined}
       // Wider than the detail dialog it replaces: this is a three-column grid of nineteen
       // fields rather than a list of labelled values.
@@ -296,7 +308,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
       {loading && (
         <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Loading this member’s profile…
+          {t('mpe.loading')}
         </div>
       )}
 
@@ -305,26 +317,26 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
 
       {profile && (
         <div className="mt-2 space-y-6">
-          <Band title="General">
-            <Cell label="Prefix" htmlFor="mp-prefix">
+          <Band title={t('mpe.general')}>
+            <Cell label={t('field.prefix')} htmlFor="mp-prefix">
               <Select id="mp-prefix" value={form.prefix} onChange={e => set('prefix', e.target.value)}>
                 <option value="">— None —</option>
                 {PREFIXES.map(p => <option key={p} value={p}>{p}</option>)}
               </Select>
             </Cell>
-            <Cell label="First Name" htmlFor="mp-first" required>
+            <Cell label={t('field.firstName')} htmlFor="mp-first" required>
               <Input id="mp-first" value={form.first_name} onChange={e => set('first_name', e.target.value)} />
             </Cell>
-            <Cell label="Middle Name" htmlFor="mp-middle">
+            <Cell label={t('field.middleName')} htmlFor="mp-middle">
               <Input id="mp-middle" value={form.middle_name} onChange={e => set('middle_name', e.target.value)} />
             </Cell>
-            <Cell label="Last Name" htmlFor="mp-last" required>
+            <Cell label={t('field.lastName')} htmlFor="mp-last" required>
               <Input id="mp-last" value={form.last_name} onChange={e => set('last_name', e.target.value)} />
             </Cell>
-            <Cell label="Nickname" htmlFor="mp-nick">
-              <Input id="mp-nick" placeholder="e.g. Big Mike" value={form.nick_name} onChange={e => set('nick_name', e.target.value)} />
+            <Cell label={t('field.nickname')} htmlFor="mp-nick">
+              <Input id="mp-nick" placeholder={t('field.ph.nickname')} value={form.nick_name} onChange={e => set('nick_name', e.target.value)} />
             </Cell>
-            <Cell label="Suffix" htmlFor="mp-suffix">
+            <Cell label={t('field.suffix')} htmlFor="mp-suffix">
               <Select id="mp-suffix" value={form.suffix} onChange={e => set('suffix', e.target.value)}>
                 <option value="">— None —</option>
                 {SUFFIXES.map(x => <option key={x} value={x}>{x}</option>)}
@@ -335,18 +347,18 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
                 which is worse than either. The hint changes with the record because the
                 two reasons are genuinely different — see this file's header. */}
             <Cell
-              label="Email"
+              label={t('field.email')}
               htmlFor="mp-email"
               hint={profile.emailIsPlaceholder
                 ? 'A generated placeholder. It changes once they accept an invitation.'
-                : 'Only the member can change their own sign-in address.'}
+                : t('mpe.onlyMember')}
             >
               <Input id="mp-email" value={profile.email ?? ''} disabled readOnly />
             </Cell>
-            <Cell label="Phone" htmlFor="mp-phone">
-              <Input id="mp-phone" type="tel" placeholder="(555) 000-0000" value={form.primary_phone} onChange={e => set('primary_phone', e.target.value)} />
+            <Cell label={t('field.phone')} htmlFor="mp-phone">
+              <Input id="mp-phone" type="tel" placeholder={t('field.ph.phone')} value={form.primary_phone} onChange={e => set('primary_phone', e.target.value)} />
             </Cell>
-            <Cell label="Gender" htmlFor="mp-gender">
+            <Cell label={t('field.gender')} htmlFor="mp-gender">
               {/* Blank is a real, keepable answer, so the option is worded as one rather
                   than as an empty prompt — the same wording the member's own form uses. */}
               <Select id="mp-gender" value={form.gender} onChange={e => set('gender', e.target.value)}>
@@ -367,16 +379,16 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
                 of those screens prints that word. */}
             {profile.chapters.length > 0 && (
               <Cell
-                label="Chapter"
+                label={t('field.chapter')}
                 htmlFor="mp-chapter"
-                hint="Relatives without accounts of their own move with them."
+                hint={t('mpe.relativesMove')}
               >
                 <Select
                   id="mp-chapter"
                   value={chapterId}
                   onChange={e => setChapterId(e.target.value)}
                 >
-                  <option value="">National — no chapter</option>
+                  <option value="">{t('mpe.nationalNoChapter')}</option>
                   {profile.chapters.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
@@ -385,8 +397,8 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
             )}
           </Band>
 
-          <Band title="Address">
-            <Cell label="Country" htmlFor="mp-country">
+          <Band title={t('mpe.address')}>
+            <Cell label={t('field.country')} htmlFor="mp-country">
               {/* Changing the country CLEARS the state, because the old value is a region
                   of a country that is no longer selected — the same handler the profile
                   form has, and leaving it behind is how a Texan ends up in Ontario. */}
@@ -399,19 +411,19 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
                 {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
               </Select>
             </Cell>
-            <Cell label="Street Address" htmlFor="mp-street">
+            <Cell label={t('field.street')} htmlFor="mp-street">
               <Input id="mp-street" value={form.street_address} onChange={e => set('street_address', e.target.value)} />
             </Cell>
-            <Cell label="Apartment / Suite" htmlFor="mp-apt">
+            <Cell label={t('field.apartment')} htmlFor="mp-apt">
               <Input id="mp-apt" value={form.apartment} onChange={e => set('apartment', e.target.value)} />
             </Cell>
-            <Cell label="City" htmlFor="mp-city">
+            <Cell label={t('field.city')} htmlFor="mp-city">
               <Input id="mp-city" value={form.city} onChange={e => set('city', e.target.value)} />
             </Cell>
             <Cell
               label={stateLabel}
               htmlFor="mp-state"
-              hint={!form.country ? 'Choose a country first.' : undefined}
+              hint={!form.country ? t('mpe.chooseCountry') : undefined}
             >
               {availableRegions.length > 0 ? (
                 <Select id="mp-state" value={form.state} onChange={e => set('state', e.target.value)}>
@@ -423,19 +435,19 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
                   value={form.state} onChange={e => set('state', e.target.value)} />
               )}
             </Cell>
-            <Cell label="ZIP / Postal" htmlFor="mp-zip">
-              <Input id="mp-zip" placeholder="62701" value={form.zip_code} onChange={e => set('zip_code', e.target.value)} />
+            <Cell label={t('field.zip')} htmlFor="mp-zip">
+              <Input id="mp-zip" placeholder={t('field.ph.zip')} value={form.zip_code} onChange={e => set('zip_code', e.target.value)} />
             </Cell>
           </Band>
 
-          <Band title="Additional information">
-            <Cell label="Date of Birth" htmlFor="mp-dob">
+          <Band title={t('mpe.additional')}>
+            <Cell label={t('field.dob')} htmlFor="mp-dob">
               <Input id="mp-dob" type="date" value={form.date_of_birth} onChange={e => set('date_of_birth', e.target.value)} />
             </Cell>
-            <Cell label="Sunset Date" htmlFor="mp-sunset" hint="Leave blank if living.">
+            <Cell label={t('field.sunset')} htmlFor="mp-sunset" hint={t('profile.sunsetHint')}>
               <Input id="mp-sunset" type="date" value={form.sunset_date} onChange={e => set('sunset_date', e.target.value)} />
             </Cell>
-            <Cell label="T-Shirt Category" htmlFor="mp-tcat">
+            <Cell label={t('field.tshirtCategory')} htmlFor="mp-tcat">
               <Select
                 id="mp-tcat"
                 value={form.tshirt_category}
@@ -446,9 +458,9 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
               </Select>
             </Cell>
             <Cell
-              label="T-Shirt Size"
+              label={t('field.tshirtSize')}
               htmlFor="mp-tsize"
-              hint={availableSizes.length === 0 ? 'Select a category first.' : undefined}
+              hint={availableSizes.length === 0 ? t('profile.sizeFirst') : undefined}
             >
               <Select id="mp-tsize" disabled={availableSizes.length === 0}
                 value={form.tshirt_size} onChange={e => set('tshirt_size', e.target.value)}>
@@ -456,7 +468,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
                 {availableSizes.map(x => <option key={x} value={x}>{x}</option>)}
               </Select>
             </Cell>
-            <Cell label="Time Zone" htmlFor="mp-tz">
+            <Cell label={t('field.timeZone')} htmlFor="mp-tz">
               <Select id="mp-tz" value={form.time_zone ?? ''} onChange={e => set('time_zone', e.target.value)}>
                 <option value="">— Select —</option>
                 {TIMEZONES.map(tz => <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>)}
@@ -471,11 +483,8 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
               person the family has recorded. */}
           {profile.hasAccount && (
             <section className="space-y-2 rounded-lg border bg-muted/30 p-4">
-              <h3 className="text-sm font-semibold text-brand-ink">Sign-in</h3>
-              <p className="text-sm text-muted-foreground">
-                You cannot see or set this member’s password. Send them a link and they
-                choose a new one themselves; the current one keeps working until they do.
-              </p>
+              <h3 className="text-sm font-semibold text-brand-ink">{t('mpe.signIn')}</h3>
+              <p className="text-sm text-muted-foreground">{t('adm.cannotSeeSetMember')}</p>
               <Button variant="outline" onClick={handleReset} disabled={resetting || saving}>
                 {resetting
                   ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
@@ -499,7 +508,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
           <FormError message={error} />
 
           <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
-            <Button variant="outline" onClick={onClose} disabled={saving}>Cancel</Button>
+            <Button variant="outline" onClick={onClose} disabled={saving}>{t('action.cancel')}</Button>
             <Button onClick={handleSave} disabled={saving}>
               {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />}
               Save changes

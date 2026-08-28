@@ -380,13 +380,14 @@ export async function addJournalEntry(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'Profile not found' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
 
   const title = (input?.title ?? '').trim()
   // The CHECK constraint refuses a blank title with a constraint name; this supplies a
   // sentence. Both are wanted — the constraint is what holds when somebody posts to the
   // endpoint directly, and this is what an officer reads.
-  if (!title) return { success: false, message: 'Give the entry a title.' }
+  if (!title) return { success: false, message: t('act.giveEntryTitle') }
 
   const supabase = await createClient()
   const { data: created, error } = await supabase
@@ -406,8 +407,7 @@ export async function addJournalEntry(
     if (error?.code === '42501') {
       return {
         success: false,
-        message: 'That entry was refused. A journal is only writable by whoever holds the '
-          + 'office — reload the page to see which ones are yours.',
+        message: t('act.entryRefusedJournalOnlyWritable'),
       }
     }
     return { success: false, message: error?.message ?? 'That entry could not be saved.' }
@@ -457,9 +457,10 @@ export async function updateJournalEntry(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const trimmed = (title ?? '').trim()
-  if (!trimmed) return { success: false, message: 'Give the entry a title.' }
+  if (!trimmed) return { success: false, message: t('act.giveEntryTitle') }
 
   const supabase = await createClient()
   const outcome = await confirmWrite(() => supabase
@@ -470,8 +471,7 @@ export async function updateJournalEntry(
   if (!outcome.ok) {
     return {
       success: false,
-      message: 'That entry could not be changed. Only the person who recorded it can, and '
-        + 'only while they still hold the office.',
+      message: t('act.entryCouldNotChangedOnly'),
     }
   }
 
@@ -485,6 +485,7 @@ export async function deleteJournalEntry(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const supabase = await createClient()
   const outcome = await confirmWrite(() => supabase
@@ -495,8 +496,7 @@ export async function deleteJournalEntry(
   if (!outcome.ok) {
     return {
       success: false,
-      message: 'That entry could not be removed. Only the person who recorded it can, and '
-        + 'only while they still hold the office.',
+      message: t('act.entryCouldNotRemovedOnly'),
     }
   }
 
@@ -520,10 +520,11 @@ export async function addJournalNote(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.personId) return { success: false, message: 'Profile not found' }
+  const { t } = g
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
 
   const trimmed = (body ?? '').trim()
-  if (!trimmed) return { success: false, message: 'Write something first.' }
+  if (!trimmed) return { success: false, message: t('act.writeSomethingFirst2') }
 
   const supabase = await createClient()
   const { error } = await supabase.from('position_journal_notes').insert({
@@ -536,8 +537,7 @@ export async function addJournalNote(
     if (error.code === '42501') {
       return {
         success: false,
-        message: 'That note was refused. A journal is only writable by whoever holds the '
-          + 'office — reload the page to see which ones are yours.',
+        message: t('act.noteRefusedJournalOnlyWritable'),
       }
     }
     return { success: false, message: error.message }
@@ -560,9 +560,10 @@ export async function updateJournalNote(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const trimmed = (body ?? '').trim()
-  if (!trimmed) return { success: false, message: 'Write something first.' }
+  if (!trimmed) return { success: false, message: t('act.writeSomethingFirst2') }
 
   const supabase = await createClient()
   const outcome = await confirmWrite(() => supabase
@@ -573,8 +574,7 @@ export async function updateJournalNote(
   if (!outcome.ok) {
     return {
       success: false,
-      message: 'That note could not be changed. Only the person who wrote it can, and only '
-        + 'while they still hold the office.',
+      message: t('act.noteCouldNotChangedOnly'),
     }
   }
 
@@ -588,6 +588,7 @@ export async function deleteJournalNote(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const supabase = await createClient()
   const outcome = await confirmWrite(() => supabase
@@ -598,8 +599,7 @@ export async function deleteJournalNote(
   if (!outcome.ok) {
     return {
       success: false,
-      message: 'That note could not be removed. Only the person who wrote it can, and only '
-        + 'while they still hold the office.',
+      message: t('act.noteCouldNotRemovedOnly'),
     }
   }
 

@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { FormError } from '@/components/ui/form-message'
 import { answerCheckIn } from '@/app/actions/safety-check-ins'
 import type { CheckInResponse } from '@/lib/safety-check-in'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The two buttons a relative presses, and the one component that draws them.
@@ -47,6 +48,7 @@ export function AnswerCheckIn({
   myNote: string | null
   tone?: 'banner' | 'panel'
 }) {
+  const t = useT()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState('')
   // OPTIMISTIC, and deliberately not `useOptimistic`: this state has to survive the
@@ -66,7 +68,7 @@ export function AnswerCheckIn({
         note: withNote ?? (note.trim() || undefined),
       })
       if (!result.success) {
-        setError(result.message ?? 'Could not record your answer')
+        setError(result.message ?? t('safety.answerFailed'))
         return
       }
       setState(next)
@@ -88,7 +90,7 @@ export function AnswerCheckIn({
             className="flex-1 sm:flex-none"
           >
             <ShieldCheck aria-hidden="true" />
-            I am safe
+            {t('safety.iAmSafe')}
           </Button>
           {/*
             NOT `variant="destructive"`. That variant is dark red on a red tint and owns errors
@@ -104,7 +106,7 @@ export function AnswerCheckIn({
             className="flex-1 bg-brand-urgent text-brand-on-urgent hover:opacity-90 sm:flex-none"
           >
             <TriangleAlert aria-hidden="true" />
-            I need help
+            {t('safety.iNeedHelp')}
           </Button>
         </div>
       )}
@@ -121,8 +123,8 @@ export function AnswerCheckIn({
             }
           >
             {state === 'safe'
-              ? 'You have told your family you are safe.'
-              : 'You have told your family you need help.'}
+              ? t('safety.toldSafe')
+              : t('safety.toldHelp')}
           </p>
 
           {/*
@@ -137,7 +139,7 @@ export function AnswerCheckIn({
               disabled={pending}
               onClick={() => answer(state === 'safe' ? 'needs_help' : 'safe')}
             >
-              {state === 'safe' ? 'Actually, I need help' : 'I am safe now'}
+              {state === 'safe' ? t('safety.actuallyHelp') : 'I am safe now'}
             </Button>
           </div>
 
@@ -146,7 +148,7 @@ export function AnswerCheckIn({
               htmlFor={`note-${checkInId}`}
               className="block text-xs font-medium text-muted-foreground"
             >
-              Anything your family should know? (optional)
+              {t('safety.anythingToKnow')}
             </label>
             <Textarea
               id={`note-${checkInId}`}
@@ -154,7 +156,7 @@ export function AnswerCheckIn({
               value={note}
               maxLength={500}
               onChange={e => { setNote(e.target.value); setNoteSaved(false) }}
-              placeholder="Where you are, what you need, or nothing at all."
+              placeholder={t('safety.notePh')}
             />
             <div className="flex items-center gap-2">
               <Button
@@ -163,10 +165,10 @@ export function AnswerCheckIn({
                 disabled={pending}
                 onClick={() => answer(state as Exclude<CheckInResponse, 'awaiting'>, note.trim())}
               >
-                Save note
+                {t('safety.saveNote')}
               </Button>
               {noteSaved && (
-                <span className="text-xs text-brand-affirm">Saved</span>
+                <span className="text-xs text-brand-affirm">{t('safety.saved')}</span>
               )}
             </div>
           </div>

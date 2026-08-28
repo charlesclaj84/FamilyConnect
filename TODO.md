@@ -119,7 +119,7 @@ The local half of this is already gone: neither `.claude/settings.local.json` no
 merge and gate the Vercel release, reviewed and recorded, with nobody holding write
 credentials. See AGENTS.md, "How migrations reach the hosted project".
 
-### [ ] Stripe: two flags, seven variables, two webhook endpoints, one tax decision
+### [ ] Stripe: two flags, seven variables, two webhook endpoints, one Dashboard switch, one tax decision
 
 **Action:** set the environment variables, create the two webhook endpoints, and flip one
 constant. The integration is built and inert; every item below lives in somebody's Stripe
@@ -130,18 +130,49 @@ Both flows are implemented and merged — `lib/stripe/`, `app/actions/billing.ts
 `20260823000004` / `20260823000005`. `payment_info.md` is the architecture and AGENTS.md's
 "MONEY HAS TWO DIRECTIONS" section is the rule.
 
-**1. THE PRODUCT FLAG, AND IT IS NOT A CREDENTIAL.** `TIER_IS_SOLD` in `lib/plans.ts` is
-`false` for every paid tier, and `startPlanCheckout` refuses on it before it looks at Stripe.
-So nothing can be bought until somebody decides it is for sale — deliberately, because
-`/pricing` says "Not yet available" on all three cards and a checkout that took money while
-that was on screen would be a sale nobody made. **Flipping it is two edits in one commit:**
-`TIER_IS_SOLD` and `PLANS[].available` on `/pricing`. `npm run marketing:check` will not catch
-that pair; it compares claim SETS, not availability.
+**1. THE PRODUCT FLAG — DONE for Standard and Plus (2026-08-23), still `false` for Premium.**
+`TIER_IS_SOLD` in `lib/plans.ts` is the decision and it is not a credential. Both edits were
+made in one commit, as this item required: `TIER_IS_SOLD` and `PLANS[].available` on
+`/pricing`. `npm run marketing:check` does not catch that pair — it compares claim SETS, not
+availability — so the two were checked by hand and the pricing page's header now says they
+move together.
+
+Premium stays off deliberately: it is sold on a mailbox and a website, and nothing provisions
+either. Flipping it is the same two edits plus whatever delivers those two things.
+
+**WHAT WENT WITH IT, because enabling a plan is not only a flag.** `setFamilyTier` — the plan
+picker on Settings — used to move `families.tier` in both directions with nothing charged,
+which was harmless while nothing was for sale and became a free upgrade for every family
+administrator the moment it was. It now refuses **every** move up (its header carries the
+argument), the Plan rows no longer render an upgrade button, and the only route into a paid
+tier is Billing. Do not undo that to restore the "put a family on Plus to see the gates work"
+affordance — on a laptop, `psql` and the service role still move the column.
+
+**AND THE SIGNUP HALF.** `/pricing`'s two sellable cards now link to `/register?plan=<tier>`,
+the registration form offers the same choice, and the answer is recorded on
+`platform_billing_accounts.signup_tier` (`20260823000008`) rather than charged — there is no
+family to bill and, with `enable_confirmations` on, no session to authorize a checkout. The
+dashboard prompts for it afterwards (`PlanSetupBanner`, `lib/signup-plan.ts`). **Nothing in
+that path grants a tier**, so it needs no item on this list; it needs the variables below,
+like everything else here.
 
 **2. Environment variables**, on Vercel. Nothing is `NEXT_PUBLIC_` and nothing may become so —
 this integration uses hosted Checkout, so the browser never loads Stripe.js and needs no
 publishable key at all. `lib/meta/no-client-secrets.test.ts` asserts none of them is reachable
 from a client bundle.
+
+> **PREVIEW IS DONE (2026-08-23); PRODUCTION IS NOT, AND THIS ITEM IS ABOUT PRODUCTION.**
+> The Preview environment — which builds off `dev` — has the keys, both webhook endpoints and
+> the Products, against the **Stripe sandbox**. So the flow below can be walked end to end on a
+> preview URL today, and every check in §3 is worth doing there FIRST, because a sandbox is
+> where a wrong signing secret is cheap.
+>
+> None of it carries over. Vercel environment variables are per-environment and a sandbox
+> Product has no live counterpart, so production needs its own keys, its own two endpoints
+> (pointed at `genorra.com`, not a preview URL) and its own six Prices — created again, by
+> hand, at the same figures. **Leave this item open until that is done.**
+
+
 
 | Variable | Notes |
 |---|---|
@@ -150,6 +181,20 @@ from a client bundle.
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | The **Connect** endpoint's. One shared secret would make the two endpoints indistinguishable, which is the mix-up that would credit a family's ledger with our revenue. |
 | `STRIPE_PRICE_{STANDARD,PLUS,PREMIUM}_RECURRING` | A monthly recurring Price per tier: **$10 / $20 / $30**. |
 | `STRIPE_PRICE_{STANDARD,PLUS,PREMIUM}_PREPAID` | A ONE-TIME Price per tier whose unit is **one month**, same figures. Prepaid terms are `quantity: months` against it, up to 60. |
+
+> **EVERY ONE OF THOSE SIX IS A `price_…`, NEVER A `prod_…`.** This is the mistake the sandbox
+> setup actually made (2026-08-23) and it is worth its own paragraph, because the error it
+> produces argues the opposite of the truth: Stripe answers `resource_missing`, *"No such
+> price: 'prod_…'"*, while the Dashboard shows a perfectly healthy Product under that very id.
+> A Product is the thing being sold; a Price is the amount charged for it. The id you want is
+> on the Product page under **Pricing**, or from `GET /v1/prices?product=prod_…`.
+>
+> `priceShapeError` in `app/actions/billing.ts` now refuses a non-`price_` id before any API
+> call and says which mistake it is, so this costs a log line rather than an afternoon. It
+> also catches the other four: the `_RECURRING`/`_PREPAID` slots swapped, an archived price, a
+> non-monthly interval, and — the one that would NOT have failed at Stripe — an amount that
+> disagrees with `TIER_PRICE`, which would have opened a hosted page asking for a figure the
+> button did not promise.
 | `STRIPE_API_VERSION` | Leave unset. Pinned to `2026-07-29.dahlia` in code; this is the override for testing a bump. |
 
 **One Product per plan, not one Product with three prices.** Checkout and every invoice print
@@ -160,10 +205,15 @@ the screen quotes `TIER_PRICE`, so a mismatch shows up as a hosted page asking f
 number than the button promised.
 
 **A LIVE KEY IS REFUSED ON A PREVIEW DEPLOYMENT** (`liveKeyOnNonProduction` in
-`lib/stripe/config.ts`), so QA cannot charge a real card. **The opposite cannot be detected
-from inside the process and is the expensive one:** a TEST key on production means every
-checkout succeeds, every webhook fires, every tier is granted and no money is ever collected,
-with the product working perfectly. Check the key prefix on production by eye.
+`lib/stripe/config.ts`), so QA cannot charge a real card. A sandbox `sk_test_`/`rk_test_` key
+is what Preview is meant to hold and is accepted there, which is why the sandbox setup above
+works — the guard reads the key's PREFIX and `VERCEL_ENV`, nothing else.
+
+**The opposite cannot be detected from inside the process and is the expensive one:** a TEST
+key on production means every checkout succeeds, every webhook fires, every tier is granted and
+no money is ever collected, with the product working perfectly. **Now that a sandbox key exists
+in the project this is a live hazard rather than a hypothetical one** — the two variables differ
+by four characters and are set in the same UI. Check the key prefix on production by eye.
 
 **3. Two webhook endpoints.** Both are `POST` only and both verify a signature before parsing
 anything.
@@ -189,6 +239,30 @@ validation; these are:
 | Connect a family account and pay a due | A `dues_payments` row with `source='stripe'`, `recorded_by` NULL, and `fund_contributions` rows against it |
 | Compare a charge against `platform_payments.amount_cents` | Cents, not dollars. A $5.00 charge stored as `5` is the failure |
 
+**3b. MANAGED PAYMENTS MUST BE OFF, AND IT IS ON BY DEFAULT — IN BOTH MODES SEPARATELY.**
+Found the hard way on the first sandbox checkout (2026-08-23), which was refused with *"the
+product tax code is missing … Product tax code is required for Managed Payments, which is
+enabled by default on your account."*
+
+**This account is not eligible for it in the first place.** Stripe's own eligibility page says
+Managed Payments *"supports direct integrations only"* and does **not** support **Connect
+platforms** — which is exactly what GENORRA is, the moment one family connects an account. So
+the default is switched on for something that cannot legitimately be used here.
+
+**And it conflicts with rule 2, which is no refunds.** Under Managed Payments *"Stripe can
+issue refunds within 60 days of purchase in certain cases"* and applies regional cooling-off
+periods. There is no refund column, no credit-note table and `amount_cents > 0` is a CHECK, so
+a Stripe-initiated refund is a movement the ledger cannot represent.
+
+Turn it off at `dashboard.stripe.com/<acct>/settings/managed-payments`, **once per mode**. The
+setting is per-mode, so a sandbox that works proves nothing about live — and the failure is a
+refused checkout on the first real customer.
+
+*Why not `managed_payments[enabled]=false` per session, which the error suggests:* it is the
+wrong lever twice over. It would have to be added to all four session calls and remembered on
+the fifth, and the pinned SDK (22.5.0) does not type the parameter at all, so it would need an
+unchecked cast on the money path. An account-level setting for an account-level ineligibility.
+
 **4. Stripe Tax is a decision nobody has taken, and it is not a code change alone.**
 `automatic_tax` is NOT enabled on any session in this integration. Turning it on without an
 active tax registration in the buyer's jurisdiction collects nothing and reports no error — the
@@ -197,6 +271,14 @@ subscription sold across US states may need several. Read
 [Collect taxes for recurring payments](https://docs.stripe.com/billing/taxes/collect-taxes.md)
 before touching it. **The family side is not ours to decide at all:** on a direct charge the
 family is the merchant of record, so their tax position is theirs.
+
+**AND THE AUTOMATIC OPTION IS NOT AVAILABLE TO US, which narrows this item rather than
+answering it.** Managed Payments is the arrangement where Stripe takes on the indirect-tax
+liability, and §3b above records why this account cannot use it: it is a Connect platform.
+Stripe's eligibility page names the fallback in as many words — *"If you don't think your
+product is eligible for Managed Payments, you can use Stripe Tax to manage your compliance
+requirements."* So the choice is Stripe Tax with real registrations, or a considered decision
+not to collect; there is no third door where somebody else handles it.
 
 **5. Set a CSP header if Stripe.js is ever loaded.** It is not today — hosted Checkout is a
 redirect — and that is why `next.config.ts` needs no `frame-src`. An embedded Payment Element
@@ -618,6 +700,166 @@ need anybody to hold production credentials.
   lands first.
 
 Recorded 2026-08-23.
+
+## Every connected account is created as American, and the country cannot be changed
+
+**Action:** decide whether a non-US family is in scope. If it is, ask for the country in the
+Connect panel and pass it through; if it is not, say so on that panel rather than deciding it
+silently. Recorded 2026-08-25.
+
+`CONNECT_ACCOUNT_COUNTRY` in `lib/stripe/config.ts` is the constant `'us'`, sent as
+`identity.country` on every `v2.core.accounts.create`. It exists because Stripe refuses the
+account without it (`identity_country_required` for anything requesting the merchant
+configuration) and because there is nothing in the schema to derive it from: `families` has no
+country column, and `people.country` is free text describing where one relative lives.
+
+**Why it is a real gap rather than a theoretical one.** `lib/regions.ts` admits **United
+States, Canada and Mexico** for a member's address, so a Canadian family is a thing this
+product already supports everywhere except here — and here it would be created as an American
+merchant. `identity.country` decides the payout currency, which identity documents Stripe
+demands and which regulations apply, and **it cannot be changed after creation**. The failure
+is not an error message: onboarding would run, ask for US paperwork, and the family would be
+stuck with an account they cannot complete.
+
+**The fix is a question, not a better default.** One `<select>` on the Connect panel, defaulting
+to the US, its value passed to `ensureConnectedAccount`. Two things to get right when it is
+built: the value is written into `family_stripe_accounts.country` at creation (it already is,
+from the create response), so a family created before the picker is distinguishable from one
+that chose; and `cross_border_connected_account_creation_not_allowed` is a real refusal — the
+PLATFORM's country has to support the connected account's, so offering Canada is a claim about
+GENORRA's Stripe account and not only about the family's.
+
+**The rest of the product would need a second look in the same commit.** Every price is USD
+(`formatCurrency`, and `currency: 'usd'` on every session) and phone numbers assume +1, so a
+Canadian family collecting dues today would be charged in USD into a CAD account. That is
+allowed on a direct charge and settles with conversion; it is not obviously what anybody
+intended.
+
+## GO LIVE: turn the Send Email hook on hosted, and in this order
+
+**BUILT 2026-08-27 and proven locally** — `npm run auth-email:check` reports all five auth
+emails composed by this app, in all three languages, with the right `type=` on every link and
+both halves of an address change. What is left is one auth-config change on the hosted
+project, and the ORDER matters more than the change does.
+
+### THE ORDER, AND WHY GETTING IT BACKWARDS TAKES AUTH DOWN
+
+GoTrue calls the hook SYNCHRONOUSLY, and a non-2xx rolls the whole operation back — measured:
+a failing hook on a signup leaves no `auth.users` row at all. So a hook enabled before the
+endpoint answers means **nobody can register, reset a password, or change their address**, and
+every attempt fails with `unexpected_failure`.
+
+1. **Merge to `master` and let it deploy.** `/api/auth/send-email` has to be live and
+   answering before anything is switched on. Confirm with an unsigned POST — it must answer
+   401, which is also the open-relay check.
+2. **Set `SUPABASE_AUTH_HOOK_SECRET` in Vercel** (all environments), and `RESEND_API_KEY` must
+   already be there — it is, or no mail works today.
+3. **Then** enable the hook on the hosted project: `hook_send_email_enabled`,
+   `hook_send_email_uri = https://genorra.com/api/auth/send-email`, and
+   `hook_send_email_secrets` = the same secret. Dashboard → Authentication → Hooks, or the
+   Management API.
+4. **Send yourself a real signup and a real password reset** and look at both on a phone. The
+   GO LIVE item above already asks for this; it is now the same click.
+
+To undo, disable the hook. GoTrue falls straight back to `supabase/templates/*.html`, which is
+why those are still in the repo and still pushed.
+
+### WHY IT IS NOT PUSHED FROM CI, WHICH IS A DECISION RATHER THAN AN OMISSION
+
+`npm run email:push` sends only the ten mailer template fields, deliberately — see
+`scripts/auth-templates.mjs`, and AGENTS.md on why it is not `supabase config push`. Adding
+the hook fields to it would mean CI enabling an auth hook, and the failure mode is the one
+above: a green deploy that has taken authentication down. A human doing step 3 after watching
+step 1 land is the whole safeguard.
+
+If it is ever automated, it has to be ordered AFTER the Vercel alias moves — which is
+`migrate.yml`'s Deployment Check in reverse, and that is a mechanism nobody has built.
+
+### THE TWO THINGS TO WATCH ONCE IT IS ON
+
+* **Auth mail now depends on the Next deployment.** It did not before. A build that fails to
+  alias, or an outage, takes auth email with it — and a signup attempted during one leaves no
+  account rather than an account with no email, so nothing is stranded. Worth knowing before
+  reading a support ticket that says "I cannot sign up".
+* **`supabase/templates/*.html` are FROZEN, not live.** They are the fallback and the English
+  in them is now a second copy. Change wording in `lib/email/auth-mail.ts`; delete the HTML
+  once the hook has been on for long enough that turning it off is not the plan.
+
+## BUILD: the sitemap lists one URL per route, and there are now three
+
+**Action:** emit `alternates.languages` on every entry in `app/sitemap.ts`. Recorded
+2026-08-27, when the public site became three sites.
+
+`/es/pricing` and `/fr/pricing` are real, indexed, canonical addresses — `LOCALIZED_ROOTS`
+and `localizedAlternates` are what made them so — and `app/sitemap.ts` names neither. It maps
+`MARKETING_ROUTES` to one English URL each, which is what it did when there was one language.
+
+**IT IS NOT BROKEN, WHICH IS WHY THIS IS A BUILD AND NOT A BUG.** Every localized page carries
+its own `hreflang` set in the head, naming all three, and that is sufficient for a crawler to
+discover and consolidate them — the head and the sitemap are two ways to say one thing, and the
+page-level one is the one Google documents as adequate on its own. So the Spanish and French
+pages are findable today; they are simply found by following a link rather than by being
+announced.
+
+What emitting them buys is discovery for a page nothing links to yet, and a slightly faster
+first crawl of a new locale. Next supports it directly on a sitemap entry:
+
+```ts
+...MARKETING_ROUTES.map(route => ({
+  url: `${SITE_URL}${route.href}`,
+  alternates: { languages: localizedAlternates(route.href, BASE_LOCALE).languages },
+  lastModified, changeFrequency: route.changeFrequency, priority: route.priority,
+})),
+```
+
+**Two things to get right, and the second is the trap.** The x-default entry must point at the
+unprefixed English URL, which is what `localizedAlternates` already returns rather than
+something to hand-write. And `npm run sitemap:check` compares a DATE against the newest commit
+touching the public pages — it says nothing about which URLs are listed, so it will stay green
+through this whole item and cannot be the thing that tells you it is done.
+
+## BUILD: greet a relative on their birthday, and make it feel like a celebration
+
+**Action:** decide what "automatic" means here, then build it. Recorded 2026-08-25, out of the
+lede sweep — the Birthdays pane used to spend a sentence apologising that **nothing is sent
+automatically**, and a caption explaining what the product does not do is a feature request
+wearing a caption's clothes.
+
+**What exists today.** `/community/announcements?pane=birthdays` lists every relative with a
+birthday in the next `BIRTHDAY_HORIZON_DAYS` (60), soonest first, one click from the composer.
+That is a list an organizer works through by hand. Nothing is posted, nothing is mailed, nothing
+appears on the dashboard, and a birthday that passes unremarked leaves no trace anywhere.
+
+**Three decisions before any code, and the first is the whole feature.**
+
+1. **WHO GREETS — the family, or the product?** A card the product posts in the family's name is
+   the cheap version and is worse than nothing: a relative who realises the warm message was
+   generated has been told the family did not remember. The alternative is that the product
+   PROMPTS — the dashboard says "It's Ada's birthday today" with a composer already open — and
+   every word that reaches Ada was typed by a person. **Prefer the second.** It is also the only
+   version consistent with the Birthdays pane's own design, which has always been a list to act
+   on rather than a machine.
+2. **WHERE IT LANDS.** A dashboard band on the day is the obvious surface and reaches only
+   whoever opens the app. An announcement pinned for the day reaches everybody and costs a row in
+   `announcements` that nobody chose to write. Email is the loudest and needs the distribution
+   rules in "MAILING THE WHOLE FAMILY IS A QUEUE IN THE DATABASE" — including that a recorded
+   relative's placeholder address must never be mailed.
+3. **WHAT "CELEBRATION" MEANS ON SCREEN.** Confetti, a gold band, the person's avatar at size.
+   Whatever it is, it is `--brand-legacy` or `--brand-warm` territory and never `--destructive`;
+   and it has to degrade to something dignified for a relative with no photograph and no
+   recorded birth year, which is most of an older generation on a real family tree.
+
+**Two things the schema already gives you and one it does not.** `people.date_of_birth` is there
+and `lib/age-utils.ts` derives from it — and **a NULL birthday is not a birthday**, the same
+reading `isMinorOn` takes, so nobody with a blank field is ever greeted or ever counted as
+missed. `lib/birthdays.ts` already computes the horizon list. What does not exist is any record
+that a greeting HAPPENED, so "did anyone say anything to Ada?" is unanswerable — and without it a
+prompt reappears every year whether or not the family acted on it last time.
+
+**And there is no scheduler**, which is the constraint that shapes the whole thing. `pg_cron` is
+installed (see the resolved item above) but nothing in the product runs on a clock except the
+Stripe webhook's opportunistic sweep. A prompt rendered when somebody OPENS the app needs no
+scheduler at all and is another reason to prefer option 1.
 
 ## `tests/rls` has no member who has replied STOP
 

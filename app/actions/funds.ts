@@ -10,6 +10,8 @@ import { moneyAttachedTo, moneyAttachedMessage } from '@/lib/money-attached'
 import { effectiveAllocations } from '@/lib/fund-routing'
 import { embedMany } from '@/lib/supabase/embed'
 import { formatCurrency } from '@/lib/currency-utils'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 export interface Fund {
   id: string
@@ -499,15 +501,16 @@ export async function createFund(input: {
 }): Promise<{ success: boolean; id?: string; message?: string }> {
   const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   const familyCode = await getMyFamilyCode(user.id)
   // A fund is family-wide configuration with no personal copy, so scope 'own' is not
   // a grant that means anything here — see canAny. Checked in the action because a
   // server action is reachable directly, whatever gates the page that renders it.
   // Creating a fund is Accounting configuration, not a transaction.
-  if (!(await canAny(user.id, 'admin/accounting/funds', 'create'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'admin/accounting/funds', 'create'))) return { success: false, message: t('act.notAuthorized') }
   const { data: myPerson } = await supabase.from('people').select('id').eq('user_id', user.id).maybeSingle()
 
   // New funds go to the end of the priority order (lowest precedence).
@@ -542,11 +545,11 @@ export async function updateFund(
   id: string,
   input: { name?: string; description?: string; goal_cents?: number | null; active?: boolean; priority?: number; open_contributions?: boolean }
 ): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
-  if (!(await canAny(user.id, 'admin/accounting/funds', 'edit'))) return { success: false, message: 'Not authorized' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
+  if (!(await canAny(user.id, 'admin/accounting/funds', 'edit'))) return { success: false, message: t('act.notAuthorized') }
   const familyCode = await getMyFamilyCode(user.id)
 
   // Deactivating a system fund is deleting it by another name — an inactive fund drops
@@ -569,11 +572,11 @@ export async function updateFund(
 }
 
 export async function deleteFund(id: string): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
-  if (!(await canAny(user.id, 'admin/accounting/funds', 'delete'))) return { success: false, message: 'Not authorized' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
+  if (!(await canAny(user.id, 'admin/accounting/funds', 'delete'))) return { success: false, message: t('act.notAuthorized') }
   const familyCode = await getMyFamilyCode(user.id)
 
   // A system fund is permanent. 20260807000003's trigger is what actually refuses this —
@@ -581,7 +584,7 @@ export async function deleteFund(id: string): Promise<{ success: boolean; messag
   // an administrator gets a sentence naming the fund rather than a raised exception.
   const { data: existing } = await admin
     .from('funds').select('name, system_key').eq('id', id).eq('family_code', familyCode).maybeSingle()
-  if (!existing) return { success: false, message: 'Fund not found' }
+  if (!existing) return { success: false, message: t('act.fundNotFound') }
   if (existing.system_key) {
     return {
       success: false,
@@ -652,13 +655,14 @@ export async function createMilestone(
   // What an award is worth — its own section, its own grant.
   const g = await requireScope('admin/accounting/milestones', 'create')
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const admin = createAdminClient()
 
   // §4. The fund must be this family's — the insert below bypasses RLS.
   const { data: fund } = await admin
     .from('funds').select('id').eq('id', fundId).eq('family_code', g.familyCode).maybeSingle()
-  if (!fund) return { success: false, message: 'Fund not found' }
+  if (!fund) return { success: false, message: t('act.fundNotFound') }
 
   const { data, error } = await admin.from('fund_milestones').insert({
     fund_id: fundId,
@@ -693,6 +697,7 @@ export async function updateMilestone(
 export async function deleteMilestone(id: string): Promise<{ success: boolean; message?: string }> {
   const g = await requireScope('admin/accounting/milestones', 'delete')
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const admin = createAdminClient()
   const familyCode = g.familyCode
@@ -706,7 +711,7 @@ export async function deleteMilestone(id: string): Promise<{ success: boolean; m
   // below is what scopes the write, and this row would be `null` for another family's id.
   const { data: existing } = await admin
     .from('fund_milestones').select('name').eq('id', id).eq('family_code', familyCode).maybeSingle()
-  if (!existing) return { success: false, message: 'Milestone not found' }
+  if (!existing) return { success: false, message: t('act.milestoneNotFound') }
 
   const attached = await moneyAttachedTo('fund_milestone', id, familyCode)
   if (attached.any) {
@@ -735,10 +740,10 @@ export async function recordDisbursement(input: {
   payment_reference: string | null
   notes: string | null
 }): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   const familyCode = await getMyFamilyCode(user.id)
   // Paying money out is an edit of the family's finances, and this action is now
@@ -751,7 +756,7 @@ export async function recordDisbursement(input: {
   // Paying money OUT of a fund. Its own grant, separate from logging money in:
   // 'accounting/transactions/fund-disbursements' create. canAny throughout — the disbursement
   // paying the caller THEMSELVES is the abuse case, so scope 'own' must never admit.
-  if (!(await canAny(user.id, 'accounting/transactions/fund-disbursements', 'create'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'accounting/transactions/fund-disbursements', 'create'))) return { success: false, message: t('act.notAuthorized') }
 
   // WHO PAID IT OUT. Required, not best-effort — this is money leaving the family, and
   // an unattributed payout is the one row in the ledger that cannot be asked about.
@@ -764,7 +769,7 @@ export async function recordDisbursement(input: {
   // getMyPersonId resolves the ACTIVE family's row, which is the same family the row
   // below is stamped with. 20260807000002 refuses the insert if this is ever null again.
   const myPersonId = await getMyPersonId(user.id)
-  if (!myPersonId) return { success: false, message: 'Profile not found' }
+  if (!myPersonId) return { success: false, message: t('act.profileNotFound') }
 
   // Required, which is what 20260805000001 added the column for and stopped one step
   // short of: money going OUT with no identifier cannot be matched to a bank statement,
@@ -773,7 +778,7 @@ export async function recordDisbursement(input: {
   // to add what should have been captured.
   const reference = input.payment_reference?.trim() || null
   if (!reference) {
-    return { success: false, message: 'Record a check number or reference for the disbursement' }
+    return { success: false, message: t('act.recordCheckNumberReferenceDisbursement') }
   }
 
   // Fund, recipient AND milestone are re-scoped to this family: the insert below runs
@@ -791,9 +796,9 @@ export async function recordDisbursement(input: {
       ? belongsToFamily('fund_milestones', input.milestone_id, familyCode)
       : Promise.resolve(true),
   ])
-  if (!fund) return { success: false, message: 'Fund not found' }
-  if (!recipient) return { success: false, message: 'Recipient not found in this family' }
-  if (!milestoneOk) return { success: false, message: 'Milestone not found' }
+  if (!fund) return { success: false, message: t('act.fundNotFound') }
+  if (!recipient) return { success: false, message: t('act.recipientNotFoundFamily') }
+  if (!milestoneOk) return { success: false, message: t('act.milestoneNotFound') }
 
   const { error } = await admin.from('fund_disbursements').insert({
     fund_id: input.fund_id,
@@ -868,13 +873,13 @@ export async function getFundAllocations(): Promise<FundAllocationRow[]> {
 export async function saveFundAllocations(
   rows: { fund_id: string; basis_points: number; priority: number; minimum_cents: number }[]
 ): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
   const familyCode = await getMyFamilyCode(user.id)
   // Redrawing the split that every future payment follows.
-  if (!(await canAny(user.id, 'admin/accounting/routing', 'edit'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'admin/accounting/routing', 'edit'))) return { success: false, message: t('act.notAuthorized') }
   const myPersonId = await getMyPersonId(user.id)
 
   // Allocations must total exactly 100% (or all zero to disable routing).
@@ -890,7 +895,7 @@ export async function saveFundAllocations(
   const { data: ownFunds } = await admin.from('funds').select('id').eq('family_code', familyCode)
   const ownIds = new Set((ownFunds ?? []).map(f => f.id as string))
   if (rows.some(r => !ownIds.has(r.fund_id))) {
-    return { success: false, message: 'Fund not found' }
+    return { success: false, message: t('act.fundNotFound') }
   }
 
   // Persist priority/minimum onto the funds themselves.
@@ -939,33 +944,33 @@ export async function recordFundContribution(input: {
   payment_reference: string | null
   notes: string | null
 }): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
   const familyCode = await getMyFamilyCode(user.id)
   // Logging money INTO a fund by hand.
-  if (!(await canAny(user.id, 'accounting/transactions/fund-contributions', 'create'))) return { success: false, message: 'Not authorized' }
+  if (!(await canAny(user.id, 'accounting/transactions/fund-contributions', 'create'))) return { success: false, message: t('act.notAuthorized') }
 
   // WHO RECORDED IT. Checked rather than assumed: getMyPersonId returns '' when it
   // cannot resolve a row, and an empty string is not a uuid — so the unchecked version
   // failed at the database with `invalid input syntax for type uuid: ""` and surfaced
   // that to a treasurer as the whole error message.
   const myPersonId = await getMyPersonId(user.id)
-  if (!myPersonId) return { success: false, message: 'Profile not found' }
+  if (!myPersonId) return { success: false, message: t('act.profileNotFound') }
 
   const contributorName = input.contributor_name?.trim() || null
   if (!input.contributor_person_id && !contributorName) {
-    return { success: false, message: 'Record who the contribution came from' }
+    return { success: false, message: t('act.recordWhoContributionCameFrom') }
   }
-  if (!input.payment_method) return { success: false, message: 'Record how the contribution was given' }
+  if (!input.payment_method) return { success: false, message: t('act.recordHowContributionGiven') }
   // Required for the same reason the method is, and the reason is in this function's
   // own doc comment: nothing sits behind this row. A dues-routed contribution can be
   // traced back to the payment that produced it; a hand-recorded one is the only
   // record that exists, so "which cheque was this?" has to be answerable from it.
   const reference = input.payment_reference?.trim() || null
   if (!reference) {
-    return { success: false, message: 'Record a check number or reference for the contribution' }
+    return { success: false, message: t('act.recordCheckNumberReferenceContribution') }
   }
 
   // Both ids are re-scoped to this family: the insert below uses the admin client,
@@ -973,12 +978,12 @@ export async function recordFundContribution(input: {
   // being written onto this family's ledger.
   const { data: fund } = await admin
     .from('funds').select('id').eq('id', input.fund_id).eq('family_code', familyCode).maybeSingle()
-  if (!fund) return { success: false, message: 'Fund not found' }
+  if (!fund) return { success: false, message: t('act.fundNotFound') }
 
   if (input.contributor_person_id) {
     const { data: contributor } = await admin
       .from('people').select('id').eq('id', input.contributor_person_id).eq('family_code', familyCode).maybeSingle()
-    if (!contributor) return { success: false, message: 'Contributor not found in this family' }
+    if (!contributor) return { success: false, message: t('act.contributorNotFoundFamily') }
   }
 
   const { error } = await admin.from('fund_contributions').insert({
@@ -1053,14 +1058,15 @@ export async function transferBetweenFunds(input: {
   transferred_date: string
   reason: string
 }): Promise<{ success: boolean; message?: string }> {
-  const supabase = await createClient()
   const admin = createAdminClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
+  const { intl } = await callerI18n(user.id)
 
   const familyCode = await getMyFamilyCode(user.id)
   if (!(await canAny(user.id, 'accounting/transactions/fund-transfers', 'create'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   // WHO MOVED IT. Checked rather than assumed: getMyPersonId returns '' when it cannot
@@ -1068,18 +1074,18 @@ export async function transferBetweenFunds(input: {
   // is not a uuid — so the unchecked version would surface `invalid input syntax for
   // type uuid: ""` to a treasurer as the whole error message.
   const myPersonId = await getMyPersonId(user.id)
-  if (!myPersonId) return { success: false, message: 'Profile not found' }
+  if (!myPersonId) return { success: false, message: t('act.profileNotFound') }
 
   if (input.from_fund_id === input.to_fund_id) {
-    return { success: false, message: 'Choose two different funds' }
+    return { success: false, message: t('act.chooseTwoDifferentFunds') }
   }
   const amount = Math.round(input.amount_cents)
   if (!Number.isFinite(amount) || amount <= 0) {
-    return { success: false, message: 'Enter an amount greater than zero' }
+    return { success: false, message: t('act.enterAmountGreaterThanZero') }
   }
   const reason = input.reason?.trim() || null
   if (!reason) {
-    return { success: false, message: 'Record why the money is being moved' }
+    return { success: false, message: t('act.recordWhyMoneyBeingMoved') }
   }
 
   // Both ends, both family-scoped. `.eq('id', …)` alone would let one family move
@@ -1088,8 +1094,8 @@ export async function transferBetweenFunds(input: {
     admin.from('funds').select('id, name').eq('id', input.from_fund_id).eq('family_code', familyCode).maybeSingle(),
     admin.from('funds').select('id, name').eq('id', input.to_fund_id).eq('family_code', familyCode).maybeSingle(),
   ])
-  if (!from) return { success: false, message: 'Fund not found' }
-  if (!to) return { success: false, message: 'Destination fund not found' }
+  if (!from) return { success: false, message: t('act.fundNotFound') }
+  if (!to) return { success: false, message: t('act.destinationFundNotFound') }
 
   // The database's own definition of a balance, on the service-role client so the
   // answer does not depend on what this caller may see. An error here is fatal rather
@@ -1103,7 +1109,7 @@ export async function transferBetweenFunds(input: {
   if (amount > available) {
     return {
       success: false,
-      message: `${from.name} holds ${formatCurrency(available)}. Transfer that or less.`,
+      message: `${from.name} holds ${formatCurrency(available, intl)}. Transfer that or less.`,
     }
   }
 

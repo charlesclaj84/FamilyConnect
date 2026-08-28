@@ -1,5 +1,6 @@
 import { taskProgress, type GatheringStatus, type GatheringTaskStatus, type TaskProgress } from '@/lib/gatherings'
-import { POSITION_SCOPE_LABELS, type PositionCategory, type PositionScope } from '@/lib/board-positions'
+import { positionScopeLabel, type PositionCategory, type PositionScope } from '@/lib/board-positions'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * The shaping behind the four ACTIVITY reports — Gatherings, Elections, Meetings, and Board &
@@ -481,7 +482,10 @@ export interface BoardReportAssignmentInput {
 export function buildBoardReport(input: {
   positions: readonly BoardReportPositionInput[]
   assignments: readonly BoardReportAssignmentInput[]
+  /** The reader's language. The scope word is copy; see `positionScopeLabel`. */
+  t: T
 }): BoardReport {
+  const t = input.t
   const byPosition = new Map<string, BoardReportHolder[]>()
   for (const a of input.assignments) {
     const list = byPosition.get(a.positionId)
@@ -496,7 +500,7 @@ export function buildBoardReport(input: {
       positionId: p.id,
       name: p.name,
       scope: p.scope,
-      scopeLabel: POSITION_SCOPE_LABELS[p.scope],
+      scopeLabel: positionScopeLabel(t, p.scope),
       category: p.category,
       holders: (byPosition.get(p.id) ?? []).sort(
         (x, y) => (x.areaName ?? '').localeCompare(y.areaName ?? '')

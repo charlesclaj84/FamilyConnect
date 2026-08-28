@@ -15,6 +15,7 @@ import {
   listStaffFamilies, restoreFamily,
   type StaffFamilyPage, type StaffFamilyRow,
 } from '@/app/actions/staff/families'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Every family on the platform, filtered and paged, with one action: put a removed one
@@ -50,6 +51,8 @@ import {
  * reports a refused operation.
  */
 export function StaffFamiliesClient({ initial }: { initial: StaffFamilyPage }) {
+  const intl = useIntlTag()
+  const t = useT()
   const confirm = useConfirm()
   const [query, setQuery] = useState('')
   const [debounced, setDebounced] = useState('')
@@ -108,7 +111,7 @@ export function StaffFamiliesClient({ initial }: { initial: StaffFamilyPage }) {
         `${row.familyCode} becomes reachable again immediately: its members can sign in `
         + 'to it, its family code works, and its invitations resolve. Nothing was deleted '
         + 'when it was removed, so every record it holds comes back with it.',
-      confirmLabel: 'Restore family',
+      confirmLabel: t('staff.restoreFamily'),
     })
     if (!ok) return
 
@@ -132,7 +135,7 @@ export function StaffFamiliesClient({ initial }: { initial: StaffFamilyPage }) {
       <MemberSearchBox
         value={query}
         onChange={setQuery}
-        placeholder="Filter by family name or code…"
+        placeholder={t('staff.filterFamily')}
         pending={isPending}
       />
 
@@ -141,15 +144,12 @@ export function StaffFamiliesClient({ initial }: { initial: StaffFamilyPage }) {
       <FormError message={error} />
 
       {data.failed ? (
-        <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
-          The families list could not be read. That is a refused query rather than an empty
-          platform — try again in a moment, and check the server log for the reason.
-        </p>
+        <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">{t('stf.familiesListCouldNot')}</p>
       ) : data.rows.length === 0 ? (
         <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
           {debounced
             ? `No family matches “${debounced}”.`
-            : 'There are no families on this platform yet.'}
+            : t('staff.noFamilies')}
         </p>
       ) : (
         /*
@@ -168,15 +168,15 @@ export function StaffFamiliesClient({ initial }: { initial: StaffFamilyPage }) {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-semibold">Family</th>
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Plan</th>
-                <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Members</th>
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Created</th>
-                <th scope="col" className="px-3 py-2 font-semibold">Status</th>
+                <th scope="col" className="px-3 py-2 font-semibold">{t('staff.family')}</th>
+                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('set.pane.plan')}</th>
+                <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('rep.members')}</th>
+                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.created')}</th>
+                <th scope="col" className="px-3 py-2 font-semibold">{t('money.status')}</th>
                 {/* A column with no caption to give still owes one — without it a screen
                     reader announces the restore button under whatever heading came last. */}
                 <th scope="col" className="px-3 py-2 font-semibold">
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">{t('money.actions')}</span>
                 </th>
               </tr>
             </thead>
@@ -200,7 +200,7 @@ export function StaffFamiliesClient({ initial }: { initial: StaffFamilyPage }) {
                             {/* PREFIXED, because a bare date under a family name could be
                                 either of the two dates this row carries. The removal date
                                 is stated in the status cell, which stays visible. */}
-                            <span>Created {formatDate(row.createdAt)}</span>
+                            <span>Created {formatDate(row.createdAt, intl)}</span>
                           </>
                         )}
                       </RowMeta>
@@ -212,7 +212,7 @@ export function StaffFamiliesClient({ initial }: { initial: StaffFamilyPage }) {
                       {row.memberCount}
                     </td>
                     <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
-                      {formatDate(row.createdAt) ?? '—'}
+                      {formatDate(row.createdAt, intl) ?? '—'}
                     </td>
                     <td className="px-3 py-2.5">
                       <span
@@ -223,11 +223,11 @@ export function StaffFamiliesClient({ initial }: { initial: StaffFamilyPage }) {
                             : 'bg-brand-soft text-brand-on-soft',
                         )}
                       >
-                        {removed ? 'Removed' : 'Active'}
+                        {removed ? t('staff.removed') : t('staff.active')}
                       </span>
                       {removed && row.removedAt && (
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {formatDate(row.removedAt)}
+                          {formatDate(row.removedAt, intl)}
                         </p>
                       )}
                     </td>
@@ -241,7 +241,7 @@ export function StaffFamiliesClient({ initial }: { initial: StaffFamilyPage }) {
                           onClick={() => { void handleRestore(row) }}
                         >
                           <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-                          Restore
+                          {t('staff.restore')}
                         </Button>
                       ) : (
                         // An em-dash rather than nothing: the cell has to hold the grid

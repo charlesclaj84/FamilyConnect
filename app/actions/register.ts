@@ -8,6 +8,9 @@ import { redeemInvitationForNewUser } from '@/lib/invitations'
 import { notifyMembershipRequest } from '@/lib/notifications'
 import { trackFamilyCreated, trackRegistrationCompleted } from '@/lib/meta/conversions'
 import { persistAttributionForUser } from '@/lib/meta/attribution-store'
+import { sellablePlanParam } from '@/lib/signup-plan'
+import type { FamilyTier } from '@/lib/tiers'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * The event ids the BROWSER must fire with, so the Pixel event and the Conversions API
@@ -26,7 +29,21 @@ export interface RegisterMetaEvents {
 }
 
 export type RegisterResult =
-  | { success: true; familyCode?: string; meta?: RegisterMetaEvents }
+  | {
+      success: true
+      familyCode?: string
+      meta?: RegisterMetaEvents
+      /**
+       * The paid plan that was recorded against the new family, or null.
+       *
+       * REPORTED RATHER THAN ASSUMED, because it is not always what was asked for: a plan
+       * that is not on sale, or a plan sent in join mode, is dropped (see below) and the
+       * form must not then promise a checkout nobody will be offered. Null covers "none
+       * asked for" and "asked for and not recorded" alike, which is all the caller needs —
+       * either way there is nothing to say about a plan.
+       */
+      plan?: FamilyTier | null
+    }
   | { success: false; field?: string; message: string }
 
 export interface RegisterInput {
@@ -43,6 +60,14 @@ export interface RegisterInput {
    * (they were never told one) and no family name.
    */
   inviteToken?: string
+  /**
+   * The paid plan picked on `/pricing` or on the form, as a raw string.
+   *
+   * A HINT, NOT A COMMITMENT. Nothing is charged here and no tier is granted — see the
+   * intent block further down for why registration cannot take a payment and must not
+   * fail over this parameter.
+   */
+  plan?: string
 }
 
 /**
@@ -90,6 +115,13 @@ async function generateUniqueFamilyCode(): Promise<string | null> {
 
 export async function registerUser(input: RegisterInput): Promise<RegisterResult> {
   const admin = createAdminClient()
+  // ── THE LANGUAGE, FROM THE ADDRESS BAR ─────────────────────────────────────────────
+  // `callerI18n(null)`, and this is the one action in the product where that is not a
+  // fallback but the ONLY possible answer: nobody has an account yet, so there is no
+  // `people.locale` to prefer. `resolveLocale` reads the `/es` or `/fr` this request was
+  // rewritten from and then `Accept-Language` — which is exactly why `/register` is in
+  // `LOCALIZED_ROOTS`. A reader who filled the Spanish form must not be refused in English.
+  const { t, locale } = await callerI18n(null)
   const inviteToken = input.inviteToken?.trim() || null
 
   // ── Registering from an invitation ────────────────────────────────────────
@@ -108,7 +140,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     if (!peek?.valid) {
       return {
         success: false,
-        message: 'That invitation is no longer valid. Ask for a new one.',
+        message: t('act.invitationNoLongerValidAsk'),
       }
     }
     // The invitation names an address; registering under a different one would create
@@ -134,7 +166,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       return {
         success: false,
         field: 'email',
-        message: 'You already have an account with this address. Sign in and this invitation will be waiting for you.',
+        message: t('act.youAlreadyAccountAddressSign'),
       }
     }
   }
@@ -146,7 +178,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
   if (!inviteToken && input.mode === 'join') {
     const code = input.familyCode?.trim().toUpperCase() ?? ''
     if (!code) {
-      return { success: false, field: 'familyCode', message: 'Family code is required' }
+      return { success: false, field: 'familyCode', message: t('act.familyCodeRequired') }
     }
     const { data } = await admin
       .from('families')
@@ -158,7 +190,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       return {
         success: false,
         field: 'familyCode',
-        message: 'Family code not found. Check with your family and try again.',
+        message: t('act.familyCodeNotFoundCheck'),
       }
     }
 
@@ -187,7 +219,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       return {
         success: false,
         field: 'familyCode',
-        message: 'Family code not found. Check with your family and try again.',
+        message: t('act.familyCodeNotFoundCheck'),
       }
     }
   }
@@ -200,7 +232,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     if (input.mode === 'create') {
       const generated = await generateUniqueFamilyCode()
       if (!generated) {
-        return { success: false, message: 'Could not generate a unique family code. Please try again.' }
+        return { success: false, message: t('act.couldNotGenerateUniqueFamily') }
       }
       familyCode = generated
     } else {
@@ -228,6 +260,18 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
         // `input.familyName!` would throw for them.
         family_name: !inviteToken && input.mode === 'create' ? input.familyName!.trim() : null,
         family_role: !inviteToken && input.mode === 'create' ? 'owner' : 'member',
+        // ── THE LANGUAGE, FOR THE CONFIRMATION EMAIL AND FOR NOTHING ELSE ──────────
+        // `authMailLocale` reads it, and this is the one moment it can be known: a signup
+        // confirmation is sent before any `people` row exists, so `people.locale` answers
+        // nothing for the FIRST mail a new member ever receives. `/es/register` is a real
+        // route, so `resolveLocale` above already knows what language they filled the form
+        // in — carrying it here is what makes that email readable.
+        //
+        // A HINT WITH A SHORTER LIFE THAN THE COLUMN, not a copy of it. Nothing keeps this in
+        // step with `setMyLocale`, and nothing should: once a `people` row exists it shadows
+        // this for every later message. Two facts that are both maintained is the `is_minor`
+        // trap; one authoritative and one one-shot is not.
+        locale,
       },
     },
   })
@@ -341,7 +385,51 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
     if (familyError) {
       // Roll back to avoid an orphaned auth account.
       await admin.auth.admin.deleteUser(authData.user.id)
-      return { success: false, message: 'Failed to create family record. Please try again.' }
+      return { success: false, message: t('act.failedCreateFamilyRecordPlease') }
+    }
+  }
+
+  // ── THE PLAN THEY PICKED BEFORE THERE WAS ANYTHING TO CHARGE ──────────────────────
+  //
+  // NO MONEY MOVES HERE AND NO TIER IS GRANTED. `families.tier` keeps its default of
+  // 'free' and the only writers of that column are the Stripe webhook and the term sweep
+  // — a payment is a thing Stripe tells us happened, never a thing an action decides. What
+  // is recorded is that somebody asked for Plus, so the first authenticated moment can
+  // offer them the checkout instead of making them find the plan again.
+  //
+  // It cannot be a checkout at this point for two structural reasons: the Stripe Customer
+  // is the FAMILY and this row is seconds old, and `enable_confirmations` is on, so nobody
+  // is signed in for `startPlanCheckout`'s `requireEdit('admin/settings')` to authorize.
+  //
+  // ── CREATE MODE ONLY, AND NEVER FROM AN INVITATION ────────────────────────────────
+  // A plan is bought by the family, so somebody JOINING one cannot choose it — their
+  // family already has a plan and a `?plan=plus` on a join link would be a relative
+  // committing an existing family to a bill. Guarded on `inviteToken` as well as `mode`
+  // for the reason the family_name line above is: an invited registrant is never creating
+  // a family whatever `mode` the client happened to send.
+  //
+  // ── AND IT NEVER FAILS THE REGISTRATION ───────────────────────────────────────────
+  // The account is the thing being created; the plan is a preference about it. A tier we
+  // do not sell, or a write that errors, leaves `signupPlan` null and the caller is told
+  // as much in the result — it must not delete an account somebody has just made and an
+  // email has already been sent for. That is also why this sits AFTER the family insert
+  // and has no rollback of its own.
+  const signupPlan = !inviteToken && input.mode === 'create'
+    ? sellablePlanParam(input.plan)
+    : null
+  let recordedPlan: FamilyTier | null = null
+  if (signupPlan && authData.user) {
+    const { error: planError } = await admin.from('platform_billing_accounts').upsert({
+      family_code: familyCode,
+      signup_tier: signupPlan,
+      signup_tier_at: new Date().toISOString(),
+    }, { onConflict: 'family_code' })
+    // §8: supabase-js RETURNS errors rather than throwing, so this has to be read. A
+    // discarded one here would report a checkout to come that nothing would ever offer.
+    if (planError) {
+      console.error('[register] failed to record signup plan intent', planError)
+    } else {
+      recordedPlan = signupPlan
     }
   }
 
@@ -459,6 +547,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
   return {
     success: true,
     familyCode: input.mode === 'create' ? familyCode : undefined,
+    plan: recordedPlan,
     meta: {
       completeRegistration: registration?.eventId ?? null,
       createFamily: family?.eventId ?? null,

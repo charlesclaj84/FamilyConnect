@@ -37,6 +37,8 @@ import {
   BookText,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 import { isFeatureFuture } from '@/lib/features'
 import { BetaBadge } from '@/components/ui/beta-badge'
 import { APP_NAME, BRAND_MARK_SRC } from '@/lib/brand'
@@ -74,7 +76,21 @@ interface NavItem {
 }
 
 interface NavGroup {
-  section?: { label: string; icon: React.ComponentType<{ className?: string }> }
+  /**
+   * The section this group sits under, or none (the first group, which holds Dashboard).
+   *
+   * ── `id` IS THE IDENTITY AND THE CAPTION COMES FROM `t` ───────────────────────────
+   * The caption used to live here as a `label`, and it was doing THREE jobs: the heading on
+   * screen, the key of the open/closed `Set` in `NavTree`, and the React `key` of each section.
+   * Translating it would have made all three change with the language — so switching to
+   * Español would silently collapse whichever section was open, and remount every one of them.
+   *
+   * So the identity is an `id` that never moves and the caption is `t('nav.section.<id>')`.
+   * Exactly the split `permission_resources.category` already keeps: `20260822000021` renamed
+   * that heading to "Library" and deliberately left the column reading `journal`, because *"a
+   * caption is one line here; a category is a column three resolvers agree about."*
+   */
+  section?: { id: string; icon: React.ComponentType<{ className?: string }> }
   items: NavItem[]
 }
 
@@ -200,7 +216,14 @@ const adminItems: NavItem[] = [
 // Build the nav groups for the current user. Every item is listed unconditionally
 // and then filtered by what the member may actually view — the permission model is
 // the single authority, so there is no separate isAdmin branch here any more.
-function buildNavGroups(viewable: Set<string>): NavGroup[] {
+/**
+ * ── `t` IS A PARAMETER, NOT A HOOK, EVEN THOUGH THIS FILE IS A CLIENT COMPONENT ────
+ * This is a pure function over the caller's viewable set, called from the component's own
+ * `useMemo` — so it must not call a hook itself, and the translator it needs is the one the
+ * component already has. The rail's captions are the words a member navigates by, so they
+ * are the most-read copy in the product.
+ */
+function buildNavGroups(viewable: Set<string>, t: T): NavGroup[] {
   // ── GATHERINGS ─────────────────────────────────────────────────────────────────────
   // THIS SECTION WAS CALLED "EVENTS" UNTIL 2026-08-19 and held seven rows: Upcoming Events,
   // Event Planning, Gatherings, My Gathering Tasks, Calendar, Event Management, Event
@@ -265,7 +288,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // both came off together when the per-member lineage view was retired and this
       // became the only tree — see app/(protected)/family-tree/page.tsx. Nothing derives
       // it, so if a surface ever needs it again it is set here by hand exactly as it was.
-      section: { label: 'Community', icon: UsersRound },
+      section: { id: 'community', icon: UsersRound },
       items: [
         // GALLERY LEADS, since 2026-08-22, and the order of this group is now the ask rather
         // than the argument that used to be written here. What replaced the old reading
@@ -313,7 +336,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
         // both came off together when the per-member lineage view was retired and this became
         // the only tree — see app/(protected)/community/family-tree/page.tsx. Nothing derives
         // it, so if a surface ever needs it again it is set here by hand exactly as it was.
-        { href: '/community/family-tree',   label: 'Family Tree',      icon: GitBranch },
+        { href: '/community/family-tree',   label: t('shell.familyTree'),      icon: GitBranch },
         { href: '/community/directory',     label: 'Directory',        icon: UsersRound },
         // ELECTIONS ARRIVED HERE FROM THE REVIEW SECTION, 2026-08-21 (20260821000003), and it
         // is still LAST: the family acting as an organization, which is a different thing
@@ -328,7 +351,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
     },
   ]
 
-  groups.push({ section: { label: 'Gatherings', icon: PartyPopper }, items: gatheringItems })
+  groups.push({ section: { id: 'gatherings', icon: PartyPopper }, items: gatheringItems })
 
   // ── LIBRARY: FOUR ROWS, AND IT WAS ONE CALLED "JOURNALS" TWO DAYS AGO ─────
   // `NavSection` renders a single-item group as a static divider and a multi-item one as a
@@ -362,7 +385,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // AFTER GATHERINGS AND BEFORE ACCOUNTING: what the family has written down sits between
   // what it does together and what it does with money.
   groups.push({
-    section: { label: 'Library', icon: Library },
+    section: { id: 'library', icon: Library },
     items: [
       // THE ORDER IS THE ASK, 2026-08-22, and it inverts the reading recorded above this
       // group: the constitution first, then the record of the meetings held under it, then
@@ -370,8 +393,8 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // is also most-consulted to least — a relative looking something up in the Library is
       // far more often checking what the bylaws say than reading a treasurer's working notes.
       { href: '/library/bylaws',          label: 'Bylaws',          icon: Scale },
-      { href: '/library/meeting-minutes', label: 'Meeting Minutes', icon: Gavel },
-      { href: '/library/officer-notes',   label: 'Officer Notes',   icon: BookText },
+      { href: '/library/meeting-minutes', label: t('shell.meetingMinutes'), icon: Gavel },
+      { href: '/library/officer-notes',   label: t('shell.officerNotes'),   icon: BookText },
       { href: '/library/documents',       label: 'Documents',       icon: FileText },
     ],
   })
@@ -396,7 +419,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // schedules, HeartHandshake for giving — which is what keeps these recognisable as the
   // screens that replaced them. History went with Payment History into Reporting below.
   groups.push({
-    section: { label: 'Accounting', icon: Wallet },
+    section: { id: 'accounting', icon: Wallet },
     items: [
       { href: '/accounting/summary',  label: 'Summary',         icon: Wallet },
       // ── ONE ROW SINCE 2026-08-20, WHERE THERE WERE TWO ──────────────────────────────
@@ -405,7 +428,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // the halves carried: the rail row is the SCREEN, and what a member comes to it for
       // first is when the next payment falls. HeartHandshake did not disappear — it is the
       // Donations pane's own glyph on the rail inside the page.
-      { href: '/accounting/dues-and-donations', label: 'Dues & Donations', icon: CalendarClock },
+      { href: '/accounting/dues-and-donations', label: t('shell.duesDonations'), icon: CalendarClock },
       // ── TRANSACTIONS ARRIVED HERE ON 2026-08-22, FROM REPORTING ─────────────────────
       // The four ledgers are where money is RECORDED — a dues payment, a donation, a fund
       // contribution, a disbursement, a transfer — which is this group's job and not
@@ -478,7 +501,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // one job the glyph is doing here; section icons are reused as item icons elsewhere in this
   // file already (BookOpen heads Resources and labels the manual).
   groups.push({
-    section: { label: 'Reporting', icon: BarChart3 },
+    section: { id: 'reporting', icon: BarChart3 },
     items: [
       // MEMBERSHIP LEADS, and the position is the point rather than alphabetical accident.
       // The other four rows are all readings of the MONEY; this one is a reading of the
@@ -489,7 +512,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // than under Admin because it is a member-facing reading rather than a tool for running
       // the family — the same argument that put Payment History and Transactions here.
       { href: '/reporting/membership', label: 'Membership',       icon: PieChart },
-      { href: '/reporting/payment-history',  label: 'Payment History',   icon: History },
+      { href: '/reporting/payment-history',  label: t('shell.paymentHistory'),   icon: History },
       // TRANSACTIONS LEFT THIS GROUP ON 2026-08-22 and is under Accounting above. It was
       // here on the argument this block's heading makes — "a reading of the money" — and
       // that argument was thinner than it looked: the four ledgers are where a payment, a
@@ -497,7 +520,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       // recorded figure is read back. It sits beside the screens whose rows it holds now,
       // and the move took its route and its permission key with it (20260822000022), which
       // is what "the route tree IS the nav rail" costs.
-      { href: '/reporting/dues-projections', label: 'Dues Projections',  icon: TrendingUp },
+      { href: '/reporting/dues-projections', label: t('shell.duesProjections'),  icon: TrendingUp },
       // P&L SUMMARY ARRIVED HERE ON 2026-08-20, from Accounting by way of Review, and the
       // caption changed with the move. "Family Finances" beside four other readings of the
       // family's money does not say which one it is; what this screen uniquely holds is the
@@ -506,7 +529,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       //
       // LAST, because it is the only row here that is a SUMMARY of the two above it: the
       // ledger and the projection are where a figure on it is explained.
-      { href: '/reporting/pl-summary',  label: 'P&L Summary',       icon: Scale },
+      { href: '/reporting/pl-summary',  label: t('shell.pLSummary'),       icon: Scale },
       // ── THE FOUR ACTIVITY REPORTS, 2026-08-22 ────────────────────────────────────────
       // AFTER the money ones, and that order is the point rather than the arrival date. The
       // five above are readings of the family's MONEY and read as a block; these four are
@@ -527,7 +550,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
       { href: '/reporting/gatherings', label: 'Gatherings',       icon: PartyPopper },
       { href: '/reporting/elections',  label: 'Elections',        icon: Vote },
       { href: '/reporting/meetings',   label: 'Meetings',         icon: Gavel },
-      { href: '/reporting/board',      label: 'Board & Offices',  icon: ShieldCheck },
+      { href: '/reporting/board',      label: t('shell.boardOffices'),  icon: ShieldCheck },
     ],
   })
 
@@ -552,7 +575,7 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // lands where the review says it belongs, which is not necessarily where it started. If
   // Photos and Documents both do the same, this group never comes back and the comment goes.
 
-  groups.push({ section: { label: 'Admin', icon: ShieldCheck }, items: adminItems })
+  groups.push({ section: { id: 'admin', icon: ShieldCheck }, items: adminItems })
 
   // ── THE REVIEW SECTION IS GONE, 2026-08-22 ───────────────────────────
   // It held the six routes that came off `status: future` on 2026-08-20 so somebody could
@@ -577,9 +600,9 @@ function buildNavGroups(viewable: Set<string>): NavGroup[] {
   // nothing to collapse. A second item here would make it a slider automatically, which is
   // the correct behaviour and needs no change.
   groups.push({
-    section: { label: 'Help', icon: LifeBuoy },
+    section: { id: 'help', icon: LifeBuoy },
     items: [
-      { href: '/help', label: 'How-To Manual', icon: BookOpen },
+      { href: '/help', label: t('shell.howManual'), icon: BookOpen },
     ],
   })
 
@@ -645,13 +668,15 @@ function isActive(pathname: string, href: string) {
  * as MainRail's stacked variant, and the reason the old `transparent` left marker is
  * gone rather than merely recoloured: the gold fill IS the marker now.
  */
-function NavLink({ href, label, icon: Icon, active, beta, onClick }: {
+function NavLink({ href, icon: Icon, active, beta, onClick, t }: {
   href: string
-  label: string
   icon: React.ComponentType<{ className?: string }>
   active: boolean
   beta?: boolean
   onClick?: () => void
+  /** Bound to the reader's language. See lib/i18n/catalogues.ts for why not a `t` prop
+     across the RSC boundary — it is built here from the `locale` string. */
+  t: T
 }) {
   return (
     <Link
@@ -666,7 +691,9 @@ function NavLink({ href, label, icon: Icon, active, beta, onClick }: {
       )}
     >
       <Icon className={cn('h-4 w-4 shrink-0 transition-opacity', active ? 'opacity-100' : 'opacity-70 group-hover:opacity-100')} />
-      {label}
+      {/* THE CAPTION, KEYED ON THE HREF — which is also this item's permission key and its
+          route (AGENTS.md §1). One identifier, four jobs. */}
+      {t(`nav.item.${href}`)}
       {/* THE OUTLINE VARIANT, WHICH INHERITS THIS ROW'S COLOUR — and that is the whole
           reason it exists. A row sits on Heritage when inactive and on Legacy gold when
           active, and those grounds take different `on-` partners: naming either here would
@@ -719,12 +746,15 @@ function SectionDivider({ label, icon: Icon }: {
 // single-item sections (and the top-level Dashboard group) render statically.
 // `open`/`onToggle` are owned by NavTree, which decides how sections interact
 // with one another (see AUTO_COLLAPSE_SECTIONS).
-function NavSection({ group, pathname, open, onToggle, onNavClick }: {
+function NavSection({ group, pathname, open, onToggle, onNavClick, t }: {
   group: NavGroup
   pathname: string
   open: boolean
   onToggle: () => void
   onNavClick?: () => void
+  /** Bound to the reader's language. See lib/i18n/catalogues.ts for why not a `t` prop
+     across the RSC boundary — it is built here from the `locale` string. */
+  t: T
 }) {
   const { section, items } = group
 
@@ -755,7 +785,7 @@ function NavSection({ group, pathname, open, onToggle, onNavClick }: {
     .reduce<string | null>((best, item) => (!best || item.href.length > best.length ? item.href : best), null)
 
   const links = items.map(item => (
-    <NavLink key={item.href} {...item} active={item.href === activeHref} onClick={onNavClick} />
+    <NavLink key={item.href} {...item} active={item.href === activeHref} onClick={onNavClick} t={t} />
   ))
 
   // No section header (e.g. Dashboard) — render the items plainly.
@@ -769,7 +799,7 @@ function NavSection({ group, pathname, open, onToggle, onNavClick }: {
   if (items.length <= 1) {
     return (
       <div>
-        <SectionDivider label={section.label} icon={Icon} />
+        <SectionDivider label={t(`nav.section.${section.id}`)} icon={Icon} />
         <div className="flex flex-col gap-0.5 mt-0.5">{links}</div>
       </div>
     )
@@ -784,7 +814,7 @@ function NavSection({ group, pathname, open, onToggle, onNavClick }: {
         aria-expanded={open}
         className="group mt-4 flex w-full items-center gap-2 rounded-lg px-3 py-1.5 transition-colors hover:bg-brand-primary/50"
       >
-        <SectionLabel label={section.label} icon={Icon} />
+        <SectionLabel label={t(`nav.section.${section.id}`)} icon={Icon} />
         <ChevronDown
           className={cn(
             'h-3.5 w-3.5 shrink-0 text-brand-on-hero/50 transition-transform group-hover:text-brand-on-hero',
@@ -797,10 +827,13 @@ function NavSection({ group, pathname, open, onToggle, onNavClick }: {
   )
 }
 
-function NavTree({ groups, pathname, onNavClick }: {
+function NavTree({ groups, pathname, onNavClick, t }: {
   groups: NavGroup[]
   pathname: string
   onNavClick?: () => void
+  /** Bound to the reader's language. See lib/i18n/catalogues.ts for why not a `t` prop
+     across the RSC boundary — it is built here from the `locale` string. */
+  t: T
 }) {
   // Default to the section that contains the active route so the current page
   // stays visible. With AUTO_COLLAPSE_SECTIONS on this behaves as an accordion —
@@ -808,7 +841,9 @@ function NavTree({ groups, pathname, onNavClick }: {
   const collapsible = (g: NavGroup) => Boolean(g.section) && g.items.length > 1
   const activeSection = groups.find(g => collapsible(g) && g.items.some(it => isActive(pathname, it.href)))
   const [openSections, setOpenSections] = useState<Set<string>>(
-    () => new Set(activeSection?.section?.label ? [activeSection.section.label] : []),
+    // KEYED ON THE ID, NOT THE CAPTION. The caption is now `t(...)`, so keying state on it
+    // would collapse whichever section was open the moment somebody changed language.
+    () => new Set(activeSection?.section?.id ? [activeSection.section.id] : []),
   )
 
   const toggleSection = (label: string) =>
@@ -841,15 +876,17 @@ function NavTree({ groups, pathname, onNavClick }: {
   return (
     <>
       {groups.map((group, i) => {
-        const label = group.section?.label ?? `group-${i}`
+        // The React key and the open/closed key, both the stable id — never the caption.
+        const key = group.section?.id ?? `group-${i}`
         return (
           <NavSection
-            key={label}
+            key={key}
             group={group}
             pathname={pathname}
-            open={openSections.has(label)}
-            onToggle={() => toggleSection(label)}
+            open={openSections.has(key)}
+            onToggle={() => toggleSection(key)}
             onNavClick={onNavClick}
+            t={t}
           />
         )
       })}
@@ -946,9 +983,16 @@ function RailBrand() {
  * Only the top-left. The kit rounds its bottom corners too, but its sidebar is a card on a
  * canvas; this one runs to the bottom of a page of unknown length.
  */
-export function Sidebar({ viewable }: { viewable: string[] }) {
+export function Sidebar({ viewable }: {
+  viewable: string[]
+}) {
   const pathname = usePathname()
-  const navGroups = buildNavGroups(new Set(viewable))
+  const t = useT()
+  const navGroups = buildNavGroups(new Set(viewable), t)
+  // `useT()`, not a `locale` prop. This took one until Phase 5, which was fine for a component
+  // the layout renders itself — and the page BODIES underneath are a hundred and fifteen client
+  // components at arbitrary depth, where a threaded prop gets dropped in the middle and a pane
+  // reverts to English with nothing to show for it. One mechanism; see `LocaleProvider`.
 
   return (
     <aside className="relative hidden md:flex w-56 shrink-0 flex-col">
@@ -981,7 +1025,7 @@ export function Sidebar({ viewable }: { viewable: string[] }) {
       <div className="sticky top-0 z-10 flex max-h-screen flex-col overflow-y-auto overscroll-contain py-3 pl-3 pr-9">
         <RailBrand />
         <nav className="mt-4 flex flex-col">
-          <NavTree groups={navGroups} pathname={pathname} />
+          <NavTree groups={navGroups} pathname={pathname} t={t} />
         </nav>
         <RailMotto />
       </div>
@@ -1002,10 +1046,13 @@ export function Sidebar({ viewable }: { viewable: string[] }) {
  *
  * `Sidebar` above is now desktop-only and holds no state at all.
  */
-export function MobileNav({ viewable }: { viewable: string[] }) {
+export function MobileNav({ viewable }: {
+  viewable: string[]
+}) {
   const pathname = usePathname()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const navGroups = buildNavGroups(new Set(viewable))
+  const t = useT()
+  const navGroups = buildNavGroups(new Set(viewable), t)
 
   // Close the drawer on navigation, during render rather than in an effect — same
   // reasoning as NavTree above. Every link in the drawer already calls setMobileOpen(false)
@@ -1022,7 +1069,7 @@ export function MobileNav({ viewable }: { viewable: string[] }) {
       <button
         onClick={() => setMobileOpen(true)}
         className="md:hidden flex items-center gap-2 rounded-full bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90"
-        aria-label="Open navigation menu"
+        aria-label={t('nav.open')}
         aria-expanded={mobileOpen ? 'true' : 'false'}
       >
         <Menu className="h-4 w-4" />
@@ -1053,7 +1100,7 @@ export function MobileNav({ viewable }: { viewable: string[] }) {
               <button
                 onClick={() => setMobileOpen(false)}
                 className="mt-4 rounded-lg p-1.5 text-brand-on-hero transition-colors hover:bg-brand-primary"
-                aria-label="Close navigation menu"
+                aria-label={t('nav.close')}
               >
                 <X className="h-4 w-4" />
               </button>
@@ -1063,7 +1110,7 @@ export function MobileNav({ viewable }: { viewable: string[] }) {
                 the rail. The drawer has no swoosh to protect, so this is proportion
                 alone. */}
             <nav className="relative z-10 flex flex-col overflow-y-auto py-3 pl-3 pr-9">
-              <NavTree groups={navGroups} pathname={pathname} onNavClick={() => setMobileOpen(false)} />
+              <NavTree groups={navGroups} pathname={pathname} onNavClick={() => setMobileOpen(false)} t={t} />
               <RailMotto />
             </nav>
             {/* The rail-windowed variant, not the shell one: a drawer is a 16rem panel

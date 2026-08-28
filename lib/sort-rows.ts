@@ -29,6 +29,32 @@
  *    the same reason: a family with accented names must not have them exiled to the end of
  *    every list. `numeric: true` also makes "Chapter 2" sort before "Chapter 10".
  *
+ *    ── AND IN THE READER'S ALPHABET, WHICH IS THE HALF ADDED 2026-08-27 ──────────────
+ *    The locale was `undefined` — the RUNTIME's default, which is `en-US` here and is
+ *    whatever the container's ICU build and `LANG` say anywhere else. Two things follow and
+ *    only the second is visible.
+ *
+ *    THE INVISIBLE ONE: a sort whose order is a contract must not depend on the host. This
+ *    comparator backs every sortable table, and `useTableSort` keys React rows off the sorted
+ *    array — so a collation that differs between two environments is a row that moves under a
+ *    key for a reason nothing in the repo records.
+ *
+ *    THE VISIBLE ONE, and it is why this is a change rather than a note. Measured:
+ *
+ *      undefined / en / fr   na | Ñato | Nu | Nunez | Núñez | Nz
+ *      es / es-MX            na | Nu | Nunez | Núñez | Nz | Ñato
+ *
+ *    `ñ` IS A LETTER OF ITS OWN IN SPANISH and follows `n`, so a family with a Ñato or a
+ *    Muñoz in it saw the name filed in the English position. `sensitivity: 'base'` does NOT
+ *    collapse the difference — measured, because that was the obvious hope: `ñ` is a distinct
+ *    BASE letter in Spanish CLDR rather than `n` with a mark on it, which is exactly why the
+ *    accent-folding above does not reach it.
+ *
+ *    Everything else the product ships is unaffected: the same probe over Loeb/Lœb,
+ *    Strasse/Straße, digits, and mixed case sorts identically in all four. So this is a
+ *    Spanish fix and a determinism fix, not a general re-ordering — and the `intl` argument is
+ *    OPTIONAL for that reason, defaulting to English rather than to the host.
+ *
  * 3. A `YYYY-MM-DD` DATE IS COMPARED AS A STRING, DELIBERATELY. It is chronological in that
  *    form, which is the property `lib/date-utils.ts` relies on throughout, and it means no
  *    `Date` is ever constructed — `new Date('2026-08-01')` is UTC midnight and is the previous
@@ -40,6 +66,22 @@
  * `useTableSort` in `components/ui/sortable-header.tsx`, which is a client hook and cannot live
  * here.
  */
+
+/**
+ * The collation to sort in when nobody has said. ENGLISH, DELIBERATELY, and not the
+ * runtime's default.
+
+ * `localeCompare(x, undefined, …)` asks the host, and the host is `en-US` on a laptop and
+ * whatever the container's ICU build says in production — so an order that is a contract
+ * would depend on something no file here records. Naming English makes the default a
+ * decision, and every table that has a reader passes theirs instead.
+ *
+ * It is a bare `'en'` rather than `DEFAULT_MONEY_LOCALE`'s `'en-US'`: region affects money
+ * and dates and does not affect the Latin alphabet's order. Kept here rather than imported
+ * from `lib/i18n/locales.ts` so this module stays free of that import — it is consumed by a
+ * client hook, and the catalogue is 60KB.
+ */
+const DEFAULT_COLLATION = 'en'
 
 export type SortDirection = 'asc' | 'desc'
 
@@ -69,6 +111,14 @@ export function compareValues(
   a: SortValue,
   b: SortValue,
   direction: SortDirection = 'asc',
+  /**
+   * The reader's `Intl` tag — `es-MX`, not `es`. See decision 2: it decides where `ñ` files.
+   *
+   * DEFAULTS TO `DEFAULT_COLLATION` AND NOT TO `undefined`. Passing `undefined` to
+   * `localeCompare` means "ask the runtime", and a comparator that answers differently on two
+   * hosts is a row order nothing in this repo decides. English is a choice; the host is not.
+   */
+  intl: string = DEFAULT_COLLATION,
 ): number {
   const aBlank = isBlank(a)
   const bBlank = isBlank(b)
@@ -91,7 +141,7 @@ export function compareValues(
     // what somebody clicking that heading is looking for.
     cmp = a === b ? 0 : a ? -1 : 1
   } else {
-    cmp = String(a).localeCompare(String(b), undefined, {
+    cmp = String(a).localeCompare(String(b), intl, {
       sensitivity: 'base',
       numeric: true,
     })
@@ -123,6 +173,8 @@ export function sortRows<T>(
   rows: readonly T[],
   getValue: (row: T) => SortValue,
   direction: SortDirection = 'asc',
+  /** The reader's `Intl` tag. Threaded straight through — see `compareValues`. */
+  intl: string = DEFAULT_COLLATION,
 ): T[] {
-  return [...rows].sort((a, b) => compareValues(getValue(a), getValue(b), direction))
+  return [...rows].sort((a, b) => compareValues(getValue(a), getValue(b), direction, intl))
 }

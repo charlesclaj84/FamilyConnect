@@ -8,6 +8,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { DOCUMENT_FORMATS, isAllowedUpload, uploadRejection } from '@/lib/upload-types'
 import { isDocumentCategory } from '@/lib/document-categories'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * The family's documents — `/library/documents`, and `review/documents` until 2026-08-22.
@@ -135,6 +137,7 @@ export async function getDocumentDownloadUrl(
 ): Promise<{ success: boolean; url?: string; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   // ── `can`, NOT `canAny`, AND THE DIFFERENCE DECIDES A REAL CASE ────────────────────
   // `library/documents` HAS a `permission_table_map` row with an `own_expr` of
   // `uploaded_by = auth_person_id()`, so `view` at scope `'own'` is a coherent thing for a
@@ -145,14 +148,14 @@ export async function getDocumentDownloadUrl(
   // scope-`'own'` member finds only what they uploaded and everybody else's id answers
   // "not found" before storage is ever consulted.
   if (!(await can(g.userId, 'library/documents', 'view'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   const supabase = await createClient()
   const { data: row } = await supabase
     .from('documents').select('file_path').eq('id', id).eq('family_code', g.familyCode)
     .maybeSingle()
-  if (!row?.file_path) return { success: false, message: 'Document not found' }
+  if (!row?.file_path) return { success: false, message: t('act.documentNotFound') }
 
   const { data, error } = await supabase.storage
     .from('documents').createSignedUrl(row.file_path, 60, { download: true })
@@ -160,7 +163,7 @@ export async function getDocumentDownloadUrl(
     // The object can be missing where the row is not — a failed `remove()` leaves the reverse,
     // and this is the direction that reads to a member as the product having lost their file.
     console.error(`[documents] signing failed for ${id}: ${error?.message ?? 'no url'}`)
-    return { success: false, message: 'That file could not be opened. It may have been removed.' }
+    return { success: false, message: t('act.fileCouldNotOpenedMay') }
   }
   return { success: true, url: data.signedUrl }
 }
@@ -185,8 +188,9 @@ export async function uploadDocument(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   if (!(await canAny(g.userId, 'library/documents', 'create'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   const file = formData.get('file') as File | null
@@ -195,13 +199,13 @@ export async function uploadDocument(
   const rawCategory = (formData.get('category') as string | null) ?? 'other'
   const category = isDocumentCategory(rawCategory) ? rawCategory : 'other'
 
-  if (!file || file.size === 0) return { success: false, message: 'Choose a file' }
-  if (!name) return { success: false, message: 'Give the document a name' }
+  if (!file || file.size === 0) return { success: false, message: t('act.chooseFile') }
+  if (!name) return { success: false, message: t('act.giveDocumentName') }
   if (!isAllowedUpload(file.name, file.type, DOCUMENT_FORMATS)) {
     return { success: false, message: uploadRejection(file.name, DOCUMENT_FORMATS) }
   }
   if (file.size > 25 * 1024 * 1024) {
-    return { success: false, message: 'The file must be under 25 MB.' }
+    return { success: false, message: t('act.fileMustUnder25Mb') }
   }
 
   const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
@@ -250,14 +254,19 @@ export async function deleteDocument(
   void filePath
   const admin = createAdminClient()
 
+  const { user } = await currentUser()
+  // The translator BEFORE the row read, because the "not found" below runs
+  // before the guard: `requireOwn` needs the row's owner, so the row has to
+  // be read first. `currentUser()` is cached and the guard calls it anyway.
+  const { t } = await callerI18n(user?.id ?? null)
   const { data: row } = await admin
     .from('documents').select('file_path, uploaded_by, family_code').eq('id', id).maybeSingle()
-  if (!row) return { success: false, message: 'Document not found' }
+  if (!row) return { success: false, message: t('act.documentNotFound') }
 
   // An uploader may delete their own document; deleting somebody else's needs 'any'.
   const g = await requireOwn('library/documents', 'delete', row.uploaded_by)
   if (!g.ok) return { success: false, message: g.message }
-  if (row.family_code !== g.familyCode) return { success: false, message: 'Document not found' }
+  if (row.family_code !== g.familyCode) return { success: false, message: t('act.documentNotFound') }
 
   const { error } = await admin.from('documents').delete().eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }

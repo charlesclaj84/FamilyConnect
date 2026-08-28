@@ -3,14 +3,15 @@
 import Link from 'next/link'
 import { InviteMemberDialog } from '@/components/invitations/InviteMemberDialog'
 import {
-  ACCENT_CHIP, QUICK_ACTION_META, type ResolvedQuickAction,
+  ACCENT_CHIP, quickActionMeta, type ResolvedQuickAction,
 } from '@/components/dashboard/tiles'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The Golden Master's Quick Actions strip — round accent chips over a caption.
  *
  * WHY IT CAN BE EMPTY, AND WHAT THAT MEANS. The kit draws six buttons; three of them
- * point at features that have not shipped and are absent from `QUICK_ACTION_META`
+ * point at features that have not shipped and are absent from `quickActionMeta`
  * entirely. Of the three that remain, two need a grant most members do not hold. So a
  * rank-and-file member typically sees ONE button, and the card sizes itself to that
  * rather than padding the row out to six.
@@ -48,24 +49,25 @@ import {
  * It was `QuickActionId[]`. The election entry has neither a fixed caption nor a fixed
  * destination — it says "Nominate" or "Vote" depending on which window is open, and it points
  * at one particular ballot — so the page resolves both and passes them through. Every other
- * entry is `{ id }` and falls through to `QUICK_ACTION_META` exactly as before.
+ * entry is `{ id }` and falls through to `quickActionMeta` exactly as before.
  *
  * The overrides are read with `??`, so a missing one degrades to the table's value rather than
  * to `undefined`. An `undefined` href on a `<Link>` is a runtime error, and the Dashboard has
  * already been taken down once by exactly that (see `ROUTE_OVERRIDE` in tiles.ts).
  */
 export function QuickActions({ actions }: { actions: ResolvedQuickAction[] }) {
+  const t = useT()
   if (actions.length === 0) return null
 
   return (
     <section className="rounded-3xl border bg-card p-5 shadow-[var(--shadow-card)]">
-      <h2 className="mb-4 text-lg">Quick Actions</h2>
+      <h2 className="mb-4 text-lg">{t('dash.quickActions')}</h2>
       {/* `auto-fill` with a floor, not a fixed column count: the number of surviving
           buttons is between one and three today and will grow to six as features ship,
           and this reflows for any of those without a breakpoint per case. */}
       <div className="grid grid-cols-[repeat(auto-fill,minmax(6.5rem,1fr))] gap-3">
         {actions.map(({ id, label, href }) => {
-          const meta = QUICK_ACTION_META[id]
+          const meta = quickActionMeta(t)[id]
           const Icon = meta.icon
           const caption = label ?? meta.label
           const destination = href ?? meta.href

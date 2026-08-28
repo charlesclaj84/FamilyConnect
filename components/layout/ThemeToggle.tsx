@@ -1,16 +1,20 @@
 'use client'
 
 import { useCallback, useEffect, useSyncExternalStore } from 'react'
+import { useT } from '@/components/layout/LocaleProvider'
 import { Sun, Moon, Monitor } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { THEME_STORAGE_KEY, DEFAULT_THEME, type Theme } from '@/lib/theme'
 
 const ORDER: readonly Theme[] = ['light', 'dark', 'system']
 
-const META: Record<Theme, { icon: typeof Sun; label: string }> = {
-  light: { icon: Sun, label: 'Light' },
-  dark: { icon: Moon, label: 'Dark' },
-  system: { icon: Monitor, label: 'System' },
+const META: Record<Theme, { icon: typeof Sun }> = {
+  // THE ICON ONLY. The caption is `t(`theme.${mode}`)` at the render site — keeping a label
+  // here would be a second English string for the same thing, and the one in the catalogue
+  // would be the one nobody updated.
+  light: { icon: Sun },
+  dark: { icon: Moon },
+  system: { icon: Monitor },
 }
 
 const DARK_QUERY = '(prefers-color-scheme: dark)'
@@ -93,7 +97,20 @@ function subscribe(onChange: () => void) {
  *
  * The size is fixed across all three states so the row beside it never jumps.
  */
-export function ThemeToggle({ className }: { className?: string }) {
+export function ThemeToggle({ className }: {
+  className?: string
+  /*
+   * NO `locale` PROP SINCE PHASE 5. It took an optional one, defaulting to English, because this
+   * control appears on FOUR surfaces and only one of them had a locale to give it: the
+   * Dashboard's account menu, plus Home's header and the auth and staff layouts.
+   *
+   * `useT()` answers on all four without a prop — `BASE_LOCALE` where no provider is mounted,
+   * which is exactly what the default did, and the reader's own language the moment one is. So
+   * the three surfaces outside the Dashboard become translatable by mounting a provider in their
+   * layout rather than by editing this file. See `LocaleProvider`.
+   */
+}) {
+  const t = useT()
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot)
   const [preference, resolved] = snapshot.split('|') as [Theme, 'light' | 'dark']
 
@@ -131,8 +148,13 @@ export function ThemeToggle({ className }: { className?: string }) {
       // The label names the CURRENT state and the destination, because an icon
       // button that only says "Dark" is ambiguous about whether that is what it
       // is or what it does.
-      aria-label={`Appearance: ${META[preference].label}. Switch to ${META[next].label}.`}
-      title={`Appearance: ${META[preference].label}`}
+      // INTERPOLATED THROUGH THE CATALOGUE rather than assembled here, so the sentence's
+      // word order is the translator's to choose. Building it from fragments in JSX is how a
+      // language that puts the verb elsewhere ends up with an ungrammatical label.
+      aria-label={t('theme.switchLabel', {
+        current: t(`theme.${preference}`), next: t(`theme.${next}`),
+      })}
+      title={t('theme.currentLabel', { current: t(`theme.${preference}`) })}
       className={cn(
         'inline-flex size-8 shrink-0 items-center justify-center rounded-lg',
         'text-brand-ink transition-colors hover:bg-brand-primary/10',

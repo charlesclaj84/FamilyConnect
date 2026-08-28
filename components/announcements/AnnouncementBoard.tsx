@@ -15,6 +15,7 @@ import {
   type Announcement, type Chapter,
 } from '@/app/actions/announcements'
 import type { PermissionScope } from '@/lib/auth/permissions'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The board: compose at the top, then every post with the controls the caller may use.
@@ -92,6 +93,7 @@ export function AnnouncementBoard({
   /** The caller's people.id in this family, for the 'own' case. */
   myPersonId: string
 }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [announcements, setAnnouncements] = useServerState(initialAnnouncements)
@@ -103,16 +105,16 @@ export function AnnouncementBoard({
 
   async function handleDelete(a: Announcement) {
     const ok = await confirm({
-      title: 'Delete announcement',
+      title: t('ann.deleteTitle'),
       description: `Delete “${a.title}”? Members will no longer see it, on the board or in their updates. This cannot be undone.`,
-      confirmLabel: 'Delete',
+      confirmLabel: t('action.delete'),
       destructive: true,
     })
     if (!ok) return
     setError('')
     startTransition(async () => {
       const r = await deleteAnnouncement(a.id)
-      if (!r.success) { setError(r.message ?? 'Could not delete that announcement.'); return }
+      if (!r.success) { setError(r.message ?? t('ann.deleteFailed')); return }
       setAnnouncements(prev => prev.filter(x => x.id !== a.id))
       router.refresh()
     })
@@ -120,7 +122,7 @@ export function AnnouncementBoard({
 
   async function handleTogglePin(a: Announcement) {
     const ok = await confirm({
-      title: a.pinned ? 'Unpin for everyone' : 'Pin for everyone',
+      title: a.pinned ? t('ann.unpinAll') : t('ann.pinAll'),
       description: a.pinned
         ? `Unpin “${a.title}”? It stays on this board and stops riding at the top of everyone’s Recent Updates.`
         : `Pin “${a.title}” to the top of every member’s Recent Updates? Each of them can dismiss it for themselves afterwards.`,
@@ -130,7 +132,7 @@ export function AnnouncementBoard({
     setError('')
     startTransition(async () => {
       const r = await togglePinAnnouncement(a.id, !a.pinned)
-      if (!r.success) { setError(r.message ?? 'Could not change that pin.'); return }
+      if (!r.success) { setError(r.message ?? t('ann.pinFailed')); return }
       setAnnouncements(prev => prev.map(x => x.id === a.id ? { ...x, pinned: !a.pinned } : x))
       router.refresh()
     })
@@ -154,7 +156,7 @@ export function AnnouncementBoard({
     startTransition(async () => {
       const r = next ? await repinAnnouncementForMe(a.id) : await unpinAnnouncementForMe(a.id)
       if (!r.success) {
-        setError(r.message ?? 'Could not change that pin.')
+        setError(r.message ?? t('ann.pinFailed'))
         // Rolled back, because the refusal is not always transient — the announcement may
         // have been unpinned family-wide since this page rendered, and leaving the marker
         // flipped would tell the reader something that is not true of their own list.
@@ -172,7 +174,7 @@ export function AnnouncementBoard({
       <FormError message={error} />
 
       {announcements.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground">No announcements yet.</p>
+        <p className="py-8 text-center text-sm text-muted-foreground">{t('ann.none')}</p>
       ) : (
         <div className="space-y-4">
           {announcements.map(a => {
@@ -207,8 +209,8 @@ export function AnnouncementBoard({
                           ? `Hide “${a.title}” from the top of your own updates`
                           : `Show “${a.title}” at the top of your own updates again`}
                         title={a.pinnedForMe
-                          ? 'Hide this from the top of my updates'
-                          : 'Show this at the top of my updates'}
+                          ? t('dash.updates.unpin')
+                          : t('dash.updates.pin')}
                       >
                         {a.pinnedForMe
                           ? <Eye className="h-3.5 w-3.5 text-brand-accent" />
@@ -225,7 +227,7 @@ export function AnnouncementBoard({
                         disabled={isPending}
                         onClick={() => handleTogglePin(a)}
                         aria-label={a.pinned ? `Unpin “${a.title}” for everyone` : `Pin “${a.title}” for everyone`}
-                        title={a.pinned ? 'Unpin for everyone' : 'Pin for everyone'}
+                        title={a.pinned ? t('ann.unpinAll') : t('ann.pinAll')}
                       >
                         {a.pinned
                           ? <PinOff className="h-3.5 w-3.5 text-brand-accent" />
@@ -239,7 +241,7 @@ export function AnnouncementBoard({
                         disabled={isPending}
                         onClick={() => handleDelete(a)}
                         aria-label={`Delete “${a.title}”`}
-                        title="Delete"
+                        title={t('action.delete')}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -254,8 +256,8 @@ export function AnnouncementBoard({
                 {a.pin_active && (
                   <p className="mt-1.5 px-1 text-xs text-muted-foreground">
                     {a.pinnedForMe
-                      ? 'Pinned for the family — it rides at the top of your updates.'
-                      : 'Pinned for the family — you have hidden it from the top of your updates.'}
+                      ? t('ann.pinnedRides')
+                      : t('ann.pinnedHidden')}
                   </p>
                 )}
               </div>

@@ -13,6 +13,8 @@ import {
   MemberDetailsDialog, MemberDetailsTrigger,
   type MemberDetails,
 } from '@/components/members/MemberDetailsDialog'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 interface Props {
   members: MemberRecord[]
@@ -45,6 +47,7 @@ interface Props {
  * only difference, and it was the only difference before.
  */
 export function MemberDirectoryClient({ members }: Props) {
+  const t = useT()
   const [query, setQuery] = useState('')
   const [chapterFilter, setChapterFilter] = useState('')
   /**
@@ -102,7 +105,7 @@ export function MemberDirectoryClient({ members }: Props) {
         <div className="relative flex-1">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search by name…"
+            placeholder={t('bday.searchPh')}
             value={query}
             onChange={e => setQuery(e.target.value)}
             className="pl-8"
@@ -110,12 +113,12 @@ export function MemberDirectoryClient({ members }: Props) {
         </div>
         {chapters.length > 0 && (
           <select
-            aria-label="Filter by chapter"
+            aria-label={t('dir.filterByChapter')}
             value={chapterFilter}
             onChange={e => setChapterFilter(e.target.value)}
             className="h-9 rounded-lg border border-input bg-background px-2.5 py-1 text-sm"
           >
-            <option value="">All Chapters</option>
+            <option value="">{t('dir.allChapters')}</option>
             {chapters.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         )}
@@ -124,7 +127,7 @@ export function MemberDirectoryClient({ members }: Props) {
       {rows.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
           <Users className="mx-auto h-10 w-10 mb-3 opacity-30" />
-          <p className="text-sm">No members match your search.</p>
+          <p className="text-sm">{t('dir.noMatches')}</p>
         </div>
       ) : (
         /*
@@ -151,7 +154,7 @@ export function MemberDirectoryClient({ members }: Props) {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <SortTh label="Name" {...sortProps('name')} className="px-3 py-2 font-semibold" />
+                <SortTh label={t('field.name')} {...sortProps('name')} className="px-3 py-2 font-semibold" />
                 {/* ── POSITION REPLACED REGION ON 2026-08-20, AND IT HAD TO ────────────────
                     Members & Access made that swap because board positions are assigned from
                     its rows now, and "A table is a table" leaves this screen no choice:
@@ -168,9 +171,9 @@ export function MemberDirectoryClient({ members }: Props) {
                     THE SUBTITLE UNDER THE NAME IS GONE with it — the same string in a column
                     and under the name is one fact printed twice, and the column is the version
                     that can be scanned. */}
-                <SortTh label="Position" {...sortProps('position')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                <SortTh label="Chapter" {...sortProps('chapter')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                <SortTh label="Group" {...sortProps('group')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                <SortTh label={t('dir.position')} {...sortProps('position')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                <SortTh label={t('field.chapter')} {...sortProps('chapter')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                <SortTh label={t('dir.group')} {...sortProps('group')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
               </tr>
             </thead>
             <tbody>
@@ -210,7 +213,7 @@ export function MemberDirectoryClient({ members }: Props) {
                             />
                             {member.is_minor && (
                               <span className="shrink-0 rounded-full bg-brand-warm px-1.5 py-0.5 text-[10px] font-medium text-brand-on-warm">
-                                Minor
+                                {t('dir.minor')}
                               </span>
                             )}
                           </div>
@@ -222,7 +225,7 @@ export function MemberDirectoryClient({ members }: Props) {
                               anyone not hovering, and a bare icon in a table column reads
                               as decoration. Said in words, and only when it is true. */}
                           {!member.is_active && (
-                            <p className="text-xs text-muted-foreground">Not yet registered</p>
+                            <p className="text-xs text-muted-foreground">{t('dir.notRegistered')}</p>
                           )}
                           {/* The folded columns, below sm only. Stacked rather than run
                               inline, and LABELLED: two proper nouns in a row are a coin
@@ -235,8 +238,8 @@ export function MemberDirectoryClient({ members }: Props) {
                               family holds no office, and plenty of members are in no chapter,
                               and a "Position —" line is a fact about nothing. */}
                           <RowMeta className="flex-col items-start gap-y-0.5">
-                            <MetaIf value={member.primary_role_title} prefix="Position" />
-                            <MetaIf value={member.chapter_name} prefix="Chapter" />
+                            <MetaIf value={member.primary_role_title} prefix={t('dir.position')} />
+                            <MetaIf value={member.chapter_name} prefix={t('field.chapter')} />
                             {member.group_name && (
                               <span className="mt-0.5 inline-block whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft">
                                 {member.group_name}
@@ -290,7 +293,7 @@ export function MemberDirectoryClient({ members }: Props) {
           account at all. Everything in here was already in `members` — moving a value
           into a dialog does not fetch anything new (§5). */}
       <MemberDetailsDialog
-        member={viewed ? directoryDetails(viewed) : null}
+        member={viewed ? directoryDetails(viewed, t) : null}
         onClose={() => setViewingId(null)}
       />
     </div>
@@ -304,7 +307,7 @@ export function MemberDirectoryClient({ members }: Props) {
  * markup above is not interrupted by it. The five shared facts are positional; everything
  * below them is this screen's own and its order is chosen here.
  */
-function directoryDetails(member: MemberRecord): MemberDetails {
+function directoryDetails(member: MemberRecord, t: T): MemberDetails {
   return {
     name: [member.prefix, member.first_name, member.last_name].filter(Boolean).join(' '),
     // The board title is the one line under the name worth repeating as the dialog's
@@ -318,16 +321,16 @@ function directoryDetails(member: MemberRecord): MemberDetails {
     chapterName: member.chapter_name,
     regionName: member.region_name,
     extra: [
-      { label: 'Preferred name', value: member.nick_name },
+      { label: t('dir.preferredName'), value: member.nick_name },
       // "Group" and not "Permission template", matching the column heading this screen
       // prints — AGENTS.md: captions come from the screen, and an administrator matching
       // a switch to the thing it switches off should not have to translate.
-      { label: 'Group', value: member.group_name },
+      { label: t('dir.group'), value: member.group_name },
       // A statement, never blank: "no account" is a real and useful fact about a
       // great-uncle recorded on the tree, and an em-dash here would read as unknown.
       {
-        label: 'Account',
-        value: member.is_active ? 'Registered' : 'Not yet registered',
+        label: t('dir.account'),
+        value: member.is_active ? t('dir.registered') : t('dir.notRegistered'),
       },
     ],
   }

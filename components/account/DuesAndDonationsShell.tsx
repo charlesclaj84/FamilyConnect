@@ -4,13 +4,13 @@ import { useState } from 'react'
 import { CalendarClock, HeartHandshake } from 'lucide-react'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 import { DuesPlanSection } from '@/components/account/DuesPlanSection'
-import { PayOnlineSection } from '@/components/account/PayOnlineSection'
 import type { DuesOnlineStatus } from '@/app/actions/pay-dues'
 import { DonationsSection } from '@/components/account/DonationsSection'
 import {
-  MONEY_PANES, MONEY_PANE_LABEL, MONEY_PANE_LEDE, type MoneyPane,
+  MONEY_PANES, MONEY_PANE_LABEL, type MoneyPane,
 } from '@/lib/money-panes'
 import type { DuesSummary, DonationSummary } from '@/app/actions/dues'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * WHERE A MEMBER STANDS — what they owe, and what the family is asking them to give to.
@@ -31,8 +31,9 @@ import type { DuesSummary, DonationSummary } from '@/app/actions/dues'
  * These two do: `?pane=dues` and `?pane=donations` are real addresses the page resolves. So
  * both items carry one, and the plain left click is intercepted and handled here — which is
  * the point on this page rather than an optimisation. A real navigation refetches the RSC
- * payload and remounts both panes, and `DuesPlanSection` holds a cadence picker mid-change and
- * a `useTransition` in flight; the URL stays shareable and the round trip is skipped.
+ * payload and remounts both panes, and `DuesPlanSection` holds a half-filled payment amount,
+ * an open dialog and a `useTransition` in flight; the URL stays shareable and the round trip is
+ * skipped.
  *
  * ── NEITHER PANE IS GATED HERE, AND THAT IS NOT AN OMISSION ─────────────────────────
  * One key governs the page, so a caller who is on this screen may see both halves by
@@ -43,9 +44,10 @@ import type { DuesSummary, DonationSummary } from '@/app/actions/dues'
  *
  * ── BOTH PANES STAY MOUNTED ─────────────────────────────────────────────────────────
  * `hidden` rather than a conditional render, for the reason `AdminAccountShell` keeps its
- * panels mounted: `DuesPlanSection` holds a half-changed cadence and an in-flight transition,
- * and switching to Donations and back must not discard either. `hidden` also takes the subtree
- * out of the accessibility tree and the tab order, which a `sr-only`-style hide would not.
+ * panels mounted: `DuesPlanSection` holds an in-flight transition, a half-filled payment
+ * amount and whichever dialog is open, and switching to Donations and back must not discard
+ * any of them. `hidden` also takes the subtree out of the accessibility tree and the tab
+ * order, which a `sr-only`-style hide would not.
  */
 export function DuesAndDonationsShell({
   initialPane, summary, donations, online,
@@ -63,6 +65,8 @@ export function DuesAndDonationsShell({
    */
   online: DuesOnlineStatus
 }) {
+  const t = useT()
+  const intl = useIntlTag()
   const [pane, setPane] = useState<MoneyPane>(initialPane)
 
   const items: MainRailItem<MoneyPane>[] = MONEY_PANES.map(id => ({
@@ -82,21 +86,16 @@ export function DuesAndDonationsShell({
 
   return (
     <div className="space-y-6">
-      <MainRail label="Dues and donations" items={items} active={pane} onSelect={select} />
-
-      {/* The pane's own sentence, under the rail. It is the `blurb` each of the two retired
-          `FEATURES` entries carried — a merged entry can only hold one, and this is where the
-          other one went rather than being lost. */}
-      <p className="text-sm text-muted-foreground">{MONEY_PANE_LEDE[pane]}</p>
+      <MainRail label={t('drives.rail')} items={items} active={pane} onSelect={select} />
 
       <div hidden={pane !== 'dues'}>
-        <div className="space-y-8">
-          <DuesPlanSection summary={summary} />
-          {/* BELOW the table, not a column in it — see PayOnlineSection's header. It renders
-              null when the family cannot take a card, so a family with no processor gets the
-              screen it had yesterday. */}
-          <PayOnlineSection summary={summary} online={online} />
-        </div>
+        {/* `online` goes INTO the pane rather than beside it, since 2026-08-25. It was a
+            `PayOnlineSection` under the table — a second rendering of the same list of dues,
+            with each schedule's name and balance repeated under the table that had just
+            stated them. Paying is a thing you do to a ROW, so the controls live on the row
+            and the one figure that belongs to neither table (what both come to together)
+            sits under both. See DuesPlanSection's header. */}
+        <DuesPlanSection summary={summary} online={online} />
       </div>
 
       <div hidden={pane !== 'donations'}>
@@ -108,11 +107,20 @@ export function DuesAndDonationsShell({
           <div className="flex flex-col items-center gap-2 py-10">
             <HeartHandshake className="h-10 w-10 text-muted-foreground/20" aria-hidden="true" />
             <p className="text-sm text-muted-foreground">
-              Your family is not running any donation drives right now.
+              {t('drives.none')}
             </p>
           </div>
         ) : (
-          <DonationsSection donations={donations} />
+          <div className="space-y-4">
+            <DonationsSection donations={donations} chargesReady={online.chargesReady} intl={intl} />
+            {/* Said ONCE under the list, not as a greyed-out Give on every drive. It is the
+                same judgement the dues pane makes about its own totals card: a promise about
+                a capability is a property of the SCREEN, and repeating it per row makes the
+                widest control on a phone one that does nothing when tapped. */}
+            {!online.chargesReady && (
+              <p className="text-xs text-muted-foreground">{t('ui.familyNotConnectedCard')}</p>
+            )}
+          </div>
         )}
       </div>
     </div>

@@ -49,14 +49,18 @@ export const MONEY_PANE_LABEL: Record<MoneyPane, string> = {
   donations: 'Donations',
 }
 
-/**
- * The sentence under the rail, per pane.
+/*
+ * ── `MONEY_PANE_LEDE` WAS HERE AND WAS DELETED ON 2026-08-25 ──────────────────────
+ * A sentence under the rail per pane, carried over from the `blurb`s the two separate
+ * `FEATURES` entries held before the merge. Keeping them was the right instinct about not
+ * losing copy and the wrong place to put it: a `blurb` is written to describe a screen to
+ * somebody who is NOT on it — that is what it does in the rail and on the marketing surfaces
+ * — and the same words printed at the top of the screen itself tell a reader what they are
+ * already looking at.
  *
- * These are the two `blurb`s the separate `FEATURES` entries carried before the merge, kept
- * word for word — they were written for exactly this job (telling a member what the screen
- * answers) and the merged entry can only carry one of them. This is where the other one went.
+ * Both panes answer their own question in their first row: the dues pane opens on the
+ * schedules with their next due dates, the donations pane on the drives with their progress
+ * bars. Part of the app-wide sweep of these — see `components/admin/family-settings.ts` for
+ * the argument in full, and the rule that a line of prose above a pane has to carry a fact
+ * the screen cannot show.
  */
-export const MONEY_PANE_LEDE: Record<MoneyPane, string> = {
-  dues: 'Every schedule you are on, what each installment costs, and when the next one falls due.',
-  donations: 'The drives your family is running, how far each has got, and what you have given.',
-}

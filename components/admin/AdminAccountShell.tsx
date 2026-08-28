@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { AdminIncomeClient, type BeneficiaryOption, type ScopeOptions } from '@/components/admin/AdminIncomeClient'
 import { AdminFundsClient } from '@/components/admin/AdminFundsClient'
 import {
-  SECTION_LABELS, isIncomeSection,
+  sectionLabel, isIncomeSection,
   type AccountSection, type AccountRights, type IncomeSection,
 } from '@/components/admin/account-sections'
 import { MainRail } from '@/components/layout/MainRail'
@@ -27,6 +27,8 @@ import { ProcessingPanel } from '@/components/admin/ProcessingPanel'
 import type { ProcessorStatus } from '@/app/actions/admin/processing'
 import type { DuesSchedule, ScheduleUsage } from '@/app/actions/dues'
 import type { FundWithStats, FundMilestone, FundAllocationRow } from '@/app/actions/funds'
+import { useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 type IconComponent = React.ComponentType<{ className?: string }>
 
@@ -97,72 +99,78 @@ interface SectionItem {
   icon: IconComponent
 }
 
-const SECTION_GROUPS: {
+// A FUNCTION of `t` since Phase 5: every caption in here comes from the reader's catalogue
+// and cannot be resolved at module load. The SECTION IDS, the icons and the ORDER stay —
+// which is what this registry is actually for, and what `LEDGER_RESOURCE`-style grants key
+// on. See `components/admin/account-sections.ts`.
+function sectionGroups(t: T): {
   label: string
   icon: IconComponent
   items: SectionItem[]
-}[] = [
-  {
-    // "Income", not "Dues": the group holds both what members owe and what they
-    // choose to give.
-    label: 'Income',
-    icon: Receipt,
-    items: [
-      // ── TWO ITEMS AGAIN SINCE 2026-08-20, and the split is the plainer arrangement ──
-      // They were one item captioned "Dues & Donations" for a day. Two keys behind one rail
-      // caption is a stated exception to "One rail item, one permission resource", and the
-      // exception bought nothing here: `admin/accounting/dues` and
-      // `admin/accounting/donations` were always separate switches on the grid, so the merged
-      // caption's whole job was to translate two grid rows into one rail word — which is a
-      // translation an administrator should not have to do at all.
+}[] {
+  return [
+    {
+      // "Income", not "Dues": the group holds both what members owe and what they
+      // choose to give.
+      label: t('acct.section.income'),
+      icon: Receipt,
+      items: [
+        // ── TWO ITEMS AGAIN SINCE 2026-08-20, and the split is the plainer arrangement ──
+        // They were one item captioned "Dues & Donations" for a day. Two keys behind one rail
+        // caption is a stated exception to "One rail item, one permission resource", and the
+        // exception bought nothing here: `admin/accounting/dues` and
+        // `admin/accounting/donations` were always separate switches on the grid, so the merged
+        // caption's whole job was to translate two grid rows into one rail word — which is a
+        // translation an administrator should not have to do at all.
+        //
+        // Splitting also un-hides a real asymmetry. A dues schedule is a standing OBLIGATION
+        // the family assigns; a donation drive is an INVITATION with a goal and a bar. They
+        // share a table and nothing else, and stacking them under one heading made the second
+        // read as an appendix to the first.
+        //
+        // EACH GLYPH DESCRIBES ITS OWN HALF, which is what the merged item could not do: it
+        // wore the group's own Receipt because either specific icon would have made the item
+        // read as one page with the other tacked on.
+        { sections: ['dues'], icon: CalendarClock },
+        { sections: ['donations'], icon: HeartHandshake },
+      ],
+    },
+    {
+      // ── "Funds", NOT "Expenses", SINCE 2026-08-22 ──────────────────────────────────
+      // Neither page under this heading is an expense. `funds` is the family's pots and their
+      // balances; `routing` is how incoming money is SPLIT between them. Money leaving is a
+      // disbursement, and disbursements are a ledger on /transactions, which is not here at
+      // all — so the old caption named a thing this group does not contain and sent a treasurer
+      // looking for spending under it.
       //
-      // Splitting also un-hides a real asymmetry. A dues schedule is a standing OBLIGATION
-      // the family assigns; a donation drive is an INVITATION with a goal and a bar. They
-      // share a table and nothing else, and stacking them under one heading made the second
-      // read as an appendix to the first.
-      //
-      // EACH GLYPH DESCRIBES ITS OWN HALF, which is what the merged item could not do: it
-      // wore the group's own Receipt because either specific icon would have made the item
-      // read as one page with the other tacked on.
-      { sections: ['dues'], icon: CalendarClock },
-      { sections: ['donations'], icon: HeartHandshake },
-    ],
-  },
-  {
-    // ── "Funds", NOT "Expenses", SINCE 2026-08-22 ──────────────────────────────────
-    // Neither page under this heading is an expense. `funds` is the family's pots and their
-    // balances; `routing` is how incoming money is SPLIT between them. Money leaving is a
-    // disbursement, and disbursements are a ledger on /transactions, which is not here at
-    // all — so the old caption named a thing this group does not contain and sent a treasurer
-    // looking for spending under it.
-    //
-    // IT NOW READS THE SAME AS ITS FIRST PAGE, which `account-sections.ts` warns against in
-    // the general case ("the group pill above it already says Income or Funds, so repeating
-    // that here would label both levels the same"). The warning is about a page name that
-    // adds nothing; this is the other case — the group IS the funds domain and its first page
-    // IS the fund list, the same way the Gatherings rail section holds a Gatherings item. The
-    // second page keeps its own name and still tells the reader where they are.
-    label: 'Funds',
-    icon: Landmark,
-    items: [
-      { sections: ['funds'], icon: PiggyBank },
-      { sections: ['routing'], icon: Split },
-    ],
-  },
-  {
-    label: 'Milestones',
-    icon: Award,
-    items: [{ sections: ['milestones'], icon: Award }],
-  },
-  {
-    label: 'Settings',
-    icon: Settings,
-    items: [
-      { sections: ['processing'], icon: CreditCard },
-      { sections: ['bank'], icon: Banknote },
-    ],
-  },
-]
+      // IT NOW READS THE SAME AS ITS FIRST PAGE, which `account-sections.ts` warns against in
+      // the general case ("the group pill above it already says Income or Funds, so repeating
+      // that here would label both levels the same"). The warning is about a page name that
+      // adds nothing; this is the other case — the group IS the funds domain and its first page
+      // IS the fund list, the same way the Gatherings rail section holds a Gatherings item. The
+      // second page keeps its own name and still tells the reader where they are.
+      label: 'Funds',
+      icon: Landmark,
+      items: [
+        { sections: ['funds'], icon: PiggyBank },
+        { sections: ['routing'], icon: Split },
+      ],
+    },
+    {
+      label: t('acct.section.milestones'),
+      icon: Award,
+      items: [{ sections: ['milestones'], icon: Award }],
+    },
+    {
+      label: t('acct.section.settings'),
+      icon: Settings,
+      items: [
+        { sections: ['processing'], icon: CreditCard },
+        { sections: ['bank'], icon: Banknote },
+      ],
+    },
+  ]
+}
 
 /**
  * The caption on an item's rail link — always its first visible section's own label.
@@ -173,8 +181,8 @@ const SECTION_GROUPS: {
  * one on screen. With the item split there is nothing to prefer, so the branch and the field
  * are both gone and "Captions come from the screen" holds here without an exception.
  */
-function captionOf(item: SectionItem): string {
-  return SECTION_LABELS[item.sections[0]]
+function captionOf(item: SectionItem, t: T): string {
+  return sectionLabel(t, item.sections[0])
 }
 
 /**
@@ -209,11 +217,13 @@ const NOT_AN_INCOME_SECTION: AccountSection = 'funds'
  * it to one would put that decision back in the shell, which is the thing that made "New Dues"
  * appear for somebody who could only add a donation.
  */
-const CREATE_ACTIONS: Partial<Record<AccountSection, string>> = {
-  dues: 'New Dues',
-  donations: 'New Donation',
-  funds: 'New Fund',
-  milestones: 'New Milestone',
+function createActions(t: T): Partial<Record<AccountSection, string>> {
+  return {
+    dues: t('acct.newDues'),
+    donations: t('acct.newDonation'),
+    funds: t('acct.newFund'),
+    milestones: t('acct.newMilestone'),
+  }
 }
 
 interface Props {
@@ -285,6 +295,7 @@ export function AdminAccountShell({
   scopeOptions,
   processorStatus,
 }: Props) {
+  const t = useT()
   // Only the sections this caller may view, and only the items and rails that still hold
   // one. Derived from the same rights the server actions enforce, so a visible rail always
   // leads somewhere the caller can actually go.
@@ -294,7 +305,7 @@ export function AdminAccountShell({
   // what the pane renders, so a caller holding Donations and not Dues gets one rail item
   // showing one block, and a caller holding neither gets no item at all. There is no second
   // place that has to agree about it.
-  const visibleGroups = SECTION_GROUPS
+  const visibleGroups = sectionGroups(t)
     .map(group => ({
       ...group,
       items: group.items
@@ -367,18 +378,14 @@ export function AdminAccountShell({
   // one button per item on today's rail, and zero for a caller who may view a section without
   // creating in it. See CREATE_ACTIONS for why this stays a list.
   const createTargets = (activeItem?.sections ?? [])
-    .filter(s => CREATE_ACTIONS[s] && rights[s].create)
+    .filter(s => createActions(t)[s] && rights[s].create)
 
   // Reachable: `admin/account` view opens the page, but each section is its own grant,
   // so a caller can hold the page and none of its contents. Better to say so than to
   // render an empty rail beside an empty pane and let them wonder what broke.
   if (visibleGroups.length === 0) {
     return (
-      <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-        You can open Accounting, but none of its sections have been shared with you.
-        Ask an administrator for access to the areas you need — dues, donations, funds,
-        routing, milestones or payment settings are each granted separately.
-      </div>
+      <div className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">{t('adm.canOpenAccountingBut')}</div>
     )
   }
 
@@ -390,7 +397,7 @@ export function AdminAccountShell({
           not itself a destination — `active` is the group containing the visible
           section, and selecting one lands on its first page. */}
       <MainRail
-        label="Accounting areas"
+        label={t('acct.rail')}
         items={visibleGroups.map(group => ({
           id: group.label,
           label: group.label,
@@ -421,14 +428,14 @@ export function AdminAccountShell({
             screen reader. */}
         <div className="flex flex-row flex-wrap items-start gap-2 xl:flex-col xl:gap-0">
           <nav
-            aria-label={`${activeGroup?.label ?? 'Accounting'} pages`}
+            aria-label={`${activeGroup?.label ?? t('acct.heading')} pages`}
             className="flex flex-row flex-wrap gap-2 xl:w-full xl:flex-col xl:gap-0.5"
           >
             {(activeGroup?.items ?? []).map(item => (
               <SectionLink
                 key={item.sections[0]}
                 id={item.sections[0]}
-                label={captionOf(item)}
+                label={captionOf(item, t)}
                 icon={item.icon}
                 active={item.sections.includes(section)}
                 onSelect={selectSection}
@@ -455,7 +462,7 @@ export function AdminAccountShell({
                   variant="affirm"
                   onClick={() => setCreating(target)}
                 >
-                  <CirclePlus className="h-4 w-4 mr-1" /> {CREATE_ACTIONS[target]}
+                  <CirclePlus className="h-4 w-4 mr-1" /> {createActions(t)[target]}
                 </Button>
               ))}
             </div>
@@ -608,19 +615,13 @@ function SectionLink({ id, label, icon: Icon, active, onSelect }: {
  * grants today) does not exist.
  */
 function BankInfoPanel() {
+  const t = useT()
   return (
     <div className="rounded-xl border bg-card p-8 text-center space-y-3">
       <Banknote className="h-8 w-8 mx-auto text-muted-foreground" />
-      <p className="text-sm font-medium">No bank account on file</p>
-      <p className="text-sm text-muted-foreground max-w-md mx-auto">
-        The account dues are deposited into, and that disbursements and event expenses
-        are paid from, will be recorded here — so the numbers on a check or a transfer
-        do not have to be looked up somewhere else.
-      </p>
-      <p className="text-xs text-muted-foreground">
-        Not yet available. Account details need encrypted storage and a narrower
-        permission than Accounting before they can be kept here.
-      </p>
+      <p className="text-sm font-medium">{t('acct.noBank')}</p>
+      <p className="text-sm text-muted-foreground max-w-md mx-auto">{t('adm.accountDuesDepositedInto')}</p>
+      <p className="text-xs text-muted-foreground">{t('adm.notYetAvailableAccount')}</p>
     </div>
   )
 }

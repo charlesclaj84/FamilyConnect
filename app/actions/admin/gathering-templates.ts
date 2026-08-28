@@ -9,6 +9,7 @@ import {
   GATHERING_TEMPLATE_SCHEDULERS, isGatheringStepKind,
   type GatheringStepKind, type GatheringTemplateScheduler,
 } from '@/lib/gatherings'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * The template library — `/admin/gatherings/templates`.
@@ -161,15 +162,17 @@ function readBudget(value: number | null | undefined): { ok: true; cents: number
 function readChild(
   kind: GatheringStepKind,
   value: string | null | undefined,
+  /** The caller's language. A pure validator, so it is handed one rather than resolving it. */
+  t: T,
 ): { ok: true; templateId: string | null } | { ok: false; message: string } {
   if (kind === 'template') {
     const id = typeof value === 'string' ? value.trim() : ''
-    if (!id) return { ok: false, message: 'Pick the template this step includes' }
+    if (!id) return { ok: false, message: t('act.pickTemplateStepIncludes') }
     return { ok: true, templateId: id }
   }
   // A child on any other kind is a reference nothing would ever read — refused rather than
   // dropped silently, because a caller sending one has misunderstood what they are building.
-  if (value) return { ok: false, message: 'Only a template step can include another template' }
+  if (value) return { ok: false, message: t('act.onlyTemplateStepCanInclude') }
   return { ok: true, templateId: null }
 }
 
@@ -342,21 +345,22 @@ export async function createGatheringTemplate(input: {
 }): Promise<ActionResult & { templateId?: string }> {
   const g = await requireScope(RESOURCE, 'create')
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const name = input.name?.trim()
-  if (!name) return { success: false, message: 'A template needs a name' }
+  if (!name) return { success: false, message: t('act.templateNeedsName') }
   // A `GatheringTemplateScheduler` annotation is erased at runtime and this function is a
   // public HTTP endpoint, so the string is checked rather than trusted — otherwise the
   // table's CHECK refuses the insert with a 23514 that reads as a bug.
   if (!isScheduler(input.whoMaySchedule)) {
-    return { success: false, message: 'Choose who may schedule from this template' }
+    return { success: false, message: t('act.chooseWhoMayScheduleFrom') }
   }
   // `created_by` REFERENCES `people(id)`, not `auth.users` — and it is this row's whole
   // `own_expr`, so a null makes the template unreadable to its own author under an 'own'
   // grant. Refused rather than written as null, and refused on the empty string too:
   // `funds.ts` records that the unchecked version surfaced `invalid input syntax for type
   // uuid: ""` to a treasurer as the entire error message.
-  if (!g.personId) return { success: false, message: 'Profile not found' }
+  if (!g.personId) return { success: false, message: t('act.profileNotFound') }
 
   const { data, error } = await createAdminClient()
     .from('gathering_templates')
@@ -403,13 +407,14 @@ export async function updateGatheringTemplate(input: {
 }): Promise<ActionResult> {
   const g = await requireEdit(RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   // §4/§3. The id arrives from the client and the update runs on the service role, where no
   // policy is underneath it: `.eq('id', …)` alone would let one family rename another's
   // templates. Checked before anything is built, and the write below carries the family
   // conjunct as well — both, not either.
   if (!(await belongsToFamily('gathering_templates', input.templateId, g.familyCode))) {
-    return { success: false, message: 'Template not found' }
+    return { success: false, message: t('act.templateNotFound') }
   }
 
   const patch: Record<string, unknown> = {}
@@ -418,7 +423,7 @@ export async function updateGatheringTemplate(input: {
   let nextName: string | null = null
   if (input.name !== undefined) {
     const name = input.name.trim()
-    if (!name) return { success: false, message: 'A template needs a name' }
+    if (!name) return { success: false, message: t('act.templateNeedsName') }
     patch.name = name
     nextName = name
   }
@@ -427,13 +432,13 @@ export async function updateGatheringTemplate(input: {
   }
   if (input.whoMaySchedule !== undefined) {
     if (!isScheduler(input.whoMaySchedule)) {
-      return { success: false, message: 'Choose who may schedule from this template' }
+      return { success: false, message: t('act.chooseWhoMayScheduleFrom') }
     }
     patch.who_may_schedule = input.whoMaySchedule
   }
   if (input.isArchived !== undefined) {
     if (typeof input.isArchived !== 'boolean') {
-      return { success: false, message: 'Archived must be yes or no' }
+      return { success: false, message: t('act.archivedMustYesNo') }
     }
     patch.is_archived = input.isArchived
   }
@@ -441,7 +446,7 @@ export async function updateGatheringTemplate(input: {
   // Refused rather than reported as saved. Every control on the screen sends at least one
   // field, so an empty patch is a caller that has misunderstood — and answering "saved" to
   // a request that wrote nothing is the failure this whole file is careful about.
-  if (Object.keys(patch).length === 0) return { success: false, message: 'Nothing to change' }
+  if (Object.keys(patch).length === 0) return { success: false, message: t('act.nothingChange') }
 
   const { error } = await createAdminClient()
     .from('gathering_templates')
@@ -491,6 +496,7 @@ export async function updateGatheringTemplate(input: {
 export async function deleteGatheringTemplate(templateId: string): Promise<ActionResult> {
   const g = await requireDelete(RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const admin = createAdminClient()
   // §3: read the row INSIDE the family before deciding anything about it. The name is for
@@ -504,9 +510,9 @@ export async function deleteGatheringTemplate(templateId: string): Promise<Actio
     .maybeSingle()
   if (readError) {
     console.error(`[gathering-templates] delete lookup failed for ${g.familyCode}: ${readError.message}`)
-    return { success: false, message: 'Could not read that template. Try again.' }
+    return { success: false, message: t('act.couldNotReadTemplateTry') }
   }
-  if (!existing) return { success: false, message: 'Template not found' }
+  if (!existing) return { success: false, message: t('act.templateNotFound') }
 
   const { count, error: countError } = await admin
     .from('gathering_template_uses')
@@ -518,8 +524,7 @@ export async function deleteGatheringTemplate(templateId: string): Promise<Actio
     console.error(`[gathering-templates] use count failed for template ${templateId}: ${countError.message}`)
     return {
       success: false,
-      message: 'Could not check whether any gathering was built from this template, so '
-        + 'nothing was deleted. Try again.',
+      message: t('act.couldNotCheckWhetherAny'),
     }
   }
 
@@ -579,32 +584,33 @@ export async function addTemplateStep(input: {
 }): Promise<ActionResult & { stepId?: string }> {
   const g = await requireScope(RESOURCE, 'create')
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const label = input.label?.trim()
-  if (!label) return { success: false, message: 'A step needs a label' }
+  if (!label) return { success: false, message: t('act.stepNeedsLabel') }
   // Checked at runtime for the reason `isGatheringStepKind`'s own comment gives: the
   // annotation is erased, the endpoint is public, and the only thing left underneath is a
   // CHECK whose 23514 reads as a bug rather than as "that is not one of the nine".
-  if (!isGatheringStepKind(input.kind)) return { success: false, message: 'Choose what the step asks for' }
+  if (!isGatheringStepKind(input.kind)) return { success: false, message: t('act.chooseWhatStepAsks') }
   const budget = readBudget(input.budgetDefaultCents)
-  if (!budget.ok) return { success: false, message: 'A suggested budget must be a whole number of cents, and not negative' }
+  if (!budget.ok) return { success: false, message: t('act.suggestedBudgetMustWholeNumber') }
 
-  const child = readChild(input.kind, input.childTemplateId)
+  const child = readChild(input.kind, input.childTemplateId, t)
   if (!child.ok) return { success: false, message: child.message }
 
   // §4. The step carries the caller's own family_code — which satisfies every policy — while
   // `template_id` could name another family's template. Verified before it is written.
   if (!(await belongsToFamily('gathering_templates', input.templateId, g.familyCode))) {
-    return { success: false, message: 'Template not found' }
+    return { success: false, message: t('act.templateNotFound') }
   }
   // The SECOND id from the client, and it gets the same look. The one-hop loop is refused
   // here as well as by a CHECK, so the caller reads a sentence rather than a constraint name.
   if (child.templateId) {
     if (child.templateId === input.templateId) {
-      return { success: false, message: 'A template cannot include itself' }
+      return { success: false, message: t('act.templateCannotIncludeItself') }
     }
     if (!(await belongsToFamily('gathering_templates', child.templateId, g.familyCode))) {
-      return { success: false, message: 'That template was not found' }
+      return { success: false, message: t('act.templateNotFound3') }
     }
   }
 
@@ -621,7 +627,7 @@ export async function addTemplateStep(input: {
     .maybeSingle()
   if (lastError) {
     console.error(`[gathering-templates] position read failed for template ${input.templateId}: ${lastError.message}`)
-    return { success: false, message: 'Could not add that step. Try again.' }
+    return { success: false, message: t('act.couldNotAddStepTry') }
   }
 
   const { data, error } = await admin
@@ -669,15 +675,16 @@ export async function updateTemplateStep(input: {
 }): Promise<ActionResult> {
   const g = await requireEdit(RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   if (!(await belongsToFamily('gathering_template_steps', input.stepId, g.familyCode))) {
-    return { success: false, message: 'Step not found' }
+    return { success: false, message: t('act.stepNotFound') }
   }
 
   const patch: Record<string, unknown> = {}
   if (input.label !== undefined) {
     const label = input.label.trim()
-    if (!label) return { success: false, message: 'A step needs a label' }
+    if (!label) return { success: false, message: t('act.stepNeedsLabel') }
     patch.label = label
   }
   // KIND AND CHILD MOVE TOGETHER OR NOT AT ALL, because the database locks them to each other
@@ -686,8 +693,8 @@ export async function updateTemplateStep(input: {
   // is exactly right for retyping a template step into a short-answer one; the screen sends
   // both, and this is what makes a caller that does not still write a coherent row.
   if (input.kind !== undefined) {
-    if (!isGatheringStepKind(input.kind)) return { success: false, message: 'Choose what the step asks for' }
-    const child = readChild(input.kind, input.childTemplateId)
+    if (!isGatheringStepKind(input.kind)) return { success: false, message: t('act.chooseWhatStepAsks') }
+    const child = readChild(input.kind, input.childTemplateId, t)
     if (!child.ok) return { success: false, message: child.message }
     patch.kind = input.kind
     patch.child_template_id = child.templateId
@@ -697,29 +704,29 @@ export async function updateTemplateStep(input: {
     // the row is not a `template` step, and a read-modify-write here would race a concurrent
     // retype of the same step.
     if (!input.childTemplateId) {
-      return { success: false, message: 'Pick the template this step includes' }
+      return { success: false, message: t('act.pickTemplateStepIncludes') }
     }
     patch.child_template_id = input.childTemplateId
   }
   if (input.helpText !== undefined) patch.help_text = input.helpText?.trim() || null
   if (input.required !== undefined) {
-    if (typeof input.required !== 'boolean') return { success: false, message: 'Required must be yes or no' }
+    if (typeof input.required !== 'boolean') return { success: false, message: t('act.requiredMustYesNo') }
     patch.required = input.required
   }
   if (input.budgetDefaultCents !== undefined) {
     const budget = readBudget(input.budgetDefaultCents)
-    if (!budget.ok) return { success: false, message: 'A suggested budget must be a whole number of cents, and not negative' }
+    if (!budget.ok) return { success: false, message: t('act.suggestedBudgetMustWholeNumber') }
     patch.budget_default_cents = budget.cents
   }
 
-  if (Object.keys(patch).length === 0) return { success: false, message: 'Nothing to change' }
+  if (Object.keys(patch).length === 0) return { success: false, message: t('act.nothingChange') }
 
   // §4 on the second id, same as `addTemplateStep`. The one-hop loop is caught here so the
   // author reads a sentence; the multi-hop one is the trigger's, whose message is surfaced.
   if (typeof patch.child_template_id === 'string') {
     const childId = patch.child_template_id
     if (!(await belongsToFamily('gathering_templates', childId, g.familyCode))) {
-      return { success: false, message: 'That template was not found' }
+      return { success: false, message: t('act.templateNotFound3') }
     }
   }
 
@@ -750,6 +757,7 @@ export async function updateTemplateStep(input: {
 export async function deleteTemplateStep(stepId: string): Promise<ActionResult> {
   const g = await requireDelete(RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   const admin = createAdminClient()
   // §3, as in `deleteGatheringTemplate`: the id alone must never be the whole predicate.
@@ -761,9 +769,9 @@ export async function deleteTemplateStep(stepId: string): Promise<ActionResult> 
     .maybeSingle()
   if (readError) {
     console.error(`[gathering-templates] step lookup failed for ${g.familyCode}: ${readError.message}`)
-    return { success: false, message: 'Could not read that step. Try again.' }
+    return { success: false, message: t('act.couldNotReadStepTry') }
   }
-  if (!existing) return { success: false, message: 'Step not found' }
+  if (!existing) return { success: false, message: t('act.stepNotFound') }
 
   const { error } = await admin
     .from('gathering_template_steps')
@@ -807,9 +815,10 @@ export async function moveTemplateStep(input: {
 }): Promise<ActionResult> {
   const g = await requireEdit(RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
 
   if (input.direction !== 'up' && input.direction !== 'down') {
-    return { success: false, message: 'Move a step up or down' }
+    return { success: false, message: t('act.moveStepUpDown') }
   }
 
   const admin = createAdminClient()
@@ -824,9 +833,9 @@ export async function moveTemplateStep(input: {
     .maybeSingle()
   if (stepError) {
     console.error(`[gathering-templates] move lookup failed for ${g.familyCode}: ${stepError.message}`)
-    return { success: false, message: 'Could not move that step. Try again.' }
+    return { success: false, message: t('act.couldNotMoveStepTry') }
   }
-  if (!step) return { success: false, message: 'Step not found' }
+  if (!step) return { success: false, message: t('act.stepNotFound') }
 
   const { data: siblingData, error: siblingError } = await admin
     .from('gathering_template_steps')
@@ -837,14 +846,14 @@ export async function moveTemplateStep(input: {
     .order('created_at')
   if (siblingError) {
     console.error(`[gathering-templates] sibling read failed for template ${step.template_id}: ${siblingError.message}`)
-    return { success: false, message: 'Could not move that step. Try again.' }
+    return { success: false, message: t('act.couldNotMoveStepTry') }
   }
 
   const siblings = (siblingData ?? []) as unknown as { id: string; position: number }[]
   const index = siblings.findIndex(s => s.id === step.id)
   // Unreachable unless the row went away between the two reads; treated as not found
   // rather than as a move of nothing.
-  if (index === -1) return { success: false, message: 'Step not found' }
+  if (index === -1) return { success: false, message: t('act.stepNotFound') }
 
   const targetIndex = input.direction === 'up' ? index - 1 : index + 1
   if (targetIndex < 0 || targetIndex >= siblings.length) {

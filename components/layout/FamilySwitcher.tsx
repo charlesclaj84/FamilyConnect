@@ -1,6 +1,7 @@
 'use client'
 
 import { useRef, useState, useTransition } from 'react'
+import { useT } from '@/components/layout/LocaleProvider'
 import { useRouter } from 'next/navigation'
 import { Check, ChevronDown, Clock, Home, PowerOff, Star } from 'lucide-react'
 import { switchActiveFamily } from '@/app/actions/family'
@@ -19,7 +20,10 @@ import { cn } from '@/lib/utils'
  * refresh rather than update locally: every family-scoped query on the page,
  * including the sidebar and navbar, has to be re-fetched.
  */
-export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
+export function FamilySwitcher({ families }: {
+  families: FamilyMembership[]
+}) {
+  const t = useT()
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [error, setError] = useState('')
@@ -83,7 +87,7 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
       >
         <Home className="h-4 w-4 shrink-0" />
         <span className="min-w-0 flex-1 truncate text-left font-medium">
-          {isPending ? 'Switching…' : active.familyName}
+          {isPending ? t('switcher.switching') : active.familyName}
         </span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
       </button>
@@ -101,7 +105,7 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
               header-panel.ts. */}
           <div ref={panel} role="menu" className={cn(HEADER_PANEL_CLASS, 'sm:w-64')}>
             <p className="shrink-0 border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Your families
+              {t('switcher.heading')}
             </p>
             <ul className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-1">
               {families.map(family => (
@@ -140,7 +144,7 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
                     {family.familyStatus !== 'active' && (
                       <span
                         className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-brand-withheld"
-                        title="This family has been removed"
+                        title={t('switcher.badge.removed')}
                       >
                         <PowerOff className="h-3 w-3" /> Removed
                       </span>
@@ -154,7 +158,7 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
                         // on the dark card was the muddiest thing in the panel. The accent
                         // role IS the attention marker, and it resolves to gold in dark.
                         className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-brand-accent"
-                        title="Waiting for approval"
+                        title={t('switcher.badge.pending')}
                       >
                         <Clock className="h-3 w-3" /> Pending
                       </span>
@@ -162,7 +166,7 @@ export function FamilySwitcher({ families }: { families: FamilyMembership[] }) {
                     {family.isDefault && (
                       <span
                         className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
-                        title="Opens when you log in"
+                        title={t('switcher.badge.default')}
                       >
                         <Star className="h-3 w-3" /> Default
                       </span>

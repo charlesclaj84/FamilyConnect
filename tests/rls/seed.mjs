@@ -399,7 +399,11 @@ async function teardown(db) {
     //
     // None of the six is append-only: no trigger refuses a DELETE, so each of these sweeps
     // does real work rather than documenting a cascade.
+    // `gathering_occurrences` cascades from `gatherings` too, and is listed AHEAD of it for
+    // the same reason the others are: this sweep does real work rather than documenting a
+    // cascade, and a table left out of it silently accumulates rows across runs.
     'gathering_task_submissions', 'gathering_tasks', 'gathering_template_uses',
+    'gathering_occurrences',
     'gatherings', 'gathering_template_steps', 'gathering_templates',
     'fund_contributions', 'fund_milestones', 'fund_allocations', 'funds',
     // AFTER `funds`. Second table in this list to go append-only (20260807000002, after
@@ -427,7 +431,7 @@ async function teardown(db) {
     // removing the people below would blank that column and LEAVE THE ROW, which is the shape
     // the deleted `event_*` block warned about: a table whose only inbound reference is SET
     // NULL is one nothing removes for you. Listed BEFORE `people` for the same reason
-    // `family_removal_challenges` is.
+    // `family_action_challenges` is.
     'bylaws',
     // BEFORE `user_roles` AND `family_roles` — `position_journal_entries.role_id` cascades
     // from `family_roles`, so listing it after would have it swept away as a side effect and
@@ -472,7 +476,7 @@ async function teardown(db) {
     'person_sms', 'phone_verifications',
     // ── THE BILLING TABLES ──────────────────────────────────────────────────────────────
     // Both keyed on `family_code` with no foreign key to `families`, so nothing else here
-    // removes them — the same position `resource_visibility` and `family_removal_challenges`
+    // removes them — the same position `resource_visibility` and `family_action_challenges`
     // are in, and the same reason they are listed by name.
     //
     // BEFORE `people`, because `family_stripe_accounts.connected_by` REFERENCES people(id)
@@ -500,7 +504,7 @@ async function teardown(db) {
     // `requested_by` REFERENCES people(id) — ON DELETE SET NULL, so leaving it would
     // silently blank the column rather than fail, and a challenge row belonging to nobody
     // would outlive the run it was seeded for.
-    'family_removal_challenges',
+    'family_action_challenges',
     'people',
     // AFTER `people`, and it has to be. dues_payments is append-only — 20260806000002
     // refuses a DELETE even to the service role — with ONE exception: the ON DELETE
@@ -1409,6 +1413,23 @@ export async function seed() {
       mode: 'prepaid',
       paid_tier: 'plus',
       paid_through: '2027-12-31',
+      // ── A SIGNUP INTENT, AND `plus` IS THE ONLY VALUE THAT PROMPTS HERE ────────────
+      // Both families are seeded `tier: 'standard'` (see the note above the families
+      // insert), and `signupPlanPrompt` skips anything the active tier already meets — so
+      // `standard` would answer 'already-held' and `premium` 'not-sold'. Plus is the one
+      // choice that leaves the family genuinely owed a checkout, which is the state the
+      // cases need to assert against.
+      //
+      // NOT DISMISSED, and the two cases that depend on that clear the column in their own
+      // `setup` rather than trusting this: `dismissSignupPlan`'s positive control writes it,
+      // so leaving the reads to rely on the seed would make them fail on reorder — the
+      // "fixture resting on the bug" shape, one file over.
+      signup_tier: 'plus',
+      // TODAY, not a literal. The prompt ages out after SIGNUP_PLAN_PROMPT_DAYS, so a fixed
+      // date here would quietly start answering 'stale' ninety days after it was written and
+      // take four assertions with it — a suite that goes red on a calendar rather than on a
+      // change. This is the one place in the fixture where the clock is load-bearing.
+      signup_tier_at: new Date().toISOString(),
     }).select().single())
 
     f.platformPayment = must('platform payment', await db.from('platform_payments').insert({
@@ -2284,6 +2305,13 @@ export async function seed() {
       // being found for every case ordered after it.
       location: `${code} assembly hall`,
       starts_on: GATHERING_STARTS_ON, ends_on: GATHERING_ENDS_ON,
+      // THE ZONE THE TIMES BELOW ARE STATED IN (20260826000005... 20260826000003).
+      // `gatherings_time_needs_zone` refuses a row whose envelope carries a time and no zone,
+      // and the envelope is written by `tg_gathering_when_envelope` from the OCCURRENCE
+      // inserted further down — so this has to be here even though nothing on this insert
+      // mentions a time. The first run of that migration against this fixture failed exactly
+      // here, which is the constraint doing its job on a trigger-written column.
+      time_zone: 'America/Chicago',
       status: 'planning', is_premier: true,
       fund_id: f.fund.id, budget_cents: 50000,
       created_by: owner.personId,
@@ -2296,6 +2324,35 @@ export async function seed() {
       // `deleteGathering` has a subject it is allowed to remove.
       status: 'planning', created_by: owner.personId,
     }).select().single())
+
+    // ── WHEN EACH GATHERING HAPPENS (20260826000001) ──────────────────────────────
+    //
+    // SEEDED BY HAND, because this fixture inserts gatherings straight into the table rather
+    // than through `scheduleGathering` — so nothing creates the child rows the actions would.
+    // The migration's backfill covers rows that existed when it applied and cannot cover rows
+    // a later seed inserts, which is why this is here and not left to it.
+    //
+    // WITH TIMES ON THE FIRST, so `raw/gathering-occurrences.mjs`'s positive control can assert
+    // on a value rather than on a count — a count passes over a policy handing back the wrong
+    // family's rows in the right quantity.
+    //
+    // The insert fires `tg_gathering_when_envelope`, which recomputes the parent's four
+    // envelope columns from these — to exactly what was inserted above, so nothing moves. That
+    // is worth knowing: if these dates ever stop matching the parent's, the parent is what
+    // changes, and every case asserting `startsOn` would follow the child.
+    f.gatheringOccurrence = must('gathering occurrence', await db
+      .from('gathering_occurrences').insert({
+        family_code: code, gathering_id: f.gathering.id,
+        starts_on: GATHERING_STARTS_ON, start_time: '11:00',
+        ends_on: GATHERING_ENDS_ON, end_time: '16:00',
+        position: 0,
+      }).select().single())
+
+    must('spare gathering occurrence', await db
+      .from('gathering_occurrences').insert({
+        family_code: code, gathering_id: f.deletableGathering.id,
+        starts_on: SPARE_GATHERING_STARTS_ON, position: 0,
+      }).select().single())
 
     // A SEGMENT WITH A DAY AND A PLACE (20260819000001), not a bare junction row.
     //

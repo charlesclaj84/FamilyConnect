@@ -6,6 +6,8 @@ import { getMyFamilies, getMyNameInFamily } from '@/lib/auth/family'
 import { switchActiveFamily } from '@/app/actions/family'
 import { notifyMembershipRequest } from '@/lib/notifications'
 import { trackFamilyCreated } from '@/lib/meta/conversions'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Joining an existing family by its code, from /my-families.
@@ -96,14 +98,15 @@ const overCreateLimit = (userId: string) => overLimit('create', userId, CREATE_L
 /** Step one: does this code name a family, and which one? */
 export async function validateFamilyCode(code: string): Promise<ValidateCodeResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   const normalized = (code ?? '').trim().toUpperCase()
-  if (!normalized) return { success: false, message: 'Enter a family code' }
+  if (!normalized) return { success: false, message: t('act.enterFamilyCode') }
 
   if (overLookupLimit(user.id)) {
-    return { success: false, message: 'Too many attempts. Wait a minute and try again.' }
+    return { success: false, message: t('act.tooManyAttemptsWaitMinute') }
   }
 
   // Checked here as well as in the RPC because this is the friendly layer: the user
@@ -124,11 +127,11 @@ export async function validateFamilyCode(code: string): Promise<ValidateCodeResu
     .rpc('validate_family_code', { p_code: normalized })
     .maybeSingle<{ family_code: string; family_name: string }>()
 
-  if (error) return { success: false, message: 'Could not look up that code. Please try again.' }
+  if (error) return { success: false, message: t('act.couldNotLookUpCode') }
   if (!data) {
     return {
       success: false,
-      message: 'Family code not found. Check with your family and try again.',
+      message: t('act.familyCodeNotFoundCheck'),
     }
   }
 
@@ -138,17 +141,18 @@ export async function validateFamilyCode(code: string): Promise<ValidateCodeResu
 /** Step two: the user has confirmed the name. Create the pending membership. */
 export async function joinFamilyByCode(code: string): Promise<JoinFamilyResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   const normalized = (code ?? '').trim().toUpperCase()
-  if (!normalized) return { success: false, message: 'Enter a family code' }
+  if (!normalized) return { success: false, message: t('act.enterFamilyCode') }
 
   const { data, error } = await supabase
     .rpc('join_family_by_code', { p_code: normalized })
     .maybeSingle<{ ok: boolean; family_code: string | null; family_name: string | null; message: string | null }>()
 
-  if (error) return { success: false, message: 'Could not join that family. Please try again.' }
+  if (error) return { success: false, message: t('act.couldNotJoinFamilyPlease') }
   if (!data?.ok) {
     return { success: false, message: data?.message ?? 'Could not join that family.' }
   }
@@ -201,13 +205,14 @@ export async function joinFamilyByCode(code: string): Promise<JoinFamilyResult> 
  */
 export async function createFamily(familyName: string): Promise<CreateFamilyResult> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   const name = (familyName ?? '').trim()
-  if (!name) return { success: false, message: 'Enter a family name' }
+  if (!name) return { success: false, message: t('act.enterFamilyName') }
   if (name.length > 100) {
-    return { success: false, message: 'That family name is too long (100 characters maximum).' }
+    return { success: false, message: t('act.familyNameTooLong100') }
   }
 
   // Creating a family writes two rows and seeds two permission templates with their
@@ -219,14 +224,14 @@ export async function createFamily(familyName: string): Promise<CreateFamilyResu
   // NOT a hard cap on families per account: a genuine organiser may well run several,
   // and picking a number for them is a product decision nobody has made.
   if (overCreateLimit(user.id)) {
-    return { success: false, message: 'Too many families created just now. Wait a minute and try again.' }
+    return { success: false, message: t('act.tooManyFamiliesCreatedJust') }
   }
 
   const { data, error } = await supabase
     .rpc('create_family', { p_family_name: name })
     .maybeSingle<{ ok: boolean; family_code: string | null; family_name: string | null; message: string | null }>()
 
-  if (error) return { success: false, message: 'Could not create that family. Please try again.' }
+  if (error) return { success: false, message: t('act.couldNotCreateFamilyPlease') }
   if (!data?.ok || !data.family_code) {
     return { success: false, message: data?.message ?? 'Could not create that family.' }
   }

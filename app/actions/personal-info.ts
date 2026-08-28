@@ -7,6 +7,9 @@ import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { familyShowsPhotos } from '@/lib/auth/tier'
 import { pickProfileColumns } from '@/lib/profile-columns'
+import { isSupportedLocale } from '@/lib/i18n/locales'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * The extensions the `avatars` bucket accepts, keyed by the MIME type that goes with each.
@@ -38,8 +41,9 @@ export async function uploadAvatar(
   formData: FormData
 ): Promise<{ success: boolean; url?: string; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   // ── THE ONE TIER CHECK ON A WRITE IN THIS PRODUCT, AND WHY IT IS ADMISSIBLE ────────
   // AGENTS.md forbids tier-checking the actions behind a paid page, and the reason is precise:
@@ -58,13 +62,13 @@ export async function uploadAvatar(
   if (!(await familyShowsPhotos(user.id))) {
     return {
       success: false,
-      message: 'Profile pictures are part of the Standard plan. This family is on Free.',
+      message: t('act.profilePicturesPartStandardPlan'),
     }
   }
 
   const file = formData.get('file') as File | null
-  if (!file || file.size === 0) return { success: false, message: 'No file provided' }
-  if (file.size > 2 * 1024 * 1024) return { success: false, message: 'File must be under 2 MB' }
+  if (!file || file.size === 0) return { success: false, message: t('act.noFileProvided') }
+  if (file.size > 2 * 1024 * 1024) return { success: false, message: t('act.fileMustUnder2Mb') }
 
   // SERVER-SIDE, because `accept` on the input is a hint to a file picker and this action is a
   // public HTTP endpoint like every other. `file.type` is still the browser's claim about the
@@ -72,7 +76,7 @@ export async function uploadAvatar(
   // does not take our word for it, and it is why this list matches that one.
   const ext = AVATAR_TYPES[file.type]
   if (!ext) {
-    return { success: false, message: 'Choose a JPEG, PNG or WebP image' }
+    return { success: false, message: t('act.chooseJpegPngWebpImage') }
   }
 
   const path = `${user.id}/avatar.${ext}`
@@ -153,6 +157,15 @@ export interface PersonalInfoData {
   tshirt_size?: string
   chapter_id?: string | null
   time_zone?: string | null
+  /**
+   * Which language this member reads the product in — a two-character code.
+   *
+   * Part of the SHARED profile, so it floats across every family they belong to
+   * (20260826000002). `null`/absent means they have not chosen, which resolves through
+   * `Accept-Language` and then English rather than through a stored default — see
+   * `lib/auth/locale.ts`.
+   */
+  locale?: string | null
 }
 
 export type PersonalInfoRecord = PersonalInfoData & {
@@ -167,7 +180,7 @@ export type PersonalInfoRecord = PersonalInfoData & {
 
 export async function getPersonalInfo(): Promise<PersonalInfoRecord | null> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) return null
 
   // A multi-family user has one row per family. Profile fields are kept in sync
@@ -218,12 +231,77 @@ async function chapterIsOurs(chapterId: unknown, familyCode: string): Promise<bo
 // Saves only the supplied fields — used by the section-level edit cards.
 // On conflict (existing record) Supabase updates ONLY the columns provided,
 // leaving all other columns unchanged.
+/**
+ * Change the language this member reads the product in.
+ *
+ * ── WHY NOT JUST `saveProfileSection({ locale })` ───────────────────────────────────
+ * It would work, and the switcher would be posting a PROFILE SECTION to change one dropdown in
+ * the top bar. Three things fall out of having its own action instead:
+ *
+ *   * **It takes one argument of one shape.** `saveProfileSection` takes a `Partial<>` off the
+ *     wire and leans on `pickProfileColumns` to decide what reaches the row; this takes a
+ *     locale code, checks it against the registry, and can write nothing else even in
+ *     principle. A narrower endpoint is a smaller thing to reason about.
+ *   * **It reports differently.** A profile save says "Saved"; this has to revalidate the whole
+ *     layout, because the rail, the top bar and every caption in the shell are what change.
+ *   * **The validation is here rather than only in the database.** `people_locale_check`
+ *     (`20260826000002`) refuses an unsupported code, but a CHECK violation surfaces as a
+ *     Postgres error a member cannot act on. `isSupportedLocale` is what turns it into a
+ *     sentence — and the CHECK remains the layer a caller who never loads the page cannot get
+ *     past (§2).
+ *
+ * ── IT IS SELF-SERVICE, SO `requireMember()` AND NOT A GRANT ────────────────────────
+ * Choosing a language is something every member may do by definition, exactly like sending a
+ * chat message or editing their own profile — `create` and `edit` default to scope `'none'`, so
+ * demanding a grant would lock the whole family out of their own interface. What it still owes
+ * is the OTHER check AGENTS.md §2 requires of a self-service action: that the row being touched
+ * is genuinely the caller's. `.eq('user_id', user.id)` is that, and it is the only filter here
+ * — the write deliberately reaches EVERY family the caller belongs to, because a language is
+ * part of the shared profile and `people_sync_shared_profile` would propagate it anyway.
+ */
+export async function setMyLocale(
+  locale: string
+): Promise<{ success: boolean; message?: string }> {
+  const supabase = await createClient()
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
+
+  if (!isSupportedLocale(locale)) {
+    return { success: false, message: t('act.notLanguageWeSpeakYet') }
+  }
+
+  // The USER client, so the `people` UPDATE policy — which admits a member's write to their own
+  // row — is what authorizes this. `.select()` for §8b's reason: a write the policy matched zero
+  // rows with would otherwise come back as `{ success: true }` over an unchanged row.
+  const { data, error } = await supabase
+    .from('people')
+    .update({ locale })
+    .eq('user_id', user.id)
+    .select('id')
+
+  if (error) {
+    console.error(`[personal-info] locale change failed for ${user.id}: ${error.message}`)
+    return { success: false, message: t('act.couldNotChangeLanguagePlease') }
+  }
+  if (!data || data.length === 0) {
+    return { success: false, message: t('act.notAuthorized') }
+  }
+
+  // THE WHOLE LAYOUT, not this route: the rail, the top bar, the account menu and every caption
+  // in the shell are what this changes. `renameFamily` revalidates the same way for a narrower
+  // reason.
+  revalidatePath('/', 'layout')
+  return { success: true }
+}
+
 export async function saveProfileSection(
   fields: Partial<PersonalInfoData>
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   const dateFields = new Set(['date_of_birth', 'sunset_date'])
   const cleaned: Record<string, unknown> = {}
@@ -245,7 +323,7 @@ export async function saveProfileSection(
   // user belongs to more than one. Shared profile columns propagate to the user's
   // other families via the people_sync_shared_profile trigger.
   const familyCode = (await getMyFamilyCode(user.id)) || user.app_metadata?.family_code || ''
-  if (!familyCode) return { success: false, message: 'No family associated with account' }
+  if (!familyCode) return { success: false, message: t('act.noFamilyAssociatedAccount') }
 
   // THE SECOND LAYER, not the only one, and today not the one doing the work:
   // `chapter_id` is no longer on the profile allow-list, so `cleaned` cannot carry it
@@ -254,7 +332,7 @@ export async function saveProfileSection(
   // one-line change nobody would think of as a security decision. If it ever comes
   // back, the §4 check is already here rather than needing to be remembered.
   if (!(await chapterIsOurs(cleaned.chapter_id, familyCode))) {
-    return { success: false, message: 'Chapter not found' }
+    return { success: false, message: t('act.chapterNotFound') }
   }
 
   const { error } = await supabase
@@ -279,16 +357,17 @@ export async function upsertPersonalInfo(
   input: PersonalInfoData
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   // The family being viewed, not the one the account was created in.
   const familyCode = (await getMyFamilyCode(user.id)) || user.app_metadata?.family_code
-  if (!familyCode) return { success: false, message: 'No family code associated with account' }
+  if (!familyCode) return { success: false, message: t('act.noFamilyCodeAssociatedAccount') }
 
   // §4 — chapter_id is a client-supplied reference written onto the caller's own row.
   if (!(await chapterIsOurs(input.chapter_id, familyCode))) {
-    return { success: false, message: 'Chapter not found' }
+    return { success: false, message: t('act.chapterNotFound') }
   }
 
   const normalize = (v?: string) => v?.trim() || null
@@ -335,13 +414,14 @@ export async function saveChapterAndPropagate(
   chapterId: string | null
 ): Promise<{ success: boolean; message?: string }> {
   const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { success: false, message: 'Not authenticated' }
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, message: t('act.notAuthenticated') }
 
   // chapter_id is per-family, so this must target the family being viewed —
   // chapters themselves belong to a single family.
   const familyCode = (await getMyFamilyCode(user.id)) || user.app_metadata?.family_code || ''
-  if (!familyCode) return { success: false, message: 'No family associated with account' }
+  if (!familyCode) return { success: false, message: t('act.noFamilyAssociatedAccount') }
 
   // The comment above already knew chapters belong to a single family; it scoped the
   // people ROW to this family and never checked the CHAPTER. That is exactly §4 — the
@@ -349,7 +429,7 @@ export async function saveChapterAndPropagate(
   // This one also propagates to the caller's under-18 children below, so an unchecked id
   // would have spread rather than sitting on one row.
   if (!(await chapterIsOurs(chapterId, familyCode))) {
-    return { success: false, message: 'Chapter not found' }
+    return { success: false, message: t('act.chapterNotFound') }
   }
 
   // Update own record
@@ -391,9 +471,7 @@ export async function saveChapterAndPropagate(
   if (propagation.error) {
     return {
       success: true,
-      message: 'Your chapter was saved, but your children under 18 with no account of their '
-        + 'own could not be moved with you. Ask an administrator to set their chapter on '
-        + 'Members & Access.',
+      message: t('act.yourChapterSavedButYour'),
     }
   }
   return { success: true }

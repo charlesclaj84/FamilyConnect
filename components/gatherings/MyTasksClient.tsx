@@ -17,6 +17,7 @@ import { AnswerText } from '@/components/gatherings/AnswerText'
 import { TaskStatusPill } from '@/components/gatherings/StatusPill'
 import { AnswerInput, answerFromDraft, draftFromAnswer } from '@/components/gatherings/AnswerInput'
 import { submitGatheringTask, type MyTaskRow } from '@/app/actions/gatherings'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * `/gatherings/my-tasks` — every gathering task assigned to the caller, with the form to
@@ -76,6 +77,7 @@ export interface MyTasksClientProps {
 }
 
 export function MyTasksClient({ initialTasks, today }: MyTasksClientProps) {
+  const t = useT()
   const [tasks, setTasks] = useServerState(initialTasks)
 
   /**
@@ -107,10 +109,7 @@ export function MyTasksClient({ initialTasks, today }: MyTasksClientProps) {
       // A SENTENCE, NEVER AN EMPTY TABLE. "No rows" over a set of column headings reads as a
       // screen that failed to load; this says what is true, which is that nobody has asked
       // this member for anything yet.
-      <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-        Nothing is assigned to you at the moment. When an organizer hands you part of a
-        gathering, it appears here with what to send back and by when.
-      </p>
+      <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">{t('gath.nothingAssignedMomentWhen')}</p>
     )
   }
 
@@ -121,7 +120,7 @@ export function MyTasksClient({ initialTasks, today }: MyTasksClientProps) {
     <div className="space-y-4">
       <p className="text-sm text-muted-foreground">
         {waiting === 0
-          ? 'Nothing is waiting on you — everything you have been asked for is in.'
+          ? t('tasks.allIn')
           : `${waiting} ${waiting === 1 ? 'task is' : 'tasks are'} waiting on you`}
         {returned > 0 && (
           <span className="text-brand-withheld">
@@ -144,6 +143,8 @@ function TaskCard({ task, today, onSubmitted }: {
   today: string
   onSubmitted: (taskId: string, answer: unknown, note: string) => void
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   const uid = useId()
   // The stored answer, in the field. `useServerState` over a STRING adopts by value, so a
   // refreshed list re-seeds the field only when the answer actually changed — a member
@@ -166,8 +167,8 @@ function TaskCard({ task, today, onSubmitted }: {
   const overdue = !!task.dueOn && task.dueOn < today && !approved
 
   const fieldId = `${uid}-answer`
-  const gatheringDate = formatDate(task.gatheringStartsOn)
-  const dueDate = formatDate(task.dueOn)
+  const gatheringDate = formatDate(task.gatheringStartsOn, intl)
+  const dueDate = formatDate(task.dueOn, intl)
 
   /**
    * WHETHER THERE IS A BUDGET LINE AT ALL — asked once, read three times below, so the guard
@@ -193,7 +194,7 @@ function TaskCard({ task, today, onSubmitted }: {
     // alone rather than submitted empty. It is the same rule the action applies, because both
     // are `parseAnswer(…) !== null`.
     if (!isCompleteAnswer(kind, answer)) {
-      setFieldError('There is nothing to send yet — fill this in first.')
+      setFieldError(t('tasks.fillFirst'))
       return
     }
     setFieldError('')
@@ -210,7 +211,7 @@ function TaskCard({ task, today, onSubmitted }: {
       // `result.error` here (which is what `admin/chapters` returns) would show the fallback
       // sentence for every real failure.
       if (!result.success) {
-        setFormError(result.message ?? 'Could not send that in. Try again.')
+        setFormError(result.message ?? t('tasks.sendFailed'))
         return
       }
       onSubmitted(task.id, answer, trimmedNote)
@@ -245,7 +246,7 @@ function TaskCard({ task, today, onSubmitted }: {
             </span>
           )}
           {dueDate && hasBudgetLine && <> · </>}
-          {hasBudgetLine && <>Budget {formatCurrency(task.budgetCents)}</>}
+          {hasBudgetLine && <>Budget {formatCurrency(task.budgetCents, intl)}</>}
         </p>
       )}
 
@@ -260,13 +261,13 @@ function TaskCard({ task, today, onSubmitted }: {
         <div className="space-y-1.5 rounded-lg border border-brand-withheld/40 bg-brand-withheld/5 p-3">
           <p className="flex items-center gap-1.5 text-sm font-semibold text-brand-withheld">
             <Undo2 aria-hidden="true" className="h-4 w-4" />
-            What the organizer asked for
+            {t('tasks.whatAsked')}
           </p>
           {task.latest?.reviewNotes
             ? <p className="text-sm whitespace-pre-wrap">{task.latest.reviewNotes}</p>
             : (
               <p className="text-sm text-muted-foreground">
-                This came back without any notes. Ask an organizer what needs to change.
+                {t('tasks.backNoNotes')}
               </p>
             )}
           {/* ONE OF THREE PLACED HELP LINKS IN THE FEATURE, and this is the strongest of them.
@@ -298,7 +299,7 @@ function TaskCard({ task, today, onSubmitted }: {
             <AnswerText kind={kind} answer={task.answer} />
           </div>
           <p className="text-xs text-muted-foreground">
-            Ask an organizer to reopen it if it needs to change.
+            {t('tasks.askReopen')}
           </p>
         </div>
       ) : (
@@ -311,7 +312,7 @@ function TaskCard({ task, today, onSubmitted }: {
             <div className="rounded-lg border bg-muted/40 p-3 text-sm">
               <p className="text-xs font-medium text-muted-foreground">
                 {task.status === 'submitted' ? 'Sent for review' : 'What you sent'}
-                {formatDate(task.latest.createdAt) && ` · ${formatDate(task.latest.createdAt)}`}
+                {formatDate(task.latest.createdAt, intl) && ` · ${formatDate(task.latest.createdAt, intl)}`}
               </p>
               <div className="mt-1">
                 <AnswerText kind={kind} answer={task.answer} />
@@ -328,7 +329,7 @@ function TaskCard({ task, today, onSubmitted }: {
             {/* `required` is the LABEL's marker and sets no native `required` attribute —
                 this form validates on submit and renders its own message, and the native
                 bubble would be a second, differently worded one. */}
-            <Label htmlFor={fieldId} required={task.required}>Your answer</Label>
+            <Label htmlFor={fieldId} required={task.required}>{t('tasks.yourAnswer')}</Label>
             <AnswerInput
               kind={kind}
               value={draft}
@@ -342,14 +343,14 @@ function TaskCard({ task, today, onSubmitted }: {
           </div>
 
           <div className="space-y-1.5">
-            <Label htmlFor={`${uid}-note`}>Anything to tell the organizer?</Label>
+            <Label htmlFor={`${uid}-note`}>{t('tasks.anythingToTell')}</Label>
             <Textarea
               id={`${uid}-note`}
               autoGrow
               rows={1}
               value={note}
               disabled={isPending}
-              placeholder="Optional"
+              placeholder={t('tasks.optional')}
               onChange={e => setNote(e.target.value)}
             />
           </div>
@@ -364,7 +365,7 @@ function TaskCard({ task, today, onSubmitted }: {
                 : denied ? 'Send it again' : task.status === 'submitted' ? 'Replace my answer' : 'Send for review'}
             </Button>
             <span className="text-xs text-muted-foreground">
-              An organizer reviews it and can hand it back with notes.
+              {t('tasks.reviewNote')}
             </span>
           </div>
         </div>

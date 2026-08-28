@@ -1,4 +1,3 @@
-import { createClient } from '@/lib/supabase/server'
 import { NotificationBell } from '@/components/layout/NotificationBell'
 import { FamilySwitcher } from '@/components/layout/FamilySwitcher'
 import { AccountMenu } from '@/components/layout/AccountMenu'
@@ -12,6 +11,7 @@ import { familyShowsPhotos } from '@/lib/auth/tier'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { PAGE_MEASURE } from '@/components/layout/PageShell'
 import { cn } from '@/lib/utils'
+import { currentUser } from '@/lib/auth/current-user'
 
 /**
  * The controls at the top of the workspace — and, as of the Golden Master, NOT a header
@@ -72,8 +72,7 @@ export default async function TopBar({
    */
   isStaff?: boolean
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
 
   let notifications: Awaited<ReturnType<typeof getNotifications>> = []
   let personId = ''

@@ -1,18 +1,21 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { can, canAny, requireFamilyActive, requireTier } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
+import { getMyFamilyCode } from '@/lib/auth/family'
+import { resolveFamilyZone, resolveZone } from '@/lib/auth/zone'
+import { todayIn } from '@/lib/tz'
 import {
   getGatherings, getMyGatheringTasks, getSchedulableTemplates, type MyTaskRow,
 } from '@/app/actions/gatherings'
 import { gatheringTiming } from '@/lib/gatherings'
-import { todayLocal } from '@/lib/date-utils'
 import { PageShell } from '@/components/layout/PageShell'
 import { GatheringsShell } from '@/components/gatherings/GatheringsShell'
 import type { GatheringRow } from '@/components/gatherings/GatheringsClient'
 import {
   GATHERING_PANES, isGatheringPane, type GatheringPane,
 } from '@/lib/gathering-panes'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Gatherings' }
 
@@ -91,9 +94,9 @@ interface Props {
  * tasks pane, which marks an overdue task by comparing against it.
  */
 export default async function GatheringsPage({ searchParams }: Props) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
+  const { t } = await callerI18n(user.id)
 
   // `requireView`, taken apart — see the essay above. Both must stay above the fetches.
   await requireFamilyActive(user.id, 'gatherings')
@@ -163,7 +166,13 @@ export default async function GatheringsPage({ searchParams }: Props) {
     mayViewMyTasks ? getMyGatheringTasks() : Promise.resolve([] as MyTaskRow[]),
   ])
 
-  const today = todayLocal()
+  // THE FAMILY'S ZONE for the past/upcoming split, and the reader's for nothing on this page.
+  // `todayLocal()` read UTC, so a gathering was filed as Past from 7pm Central on its own day
+  // — an evening picnic disappeared from Upcoming as it started. See `resolveFamilyZone`.
+  const today = todayIn(await resolveFamilyZone(await getMyFamilyCode(user.id)))
+  // The SCHEDULER's zone, defaulting the new-gathering dialog's timezone field. It is a
+  // default and decides nothing: `scheduleGathering` validates whatever it is sent.
+  const zone = await resolveZone(user.id)
   const rows: GatheringRow[] = gatherings.map(gathering => ({
     ...gathering,
     // `'today'` is every day of a multi-day span, not only the first — the second day of a
@@ -197,10 +206,11 @@ export default async function GatheringsPage({ searchParams }: Props) {
       {/* The heading only. The sentence under it is per-pane and lives in the shell — one
           describes the family's plans and the other the reader's own to-do list, and a lede
           describing the wrong one is worse than none. */}
-      <h1 className="text-3xl font-bold">Gatherings</h1>
+      <h1 className="text-3xl font-bold">{t('page./gatherings.title')}</h1>
 
       <GatheringsShell
         initialPane={initialPane}
+        zone={zone}
         mayViewGatherings={mayViewGatherings}
         mayViewMyTasks={mayViewMyTasks}
         upcoming={upcoming}

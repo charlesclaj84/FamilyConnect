@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { ShieldAlert } from 'lucide-react'
 import { getMyOpenCheckIns } from '@/app/actions/safety-check-ins'
 import { AnswerCheckIn } from '@/components/safety/AnswerCheckIn'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * "Are you safe?", across the top of the Dashboard, answerable without leaving it.
@@ -37,7 +38,14 @@ import { AnswerCheckIn } from '@/components/safety/AnswerCheckIn'
  * and on the next navigation. Adding a second poller here would be the thing that header argues
  * against, for an event that happens about once in a family's lifetime.
  */
-export async function SafetyCheckInBanner() {
+export async function SafetyCheckInBanner({ t }: {
+  /**
+   * The reader's language, bound. Threaded from the page rather than resolved here: a
+   * Server Component cannot read `LocaleProvider` and has no `user` of its own. See
+   * `lib/i18n/server.ts`.
+   */
+  t: T
+}) {
   const mine = await getMyOpenCheckIns()
   if (mine.length === 0) return null
 
@@ -55,8 +63,8 @@ export async function SafetyCheckInBanner() {
         <div className="min-w-0 flex-1">
           <h2 id="safety-check-in-banner" className="font-semibold text-brand-urgent">
             {mine.length === 1
-              ? 'Your family is asking whether you are safe'
-              : `Your family is asking whether you are safe (${mine.length} check-ins)`}
+              ? t('dash.safety.title')
+              : t('dash.safety.titleMany', { n: mine.length })}
           </h2>
 
           <div className="mt-3 space-y-4">
@@ -87,7 +95,7 @@ export async function SafetyCheckInBanner() {
 
           <p className="mt-3 text-xs text-muted-foreground">
             <Link href="/community/safety-check-ins" className="underline">
-              Open Safety Check-Ins
+              {t('dash.safety.action')}
             </Link>
           </p>
         </div>

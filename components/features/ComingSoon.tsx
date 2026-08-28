@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Hourglass, ArrowRight, Sparkles } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Full-page state served in place of a gated feature by the roadmap gate in
@@ -24,7 +25,13 @@ import { buttonVariants } from '@/components/ui/button'
  * list that is fetched and then filtered in the component has already been serialized into
  * the RSC payload; this one is never assembled.
  */
-export function ComingSoonScreen({ label, blurb, available }: {
+export function ComingSoonScreen({ label, blurb, available, t }: {
+  /**
+   * The reader's language, bound. A PROP rather than `useT()`, because this is a Server
+   * Component — a hook here passes `tsc`, passes `eslint`, compiles, and fails on the
+   * first render. See lib/i18n/server.ts.
+   */
+  t: T
   label: string
   blurb: string
   /**
@@ -41,7 +48,7 @@ export function ComingSoonScreen({ label, blurb, available }: {
       </div>
 
       <div className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-        <Sparkles className="h-3.5 w-3.5" /> Coming Soon
+        <Sparkles className="h-3.5 w-3.5" /> {t('soon.heading')}
       </div>
 
       <h1 className="mb-2 text-xl font-semibold sm:text-2xl">{label}</h1>
@@ -53,7 +60,7 @@ export function ComingSoonScreen({ label, blurb, available }: {
       {available.length > 0 && (
         <div className="mb-8 rounded-2xl border bg-card px-4 py-5 text-left">
           <p className="mb-3 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Available now
+            {t('soon.availableNow')}
           </p>
           <ul className="flex flex-col gap-1">
             {available.map(feature => (
@@ -72,7 +79,7 @@ export function ComingSoonScreen({ label, blurb, available }: {
       )}
 
       <Link href="/dashboard" className={buttonVariants() + ' justify-center'}>
-        Back to dashboard
+        {t('soon.back')}
       </Link>
     </div>
   )

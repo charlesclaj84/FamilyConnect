@@ -1,11 +1,36 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Link from 'next/link'
 import { Check, Crown, Sparkles, Zap } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { ComingSoonBadge } from '@/components/marketing/sections'
 import { ACCENTS, type AccentKey } from '@/components/marketing/tier-accent'
+import { useMarketingLocale, useMarketingT } from '@/components/marketing/MarketingLocale'
+import { ACCOUNT_ROUTES } from '@/lib/marketing-nav'
+import { localizedHref } from '@/lib/i18n/route-locale'
+import { TIERS, TIER_LABEL, type FamilyTier } from '@/lib/tiers'
 import { cn } from '@/lib/utils'
+
+/**
+ * The register link for a plan, carrying the tier as `?plan=`.
+ *
+ * JOINED ON THE NAME, which is the join the pricing page already makes to reach
+ * `TIER_PRICE` — the card's `name` IS the tier's label, and that page's own comment says
+ * a rename breaking this would have to be a rename of the plan away from the tier's own
+ * name. One join rather than a second field to keep in step.
+ *
+ * FALLS BACK TO THE BARE REGISTER ROUTE rather than throwing. A card whose name no tier
+ * answers to is a copy edit, and the most it may cost is a preselection — never a broken
+ * link on the page that sells the product. `/register` re-reads the parameter and ignores
+ * anything it cannot sell, so this is a hint and not a decision.
+ */
+function planSignupHref(planName: string): string {
+  const tier = TIERS.find(t => TIER_LABEL[t] === planName)
+  return tier && tier !== 'free'
+    ? `${ACCOUNT_ROUTES.register}?plan=${tier}`
+    : ACCOUNT_ROUTES.register
+}
 
 /**
  * ── THE PAID TIERS, AS A LADDER RATHER THAN A LIST ──────────────────────────
@@ -95,6 +120,27 @@ export interface PlanFeature {
 }
 
 export interface MarketingPlan {
+  /**
+   * Which tier this card is.
+   *
+   * ── ADDED WHEN THE PUBLIC SITE LEARNED SPANISH AND FRENCH, AND IT REMOVED THREE
+   *    HAND-COPIED FIELDS FROM `/pricing` ─────────────────────────────────────────
+   * The pricing table used to state `name`, `tagline` and `price` per card. All three were
+   * derivable and two were verbatim duplicates: `name` was `TIER_LABEL[tier]`, and the four
+   * taglines were copies of `TIER_TAGLINE`, which `lib/tiers.ts` exists to prevent.
+   *
+   * It also removed two STRING COMPARISONS that translation would have broken silently —
+   * `plans.find(p => p.price.period === 'forever')` and
+   * `TIERS.find(t => TIER_LABEL[t] === plan.name)`. Both matched against rendered copy, so
+   * both would have failed on every Spanish and French page and neither would have thrown.
+   * `/pricing` carries the note; the general rule is worth having here too, because this is
+   * the type that made both possible: **a comparison against a rendered string is a
+   * comparison translation breaks, in the language nobody on the team is reading.**
+   *
+   * `planSignupHref` still joins on `name` for its `?plan=` value, which is right — that
+   * query string is read by the register form and is not copy.
+   */
+  tier: FamilyTier
   name: string
   tagline: string
   /**
@@ -166,6 +212,7 @@ export interface MarketingPlan {
  * and `PersonMultiSelect`. What it is, is a group of buttons that scroll a region.
  */
 export function PlanLadder({ plans }: { plans: readonly MarketingPlan[] }) {
+  const t = useMarketingT()
   const track = useRef<HTMLDivElement>(null)
   const [active, setActive] = useState(() => {
     const featured = plans.findIndex(p => p.featured)
@@ -225,7 +272,7 @@ export function PlanLadder({ plans }: { plans: readonly MarketingPlan[] }) {
       <div className="lg:hidden">
         <div
           role="group"
-          aria-label="Choose a plan to read"
+          aria-label={t('mkt.ladder.chooseAria')}
           className="relative mx-auto flex max-w-md rounded-full border border-brand-on-primary/20 bg-brand-on-primary/10 p-1"
         >
           <span
@@ -282,6 +329,8 @@ export function PlanLadder({ plans }: { plans: readonly MarketingPlan[] }) {
 }
 
 function PlanCard({ plan }: { plan: MarketingPlan }) {
+  const t = useMarketingT()
+  const locale = useMarketingLocale()
   const Icon = TIER_ICONS[plan.icon]
   const accent = ACCENTS[plan.accent]
 
@@ -308,7 +357,7 @@ function PlanCard({ plan }: { plan: MarketingPlan }) {
           // of the card, and the sweep runs inside it.
           <div className="relative overflow-hidden bg-brand-legacy px-6 py-1.5 text-center">
             <span className="relative z-10 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-on-legacy">
-              Best first step
+              {t('mkt.ladder.bestFirstStep')}
             </span>
             <span
               aria-hidden="true"
@@ -334,7 +383,12 @@ function PlanCard({ plan }: { plan: MarketingPlan }) {
               </span>
               <h3 className="text-2xl">{plan.name}</h3>
             </div>
-            <ComingSoonBadge className="mt-2" />
+            {/* GATED ON `available` SINCE 2026-08-23. This badge and the button at the
+                bottom of the card were both unconditional while nothing was for sale,
+                which was true of every paid tier and therefore invisible as a bug.
+                Standard and Plus are on sale now, so an ungated badge would put Coming
+                soon on a card whose button takes a payment. */}
+            {!plan.available && <ComingSoonBadge label={t('mkt.comingSoon')} className="mt-2" />}
           </div>
           <p className="mt-2 min-h-10 text-sm text-muted-foreground">{plan.tagline}</p>
 
@@ -372,7 +426,9 @@ function PlanCard({ plan }: { plan: MarketingPlan }) {
               {plan.inheritsFrom && (
                 <li className="flex gap-3 border-b pb-3.5">
                   <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-affirm" aria-hidden="true" />
-                  <span className="font-semibold">Everything in {plan.inheritsFrom}</span>
+                  <span className="font-semibold">
+                    {t('mkt.ladder.everythingIn', { tier: plan.inheritsFrom })}
+                  </span>
                 </li>
               )}
 
@@ -397,7 +453,7 @@ function PlanCard({ plan }: { plan: MarketingPlan }) {
                 // specified yet" — which is true — rather than inventing
                 // capabilities to pad it out to match its neighbours.
                 <li className="text-muted-foreground">
-                  What this tier adds is still being decided.
+                  {t('mkt.ladder.undecided')}
                 </li>
               )}
             </ul>
@@ -417,13 +473,49 @@ function PlanCard({ plan }: { plan: MarketingPlan }) {
               the three buttons come to rest on one line across the row. Which is
               worth having on its own: a price row's whole job is comparison, and
               three actions at three heights is three separate offers. */}
+          {/* ── ON SALE, OR NOT YET ───────────────────────────────────────────
+              The href carries the tier, which is what makes this a plan CHOICE
+              rather than a plain sign-up link: `/register?plan=plus` preselects
+              Plus on the form and the choice is recorded against the family, so
+              the member is asked to pay for the thing they clicked rather than
+              being dropped on a generic account screen to find it again.
+
+              IT IS NOT A CHECKOUT AND MUST NOT PRETEND TO BE. Nobody can be
+              charged before there is an account to attach the charge to, so the
+              caption says "Start" and the second line says when money is asked
+              for. A button reading "Buy Plus" here would take a card number on
+              the next screen, and the next screen asks for a family name. */}
           <div className="mt-8">
-            <Button size="lg" disabled className="w-full text-base">
-              Not yet available
-            </Button>
-            <p className="mt-3 text-center text-xs text-muted-foreground">
-              Create a free account and you will hear about it first.
-            </p>
+            {plan.available ? (
+              <>
+                {/* Link OUTSIDE the Button, which is this file's own idiom and the
+                    marketing sections' — `Button` here has no `asChild`. */}
+                {/* `localizedHref` keeps the reader in their language through the one
+                    click that decides whether they sign up. The query string rides along
+                    untouched — `planSignupHref` builds `?plan=`, and the locale is a path
+                    segment, so the two never collide. */}
+                <Link
+                  href={localizedHref(planSignupHref(plan.name), locale)}
+                  className="block"
+                >
+                  <Button size="lg" className="w-full text-base">
+                    {t('mkt.ladder.startWith', { tier: plan.name })}
+                  </Button>
+                </Link>
+                <p className="mt-3 text-center text-xs text-muted-foreground">
+                  {t('mkt.ladder.accountFirst')}
+                </p>
+              </>
+            ) : (
+              <>
+                <Button size="lg" disabled className="w-full text-base">
+                  {t('mkt.ladder.notYet')}
+                </Button>
+                <p className="mt-3 text-center text-xs text-muted-foreground">
+                  {t('mkt.ladder.hearFirst')}
+                </p>
+              </>
+            )}
           </div>
         </div>
       </div>

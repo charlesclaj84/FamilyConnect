@@ -11,6 +11,7 @@ import {
   retractNomination, submitNomination,
   type Election, type ElectionPosition, type ElectionNomination, type ElectionNominee,
 } from '@/app/actions/elections'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The nominations half of a member's ballot, rebuilt 2026-08-21.
@@ -63,6 +64,7 @@ interface Props {
 export function NominationBoard({
   election, positions, nominations, nominees, myPersonId,
 }: Props) {
+  const t = useT()
   const confirm = useConfirm()
   const [openFor, setOpenFor] = useState<ElectionPosition | null>(null)
   const [nomineeId, setNomineeId] = useState('')
@@ -98,7 +100,7 @@ export function NominationBoard({
     setDialogError('')
     startTransition(async () => {
       const result = await submitNomination(election.id, positionId, personId)
-      if (!result.success) setDialogError(result.message ?? 'Could not submit that nomination.')
+      if (!result.success) setDialogError(result.message ?? t('elec.nominateFailed'))
       else { setNomineeId(''); setOpenFor(null) }
     })
   }
@@ -108,7 +110,7 @@ export function NominationBoard({
     const isMe = nomination.nominee_id === myPersonId
     const others = nomination.nominator_count - 1
     const ok = await confirm({
-      title: isMe ? 'Withdraw your nomination' : 'Take your name off this nomination',
+      title: isMe ? t('elec.withdrawYours') : t('elec.takeNameOff'),
       // WHAT IT SAYS DEPENDS ON WHETHER ANYBODY ELSE NOMINATED THEM, because the two cases
       // have different consequences and a member pressing this has to know which one they
       // are in. With others behind it the candidate stays on the ballot; alone, they come off.
@@ -120,14 +122,14 @@ export function NominationBoard({
             + `${position?.title ?? 'this position'} — only your name comes off.`
           : `You are the only person who nominated ${nomination.nominee_name} for `
             + `${position?.title ?? 'this position'}, so they will come off the ballot.`,
-      confirmLabel: isMe ? 'Withdraw' : 'Take my name off',
+      confirmLabel: isMe ? t('elec.withdraw') : t('elec.takeMyNameOff'),
       destructive: true,
     })
     if (!ok) return
     setBoardError('')
     startTransition(async () => {
       const result = await retractNomination(nomination.id, election.id)
-      if (!result.success) setBoardError(result.message ?? 'Could not withdraw that nomination.')
+      if (!result.success) setBoardError(result.message ?? t('elec.withdrawFailed'))
     })
   }
 
@@ -142,11 +144,8 @@ export function NominationBoard({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="font-semibold">Nominations</h2>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          Put a relative forward for any office below, or stand for one yourself. You can take
-          your own name off a nomination while nominations are open.
-        </p>
+        <h2 className="font-semibold">{t('elec.nominations')}</h2>
+        <p className="text-sm text-muted-foreground mt-0.5">{t('ui.putRelativeForwardAny')}</p>
       </div>
 
       <FormError message={boardError} />
@@ -154,7 +153,7 @@ export function NominationBoard({
       {positions.length === 0 ? (
         <div className="rounded-xl border bg-muted/30 p-4 text-center">
           <p className="text-sm text-muted-foreground">
-            This election has no offices on it yet.
+            {t('elec.noOffices')}
           </p>
         </div>
       ) : (
@@ -168,20 +167,20 @@ export function NominationBoard({
                     <h3 className="font-medium text-sm">{position.title}</h3>
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {standing.length === 0
-                        ? 'Nobody nominated yet'
+                        ? t('elec.nobodyNominated')
                         : `${standing.length} ${standing.length === 1 ? 'person' : 'people'} nominated`}
                       {position.max_winners > 1 && ` · ${position.max_winners} to be elected`}
                     </p>
                   </div>
                   <Button size="sm" variant="affirm" disabled={isPending}
                     onClick={() => { setNomineeId(''); setDialogError(''); setOpenFor(position) }}>
-                    <Plus /> Nominate
+                    <Plus /> {t('elec.nominate')}
                   </Button>
                 </header>
 
                 {standing.length === 0 ? (
                   <p className="px-4 py-4 text-sm text-muted-foreground">
-                    No nominations for this office yet.
+                    {t('elec.noNominations')}
                   </p>
                 ) : (
                   <ul className="divide-y">
@@ -201,7 +200,7 @@ export function NominationBoard({
                             )}
                           </p>
                           <p className="text-xs text-muted-foreground mt-0.5">
-                            {nomination.accepted === true ? 'Accepted' : 'Waiting for their answer'}
+                            {nomination.accepted === true ? t('elec.accepted') : t('elec.waitingAnswer')}
                             {' · '}
                             {nominatedByLabel(nomination)}
                           </p>
@@ -210,8 +209,8 @@ export function NominationBoard({
                           <Button size="sm" variant="ghost" disabled={isPending}
                             onClick={() => withdraw(nomination)}>
                             <X /> {nomination.nominee_id === myPersonId
-                              ? 'Withdraw'
-                              : 'Take my name off'}
+                              ? t('elec.withdraw')
+                              : t('elec.takeMyNameOff')}
                           </Button>
                         )}
                       </li>
@@ -228,9 +227,9 @@ export function NominationBoard({
       <Dialog
         open={openFor !== null}
         onClose={() => setOpenFor(null)}
-        title={openFor ? `Nominate for ${openFor.title}` : 'Nominate'}
+        title={openFor ? `Nominate for ${openFor.title}` : t('elec.nominate')}
         description={election.scope === 'national'
-          ? 'Anybody in the family may be nominated.'
+          ? t('elec.anybodyMayBe')
           : `Only ${election.scope_label} may be nominated in this election.`}
       >
         {openFor && (
@@ -245,12 +244,9 @@ export function NominationBoard({
               <div className="rounded-lg border border-brand-primary/20 bg-brand-soft/40 p-3">
                 <Button size="sm" variant="default" disabled={isPending}
                   onClick={() => myPersonId && nominate(openFor.id, myPersonId)}>
-                  <UserPlus /> Put myself forward
+                  <UserPlus /> {t('elec.putMyselfForward')}
                 </Button>
-                <p className="mt-2 text-xs text-brand-on-soft">
-                  Standing for an office yourself needs nobody else&rsquo;s agreement, and it
-                  counts as accepted straight away.
-                </p>
+                <p className="mt-2 text-xs text-brand-on-soft">{t('ui.standingOfficeYourselfNeeds')}</p>
               </div>
             )}
 
@@ -269,7 +265,7 @@ export function NominationBoard({
               people={nominees}
               value={nomineeId}
               onChange={setNomineeId}
-              label="Who are you nominating?"
+              label={t('elec.whoNominating')}
               emptyMessage={`Nobody in ${election.scope_label} can be nominated yet.`}
             />
 
@@ -277,11 +273,11 @@ export function NominationBoard({
 
             <div className="flex items-center justify-end gap-2">
               <Button variant="ghost" onClick={() => setOpenFor(null)} disabled={isPending}>
-                Cancel
+                {t('action.cancel')}
               </Button>
               <Button variant="affirm" disabled={isPending || !nomineeId}
                 onClick={() => nominate(openFor.id, nomineeId)}>
-                Nominate
+                {t('elec.nominate')}
               </Button>
             </div>
           </div>

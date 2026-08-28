@@ -1,7 +1,8 @@
 import { Avatar } from '@/components/ui/Avatar'
-import { createClient } from '@/lib/supabase/server'
 import { getMyFamilies, isApproved, type FamilyMembership } from '@/lib/auth/family'
 import { PendingApprovalScreen } from '@/components/membership/PendingApprovalScreen'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Server half of the awaiting-approval screen: resolves the few things it needs and
@@ -27,10 +28,12 @@ import { PendingApprovalScreen } from '@/components/membership/PendingApprovalSc
  * invitation they had just accepted.
  */
 export async function PendingApproval({ membership }: { membership: FamilyMembership }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
+  // `callerI18n`, not `useT()`: this is an async Server Component. It already resolves the
+  // caller, so the locale costs nothing — `resolveLocale` is cached per request.
+  const { t } = await callerI18n(user?.id)
 
-  const firstName = user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'Member'
+  const firstName = user?.user_metadata?.first_name || user?.email?.split('@')[0] || t('pend.member')
   const lastName  = user?.user_metadata?.last_name ?? ''
   const initials  = [firstName[0], lastName[0]].filter(Boolean).join('').toUpperCase()
 

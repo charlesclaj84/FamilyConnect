@@ -1533,6 +1533,20 @@ const resetAlphaName = async (db) => {
   if (error) throw new Error(`setup: ${error.message}`)
 }
 
+/**
+ * ALPHA's timezone back to the seeded default, so `setFamilyZone`'s attack and control can send
+ * the SAME argument.
+ *
+ * Without it the control would be setting a zone the attack had already set, and "the probe did
+ * not move" would mean the fixture agreeing with itself rather than the write being refused —
+ * which is the reason `resetAlphaName` above exists, one column over.
+ */
+const resetAlphaZone = async (db) => {
+  const { error } = await db.from('families')
+    .update({ time_zone: 'America/Chicago' }).eq('family_code', ALPHA)
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
 /** Snapshot of a table's rows for a family — the ground truth a write test needs. */
 /**
  * Which of Dues Projections' three states one person came out as — 'active', 'invited' or
@@ -3330,6 +3344,39 @@ export const MORE_CASES = [
     positiveActor: 'alphaAdmin',
   },
 
+  // ── THE FAMILY'S TIMEZONE (20260826000006) ────────────────────────────────
+  // Same two halves as `renameFamily` directly above, and for the same reason: this action
+  // writes on the USER client, so the composed UPDATE policy on `families` is what refuses
+  // both attackers and the case is a real test of it rather than of a guard.
+  //
+  // WHY IT MATTERS MORE THAN A NAME. This column decides whether a gathering has finished,
+  // whether a task is overdue and when an election window closes — for EVERY member of the
+  // family. Somebody who could move it could make a deadline pass or un-pass for the whole
+  // family, which is a wider capability than renaming them.
+  {
+    kind: 'write',
+    id: 'admin/family.setFamilyZone (cross-family)',
+    mod: 'app/actions/admin/family.ts', fn: 'setFamilyZone',
+    args: () => ['Asia/Tokyo'],
+    setup: resetAlphaZone,
+    probe: db => snapshot('families', 'id, family_code, time_zone', { family_code: ALPHA })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'admin/family.setFamilyZone (same family, member with no grant)',
+    mod: 'app/actions/admin/family.ts', fn: 'setFamilyZone',
+    // The half family scoping cannot catch. `alphaMember` is inside the boundary and approved;
+    // what has to refuse them is the grant. A family's zone is family-wide configuration with
+    // no owner, so scope 'own' must not be a way in either — which is why the action resolves
+    // through `requireEdit` on `admin/settings` rather than through `can`.
+    attacker: 'alphaMember',
+    args: () => ['Asia/Tokyo'],
+    setup: resetAlphaZone,
+    probe: db => snapshot('families', 'id, family_code, time_zone', { family_code: ALPHA })(db),
+    positiveActor: 'alphaAdmin',
+  },
+
   // ── writes against ALPHA's rows ───────────────────────────────────────────
   // ── the four `children.*` write cases were REPLACED here, 2026-08-13 ──────
   // updateChild, deleteChild, acceptSpouseChild and convertChildToAdult all lapsed with
@@ -4631,6 +4678,84 @@ export const PENDING_CASES = [
     positive: 'not-applicable',
     why: 'the only legitimate way to move this column is set_membership_status(), which admin/approvals.approveApplicant exercises below',
   },
+
+  // ── CHOOSING A LANGUAGE (Phase 3) ─────────────────────────────────────────
+  //
+  // ── WHAT THIS CASE IS AND IS NOT EVIDENCE FOR ────────────────────────────
+  // `setMyLocale` is self-service: every member may choose their own language, so there is no
+  // grant to refuse and `requireMember()`-shaped attacks are not the risk. What it owes instead
+  // is AGENTS.md §2's OTHER check for a self-service action — that the row being touched is
+  // genuinely the caller's — and that is what these two halves are about.
+  //
+  // THE ATTACK IS NOT CROSS-FAMILY, WHICH IS UNUSUAL HERE AND DELIBERATE. A locale is part of
+  // the SHARED profile: it propagates to every family the caller belongs to, by design
+  // (`people_sync_shared_profile`, 20260826000002), so a write reaching more than one family is
+  // correct rather than a leak. The boundary that matters is the PERSON. So BRAVO's
+  // member writes their own locale, and the probe watches ANOTHER member's row: what must
+  // hold is that one member's choice cannot land on another member's row, which is the
+  // `.eq('user_id', user.id)` conjunct and the `people` UPDATE policy underneath it.
+  //
+  // ── `bravoOther`/`alphaOther`, AND NOT THE DEFAULT ACTORS. THIS COST TWELVE LINES ──────
+  // This case ran as `bravoAdmin` against `alphaMember` until 2026-08-27, which are the
+  // suite's DEFAULT attacker and default control. Both halves write a locale, so both rows
+  // came out of it holding `'fr'` — and `resolveLocale` reads `people.locale`, so every
+  // action either of them called for the rest of the run composed its refusal in FRENCH.
+  // Twelve later `expectRefusal` predicates match the message text, and all twelve went red
+  // together on `Point de contact introuvable`.
+  //
+  // That is AGENTS.md §8b's named trap: *a case whose positive control mutates a row a later
+  // case depends on — give it its own row, that is what `deletableChild` is for.* What made
+  // it arrive now is that the row gained a column nobody had when the case was written, and
+  // the tell was the shape of the failure: twelve unrelated modules, all in the `told` phase,
+  // all passing their probe. `alphaOther`/`bravoOther` exist for precisely this and
+  // `seed.mjs` says so — no case reads either as an actor.
+  //
+  // MUTATION-CHECKED, because a fixture fix is worth no more than a code fix without one:
+  // putting `bravoAdmin` and `alphaMember` back on these two lines takes the suite from
+  // 969/969 to 956, and the thirteenth red line is this case's own probe — which is the
+  // shape working, since the probe then watches a row the control no longer writes.
+  //
+  // GRANTS ARE IRRELEVANT HERE, which is why dropping the administrator costs nothing: this
+  // is a self-service action with no grant to refuse, so an attacker holding every permission
+  // their family can confer is no stronger than an ordinary member. The boundary is the
+  // PERSON.
+  {
+    kind: 'write',
+    id: 'personal-info.setMyLocale (another member\'s row)',
+    mod: 'app/actions/personal-info.ts', fn: 'setMyLocale',
+    attacker: 'bravoOther',
+    args: () => ['fr'],
+    // The CONTROL's row — a row the attacker has no business touching. The projection is `locale`
+    // alone: everything else on the row is irrelevant here, and a wider one would move for
+    // reasons other cases cause.
+    probe: (db, fx) => snapshot('people', 'id, locale',
+      { id: fx.users.alphaOther.personId })(db),
+    // The control writes their OWN locale, so the probe DOES move — which is what rules out
+    // this passing for an action that refuses everybody. Without it, a `setMyLocale` that
+    // returned early for every caller would look perfectly isolated.
+    positiveActor: 'alphaOther',
+    positiveArgs: () => ['fr'],
+  },
+  {
+    kind: 'write',
+    id: 'personal-info.setMyLocale (a language the product does not speak)',
+    mod: 'app/actions/personal-info.ts', fn: 'setMyLocale',
+    // NOT A FAMILY BOUNDARY AT ALL, and it is here because the column's CHECK is the only other
+    // thing standing behind this endpoint. `people_locale_check` (20260826000002) refuses
+    // anything outside en/es/fr, and `isSupportedLocale` in the action is what turns that into a
+    // sentence rather than a Postgres error a member cannot act on. Both layers are aimed at the
+    // same string; this asserts the pair.
+    // `alphaOther` for the case above's reason, even though this write is REFUSED and
+    // therefore poisons nothing: two cases about one column reading two different rows is
+    // the thing that makes the pair hard to reason about later.
+    attacker: 'alphaOther',
+    args: () => ['klingon'],
+    probe: (db, fx) => snapshot('people', 'id, locale',
+      { id: fx.users.alphaOther.personId })(db),
+    positive: 'not-applicable',
+    why: 'the legitimate write is the case above; a control here would be sending the same '
+      + 'unsupported code and expecting it to land, which is the thing being refused',
+  },
 ]
 
 /**
@@ -5485,8 +5610,23 @@ const REMOVAL_FAMILIES = [ALPHA, BRAVO, CHARLIE]
 
 /** No open challenge anywhere, so a minting case starts from a known empty state. */
 const clearRemovalChallenges = async (db) => {
-  const { error } = await db.from('family_removal_challenges')
+  const { error } = await db.from('family_action_challenges')
     .delete().in('family_code', REMOVAL_FAMILIES)
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
+/**
+ * The same, for the OTHER purpose the table now serves (20260825000000).
+ *
+ * SCOPED TO `processor_disconnect` rather than clearing the table, deliberately: the removal
+ * cases and the disconnect cases share one table, and a setup that wiped everything would let
+ * whichever ran second silently depend on the first having been reset. Each purpose starts
+ * from a known empty state of its OWN rows, which is also what the `purpose` conjunct on the
+ * action's supersede is there to guarantee in the product.
+ */
+const clearDisconnectChallenges = async (db) => {
+  const { error } = await db.from('family_action_challenges')
+    .delete().in('family_code', REMOVAL_FAMILIES).eq('purpose', 'processor_disconnect')
   if (error) throw new Error(`setup: ${error.message}`)
 }
 
@@ -5534,11 +5674,17 @@ const resetRemoval = async (db, fx) => {
   await clearRemovalChallenges(db)
 
   const expires = new Date(Date.now() + 15 * 60 * 1000).toISOString()
-  const { error } = await db.from('family_removal_challenges').insert([
-    { family_code: ALPHA, requested_by: fx.users.alphaAdmin.personId, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
-    { family_code: ALPHA, requested_by: fx.users.alphaMember.personId, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
-    { family_code: ALPHA, requested_by: fx.users.alphaPending.personId, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
-    { family_code: CHARLIE, requested_by: fx.users.charlieAdmin.personId, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
+  // `purpose` IS STATED ON EVERY ROW, and it has to be: the column is NOT NULL with NO
+  // DEFAULT since 20260825000000, deliberately, so that a caller who forgot cannot mint a
+  // removal code by accident. This fixture WAS that caller for one run — the four inserts
+  // below threw and five removal assertions came back `harness`, which is the constraint
+  // doing exactly its job on the first thing that omitted the column.
+  const purpose = 'family_removal'
+  const { error } = await db.from('family_action_challenges').insert([
+    { family_code: ALPHA, requested_by: fx.users.alphaAdmin.personId, purpose, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
+    { family_code: ALPHA, requested_by: fx.users.alphaMember.personId, purpose, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
+    { family_code: ALPHA, requested_by: fx.users.alphaPending.personId, purpose, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
+    { family_code: CHARLIE, requested_by: fx.users.charlieAdmin.personId, purpose, code_hash: REMOVAL_CODE_HASH, expires_at: expires },
   ])
   if (error) throw new Error(`setup: ${error.message}`)
 }
@@ -5600,7 +5746,7 @@ const familyStatusProbe = async (db) => {
  *      mutation and was tried first: `admin/family` is a restricted admin key, so a plain
  *      member is refused by the view grant instead and all eight assertions stay green.
  *      A mutation has to remove the LAST layer, not a layer.
- *   B. `consume_family_removal_challenge` rewritten to find the newest unspent challenge
+ *   B. `consume_family_action_challenge` rewritten to find the newest unspent challenge
  *      globally — both `family_code` and `requested_by` dropped from its WHERE.
  *        -> cross-family FAILS: BRAVO's administrator types ALPHA's six digits, spends
  *           ALPHA's challenge, and BRAVOTEST comes back `status: "removed"`. That pair of
@@ -5634,7 +5780,7 @@ export const REMOVAL_CASES = [
     // the CALLER's family, and ALPHA's must be that family for nobody but ALPHA.
     args: () => [],
     setup: clearRemovalChallenges,
-    probe: db => snapshot('family_removal_challenges', 'id, family_code, requested_by',
+    probe: db => snapshot('family_action_challenges', 'id, family_code, requested_by',
       { family_code: ALPHA })(db),
     positiveActor: 'alphaAdmin',
   },
@@ -5649,7 +5795,7 @@ export const REMOVAL_CASES = [
     attacker: 'alphaMember',
     args: () => [],
     setup: clearRemovalChallenges,
-    probe: db => snapshot('family_removal_challenges', 'id, family_code, requested_by',
+    probe: db => snapshot('family_action_challenges', 'id, family_code, requested_by',
       { family_code: ALPHA })(db),
     positiveActor: 'alphaAdmin',
   },
@@ -5664,7 +5810,7 @@ export const REMOVAL_CASES = [
     attacker: 'alphaPending',
     args: () => [],
     setup: clearRemovalChallenges,
-    probe: db => snapshot('family_removal_challenges', 'id, family_code, requested_by',
+    probe: db => snapshot('family_action_challenges', 'id, family_code, requested_by',
       { family_code: ALPHA })(db),
     positiveActor: 'alphaAdmin',
   },
@@ -6911,9 +7057,29 @@ export const GATHERING_CASES = [
     // THE §4 SHAPE ON A SET OF IDS. The row this would write is stamped with the ATTACKER's
     // family and satisfies every policy; what must refuse it is the `.eq('family_code', ...)`
     // on the template read, and `instantiateTemplateTasks` re-checking each id on its own.
+    // ── IT SENDS A TIMED `when`, AND THAT IS A DELIBERATE CHANGE (2026-08-26) ──────
+    // This passed the LEGACY `startsOn` shape, which carries no time — so the control created a
+    // date-only gathering and never exercised the write path that `20260826000003` changed.
+    // Measured: with that shape, creating a timed gathering was BROKEN in the app and this
+    // suite was green, because `gatherings_time_needs_zone` is a CHECK on the parent whose
+    // `start_time` is written by `tg_gathering_when_envelope` from the OCCURRENCE — so the
+    // failure only happens when an occurrence carries a time. The fixture had been patched to
+    // state a zone on its own gatherings, which made the suite greener still while the action
+    // was unusable.
+    //
+    // So the control now schedules a gathering WITH a time and a zone, and the probe reads both
+    // columns back. That is the assertion that would have caught it, and the reason it is worth
+    // writing down: a case that exercises the CHEAPEST shape of an input can be perfectly green
+    // over a feature nobody can use.
     args: fx => [{
       title: SCHEDULE_CASE_TITLE,
-      startsOn: CREATE_CASE_DATE,
+      when: {
+        isContinuous: true,
+        timeZone: 'America/Chicago',
+        occurrences: [{
+          startsOn: CREATE_CASE_DATE, startTime: '11:00', endsOn: null, endTime: '16:00',
+        }],
+      },
       templateIds: [fx.alpha.template.id],
     }],
     setup: clearCaseGatherings(SCHEDULE_CASE_TITLE),
@@ -6921,7 +7087,20 @@ export const GATHERING_CASES = [
     // from each family)` names: the damage here is a gathering in BRAVO built out of ALPHA's
     // steps — ALPHA's labels, help text and suggested budgets copied into BRAVO's task rows.
     // A probe scoped to ALPHA would watch the wrong side of the theft and report "no-op".
-    probe: (db) => snapshot('gatherings', 'id, family_code, title', { title: SCHEDULE_CASE_TITLE })(db),
+    // ── THE PROBE FILTERS ON THE ZONE, WHICH IS WHAT MAKES THE CONTROL EVIDENCE ────
+    // The runner's write control asserts only that the snapshot CHANGED, and that was not
+    // enough here: `scheduleGathering` inserts the parent row and THEN writes the occurrences,
+    // so when the occurrence insert fails the parent is already there — the snapshot changes,
+    // the control passes, and the action returned `{ success: false }`. Measured: with the zone
+    // stamping removed from `writeOccurrences`, this case stayed green over an action that
+    // could not schedule a timed gathering at all.
+    //
+    // Filtering on `time_zone` fixes it. A run that never stamps the zone matches no row, the
+    // snapshot does not change, and the control fails with "owner's own write did nothing" —
+    // which is exactly what happened. `start_time` is in the projection for the same reason
+    // one level down: the trigger has to have written the envelope, not merely left a row.
+    probe: (db) => snapshot('gatherings', 'id, family_code, title, start_time, time_zone',
+      { title: SCHEDULE_CASE_TITLE, time_zone: 'America/Chicago' })(db),
     positiveActor: 'alphaAdmin',
   },
 
@@ -8830,6 +9009,70 @@ const ELECTION_RAW_CASES = [
   // The other half of the same table: a member DOES still reach their own ballot. Asserted
   // because narrowing the organizer policy could have been done by dropping it, and the two
   // outcomes are indistinguishable from the attack half alone.
+  // ── THE REPAIRED WINDOW FUNCTION (20260826000005) ─────────────────────────────
+  //
+  // `election_window_open()` decided the window with `CURRENT_DATE` — UTC on hosted Supabase —
+  // so a Central-time family lost the last five hours of their closing day and gained five
+  // hours before nominations opened. It is composed into the write policies on
+  // `election_nominations` and `election_votes`, so the refusal came from the database.
+  //
+  // ── WHAT THIS CASE IS EVIDENCE FOR, AND WHAT IT IS NOT ───────────────────────────
+  // IT IS evidence for three things, and the second is the one that matters for the repair:
+  //
+  //   * the family conjunct — BRAVO's administrator asking about ALPHA's election gets false
+  //   * **the repaired expression still answers TRUE for an entitled member.** The most likely
+  //     way this repair could be wrong is a NULL propagating: without `COALESCE(e.time_zone,
+  //     …)` an election with no zone makes the whole comparison NULL, `BETWEEN` answers NULL,
+  //     and the window reads as CLOSED FOREVER for everybody. That failure is invisible to
+  //     every attack assertion in this suite — a function answering false to all comers is
+  //     perfectly isolated — and it is exactly what the control half catches.
+  //   * the `authenticated` EXECUTE grant, end to end through PostgREST (§2b rule 2). A lost
+  //     grant makes this ERROR rather than answer, which on a policy path is indistinguishable
+  //     from a refusal.
+  //
+  // IT IS NOT evidence that the function reads the ELECTION'S zone rather than UTC. Nothing
+  // reachable from a test can be: `now()` is not overridable from the client, so the only
+  // variable a probe can move is the zone — and a deterministic zone discriminator needs a
+  // dedicated election whose window boundary is TODAY, which would then be the soonest-closing
+  // election in the fixture and would take the Quick Actions cases with it. Stated here rather
+  // than left for a reader to assume, the way SWEEP_CASES and PHOTO_RAW_CASES state theirs.
+  //
+  // What DOES carry that half: `20260826000005`'s verify block proves `AT TIME ZONE` changes
+  // the calendar date at this instant and that `CURRENT_DATE` is gone from the body, and
+  // `lib/election-phase.test.ts` proves the TypeScript half — which must agree with this
+  // function or a member is told the window is open and then refused.
+  read('raw:election_window_open (an election in another family)',
+    'tests/rls/raw/elections.mjs', 'electionWindowOpen', {
+      attacker: 'bravoAdmin',
+      args: fx => [fx.alpha.election.id, 'voting'],
+      expectAttack: r => r.data === false,
+      // THE CONTROL IS THE WHOLE POINT HERE. `f.election` is seeded in its VOTING window
+      // (`voting_open_on: inDays(-5)`, `voting_close_on: inDays(25)`), so an entitled member
+      // must get true. If the repair had dropped the COALESCE, or resolved `v_today` to NULL,
+      // or lost the grant, this line goes red and the attack half above stays green.
+      positiveActor: 'alphaMember',
+      positiveArgs: fx => [fx.alpha.election.id, 'voting'],
+      expectPositive: r => r.data === true,
+    }),
+  // And the same function answering about a window that is NOT open, so the true above is not
+  // simply what this function says to everybody about everything. `f.election`'s nominations
+  // closed at `inDays(-10)`.
+  read('raw:election_window_open (a window that has closed)',
+    'tests/rls/raw/elections.mjs', 'electionWindowOpen', {
+      attacker: 'bravoAdmin',
+      args: fx => [fx.alpha.election.id, 'nominations'],
+      expectAttack: r => r.data === false,
+      positiveActor: 'alphaMember',
+      positiveArgs: fx => [fx.alpha.election.id, 'nominations'],
+      expectPositive: r => r.data === false,
+      positive: 'asserts-a-negative',
+      why: 'The control asserts FALSE, which is nearly vacuous on its own — it is the pair '
+        + 'with the voting case above that is the evidence: one member, one election, two '
+        + 'windows, two answers. It is not ENTIRELY vacuous, and the mutation check is what '
+        + 'showed that: with the COALESCE removed the function answers NULL rather than '
+        + 'false, so `=== false` fails here too. It distinguishes a refusal from an '
+        + 'expression that evaluated to nothing.',
+    }),
   read('raw:election_votes SELECT (their own ballot)',
     'tests/rls/raw/elections.mjs', 'selectElectionVotes', {
       attacker: 'bravoAdmin',
@@ -9461,7 +9704,7 @@ CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...ELECTION_RAW_CASE
  *     * THE RACE THAT COUNT DOES NOT CLOSE is likewise untested and untestable from here. Two
  *       owners revoking each other in the same instant both read a count of 2 and both writes
  *       land. The action says so itself and names the stronger form (one SQL statement under
- *       `FOR UPDATE`, as `consume_family_removal_challenge` does). A suite that calls actions
+ *       `FOR UPDATE`, as `consume_family_action_challenge` does). A suite that calls actions
  *       sequentially cannot see it.
  *     * `requireStaffOwner()` 404s AND THE ACTIONS ANSWER A FLAT SENTENCE, which is two
  *       different refusals for one condition — the guard for the PAGE, `NOT_AUTHORIZED` for a
@@ -10368,6 +10611,229 @@ const SMS_CONSENT_CASES = [
 CASES.push(...SMS_CONSENT_CASES)
 
 /**
+ * NOTIFICATION PREFERENCES — My Profile → Notifications, the grid.
+ *
+ * ── SAME SHAPE AS `SMS_CONSENT_CASES` ABOVE, AND FOR THE SAME REASON ───────────────
+ * **Neither action in `app/actions/notification-prefs.ts` takes a person id.** The subject is
+ * always the caller, resolved from `requireMember()`, so the classic attack — BRAVO's
+ * administrator passing an ALPHA id — has nothing to aim. That is the security design rather
+ * than a convenience: what somebody has agreed to be contacted about must not be delegable,
+ * because the SMS column of this grid writes `sms_consent_events`, which is the record a TCPA
+ * complaint would ask about.
+ *
+ * SO THESE ASSERT THE OTHER TWO THINGS:
+ *
+ *   1. **AN APPLICANT IS REFUSED THE WRITE.** `requireMember()` demands an APPROVED membership.
+ *      Somebody who has joined by family code and not been admitted must not be able to put a
+ *      preference row — or worse, a consent event — into the family's tables.
+ *   2. **AN APPROVED MEMBER CAN ACTUALLY DO IT.** The positive controls, which on this block
+ *      carry almost all of the weight.
+ *
+ * ── WHAT THEY ARE NOT EVIDENCE FOR, said out loud per §7 ──────────────────────────
+ *   * **`person_notification_prefs_select_own`.** Every read in that module is on the ADMIN
+ *     client, deliberately — `sms_consent_events` is folded rather than read raw and all four
+ *     reads belong to one screen. Dropping that policy entirely would leave every case here
+ *     green. It is asserted in `20260826000000`'s verify block, which reads it back out of
+ *     `pg_policies` and refuses a non-self-scoped one by name, and additionally refuses any
+ *     WRITE policy appearing on the table.
+ *   * **THE GUARD TRIGGER.** `tg_notification_pref_guard_family` is unreachable through the
+ *     product, because the action never takes a person id — so no action-shaped case can fire
+ *     it. That migration probes it directly with a real cross-family row.
+ *   * **THE MARKER SCAN.** `getMyNotificationSettings` returns an email address and the LAST FOUR
+ *     digits of a number, never the number — so even with every conjunct deleted an ALPHA mobile
+ *     could not appear in a BRAVO response, because the action does not put one in any response.
+ *     §5 working as designed, and the reason the assertions below are spelled out by value.
+ *
+ * ── MUTATION-CHECKED ──────────────────────────────────────────────────────────────
+ *   `.eq('person_id', …)` dropped from the prefs read        control  FAIL  (two rows for one
+ *                                                                     cell, so the grid reads
+ *                                                                     the wrong member's answer)
+ *   `requireMember()` -> a bare session check on the write   attack   FAIL
+ *   the `stopped` refusal deleted from the SMS branch        control  FAIL  (alphaMember's
+ *                                                                     consent event is written
+ *                                                                     twice and the fold moves)
+ */
+const NOTIFICATION_PREF_CASES = [
+  read('notification-prefs.getMyNotificationSettings', 'app/actions/notification-prefs.ts',
+    'getMyNotificationSettings', {
+      // BRAVO's administrator reads their OWN grid, which is correct and is all this half can
+      // say. `bravoAdmin` is BRAVO's `other`: an unconfirmed number, no consent.
+      expectAttack: v => Array.isArray(v?.prefs) && v?.smsConsent === 'none',
+      // THE CONTROL IS THE WEIGHT-BEARING HALF. `alphaMember` is the seeded `owner`: a confirmed
+      // number and a granted consent, both of which this screen renders. A read that returned
+      // the conservative empty shape — which is what every failure path in that action produces
+      // — goes red rather than passing as "nothing on file".
+      positiveActor: 'alphaMember',
+      expectPositive: v => v?.smsConsent === 'granted'
+        && v?.smsNumberVerified === true
+        && v?.contact?.phoneEnding === '9101',
+    }),
+  read('notification-prefs.getMyNotificationSettings (pending member)',
+    'app/actions/notification-prefs.ts', 'getMyNotificationSettings', {
+      attacker: 'alphaPending',
+      // An applicant gets the conservative shape. `requireMember()` refuses them before any
+      // read, so there is no grid and no contact detail — which is the same answer the module
+      // gives for a caller with no person row at all.
+      expectAttack: v => v?.smsConsent === 'none' && (v?.prefs ?? []).length === 0
+        && v?.contact?.email === null,
+      positiveActor: 'alphaMember',
+      expectPositive: v => v?.smsConsent === 'granted',
+    }),
+
+  // ── THE WRITE ─────────────────────────────────────────────────────────────
+  // An applicant must not be able to put a preference row into the family's tables. The probe is
+  // the whole of `person_notification_prefs` for ALPHA, so a row appearing for the applicant is
+  // visible whichever member it claims to be for.
+  {
+    kind: 'write',
+    id: 'notification-prefs.setMyNotificationPref (pending member)',
+    mod: 'app/actions/notification-prefs.ts', fn: 'setMyNotificationPref',
+    attacker: 'alphaPending',
+    args: () => [{ notificationKey: 'safety_check', channel: 'email', optedIn: false }],
+    probe: (db) => snapshot('person_notification_prefs',
+      'id, person_id, notification_key, channel, opted_in', { family_code: ALPHA })(db),
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'told: refused' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    // THE CONTROL IS `alphaOther`, and it turns EMAIL off rather than SMS on — deliberately, so
+    // it does not write a consent event into the log `SMS_CONSENT_CASES` above asserts the fold
+    // of. `deletableChild`'s rule: a control must not mutate a row a later case depends on.
+    positiveActor: 'alphaOther',
+    positiveArgs: () => [{ notificationKey: 'safety_check', channel: 'email', optedIn: false }],
+    expectPositive: v => v?.success === true,
+  },
+  // ── A CHANNEL THE CATALOGUE MARKS `unavailable` IS REFUSED, FOR EVERYBODY ──────
+  // Not a family-boundary assertion at all. It is the "a switch wired to nothing is a control
+  // being honoured" rule — AGENTS.md states it about `permission_resources.actions` and this is
+  // the same failure one layer down — and it is here because both arguments arrive from a
+  // browser and nothing but the action checks them.
+  //
+  // THE ATTACKER IS A FULLY-ENTITLED MEMBER, deliberately, which is what makes the case mean
+  // something. Run as `alphaPending` it would pass on the membership gate alone and say nothing
+  // about the catalogue check; run as `alphaMember` the ONLY thing that can refuse it is the
+  // `channelDefault(...) === 'unavailable'` branch. Mutation-checked: delete that branch and
+  // this line goes red while every other case stays green.
+  {
+    kind: 'write',
+    id: 'notification-prefs.setMyNotificationPref (a channel that cannot send)',
+    mod: 'app/actions/notification-prefs.ts', fn: 'setMyNotificationPref',
+    attacker: 'alphaMember',
+    args: () => [{ notificationKey: 'safety_check', channel: 'push', optedIn: true }],
+    probe: (db) => snapshot('person_notification_prefs',
+      'id, person_id, notification_key, channel, opted_in', { family_code: ALPHA })(db),
+    expectRefusal: v => v?.success === false && /not available/i.test(v?.message ?? '')
+      ? { ok: true, detail: 'told: refused, and says which channel' }
+      : { ok: false, detail: `expected a refusal naming the channel, got ${JSON.stringify(v)}` },
+    // §7: where a control genuinely cannot apply, SAY SO rather than deleting it.
+    positive: 'not-applicable',
+    why: 'the runner requires a positive control to MOVE the probe, and the whole claim here is '
+      + 'that nobody — entitled or not — can write this cell, so any control would have to be a '
+      + 'successful write of the exact thing being refused. The cross-family and applicant '
+      + 'halves for this action are the two cases above, and both have real controls.',
+  },
+]
+
+CASES.push(...NOTIFICATION_PREF_CASES)
+
+/**
+ * GATHERING OCCURRENCES — when a gathering happens, reached with no action in the way.
+ *
+ * ── AGENTS.md §7's CHILD-TABLE RULE, OBEYED BEFORE IT COST ANYTHING ────────────────
+ * *"Every child table added under a scoped parent owes a `raw/` SELECT probe of its own... The
+ * tell is an action that reads a parent and then filters the child by ids the parent
+ * returned."* Both readers of `gathering_occurrences` are exactly that shape —
+ * `getGatheringDetail` asks for one gathering's occurrences by an id it already holds, and
+ * `getCalendarMonth` asks for the occurrences of the gatherings that came back. For a caller
+ * who may see no gathering, neither ever mentions an occurrence, so the PARENT's policy answers
+ * for both tables and `gathering_occurrences_select` is never consulted.
+ *
+ * That is what `position_journal_notes` cost to learn: 43 action-shaped assertions stayed green
+ * with the child's whole conjunct deleted. These probes ask PostgREST directly, which is what a
+ * member who knows a gathering id can do.
+ *
+ * ── AND THE POSITIVE CONTROLS ARE CARRYING AN UNUSUAL WEIGHT HERE ──────────────────
+ * `20260826000001` breaks a policy cycle with a SECURITY DEFINER helper —
+ * `auth_may_see_gathering()` — pre-empting §7's 42P17 entry. A recursive policy returns nothing
+ * to EVERYBODY, so every attack half below would pass over one. The controls are what would
+ * notice, which is the fourth time that argument has been made in this suite
+ * (`getPhotoCollections`' dropped embed, the `photos` DELETE policy, the safety check-in cycle).
+ *
+ * A MISSING `EXECUTE` GRANT ON THAT HELPER PRESENTS THE SAME WAY: a policy expression is
+ * evaluated as the querying role, so without the grant every read ERRORS rather than being
+ * refused, and an error and a refusal are indistinguishable in the attack half. The migration
+ * asserts the grant; the control is what proves reads work at all.
+ *
+ * ── MUTATION-CHECKED ──────────────────────────────────────────────────────────────
+ *   `auth_may_see_gathering(gathering_id)` dropped from the policy  attack  FAIL (pending)
+ *   the `family_code` conjunct dropped from the policy              attack  FAIL (cross-family)
+ *   an INSERT policy added to the table                             insert  FAIL
+ *   the helper's EXECUTE grant revoked                              control FAIL (both)
+ */
+const GATHERING_OCCURRENCE_RAW_CASES = [
+  // [crux] AN APPLICANT NOBODY HAS ADMITTED. `auth_family_code()` resolves ALPHATEST for them
+  // deliberately and permanently, so the FAMILY conjunct is true — the only thing refusing
+  // these rows is `auth_membership_approved()` inside the helper. A family's calendar, with
+  // times and places, is exactly what a stranger who has typed a family code should not read.
+  read('raw:gathering_occurrences SELECT (an applicant)',
+    'tests/rls/raw/gathering-occurrences.mjs', 'selectOccurrences', {
+      attacker: 'alphaPending',
+      expectAttack: (r, fx) => !r.rows.some(o => o.gathering_id === fx.alpha.gathering.id),
+      // ASSERTS THE TIMES, not a count. A policy handing back the wrong family's rows in the
+      // right quantity passes a count; a row carrying `11:00` and `16:00` against this
+      // gathering's id is the one the fixture seeded.
+      positiveActor: 'alphaMember',
+      expectPositive: (r, fx) => r.rows.some(o =>
+        o.id === fx.alpha.gatheringOccurrence.id
+        && o.gathering_id === fx.alpha.gathering.id
+        && String(o.start_time ?? '').startsWith('11:00')
+        && String(o.end_time ?? '').startsWith('16:00')),
+    }),
+  // The family conjunct on the same policy, which the case above cannot stand in for: the
+  // applicant is INSIDE the family boundary by every test these probes apply.
+  read('raw:gathering_occurrences SELECT (another family\'s calendar)',
+    'tests/rls/raw/gathering-occurrences.mjs', 'selectOccurrences', {
+      expectAttack: (r, fx) => !r.rows.some(o => o.family_code === fx.alpha.familyCode),
+      positiveActor: 'alphaMember',
+      expectPositive: (r, fx) => r.rows.some(o => o.id === fx.alpha.gatheringOccurrence.id),
+    }),
+  // [crux] NO WRITE POLICY EXISTS, and this is what that means from outside.
+  //
+  // §2c: a table in `public` is born writable by `anon` AND `authenticated`, and RLS is the
+  // whole gate — so a SELECT policy with no INSERT policy denies the insert with a 42501. The
+  // migration asserts the policy COUNT; this asserts what the count buys.
+  //
+  // THE ATTACKER IS ALPHA'S OWN ADMINISTRATOR, deliberately: they hold every grant their family
+  // can confer and they are writing into their OWN family, so the family conjunct, the approval
+  // and every permission are true for them. The only thing refusing this row is the absence of
+  // a policy, which is precisely the claim.
+  {
+    kind: 'write',
+    id: 'raw:gathering_occurrences INSERT (no write policy exists)',
+    mod: 'tests/rls/raw/gathering-occurrences.mjs', fn: 'insertOccurrence',
+    attacker: 'alphaAdmin',
+    args: fx => [fx.alpha.familyCode, fx.alpha.gathering.id, '2027-01-05'],
+    probe: (db) => snapshot('gathering_occurrences', 'id, gathering_id, starts_on',
+      { family_code: ALPHA })(db),
+    // 42501 is what a table with no INSERT policy answers. `rawInsert` returns the error rather
+    // than swallowing it, so this asserts the CODE and not merely that nothing arrived — a row
+    // silently dropped and a row refused are opposite facts.
+    expectRefusal: v => v?.error?.code === '42501'
+      ? { ok: true, detail: 'told: 42501, no insert policy' }
+      : { ok: false, detail: `expected 42501, got ${JSON.stringify(v?.error ?? v)}` },
+    // §7: where a control genuinely cannot apply, SAY SO rather than deleting it.
+    positive: 'not-applicable',
+    why: 'the claim is that NOBODY may insert through PostgREST — the actions write on the '
+      + 'service role, which ignores RLS — so any control would have to be a successful write '
+      + 'of the exact thing being refused. That the actions CAN write these rows is asserted by '
+      + 'the two SELECT cases above, whose fixture rows exist only because the seed wrote them.',
+  },
+]
+
+CASES.push(...GATHERING_OCCURRENCE_RAW_CASES)
+
+
+
+/**
  * ── BILLING: WHAT A FAMILY PAYS GENORRA, AND ITS OWN PAYMENT PROCESSOR ────────────────
  *
  * TWO COVERED ACTIONS OUT OF FIFTEEN, AND THE RATIO IS THE POINT OF THIS BLOCK.
@@ -10488,6 +10954,185 @@ const BILLING_CASES = [
       positiveActor: 'alphaAdmin',
       expectPositive: (v) => v?.accountId === 'acct_alphaseed',
     }),
+
+  // ── ASKING FOR THE DISCONNECT CODE (20260825000000) ──────────────────────────────────
+  //
+  // Disconnecting Stripe went behind a password and an emailed six-digit code, because half
+  // of it cannot be undone: every member's recurring payment is cancelled AT STRIPE on the
+  // way out and a cancelled subscription cannot be un-cancelled. `requestProcessorDisconnectCode`
+  // is the minting half.
+  //
+  // ── IT IS TESTABLE WHERE ITS SIBLINGS ARE NOT, AND THAT IS THE POINT ────────────────
+  // Every other write in `admin/processing.ts` carries the STRIPE-INERT verdict in
+  // `scripts/rls-coverage.mjs`: it resolves a Stripe credential before issuing any query, so
+  // in a harness with no key it refuses before touching the database and a case would be
+  // evidence about the credential check alone. THIS one does not — it goes guard, then
+  // GoTrue for the caller's own address, then the admin client — so every assertion below is
+  // about the thing the suite exists to assert.
+  //
+  // NO ARGUMENTS, on purpose, exactly as the removal cases explain: the action takes none, so
+  // there is no ALPHA id for BRAVO to pass and the usual "attacker supplies the owner's id"
+  // shape does not apply. What is asserted instead is that the derivation cannot be widened —
+  // a challenge is minted for the CALLER's family, and ALPHA's must be that family for
+  // nobody but ALPHA.
+  //
+  // ── MUTATION-CHECKED per §7 ─────────────────────────────────────────────────────────
+  //   `requireEdit(PROCESSING)` -> a bare session check
+  //       -> the 'member with no grant' and 'pending member' attacks BOTH go red: each mints
+  //          a real challenge under ALPHATEST.
+  //   `mintChallenge`'s `familyCode` taken from a parameter instead of the guard
+  //       -> cross-family goes red — BRAVO's administrator writes a row under ALPHATEST.
+  //   `purpose: 'processor_disconnect'` swapped for 'family_removal'
+  //       -> the CONTROL goes red: ALPHA's administrator asks for a disconnect code and the
+  //          probe finds no disconnect challenge. That is the half worth having, because a
+  //          purpose that silently drifted would mint codes nothing can ever spend.
+  {
+    kind: 'write',
+    id: 'processing.requestProcessorDisconnectCode (cross-family)',
+    mod: 'app/actions/admin/processing.ts', fn: 'requestProcessorDisconnectCode',
+    args: () => [],
+    setup: clearDisconnectChallenges,
+    probe: db => snapshot('family_action_challenges', 'id, family_code, requested_by, purpose',
+      { family_code: ALPHA, purpose: 'processor_disconnect' })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'processing.requestProcessorDisconnectCode (same family, member with no grant)',
+    mod: 'app/actions/admin/processing.ts', fn: 'requestProcessorDisconnectCode',
+    // The half family scoping cannot catch. alphaMember is inside the boundary and approved;
+    // the only thing that may refuse them is `admin/accounting/processing:edit`.
+    attacker: 'alphaMember',
+    args: () => [],
+    setup: clearDisconnectChallenges,
+    probe: db => snapshot('family_action_challenges', 'id, family_code, requested_by, purpose',
+      { family_code: ALPHA, purpose: 'processor_disconnect' })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'processing.requestProcessorDisconnectCode (pending member)',
+    mod: 'app/actions/admin/processing.ts', fn: 'requestProcessorDisconnectCode',
+    // A code mailed to an applicant would be a mailbox the family never chose to trust
+    // holding one half of the gate in front of cancelling every relative's dues payment.
+    attacker: 'alphaPending',
+    args: () => [],
+    setup: clearDisconnectChallenges,
+    probe: db => snapshot('family_action_challenges', 'id, family_code, requested_by, purpose',
+      { family_code: ALPHA, purpose: 'processor_disconnect' })(db),
+    positiveActor: 'alphaAdmin',
+  },
+
+  // ── THE SIGNUP PLAN INTENT (20260823000008) ──────────────────────────────────────────
+  //
+  // `signup_tier` is what somebody chose on `/pricing` before there was a family to charge,
+  // and the two actions below are the only things that read and clear it. Both go through the
+  // admin client against a table with RLS enabled and ZERO policies, so a hand-written
+  // `.eq('family_code', …)` is the entire boundary — the same shape as the two cases above.
+  //
+  // ── WHAT THE READ'S ATTACK HALF IS AND IS NOT EVIDENCE FOR ───────────────────────────
+  // Said out loud, per §7's rule about labelling a case rather than letting it look stronger
+  // than it is. `getSignupPlanPrompt` answers `null` for THREE different reasons — refused,
+  // nothing to prompt, and a read that failed — and deleting the family conjunct produces the
+  // third (`maybeSingle()` over two rows errors, and §8's discarded-error rule is why that
+  // surfaces as null). So the attack half CANNOT distinguish a leak from a break here, and it
+  // stays green under the mutation.
+  //
+  // THE POSITIVE CONTROL IS THE WHOLE TEST, which is §7's argument for the control half made
+  // once more: an action that answers nothing to everybody is perfectly isolated.
+  //
+  // MUTATION-CHECKED (2026-08-23), and the signature is worth recording because it is the
+  // inverse of what a leak looks like:
+  //
+  //   `.eq('family_code', g.familyCode)` removed from `getSignupPlanPrompt`'s intent read
+  //       -> BOTH controls red, BOTH attacks green. ALPHA's own administrator stops being
+  //          offered the plan they chose, and nothing anywhere reports a boundary crossed.
+  //   `.eq('family_code', g.familyCode)` removed from `dismissSignupPlan`'s update
+  //       -> the WRITE case's attack red ("ROW MUTATED"), everything else green.
+  //
+  // The WRITE below is where the cross-family assertion actually bites, because a row either
+  // was stamped or was not, and that is a fact no error can imitate.
+  read('billing.getSignupPlanPrompt', 'app/actions/billing.ts', 'getSignupPlanPrompt', {
+    // Whatever family the attacker is in by now — see the note above about `createFamily`
+    // moving their active family — what comes back must not be ALPHA's outstanding choice.
+    // A freshly created family has no billing row at all, so null is the expected answer;
+    // the case is honest about that being weak evidence rather than dressed up.
+    expectAttack: (v) => v === null,
+    positiveActor: 'alphaAdmin',
+    expectPositive: (v) => v?.tier === 'plus',
+    // Order-independent: `dismissSignupPlan`'s control below stamps this column, and this
+    // case must not depend on running first.
+    setup: async (db, fx) => {
+      const { error } = await db.from('platform_billing_accounts')
+        .update({ signup_tier_dismissed_at: null })
+        .eq('family_code', fx.alpha.familyCode)
+      if (error) throw new Error(`setup: ${error.message}`)
+    },
+  }),
+
+  // [evidence for the GUARD, not for the conjunct] `requireEdit` refuses an applicant before a
+  // query is issued, so no family conjunct underneath can change this answer. It is here
+  // because a prompt to PAY must never be shown to somebody the family has not admitted, and
+  // because swapping `requireEdit` for a bare session check would turn it red.
+  read('billing.getSignupPlanPrompt (pending member)', 'app/actions/billing.ts',
+    'getSignupPlanPrompt', {
+      attacker: 'alphaPending',
+      expectAttack: (v) => v === null,
+      positiveActor: 'alphaAdmin',
+      expectPositive: (v) => v?.tier === 'plus',
+      setup: async (db, fx) => {
+        const { error } = await db.from('platform_billing_accounts')
+          .update({ signup_tier_dismissed_at: null })
+          .eq('family_code', fx.alpha.familyCode)
+        if (error) throw new Error(`setup: ${error.message}`)
+      },
+    }),
+
+  // ── AND THE WRITE, WHICH IS THE ONE THAT CAN ACTUALLY CATCH A LEAK ───────────────────
+  //
+  // `dismissSignupPlan` takes NO ARGUMENTS, which is what makes this case unusual and worth
+  // reading: there is no id for an attacker to substitute, so the only way BRAVO could reach
+  // ALPHA's row is the action resolving the wrong family — and that is exactly what deleting
+  // `.eq('family_code', g.familyCode)` does, because the `UPDATE` then matches EVERY family
+  // with an outstanding intent. The probe is ALPHA's dismissal column, so a leak shows up as
+  // a stamped date on a family the caller was never in.
+  //
+  // ── AND THERE IS DELIBERATELY NO `expectRefusal` HERE ────────────────────────────────
+  // §8b's `told` assertion cannot apply to this one, and saying why is the point rather than
+  // an omission. The attacker is not SUPPOSED to be refused: they call it with no arguments,
+  // so they are dismissing their OWN family's intent, and success is the correct answer for
+  // them. Asserting a refusal would pin the case to whichever family `bravoAdmin` happens to
+  // be active in by this line — the ordering trap the note at the top of this block records —
+  // and would go red on a legitimate success. The probe is the whole assertion: ALPHA's
+  // column, untouched.
+  {
+    kind: 'write',
+    id: 'billing.dismissSignupPlan (cross-family)',
+    mod: 'app/actions/billing.ts',
+    fn: 'dismissSignupPlan',
+    args: () => [],
+    // Both families' intents are un-dismissed first, so the attacker HAS something of their
+    // own to dismiss and the control has something left to do. Without this the attack could
+    // pass because there was nothing to stamp anywhere, which is the vacuous-probe shape
+    // AGENTS.md warns about two paragraphs from here.
+    setup: async (db) => {
+      const { error } = await db.from('platform_billing_accounts')
+        .update({ signup_tier_dismissed_at: null })
+        .not('signup_tier', 'is', null)
+      if (error) throw new Error(`setup: ${error.message}`)
+    },
+    probe: async (db, fx) => {
+      const { data } = await db.from('platform_billing_accounts')
+        .select('signup_tier_dismissed_at')
+        .eq('family_code', fx.alpha.familyCode)
+        .maybeSingle()
+      return data?.signup_tier_dismissed_at ?? null
+    },
+    // `alphaAdmin`, not the default `alphaMember`: this is gated on `admin/settings:edit`, so
+    // an ordinary member is refused on the PERMISSION and the control would report a family
+    // isolation failure that is really a missing grant.
+    positiveActor: 'alphaAdmin',
+  },
 ]
 
 CASES.push(...BILLING_CASES)

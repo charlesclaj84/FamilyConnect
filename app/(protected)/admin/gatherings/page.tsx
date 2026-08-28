@@ -1,5 +1,4 @@
 import { notFound, redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { can, canAny, requireFamilyActive, requireTier } from '@/lib/auth/permissions'
 import { tierAllows } from '@/lib/auth/tier'
 import {
@@ -12,6 +11,8 @@ import {
   ADMIN_GATHERING_PANES, isAdminGatheringPane, type AdminGatheringPane,
 } from '@/lib/gathering-panes'
 import { PageShell } from '@/components/layout/PageShell'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Gatherings — Admin' }
 
@@ -40,12 +41,22 @@ export const metadata = { title: 'Gatherings — Admin' }
  * being widened. The other two are called explicitly, in the same order, on
  * `'admin/gatherings'`; neither key is in `REMOVED_FAMILY_RESOURCES`.
  *
- * WHICH KEY `requireTier` RESOLVES DOES MATTER NOW, and it did not until 2026-08-19. Both
- * entries used to be `tier: 'free'`; `admin/gathering-templates` is `'standard'` since
- * Standard was inserted. Resolving it on `'admin/gatherings'` is the deliberate choice rather
- * than an oversight — the console is Free and a Free family must reach it — and the library
- * pane ands `tierAllows()` in for itself below. Calling `requireTier` on the library key
- * instead would redirect a Free organizer to `/upgrade` over a pane they never asked for.
+ * WHICH KEY `requireTier` RESOLVES STOPPED MATTERING ON 2026-08-23, and the history is worth
+ * keeping because the machinery below outlived its reason. Both entries were `tier: 'free'`
+ * until Standard was inserted (2026-08-19), which made `admin/gathering-templates` Standard
+ * and left this page straddling two tiers — so `requireTier` had to resolve the console's key,
+ * or a Free organizer would be redirected to `/upgrade` over a pane they never asked for, and
+ * the library pane anded `tierAllows()` in for itself.
+ *
+ * `admin/gatherings` IS STANDARD NOW TOO. Both keys are on one rung, so `requireTier` gives
+ * the same answer whichever it resolves and the pane-level `tierAllows()` can no longer
+ * withhold anything `requireTier` did not already withhold.
+ *
+ * IT IS KEPT ANYWAY, which is the Dues & Donations precedent rather than laziness: that rail
+ * merged its two keys under one caption, was split back a day later, and kept its two-key
+ * machinery through both because the machinery costs nothing and the boundary has demonstrably
+ * moved before. This one has moved twice in four days. Deleting the conjunct now would mean
+ * re-deriving it the next time the library and the console are priced apart.
  *
  * ── §5, WHICH IS WHY THE GRANTS ARE ALL RESOLVED BEFORE ANYTHING IS FETCHED ────────
  * Gate the FETCH and not the tab. Each pane's queries are skipped entirely for a caller who
@@ -97,9 +108,9 @@ export default async function AdminGatheringsPage({
 }: {
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
+  const { t } = await callerI18n(user.id)
 
   // `requireView`, taken apart — see the essay above. Both must stay above the grants.
   await requireFamilyActive(user.id, 'admin/gatherings')
@@ -119,10 +130,13 @@ export default async function AdminGatheringsPage({
   // a place and the details, which is the Gatherings pane and the Review queue beside it.
   // Standard sells PLANNING, which is this library: the checklists a gathering is built from.
   //
-  // `requireTier` above cannot see it — it resolves `admin/gatherings`, which is Free — and a
-  // pane resolved with `can()` alone consults no tier at all. So the grant is anded with
-  // `tierAllows()`, exactly as `/admin/members` does for Organization and Permission Templates,
-  // and the pane is ABSENT rather than empty with every one of its fetches skipped (§5).
+  // `requireTier` above resolves `admin/gatherings`, and a pane resolved with `can()` alone
+  // consults no tier at all — so the grant is anded with `tierAllows()`, exactly as
+  // `/admin/members` does for Organization and Permission Templates, and the pane is ABSENT
+  // rather than empty with every one of its fetches skipped (§5).
+  //
+  // BOTH KEYS ARE STANDARD SINCE 2026-08-23, so this conjunct now agrees with `requireTier`
+  // in every case and withholds nothing on its own. See the header for why it stays.
   //
   // NOT ONE TEMPLATE IS DELETED OR HIDDEN FROM THE DATABASE. A family that lapses to Free
   // keeps every template it ever authored and finds them where they were when it upgrades
@@ -204,11 +218,7 @@ export default async function AdminGatheringsPage({
   return (
     <PageShell className="space-y-8">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Gatherings</h1>
-        <p className="text-muted-foreground">
-          Author the checklist a gathering is built from, schedule one, hand each step to a
-          relative, and rule on what comes back.
-        </p>
+        <h1 className="text-3xl font-bold">{t('page./admin/gatherings.title')}</h1>
       </div>
       <AdminGatheringsClient
         initialPane={initialPane}

@@ -2,14 +2,15 @@
 
 import { revalidatePath } from 'next/cache'
 
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireMember } from '@/lib/auth/guard'
-import { getMyDuesSummary } from '@/app/actions/dues'
+import { getDonationProgress, getMyDuesSummary, type DuesSummary } from '@/app/actions/dues'
 import { intentKey, onAccount, stripeClient, stripeUnavailableReason } from '@/lib/stripe/client'
 import { INTEGRATION_IDS, checkoutReturnUrls } from '@/lib/stripe/config'
 import { formatCurrency } from '@/lib/currency-utils'
 import type { PayCadence } from '@/lib/dues-utils'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * A member paying their own dues with a card — the family's money, on the family's account.
@@ -126,106 +127,207 @@ export type PayDuesResult =
   | { success: true; url: string }
   | { success: false; message: string }
 
-/**
- * Pay some or all of one due, once.
- *
- * ── `price_data` RATHER THAN A CATALOGUE PRICE, WHICH IS THE OPPOSITE OF THE PLAN FLOW ─
- * `app/actions/billing.ts` argues for real Stripe Prices, and it is right there: GENORRA sells
- * three plans at three fixed rates, so the catalogue is the honest place for them. Here the
- * amount is a figure out of ONE family's own dues schedule, scaled by that member's age
- * proration and their arrears — a number that exists in our database, differs per member, and
- * changes when a treasurer edits a schedule. There is no catalogue that could hold it, and
- * pre-creating a Price per member per schedule per amount would be thousands of Price objects
- * on a family's account describing one due.
- *
- * So the amount is inline, and it is bounded server-side, which is the trade `price_data`
- * always is.
- */
-export async function startDuesCheckout(input: {
+/** One due, and how much of it this checkout is settling. */
+export interface DuesPayItem {
   scheduleId: string
   amountCents: number
+}
+
+/**
+ * The most dues one Checkout Session may settle.
+ *
+ * NOT A STRIPE LIMIT — Checkout takes a hundred line items and metadata takes fifty keys, and
+ * this is a family's dues list, which is a handful. It is a bound on the ALLOCATION metadata
+ * below, whose whole job is to survive a round trip through Stripe intact. A cap that is
+ * exceeded is REFUSED and named, never silently trimmed: a truncated allocation is a member
+ * paying for six dues and being credited for four, with the difference sitting in the family's
+ * account attributed to nothing.
+ */
+const MAX_PAY_ITEMS = 20
+
+/**
+ * The largest single card payment Stripe will take in USD, in cents.
+ *
+ * A PROCESSOR LIMIT, not a policy. It bounds giving, where this product sets no ceiling of its
+ * own; dues are bounded by what is owed long before they could reach it.
+ */
+const MAX_CHARGE_CENTS = 99_999_999
+
+/**
+ * Pay some or all of one due — or of several — in one card payment.
+ *
+ * ── ONE ACTION, NOT A SINGLE-DUE ONE BESIDE A BATCH ONE ────────────────────────────
+ * It took a bare `{ scheduleId, amountCents }` until 2026-08-25 and takes a LIST now, and
+ * a one-item convenience wrapper was written and then deleted. Two exports would be two
+ * public HTTP endpoints (§2) doing one thing, with the amount rules stated twice — and the
+ * wrapper had no caller of its own the moment the screen started sending lists, which is
+ * precisely the "live endpoint kept warm for nobody" AGENTS.md records as the cost of
+ * leaving `/admin/boardpositions` behind a flag.
+ *
+ * ── WHY ONE SESSION RATHER THAN SEVERAL ─────────────────────────────────────────────
+ * A member on three schedules pressing "pay everything due now" is doing one thing, and
+ * Checkout redirects to ONE hosted page — so several sessions is not an implementation
+ * choice, it is not available. One session, several line items, and the split back into the
+ * family's ledger happens on the way back in.
+ *
+ * ── THE SPLIT TRAVELS AS METADATA, AND IS RE-VERIFIED ON THE WAY BACK ──────────────
+ * `genorra_alloc_<n>` = `<schedule id>:<cents>`, one key per due, plus `genorra_alloc_count`.
+ * `lib/stripe/connect-events.ts` reads them, checks they sum to what Stripe actually took, and
+ * posts one `dues_payments` row per allocation — each through `postDuesPayment`, which
+ * re-reads the schedule with `.eq('family_code', …)` beside it (§4). So a Dashboard-edited
+ * allocation cannot reach another family's schedule, and one that does not add up is refused
+ * rather than reconciled, exactly as a mismatched `genorra_family_code` already is.
+ *
+ * `dues_autopay`'s header argues for reading ids out of OUR table rather than out of Stripe
+ * metadata, and that argument does not transfer: an autopay is a standing arrangement that
+ * outlives the session and has a row of its own to be read back from. A one-off allocation
+ * exists for the length of one redirect, and a table to hold it would be a row written before
+ * the money moved — with nothing to clean up the ones that are abandoned at the card form.
+ *
+ * ── EVERY §2 CHECK IS THE SINGLE-DUE ONE, N TIMES ──────────────────────────────────
+ * The person is the guard's and is never a parameter. Every schedule is re-resolved out of
+ * the caller's OWN summary, so an id that is not theirs resolves to nothing. Every amount is
+ * bounded against that row's `remainingBalanceCents`. And the summary is read ONCE — N reads
+ * of the same thing could disagree with each other mid-request.
+ */
+export async function startDuesCheckout(input: {
+  items: DuesPayItem[]
 }): Promise<PayDuesResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode || !g.personId) return { success: false, message: 'Profile not found.' }
+  const { t } = g
+  const { intl } = await callerI18n(g.userId)
+  if (!g.familyCode || !g.personId) return { success: false, message: t('act.profileNotFound2') }
+
+  // `input?.items`, not `input.items`. A server action is a public HTTP endpoint and its
+  // argument is whatever was deserialised off the wire — the TypeScript signature is erased
+  // at runtime, so a POST carrying `null` would throw here rather than be refused.
+  const items = Array.isArray(input?.items) ? input.items : []
+  if (items.length === 0) return { success: false, message: t('act.chooseLeastOneDuePay') }
+  if (items.length > MAX_PAY_ITEMS) {
+    return {
+      success: false,
+      message: `Up to ${MAX_PAY_ITEMS} dues can be paid in one go. Pay some of them separately.`,
+    }
+  }
+  // A repeated schedule would post two rows against one due, and the second would collide on
+  // `(source, processor_ref)` and be discarded as a duplicate — so the member would be charged
+  // for it and credited once. Refused before any of that.
+  const seen = new Set(items.map(i => i.scheduleId))
+  if (seen.size !== items.length) {
+    return { success: false, message: t('act.sameDueListedTwice') }
+  }
 
   const unavailable = stripeUnavailableReason()
   if (unavailable) return { success: false, message: unavailable }
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const account = await readyAccount(g.familyCode)
   if (!account) {
-    return { success: false, message: 'This family is not set up to take card payments yet.' }
+    return { success: false, message: t('act.familyNotSetUpTake') }
   }
 
-  // THE SCHEDULE COMES OUT OF THE CALLER'S OWN SUMMARY. An id that is not in it — another
+  // THE SCHEDULES COME OUT OF THE CALLER'S OWN SUMMARY. An id that is not in it — another
   // family's, a donation drive's, a due they have opted out of — resolves to nothing, so the
   // §4 check is structural rather than a conjunct somebody has to remember.
-  const summary = (await getMyDuesSummary()).find(s => s.schedule.id === input.scheduleId)
-  if (!summary) return { success: false, message: 'That due is not one of yours.' }
-  if (summary.schedule.kind !== 'dues') {
-    return { success: false, message: 'Donations are given from the Donations pane, not paid as dues.' }
-  }
+  const summary = await getMyDuesSummary()
 
-  const owed = summary.remainingBalanceCents
-  if (owed <= 0) return { success: false, message: 'There is nothing left to pay on this due.' }
-
-  const amount = Math.round(input.amountCents)
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return { success: false, message: 'Enter an amount to pay.' }
-  }
-  if (amount > owed) {
-    // NAMES THE CEILING. "Invalid amount" would leave somebody guessing at a figure the screen
-    // beside them is already showing, and this product has no concept of a credit balance, so
-    // the refusal has to be useful rather than merely correct.
-    return {
-      success: false,
-      message: `That is more than is owed. The most that can be paid on this due is ${formatCurrency(owed)}.`,
+  const resolved: { row: DuesSummary; amount: number }[] = []
+  for (const item of items) {
+    const row = summary.find(s => s.schedule.id === item.scheduleId)
+    if (!row) return { success: false, message: t('act.dueNotOneYours') }
+    if (row.schedule.kind !== 'dues') {
+      return { success: false, message: t('act.donationsGivenFromDonationsPane') }
     }
+
+    const owed = row.remainingBalanceCents
+    if (owed <= 0) {
+      return { success: false, message: `There is nothing left to pay on ${row.schedule.label}.` }
+    }
+
+    const amount = Math.round(item.amountCents)
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return { success: false, message: t('act.enterAmountPay') }
+    }
+    if (amount > owed) {
+      // NAMES THE CEILING, AND THE DUE. "Invalid amount" would leave somebody guessing at a
+      // figure the screen beside them is already showing, and this product has no concept of a
+      // credit balance — so the refusal has to be useful rather than merely correct. Naming
+      // the schedule matters more here than it did for one due: a combined payment refused
+      // without saying which line was wrong is a refusal nobody can act on.
+      return {
+        success: false,
+        message: `That is more than is owed. The most that can be paid on ${row.schedule.label} is ${formatCurrency(owed, intl)}.`,
+      }
+    }
+
+    resolved.push({ row, amount })
   }
+
+  const single = resolved.length === 1 ? resolved[0] : null
+  const totalCents = resolved.reduce((sum, r) => sum + r.amount, 0)
+  const allocation = resolved.map(({ row, amount }) => ({ scheduleId: row.schedule.id, amount }))
 
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
       // No `payment_method_types` — dynamic payment methods, per Stripe's guidance. A family
       // taking dues from relatives across a country benefits from that more than most.
-      line_items: [{
+      //
+      // ONE LINE PER DUE, NAMED. The hosted page is the last thing the member reads before
+      // they commit, so it has to itemize what they are about to pay rather than showing one
+      // total they would have to take on trust.
+      line_items: resolved.map(({ row, amount }) => ({
         quantity: 1,
         price_data: {
           currency: CURRENCY,
           unit_amount: amount,
           product_data: {
-            name: summary.schedule.label,
+            name: row.schedule.label,
             description: `Dues payment · ${g.familyCode}`,
           },
         },
-      }],
+      })),
       customer_email: await payerEmail(),
       client_reference_id: g.personId,
       payment_intent_data: {
-        metadata: duesMetadata(g.familyCode, g.personId, input.scheduleId),
+        metadata: allocationMetadata('dues', g.familyCode, g.personId, allocation),
         // ON THE FAMILY'S OWN STATEMENT, not ours. A relative who does not recognise a line on
         // their card statement disputes it, and a dispute on a direct charge is the family's
         // to answer — so the descriptor has to name the family, not the software.
-        statement_descriptor_suffix: statementSuffix(summary.schedule.label),
+        //
+        // A combined payment names no single due, because it is not one: the suffix says what
+        // the charge was FOR, and "Dues" is the honest answer where four schedules are being
+        // settled at once.
+        statement_descriptor_suffix: single
+          ? statementSuffix(single.row.schedule.label)
+          : statementSuffix('Dues'),
       },
-      metadata: duesMetadata(g.familyCode, g.personId, input.scheduleId),
+      metadata: allocationMetadata('dues', g.familyCode, g.personId, allocation),
       integration_identifier: INTEGRATION_IDS.familyDuesOnce,
       ...checkoutReturnUrls('/accounting/dues-and-donations'),
     }, {
       // The account header AND the idempotency key. `onAccount` is the only place in the
       // product that sets the first, so a grep for it is the complete list of calls made on a
       // family's behalf.
+      //
+      // The BODY digest carries the allocation, because the naming parts cannot: a key naming
+      // only the member and a total would hand a member paying $200 across two dues the
+      // session they created a minute earlier paying $200 across two DIFFERENT dues. See
+      // `intentKey` — a changed request has to be a changed key.
       ...onAccount(account),
-      idempotencyKey: intentKey(['dues-once', g.personId, input.scheduleId, amount]),
+      idempotencyKey: intentKey(
+        ['dues-once', g.personId, resolved.length, totalCents],
+        resolved.map(({ row, amount }) => [row.schedule.id, amount]),
+      ),
     })
 
-    if (!session.url) return { success: false, message: 'Could not start the payment. Please try again.' }
+    if (!session.url) return { success: false, message: t('act.couldNotStartPaymentPlease') }
     return { success: true, url: session.url }
   } catch (e) {
     console.error(`[pay-dues] checkout failed for ${g.familyCode}/${g.personId}: ${describe(e)}`)
-    return { success: false, message: 'Could not start the payment. Please try again.' }
+    return { success: false, message: t('act.couldNotStartPaymentPlease') }
   }
 }
 
@@ -251,40 +353,41 @@ export async function startDuesCheckout(input: {
 export async function startDuesAutopay(input: { scheduleId: string }): Promise<PayDuesResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode || !g.personId) return { success: false, message: 'Profile not found.' }
+  const { t } = g
+  if (!g.familyCode || !g.personId) return { success: false, message: t('act.profileNotFound2') }
 
   const unavailable = stripeUnavailableReason()
   if (unavailable) return { success: false, message: unavailable }
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const account = await readyAccount(g.familyCode)
   if (!account) {
-    return { success: false, message: 'This family is not set up to take card payments yet.' }
+    return { success: false, message: t('act.familyNotSetUpTake') }
   }
 
   const summary = (await getMyDuesSummary()).find(s => s.schedule.id === input.scheduleId)
-  if (!summary) return { success: false, message: 'That due is not one of yours.' }
+  if (!summary) return { success: false, message: t('act.dueNotOneYours') }
   if (summary.schedule.kind !== 'dues') {
     // Belt and braces over the guard trigger on `dues_autopay`, which refuses a donation
     // schedule in the database. Saying so here means the member reads a sentence rather than
     // watching a Stripe subscription get created and then orphaned.
-    return { success: false, message: 'Recurring payments are for dues only.' }
+    return { success: false, message: t('act.recurringPaymentsDuesOnly') }
   }
   if (summary.optedOut) {
-    return { success: false, message: 'You have declined this due. Opt back in before setting up automatic payments.' }
+    return { success: false, message: t('act.youDeclinedDueOptBack') }
   }
 
   const recurring = stripeInterval(summary.cadence)
   if (!recurring) {
     return {
       success: false,
-      message: 'Pick how often you want to pay this due first — automatic payments follow the cadence you choose.',
+      message: t('act.pickHowOftenYouWant'),
     }
   }
 
   const amount = summary.installmentCents
-  if (amount <= 0) return { success: false, message: 'There is nothing to set up on this due.' }
+  if (amount <= 0) return { success: false, message: t('act.thereNothingSetUpDue') }
 
   // One LIVE arrangement per member per schedule is a partial unique index, so a second one
   // would be refused by the database on the way back in from the webhook — after the member
@@ -298,7 +401,7 @@ export async function startDuesAutopay(input: { scheduleId: string }): Promise<P
     .is('cancelled_at', null)
     .maybeSingle()
   if (existing) {
-    return { success: false, message: 'Automatic payments are already set up for this due.' }
+    return { success: false, message: t('act.automaticPaymentsAlreadySetUp') }
   }
 
   try {
@@ -332,11 +435,11 @@ export async function startDuesAutopay(input: { scheduleId: string }): Promise<P
       idempotencyKey: intentKey(['dues-autopay', g.personId, input.scheduleId, amount, summary.cadence]),
     })
 
-    if (!session.url) return { success: false, message: 'Could not start the setup. Please try again.' }
+    if (!session.url) return { success: false, message: t('act.couldNotStartSetupPlease') }
     return { success: true, url: session.url }
   } catch (e) {
     console.error(`[pay-dues] autopay setup failed for ${g.familyCode}/${g.personId}: ${describe(e)}`)
-    return { success: false, message: 'Could not set up automatic payments. Please try again.' }
+    return { success: false, message: t('act.couldNotSetUpAutomatic') }
   }
 }
 
@@ -360,10 +463,11 @@ export type CancelAutopayResult =
 export async function cancelDuesAutopay(input: { scheduleId: string }): Promise<CancelAutopayResult> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  if (!g.familyCode || !g.personId) return { success: false, message: 'Profile not found.' }
+  const { t } = g
+  if (!g.familyCode || !g.personId) return { success: false, message: t('act.profileNotFound2') }
 
   const stripe = stripeClient()
-  if (!stripe) return { success: false, message: 'Online payments are not set up yet.' }
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const admin = createAdminClient()
   // THE CALLER'S OWN ROW, and all three conjuncts are load-bearing: the family, the person and
@@ -376,7 +480,7 @@ export async function cancelDuesAutopay(input: { scheduleId: string }): Promise<
     .eq('schedule_id', input.scheduleId)
     .is('cancelled_at', null)
     .maybeSingle()
-  if (!row) return { success: false, message: 'There are no automatic payments set up for this due.' }
+  if (!row) return { success: false, message: t('act.thereNoAutomaticPaymentsSet') }
 
   try {
     await stripe.subscriptions.cancel(
@@ -391,7 +495,7 @@ export async function cancelDuesAutopay(input: { scheduleId: string }): Promise<
     // available here.
     if (!/No such subscription|resource_missing/i.test(message)) {
       console.error(`[pay-dues] could not cancel autopay ${row.id}: ${message}`)
-      return { success: false, message: 'Could not stop the automatic payments. Please try again.' }
+      return { success: false, message: t('act.couldNotStopAutomaticPayments') }
     }
   }
 
@@ -409,12 +513,131 @@ export async function cancelDuesAutopay(input: { scheduleId: string }): Promise<
     console.error(`[pay-dues] Stripe cancelled but the row did not update (${row.id}): ${error.message}`)
     return {
       success: false,
-      message: 'The payments have been stopped at Stripe but we could not update your record. Please refresh.',
+      message: t('act.paymentsBeenStoppedStripeBut'),
     }
   }
 
   revalidatePath('/accounting/dues-and-donations')
-  return { success: true, message: 'Automatic payments have been stopped. Every payment already made is kept.' }
+  return { success: true, message: t('act.automaticPaymentsBeenStoppedEvery') }
+}
+
+// ── Giving to a drive ───────────────────────────────────────────────────────────────
+
+/**
+ * Give to one donation drive, by card.
+ *
+ * ── A SEPARATE ACTION FROM `startDuesCheckout`, AND THE SEPARATION IS THE POINT ────
+ * The obvious economy is one checkout that takes any schedule and routes by its `kind`. It is
+ * refused here, because the two are different in every way that matters at this layer:
+ *
+ *   a DUE has a ceiling      `remainingBalanceCents`, and paying past it leaves a credit this
+ *                            product has no concept of. A GIFT has none — the goal on a drive
+ *                            is an advised target and explicitly not a cap.
+ *   a DUE can be combined     "pay everything due now" is one action over a list. A GIFT is one
+ *                            drive at a time, deliberately: giving to one says nothing about
+ *                            the others, and a basket would invite a total nobody chose.
+ *   a DUE can recur           autopay follows the cadence the member set. A drive has no
+ *                            cadence, and agreeing to give once is not agreeing to give every
+ *                            month. There is no recurring path here and must not be one.
+ *
+ * And the safety half: `postDuesPayment` refuses a schedule whose kind is not the one the flow
+ * declared. One action taking either kind would have to relax that into "whatever the row says",
+ * which is exactly the guard that stops a card payment being credited to a drive and appearing
+ * in somebody's dues history as a due they settled.
+ *
+ * ── WHAT IS CHECKED, AND WHAT DELIBERATELY IS NOT ─────────────────────────────────
+ * The person is the guard's and is never a parameter. The drive is re-resolved out of
+ * `getDonationProgress()`, which is already scoped to the caller's family — so a forged id
+ * resolves to nothing rather than to another family's drive (§4). A CLOSED drive is refused,
+ * because a bar that cannot move any more is history and money arriving against it would
+ * silently reopen it.
+ *
+ * The amount is NOT bounded by the goal. That is the one difference from the dues flow that a
+ * future edit is most likely to get wrong: a drive that has met its goal keeps taking money,
+ * and `DonationSummary.progressPercent` is unclamped precisely so the screen can say so.
+ */
+export async function startDonationCheckout(input: {
+  scheduleId: string
+  amountCents: number
+}): Promise<PayDuesResult> {
+  const g = await requireMember()
+  if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
+  const { intl } = await callerI18n(g.userId)
+  if (!g.familyCode || !g.personId) return { success: false, message: t('act.profileNotFound2') }
+
+  const unavailable = stripeUnavailableReason()
+  if (unavailable) return { success: false, message: unavailable }
+  const stripe = stripeClient()
+  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
+
+  const account = await readyAccount(g.familyCode)
+  if (!account) {
+    return { success: false, message: t('act.familyNotSetUpTake') }
+  }
+
+  const drive = (await getDonationProgress()).find(d => d.schedule.id === input?.scheduleId)
+  if (!drive) return { success: false, message: t('act.driveNotOneYourFamily') }
+  if (drive.closed) {
+    return { success: false, message: `${drive.schedule.label} has closed. Nothing more can be given to it.` }
+  }
+
+  const amount = Math.round(input.amountCents)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    return { success: false, message: t('act.enterAmountGive') }
+  }
+  // STRIPE'S OWN CEILING, not one this product invented. There is no reason a family should
+  // not be given a large gift, so the only honest limit is the one the processor enforces —
+  // and hitting it after the member has committed to giving is the failure this avoids.
+  if (amount > MAX_CHARGE_CENTS) {
+    return {
+      success: false,
+      message: `A single card payment cannot be more than ${formatCurrency(MAX_CHARGE_CENTS, intl)}. Give it in two.`,
+    }
+  }
+
+  try {
+    const session = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      line_items: [{
+        quantity: 1,
+        price_data: {
+          currency: CURRENCY,
+          unit_amount: amount,
+          product_data: {
+            name: drive.schedule.label,
+            description: `Donation · ${g.familyCode}`,
+          },
+        },
+      }],
+      customer_email: await payerEmail(),
+      client_reference_id: g.personId,
+      payment_intent_data: {
+        metadata: allocationMetadata('donation', g.familyCode, g.personId,
+          [{ scheduleId: drive.schedule.id, amount }]),
+        // ON THE FAMILY'S OWN STATEMENT, not ours — see `startDuesCheckout`. The drive's name
+        // is what the giver will be looking for when they read their statement.
+        statement_descriptor_suffix: statementSuffix(drive.schedule.label),
+      },
+      metadata: allocationMetadata('donation', g.familyCode, g.personId,
+        [{ scheduleId: drive.schedule.id, amount }]),
+      integration_identifier: INTEGRATION_IDS.familyDonation,
+      ...checkoutReturnUrls('/accounting/dues-and-donations?pane=donations'),
+    }, {
+      ...onAccount(account),
+      // The amount is IN the naming parts rather than in a body digest: a gift is one drive
+      // and one figure, so there is no allocation shape for a digest to distinguish. Giving
+      // twice on one day is what the parts have to separate, and a changed amount is a
+      // changed key.
+      idempotencyKey: intentKey(['donation', g.personId, drive.schedule.id, amount]),
+    })
+
+    if (!session.url) return { success: false, message: t('act.couldNotStartPaymentPlease') }
+    return { success: true, url: session.url }
+  } catch (e) {
+    console.error(`[pay-dues] donation checkout failed for ${g.familyCode}/${g.personId}: ${describe(e)}`)
+    return { success: false, message: t('act.couldNotStartPaymentPlease') }
+  }
 }
 
 // ── Internals ───────────────────────────────────────────────────────────────────────
@@ -452,6 +675,44 @@ function duesMetadata(familyCode: string, personId: string, scheduleId: string):
 }
 
 /**
+ * A one-off charge's metadata: which flow it is, who and where, and how it splits.
+ *
+ * ── `genorra_flow` IS WHAT THE WEBHOOK DISPATCHES ON ───────────────────────────────
+ * `'dues'` or `'donation'`, and the two are never mixed in one session. It decides which
+ * KIND of schedule `postDuesPayment` will accept, so a drive can never be credited by the
+ * dues path and a due can never be credited by the giving one — see the header on
+ * `startDonationCheckout` for why that separation is the whole point rather than tidiness.
+ *
+ * ── `genorra_schedule_id` SURVIVES FOR A SINGLE DUE, DELIBERATELY ──────────────────
+ * It is what every session created before the batch existed carries, and what the webhook
+ * falls back to when it finds no allocation keys. Dropping it would strand any session already
+ * in flight at deploy time — a member sitting on Stripe's hosted page with their card out,
+ * whose payment would then post against nothing.
+ *
+ * ── AND THE ALLOCATION IS WRITTEN EVEN FOR ONE ─────────────────────────────────────
+ * So the webhook has ONE path rather than a batch path and a legacy path that could drift.
+ * The fallback above is for old sessions, not for new single ones.
+ */
+function allocationMetadata(
+  flow: 'dues' | 'donation',
+  familyCode: string,
+  personId: string,
+  resolved: readonly { scheduleId: string; amount: number }[],
+): Record<string, string> {
+  const meta: Record<string, string> = {
+    genorra_flow: flow,
+    genorra_family_code: familyCode,
+    genorra_person_id: personId,
+    genorra_alloc_count: String(resolved.length),
+  }
+  if (resolved.length === 1) meta.genorra_schedule_id = resolved[0].scheduleId
+  resolved.forEach(({ scheduleId, amount }, i) => {
+    meta[`genorra_alloc_${i}`] = `${scheduleId}:${amount}`
+  })
+  return meta
+}
+
+/**
  * The payer's own email, for prefilling the hosted page — or undefined.
  *
  * THEIR OWN, from their own session, which is why this takes no argument. And undefined rather
@@ -460,8 +721,7 @@ function duesMetadata(familyCode: string, personId: string, scheduleId: string):
  * the guard is worth keeping even where it should be unreachable.
  */
 async function payerEmail(): Promise<string | undefined> {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   return user?.email ?? undefined
 }
 

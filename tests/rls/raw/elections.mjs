@@ -38,7 +38,7 @@
  * response. `raw.mjs`'s header carries the full argument; here the shape is that a SELECT
  * probe hands back rows AND the error, so a case can tell the two apart.
  */
-import { rawDelete, rawSelect } from '../raw.mjs'
+import { rawDelete, rawRpc, rawSelect } from '../raw.mjs'
 
 /**
  * Every election the caller can read. The scope columns come back so a case can assert on the
@@ -92,4 +92,36 @@ export async function selectElectionVotes() {
 export async function deleteNominationSupport(nominationId, personId) {
   return rawDelete('election_nomination_supporters',
     { nomination_id: nominationId, person_id: personId })
+}
+
+/**
+ * Ask the database whether a window is open, as a real member, through the real grant.
+ *
+ * ── WHY THIS IS THE ONLY HONEST TEST OF `20260826000005` ─────────────────────────────
+ * That migration repaired `election_window_open()`, which decided the window with
+ * `CURRENT_DATE` — the DATABASE's date, and on hosted Supabase that is UTC. For a family in
+ * Central time voting stopped at 19:00 CDT on the closing day and nominations opened five
+ * hours early, and the refusal came from an RLS policy rather than from a form.
+ *
+ * NOTHING ELSE CAN SEE THE REPAIR:
+ *
+ *   * An action-shaped case cannot. `castVote` and `submitNomination` check
+ *     `electionPhase(...)` in TypeScript FIRST and return before sending anything, so the
+ *     policy is never consulted — AGENTS.md §7's "a guard hides a policy" in its exact form.
+ *   * The migration's verify block cannot. The function opens with
+ *     `public.auth_family_code()`, which needs a session, and a migration has none — so it
+ *     returns `false` for every call from a `DO` block whatever the dates say.
+ *   * A test that fixes the clock cannot. `now()` is not overridable from the client, so the
+ *     only variable a probe can move is THE ZONE.
+ *
+ * So this probe takes the zone as the discriminator: the same election, the same window dates,
+ * asked twice with two different zones stamped on it. Under the repair the answers differ;
+ * under `CURRENT_DATE` they are identical, because the zone is not consulted at all.
+ *
+ * `rawRpc` rather than a table probe, because the function IS the subject. It is granted to
+ * `authenticated` (§2b), so PostgREST publishes it — which is also why this is a real
+ * end-to-end check of that grant rather than only of the arithmetic.
+ */
+export async function electionWindowOpen(electionId, window) {
+  return rawRpc('election_window_open', { p_election_id: electionId, p_window: window })
 }

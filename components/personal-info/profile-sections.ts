@@ -1,3 +1,5 @@
+import type { T } from '@/lib/i18n/t'
+
 /**
  * The five sections of My Profile.
  *
@@ -9,29 +11,42 @@
  */
 
 export const PROFILE_SECTIONS =
-  ['general', 'address', 'additional', 'texts', 'security'] as const
+  ['general', 'address', 'additional', 'notifications', 'security'] as const
 
 export type ProfileSection = (typeof PROFILE_SECTIONS)[number]
 
-export const PROFILE_SECTION_LABELS: Record<ProfileSection, string> = {
-  general: 'General',
-  address: 'Address',
-  additional: 'Additional Information',
-  // ── `texts` IS NAMED FOR WHAT IT HOLDS, NOT FOR WHAT IT MIGHT ────────────────────
-  // "Notifications" was the obvious label and is the wrong one: there is no email or bell
-  // preference in this product, so a section called that would promise four controls and
-  // offer one. It holds a mobile number, a confirmation, and consent to be texted — which is
-  // exactly what "Text Messages" says.
-  //
-  // It is a SECTION rather than a band inside Sign-in & Security because a number we may send
-  // to is not an account credential. Confusing the two is how a member ends up believing that
-  // removing their mobile number affects how they log in.
-  texts: 'Text Messages',
-  // The account, not the profile: sign-in address and password. It carries no
-  // permission_resources row and needs no migration, because My Profile is one of the
-  // pages 20260806000006 deliberately put outside the permission grid — see the header
-  // of components/personal-info/SignInSecurity.tsx.
-  security: 'Sign-in & Security',
+/**
+ * THE LABELS LIVE IN THE CATALOGUE, NOT HERE — `profile.section.<id>`.
+ *
+ * This module stayed pure (no React, no icons) so the page could resolve `?section=` before
+ * rendering; Phase 5 keeps that and takes the captions out, exactly as `Sidebar`'s section
+ * registry went from `{ label, icon }` to `{ id, icon }`. The ID is the contract — it is in
+ * URLs, in `ALIASES` below and in help links — and the caption is copy.
+ *
+ * The reasoning that used to sit on the two renamed entries is worth keeping:
+ *
+ *   `notifications` WAS `texts`/"Text Messages" until 2026-08-26. The old note argued against
+ *   the broader name on the grounds that only one channel existed, so it would promise four
+ *   controls and offer one. That was right when written, and the fix was the product rather
+ *   than the label: there is a GRID now. `texts` stays in `ALIASES` so a bookmark still lands.
+ *
+ *   It is a SECTION rather than a band inside Sign-in & Security because an address we may send
+ *   to is not an account credential. Confusing the two is how a member comes to believe that
+ *   removing their mobile number changes how they log in.
+ *
+ *   `security` carries no `permission_resources` row and needs no migration: My Profile is one
+ *   of the pages `20260806000006` deliberately put outside the permission grid.
+ */
+
+/**
+ * One section's caption, in the reader's language.
+ *
+ * A FUNCTION TAKING `t` rather than a map, so this module can stay pure: the `T` import is
+ * type-only and erased at build time, so no React and no catalogue is dragged into the module
+ * graph of the server page that resolves `?section=`.
+ */
+export function profileSectionLabel(t: T, section: ProfileSection): string {
+  return t(`profile.section.${section}`)
 }
 
 /** Landing section when `?section=` is absent or unreadable. */
@@ -48,11 +63,18 @@ const ALIASES: Record<string, ProfileSection> = {
   'additional-information': 'additional',
   other: 'additional',
   extra: 'additional',
-  text: 'texts',
-  'text-messages': 'texts',
-  sms: 'texts',
-  mobile: 'texts',
-  phone: 'texts',
+  // The old section id and everything anybody would type for it. `texts` itself is on the
+  // list because it WAS the id: a bookmark or a help link carrying it must not silently land
+  // on General.
+  texts: 'notifications',
+  text: 'notifications',
+  'text-messages': 'notifications',
+  sms: 'notifications',
+  mobile: 'notifications',
+  phone: 'notifications',
+  notification: 'notifications',
+  alerts: 'notifications',
+  email: 'notifications',
   'sign-in': 'security',
   signin: 'security',
   account: 'security',

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { FormError } from '@/components/ui/form-message'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Sign-in & security: the two things a member can change about their ACCOUNT, as opposed
@@ -73,6 +74,7 @@ export function SignInSecuritySection({ visible, signInEmail }: {
   /** `auth.users.email`, resolved on the server so there is no flash of an empty value. */
   signInEmail: string
 }) {
+  const t = useT()
   // ── Sign-in email ────────────────────────────────────────────────────────────
   const [emailStage, setEmailStage] = useState<EmailStage>('idle')
   const [newEmail, setNewEmail] = useState('')
@@ -83,11 +85,11 @@ export function SignInSecuritySection({ visible, signInEmail }: {
     setEmailError('')
     const address = newEmail.trim().toLowerCase()
     if (!address || !address.includes('@')) {
-      setEmailError('Enter a valid email address')
+      setEmailError(t('security.badEmail'))
       return
     }
     if (address === signInEmail.toLowerCase()) {
-      setEmailError('That is already your sign-in address')
+      setEmailError(t('security.sameEmail'))
       return
     }
 
@@ -131,23 +133,23 @@ export function SignInSecuritySection({ visible, signInEmail }: {
   async function submitPassword() {
     setPwError('')
     if (!code.trim()) {
-      setPwError('Enter the code from your email')
+      setPwError(t('security.needCode'))
       return
     }
     if (!currentPassword) {
-      setPwError('Enter your current password')
+      setPwError(t('security.needCurrent'))
       return
     }
     if (password.length < 8) {
-      setPwError('New password must be at least 8 characters')
+      setPwError(t('security.tooShort'))
       return
     }
     if (password !== confirmPassword) {
-      setPwError('New passwords do not match')
+      setPwError(t('security.noMatch'))
       return
     }
     if (password === currentPassword) {
-      setPwError('That is already your password. Choose a different one.')
+      setPwError(t('security.samePassword'))
       return
     }
 
@@ -189,7 +191,7 @@ export function SignInSecuritySection({ visible, signInEmail }: {
     if (!check.ok) {
       setPwBusy(false)
       setPwError(check.reason === 'wrong'
-        ? 'That is not your current password.'
+        ? t('security.wrongCurrent')
         : check.message)
       return
     }
@@ -245,37 +247,35 @@ export function SignInSecuritySection({ visible, signInEmail }: {
     <div className="space-y-5">
       <Panel
         icon={<Mail className="h-5 w-5" />}
-        title="Sign-in email"
-        description="The address you sign in with. Separate from the contact email in your profile — changing one does not change the other."
+        title={t('security.email.title')}
+        description={t('security.email.lede')}
       >
         <p className="text-sm">
-          <span className="text-muted-foreground">Currently </span>
+          <span className="text-muted-foreground">{t('security.currently')}</span>
           <span className="font-medium break-all">{signInEmail}</span>
         </p>
 
         {emailStage === 'idle' && (
-          <Button size="sm" variant="outline" onClick={() => { setNewEmail(''); setEmailError(''); setEmailStage('form') }}>
-            Change sign-in email
-          </Button>
+          <Button size="sm" variant="outline" onClick={() => { setNewEmail(''); setEmailError(''); setEmailStage('form') }}>{t('prof.changeSignEmail')}</Button>
         )}
 
         {emailStage === 'form' && (
           <form className="space-y-3" onSubmit={e => { e.preventDefault(); submitEmail() }}>
             <div className="space-y-1.5">
-              <Label htmlFor="new-signin-email">New email address</Label>
+              <Label htmlFor="new-signin-email">{t('security.newEmail')}</Label>
               <Input
                 id="new-signin-email"
                 type="email"
                 value={newEmail}
                 onChange={e => setNewEmail(e.target.value)}
                 autoComplete="email"
-                placeholder="you@example.com"
+                placeholder={t('field.ph.email')}
               />
             </div>
             <FormError message={emailError} />
             <div className="flex gap-2">
               <Button size="sm" type="submit" disabled={emailBusy}>
-                {emailBusy ? 'Sending…' : 'Send confirmation'}
+                {emailBusy ? t('security.sending') : t('security.sendConfirmation')}
               </Button>
               <Button size="sm" type="button" variant="ghost" onClick={() => setEmailStage('idle')}>
                 Cancel
@@ -298,15 +298,15 @@ export function SignInSecuritySection({ visible, signInEmail }: {
 
       <Panel
         icon={<KeyRound className="h-5 w-5" />}
-        title="Password"
+        title={t('security.password.title')}
         // Deliberately states what is REQUIRED rather than what is prevented. An earlier
         // version promised "a password cannot be changed by someone who simply found your
         // screen unlocked", which is more than either proof delivers — see submitPassword.
-        description="Changing it takes your current password and a short code we email you. Your other devices are signed out afterwards."
+        description={t('security.password.lede')}
       >
         {pwStage === 'idle' && (
           <Button size="sm" variant="outline" onClick={requestCode} disabled={pwBusy}>
-            {pwBusy ? 'Sending code…' : 'Change password'}
+            {pwBusy ? t('security.sendingCode') : t('security.changePassword')}
           </Button>
         )}
 
@@ -318,7 +318,7 @@ export function SignInSecuritySection({ visible, signInEmail }: {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="reauth-code">Code from your email</Label>
+              <Label htmlFor="reauth-code">{t('security.code')}</Label>
               <Input
                 id="reauth-code"
                 value={code}
@@ -331,7 +331,7 @@ export function SignInSecuritySection({ visible, signInEmail }: {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="current-password">Current password</Label>
+              <Label htmlFor="current-password">{t('security.currentPassword')}</Label>
               <Input
                 id="current-password"
                 type="password"
@@ -343,19 +343,19 @@ export function SignInSecuritySection({ visible, signInEmail }: {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="new-password">New password</Label>
+              <Label htmlFor="new-password">{t('security.newPassword')}</Label>
               <Input
                 id="new-password"
                 type="password"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 autoComplete="new-password"
-                placeholder="Min. 8 characters"
+                placeholder={t('security.ph.minChars')}
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="new-password-confirm">Confirm new password</Label>
+              <Label htmlFor="new-password-confirm">{t('security.confirmPassword')}</Label>
               <Input
                 id="new-password-confirm"
                 type="password"
@@ -370,7 +370,7 @@ export function SignInSecuritySection({ visible, signInEmail }: {
 
             <div className="flex gap-2">
               <Button size="sm" type="submit" disabled={pwBusy}>
-                {pwBusy ? 'Saving…' : 'Save new password'}
+                {pwBusy ? t('action.saving') : t('security.savePassword')}
               </Button>
               <Button
                 size="sm"
@@ -399,10 +399,7 @@ export function SignInSecuritySection({ visible, signInEmail }: {
               opposite, which is the sentence somebody reads after changing their password
               because they think a relative is in their account.
             */}
-            <p>
-              Your password has been changed, and every other device signed in to this
-              account has been signed out. They will need the new password.
-            </p>
+            <p>{t('prof.passwordBeenChangedEvery')}</p>
           </div>
         )}
       </Panel>

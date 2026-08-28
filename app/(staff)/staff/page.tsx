@@ -6,6 +6,7 @@ import { getStaffMembershipCount } from '@/app/actions/staff/accounts'
 import { PageShell } from '@/components/layout/PageShell'
 import { APP_NAME } from '@/lib/brand'
 import { cn } from '@/lib/utils'
+import { callerI18n } from '@/lib/i18n/server'
 
 export const metadata = { title: 'Overview' }
 
@@ -34,6 +35,7 @@ export const metadata = { title: 'Overview' }
  * in. That is what makes it the first thing on the page rather than a column on a table.
  */
 export default async function StaffOverviewPage() {
+  const { t } = await callerI18n(null)
   await requireStaff()
 
   // Both gate themselves again, and both go through the service role on purpose — see
@@ -48,11 +50,7 @@ export default async function StaffOverviewPage() {
     <PageShell className="space-y-8">
       <div>
         <h1 className="mb-1 text-3xl font-bold">{APP_NAME} staff console</h1>
-        <p className="max-w-2xl text-muted-foreground">
-          Cross-family tools for answering a support ticket. Everything here reads every
-          family on the platform, not one — and the only thing it can change is putting a
-          removed family back.
-        </p>
+        <p className="max-w-2xl text-muted-foreground">{t('stf.crossFamilyToolsAnswering')}</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -97,7 +95,7 @@ export default async function StaffOverviewPage() {
       </div>
 
       <section className="rounded-xl border bg-card p-5 text-sm text-card-foreground">
-        <h2 className="mb-2 text-base font-semibold">Access to this console</h2>
+        <h2 className="mb-2 text-base font-semibold">{t('stf.accessConsole')}</h2>
         {/* THIS PARAGRAPH WAS FALSE FOR MOST OF 2026-08-19 and is worth a note, because the
             way it went wrong is the way this kind of copy always goes wrong. It read "there is
             no screen that grants it, deliberately" — an accurate statement of the old design,
@@ -105,20 +103,14 @@ export default async function StaffOverviewPage() {
             item that contradicted it. Prose describing an absence has no test: nothing fails
             when the absence ends. If the grant flow moves again, this is the sentence to
             change, and AGENTS.md's staff-console section is the other one. */}
-        <p className="text-muted-foreground">
-          Staff access is a row in <code className="rounded bg-muted px-1 py-0.5 text-xs">genorra_staff</code>.
+        <p className="text-muted-foreground">{t('stf.staffAccessRow')}<code className="rounded bg-muted px-1 py-0.5 text-xs">genorra_staff</code>.
           An <strong className="font-medium text-foreground">owner</strong> grants and revokes it
           from <strong className="font-medium text-foreground">Access</strong>, by email address, with
           a note saying why — support and engineer roles cannot open that screen or read the team.
           The very first owner is still seeded by hand with SQL, because a console that could
           bootstrap its own first account would need no account to do it.
         </p>
-        <p className="mt-2 text-muted-foreground">
-          Anybody without a row gets a 404 on every page here, which is why the console never
-          says &ldquo;not authorized&rdquo;. There is no family-facing permission for any of
-          this: staffness is orthogonal to the family permission model, so no family
-          administrator can see that these screens exist.
-        </p>
+        <p className="mt-2 text-muted-foreground">{t('stf.anybodyWithoutRowGets')}</p>
       </section>
     </PageShell>
   )

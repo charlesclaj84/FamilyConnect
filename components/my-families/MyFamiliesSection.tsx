@@ -14,6 +14,7 @@ import { CreateFamilyDialog } from '@/components/my-families/CreateFamilyDialog'
 import { InviteMemberDialog } from '@/components/invitations/InviteMemberDialog'
 import type { FamilyMembership } from '@/lib/auth/family'
 import { cn } from '@/lib/utils'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * Every family this account belongs to, which one is being viewed, and which one
@@ -33,6 +34,7 @@ import { cn } from '@/lib/utils'
  * into. The row is there to say "you asked, they have not answered", and nothing else.
  */
 export function MyFamiliesSection({ families }: { families: FamilyMembership[] }) {
+  const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
   const [error, setError] = useState('')
@@ -55,7 +57,7 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
       const result = await action()
       setPendingCode('')
       if (result.success) router.refresh()
-      else setError(result.message ?? 'Something went wrong.')
+      else setError(result.message ?? t('meet.wentWrong'))
     })
   }
 
@@ -63,14 +65,12 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
-          <Home className="h-4 w-4" /> My Families
+          <Home className="h-4 w-4" /> {t('fam.heading')}
         </CardTitle>
         <CardDescription>
           {multi
-            ? <>Your profile details are shared across every family you belong to. Choose which
-                one opens when you log in, or switch the family you&apos;re viewing now.</>
-            : <>The family this account belongs to. Your profile details are shared across every
-                family you join.</>}
+            ? <>{t('ui.profileDetailsSharedAcross')}</>
+            : <>{t('ui.familyAccountBelongsProfile')}</>}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
@@ -97,7 +97,7 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                   <span className="truncate">{family.familyName}</span>
                   {family.status === 'pending' && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-legacy px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-on-legacy">
-                      <Clock className="h-3 w-3" /> Pending
+                      <Clock className="h-3 w-3" /> {t('fam.pending')}
                     </span>
                   )}
                   {/* `--brand-withheld`, not `--destructive`: the family is switched off
@@ -106,37 +106,34 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                       itself, because that token has no `on-` partner by design. */}
                   {removed && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-withheld/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-withheld">
-                      <PowerOff className="h-3 w-3" /> Removed
+                      <PowerOff className="h-3 w-3" /> {t('fam.removed')}
                     </span>
                   )}
                   {family.status === 'rejected' && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      <Ban className="h-3 w-3" /> Declined
+                      <Ban className="h-3 w-3" /> {t('fam.declined')}
                     </span>
                   )}
                   {family.isActive && approved && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-primary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-brand-on-primary">
-                      <Eye className="h-3 w-3" /> Viewing
+                      <Eye className="h-3 w-3" /> {t('fam.viewing')}
                     </span>
                   )}
                   {family.isDefault && (
                     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                      <Star className="h-3 w-3" /> Default
+                      <Star className="h-3 w-3" /> {t('fam.default')}
                     </span>
                   )}
                 </p>
                 <p className="mt-0.5 text-xs text-muted-foreground">
-                  Family Code: <span className="font-mono">{family.familyCode}</span>
+                  {t('fam.familyCode')} <span className="font-mono">{family.familyCode}</span>
                 </p>
                 {/* SAID HERE AS WELL AS ON THE NOTICE SCREEN, because this page is the one
                     a multi-family account reaches without ever selecting the removed
                     family — the badge alone would leave "removed" meaning whatever they
                     guessed. Nothing is deleted is the half people do not assume. */}
                 {removed && (
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Switched off by an administrator. Nothing was deleted, and only GENORRA
-                    support can bring it back.
-                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">{t('ui.switchedOffAdministratorNothing')}</p>
                 )}
               </div>
 
@@ -166,7 +163,7 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
               {approved && !removed && (
                 <div className="flex shrink-0 items-center gap-2">
                   <InviteMemberDialog
-                    label="Invite Member"
+                    label={t('fam.inviteMember')}
                     className="px-2.5 py-1 text-xs"
                     familyCode={family.familyCode}
                     familyName={family.familyName}
@@ -186,11 +183,11 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                   type="button"
                   disabled={isPending || family.isDefault}
                   onClick={() => run(family.familyCode, {
-                    title: 'Change default family',
+                    title: t('fam.changeDefault'),
                     // The label is just "Default", which does not say default *what* —
                     // so the confirmation is where that gets spelled out.
                     description: `Open ${family.familyName} by default when you log in?`,
-                    confirmLabel: 'Make default',
+                    confirmLabel: t('fam.makeDefault'),
                   }, () => setDefaultFamily(family.familyCode))}
                   className={cn(
                     'flex items-center gap-1 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors disabled:opacity-60',
@@ -204,7 +201,7 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                       styling are what distinguish "is the default" from "make it the
                       default". busy cannot be true while isDefault, because the button
                       is disabled then. */}
-                  {busy ? 'Saving…' : 'Default'}
+                  {busy ? t('action.saving') : t('fam.default')}
                 </button>
               </div>
             </div>

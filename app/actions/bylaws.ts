@@ -7,6 +7,7 @@ import { requireMember } from '@/lib/auth/guard'
 import { can, canAny } from '@/lib/auth/permissions'
 import { embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { DOCUMENT_FORMATS, isAllowedUpload, uploadRejection } from '@/lib/upload-types'
+import { SEARCH_CONFIG } from '@/lib/search-config'
 
 /**
  * Bylaws — `/library/bylaws`. SCAFFOLDING.
@@ -133,7 +134,7 @@ export async function getBylaws(query?: string): Promise<Bylaw[]> {
 
   const search = (query ?? '').trim()
   if (search) {
-    q = q.textSearch('search_vector', search, { type: 'websearch', config: 'english' })
+    q = q.textSearch('search_vector', search, { type: 'websearch', config: SEARCH_CONFIG })
   }
 
   const { data, error } = await q.order('sort_order').order('created_at')
@@ -183,13 +184,14 @@ export async function getBylawDownloadUrl(
 ): Promise<{ success: boolean; url?: string; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   // `can`, not `canAny`: the same grant the page's `requireView` resolves. `library/bylaws`
   // has NO `permission_table_map` row (asserted by `20260822000018` §9f), so its SELECT policy
   // is family plus approval and there is no own-narrowing for a scope to express — but asking
   // for a wider grant here than the list is behind would refuse a member the screen admits,
   // which is the mismatch `getDocumentDownloadUrl` documents at length.
   if (!(await can(g.userId, 'library/bylaws', 'view'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   const supabase = await createClient()
@@ -197,13 +199,13 @@ export async function getBylawDownloadUrl(
     .from('bylaws').select('file_path').eq('id', id).eq('family_code', g.familyCode)
     .maybeSingle()
   const row = (data ?? null) as { file_path: string | null } | null
-  if (!row?.file_path) return { success: false, message: 'That bylaw has no file attached.' }
+  if (!row?.file_path) return { success: false, message: t('act.bylawNoFileAttached') }
 
   const signed = await supabase.storage
     .from('documents').createSignedUrl(row.file_path, 60, { download: true })
   if (signed.error || !signed.data?.signedUrl) {
     console.error(`[bylaws] signing failed for ${id}: ${signed.error?.message ?? 'no url'}`)
-    return { success: false, message: 'That file could not be opened. It may have been removed.' }
+    return { success: false, message: t('act.fileCouldNotOpenedMay') }
   }
   return { success: true, url: signed.data.signedUrl }
 }
@@ -229,8 +231,9 @@ export async function getBylawRights(): Promise<{ create: boolean; remove: boole
 export async function addBylaw(formData: FormData): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   if (!(await canAny(g.userId, 'library/bylaws', 'create'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   const title = (formData.get('title') as string | null)?.trim()
@@ -239,7 +242,7 @@ export async function addBylaw(formData: FormData): Promise<{ success: boolean; 
   const typedText = (formData.get('text') as string | null)?.trim() || null
   const file = formData.get('file') as File | null
 
-  if (!title) return { success: false, message: 'Give the article a title' }
+  if (!title) return { success: false, message: t('act.giveArticleTitle') }
 
   let filePath: string | null = null
   let mimeType: string | null = null
@@ -252,7 +255,7 @@ export async function addBylaw(formData: FormData): Promise<{ success: boolean; 
       return { success: false, message: uploadRejection(file.name, DOCUMENT_FORMATS) }
     }
     if (file.size > 25 * 1024 * 1024) {
-      return { success: false, message: 'The file must be under 25 MB.' }
+      return { success: false, message: t('act.fileMustUnder25Mb') }
     }
     const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
     // UNDER `<family>/bylaws/`, which keeps the storage policy's first-segment family check
@@ -294,15 +297,16 @@ export async function addBylaw(formData: FormData): Promise<{ success: boolean; 
 export async function deleteBylaw(id: string): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
   if (!(await canAny(g.userId, 'library/bylaws', 'delete'))) {
-    return { success: false, message: 'Not authorized' }
+    return { success: false, message: t('act.notAuthorized') }
   }
 
   const admin = createAdminClient()
   const { data } = await admin
     .from('bylaws').select('file_path').eq('id', id).eq('family_code', g.familyCode).maybeSingle()
   const row = (data ?? null) as { file_path: string | null } | null
-  if (!row) return { success: false, message: 'Not found' }
+  if (!row) return { success: false, message: t('act.notFound') }
 
   const { error } = await admin
     .from('bylaws').delete().eq('id', id).eq('family_code', g.familyCode)

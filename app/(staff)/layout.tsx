@@ -9,6 +9,8 @@ import { ConfirmProvider } from '@/components/ui/confirm'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import { StaffNav } from '@/components/staff/StaffNav'
 import { cn } from '@/lib/utils'
+import { callerI18n } from '@/lib/i18n/server'
+import { LocaleProvider } from '@/components/layout/LocaleProvider'
 
 /**
  * The GENORRA staff console — a separate application that happens to share a codebase.
@@ -76,6 +78,7 @@ export const metadata: Metadata = {
 }
 
 export default async function StaffLayout({ children }: { children: React.ReactNode }) {
+  const { t } = await callerI18n(null)
   // RESTORED 2026-08-19. This line read
   //
   //     const staff = { email: 'MUTATED', role: 'support' } as Awaited<ReturnType<typeof requireStaff>>
@@ -97,6 +100,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
   // position, so no unused-import lint fired on it. A mutation left in place looks like
   // ordinary code; the only defence is putting it back in the same session it was made.
   const staff = await requireStaff()
+  const { locale } = await callerI18n(staff.userId)
 
   return (
     // `ConfirmProvider` is mounted HERE because this group inherits none of the member
@@ -104,6 +108,11 @@ export default async function StaffLayout({ children }: { children: React.ReactN
     // — which the browser can suppress with "prevent this page from creating additional
     // dialogs". Restoring a family is the one action in this console and it must not be
     // one stray checkbox away from happening without a prompt.
+    // THE LANGUAGE. The console is GENORRA's own screen, and its readers are employees —
+    // but they read what they read, so it is translated like everything else. There is a
+    // caller here (`requireStaff` above), so this is the stored choice rather than the
+    // header.
+    <LocaleProvider locale={locale}>
     <ConfirmProvider>
       <div className="flex min-h-screen flex-col bg-background">
         {/* THE BAND IS THE POINT. The member product deliberately has no header band at
@@ -131,17 +140,13 @@ export default async function StaffLayout({ children }: { children: React.ReactN
                     the eye lands on, not a subtitle under it. */}
                 <p className="truncate text-sm font-semibold leading-tight">
                   <span className="gn-wordmark">{APP_NAME}</span>
-                  <span className="mx-1.5 opacity-50" aria-hidden="true">/</span>
-                  Staff Console
-                </p>
+                  <span className="mx-1.5 opacity-50" aria-hidden="true">/</span>{t('stf.staffConsole')}</p>
                 {/* THE STANDING NOTICE, on every screen rather than on the index. Every
                     figure in here is the whole platform: a count that would be one
                     family's anywhere else in this codebase is every family's here, and
                     somebody reading a number needs to know that at the moment they read
                     it, not once when they arrived. */}
-                <p className="truncate text-xs opacity-80">
-                  Reads across every family on the platform
-                </p>
+                <p className="truncate text-xs opacity-80">{t('stf.readsAcrossEveryFamily')}</p>
               </div>
             </div>
 
@@ -178,9 +183,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
               <Link
                 href="/dashboard"
                 className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium text-brand-on-hero/80 underline-offset-4 transition-colors hover:bg-brand-on-hero/10 hover:text-brand-on-hero hover:underline"
-              >
-                Back to the app
-              </Link>
+              >{t('stf.backApp')}</Link>
             </div>
           </div>
         </header>
@@ -188,5 +191,6 @@ export default async function StaffLayout({ children }: { children: React.ReactN
         <main className="flex-1">{children}</main>
       </div>
     </ConfirmProvider>
+    </LocaleProvider>
   )
 }

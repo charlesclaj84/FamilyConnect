@@ -13,6 +13,8 @@ import { formatDate } from '@/lib/date-utils'
 import { normalizePersonSearch } from '@/lib/person-search'
 import { cn } from '@/lib/utils'
 import type { GatheringTaskRow } from '@/app/actions/gatherings'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * Every job on a gathering, grouped by the template it came from.
@@ -147,6 +149,7 @@ interface Props {
 }
 
 export function GatheringDetailClient({ tasks, taskCounts, showTaskBudgets, segments }: Props) {
+  const t = useT()
   const [status, setStatus] = useState<StatusFilter>('all')
   const [query, setQuery] = useState('')
 
@@ -162,7 +165,7 @@ export function GatheringDetailClient({ tasks, taskCounts, showTaskBudgets, segm
     })
   }, [tasks, status, query])
 
-  const groups = useMemo(() => groupByTemplate(filtered), [filtered])
+  const groups = useMemo(() => groupByTemplate(filtered, t), [filtered, t])
 
   /**
    * Segment by template NAME, because that is what a group is keyed by — see the header.
@@ -189,10 +192,10 @@ export function GatheringDetailClient({ tasks, taskCounts, showTaskBudgets, segm
     <section className="space-y-3">
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <div>
-          <h2 className="text-lg">Tasks</h2>
+          <h2 className="text-lg">{t('gath.tasks')}</h2>
           <p className="mt-0.5 text-xs text-muted-foreground">
             {taskCounts.total === 0
-              ? 'Nothing has been added to this gathering yet.'
+              ? t('gath.nothingAdded')
               : summary}
           </p>
         </div>
@@ -200,24 +203,24 @@ export function GatheringDetailClient({ tasks, taskCounts, showTaskBudgets, segm
         {tasks.length > FILTER_THRESHOLD && (
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-0 space-y-1.5">
-              <Label htmlFor="task-search">Find a task</Label>
+              <Label htmlFor="task-search">{t('gath.findTask')}</Label>
               <Input
                 id="task-search"
                 value={query}
-                placeholder="Job or name"
+                placeholder={t('gath.findTaskPh')}
                 className="sm:w-48"
                 onChange={e => setQuery(e.target.value)}
               />
             </div>
             <div className="min-w-0 space-y-1.5">
-              <Label htmlFor="task-status">Showing</Label>
+              <Label htmlFor="task-status">{t('gath.showing')}</Label>
               <Select
                 id="task-status"
                 className="sm:w-44"
                 value={status}
                 onChange={e => setStatus(e.target.value as StatusFilter)}
               >
-                <option value="all">Every task</option>
+                <option value="all">{t('gath.everyTask')}</option>
                 {GATHERING_TASK_STATUSES.map(s => (
                   <option key={s} value={s}>{GATHERING_TASK_STATUS_LABEL[s]}</option>
                 ))}
@@ -228,10 +231,7 @@ export function GatheringDetailClient({ tasks, taskCounts, showTaskBudgets, segm
       </div>
 
       {taskCounts.total === 0 ? (
-        <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-          No tasks yet. A gathering&rsquo;s tasks come from the templates it was built from, so an
-          organizer adding a template here adds its jobs to this list.
-        </p>
+        <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">{t('gath.noTasksYetGathering')}</p>
       ) : groups.length === 0 ? (
         /* NEVER A SILENTLY SHORT LIST. The filter is the only thing that can empty a table that
            has rows, and saying so is what stops somebody concluding a task was deleted. */
@@ -270,6 +270,8 @@ function TaskGroup({ heading, occursOn, location, tasks, showTaskBudgets }: {
   tasks: GatheringTaskRow[]
   showTaskBudgets: boolean
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   /*
    * WHEN AND WHERE, as one line, assembled as a list so the interpunct lands between whatever is
    * actually there rather than around a value that turned out to be absent — the same shape
@@ -280,7 +282,7 @@ function TaskGroup({ heading, occursOn, location, tasks, showTaskBudgets }: {
    * above: at `text-xs` a pair of 14px glyphs is noise, and this line sits directly under the
    * name it belongs to rather than in a row of unrelated facts.
    */
-  const when = formatDate(occursOn)
+  const when = formatDate(occursOn, intl)
   const meta = [when, location].filter(Boolean).join(' · ')
 
   return (
@@ -298,14 +300,14 @@ function TaskGroup({ heading, occursOn, location, tasks, showTaskBudgets }: {
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <th scope="col" className="px-3 py-2 font-semibold">Task</th>
-              <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Assigned to</th>
-              <th scope="col" className="px-3 py-2 font-semibold">Status</th>
-              <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Due</th>
+              <th scope="col" className="px-3 py-2 font-semibold">{t('gath.task')}</th>
+              <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('gath.assignedTo')}</th>
+              <th scope="col" className="px-3 py-2 font-semibold">{t('money.status')}</th>
+              <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('gath.due')}</th>
               {showTaskBudgets && (
-                <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Budget</th>
+                <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('budget.heading')}</th>
               )}
-              <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Answer</th>
+              <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('gath.answer')}</th>
             </tr>
           </thead>
           <tbody>
@@ -320,22 +322,24 @@ function TaskGroup({ heading, occursOn, location, tasks, showTaskBudgets }: {
 }
 
 function TaskRow({ task, showTaskBudgets }: { task: GatheringTaskRow; showTaskBudgets: boolean }) {
+  const intl = useIntlTag()
+  const t = useT()
   // `isCompleteAnswer` is `parseAnswer(...) !== null` — it answers "is this an answer", NOT "was
   // the step required", and a blank is not an answer. Asking it here rather than testing
   // `task.answer != null` is what stops a `{}` written by some future path rendering as an
   // answered task with nothing in it.
   const answered = task.answer != null && isCompleteAnswer(task.kind, task.answer)
-  const due = formatDate(task.dueOn)
+  const due = formatDate(task.dueOn, intl)
   const answerNode = answered ? <AnswerText kind={task.kind} answer={task.answer} /> : null
 
   // The meta line, built as a list so the interpuncts land between whatever is actually there
   // rather than around a value that turned out to be absent.
   const meta: React.ReactNode[] = []
   if (task.assignee?.name) meta.push(<span key="who">{task.assignee.name}</span>)
-  else meta.push(<span key="who">Nobody yet</span>)
+  else meta.push(<span key="who">{t('gath.nobodyYet')}</span>)
   if (due) meta.push(<span key="due">Due {due}</span>)
   if (showTaskBudgets && task.budgetCents != null) {
-    meta.push(<span key="budget" className="tabular-nums">{formatCurrency(task.budgetCents)}</span>)
+    meta.push(<span key="budget" className="tabular-nums">{formatCurrency(task.budgetCents, intl)}</span>)
   }
   // LABELLED, because the heading that named it has folded away. A bare sentence under a task
   // label reads as part of the label.
@@ -368,7 +372,7 @@ function TaskRow({ task, showTaskBudgets }: { task: GatheringTaskRow; showTaskBu
       </td>
 
       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>
-        {task.assignee?.name ?? <span className="text-muted-foreground">Nobody yet</span>}
+        {task.assignee?.name ?? <span className="text-muted-foreground">{t('gath.nobodyYet')}</span>}
       </td>
 
       <td className="px-3 py-2.5">
@@ -381,7 +385,7 @@ function TaskRow({ task, showTaskBudgets }: { task: GatheringTaskRow; showTaskBu
 
       {showTaskBudgets && (
         <td className={cn('px-3 py-2.5 text-right tabular-nums text-muted-foreground', COLLAPSING_CELL)}>
-          {task.budgetCents != null ? formatCurrency(task.budgetCents) : '—'}
+          {task.budgetCents != null ? formatCurrency(task.budgetCents, intl) : '—'}
         </td>
       )}
 
@@ -400,7 +404,11 @@ function TaskRow({ task, showTaskBudgets }: { task: GatheringTaskRow; showTaskBu
  * forced to the END rather than left wherever its first row happened to sit — a group headed
  * "Not from a template" in the middle of two named ones reads as a mistake.
  */
-function groupByTemplate(tasks: GatheringTaskRow[]): { key: string; name: string; tasks: GatheringTaskRow[] }[] {
+// TAKES `t`: a plain helper, not a component, so it cannot read a hook.
+function groupByTemplate(
+  tasks: GatheringTaskRow[],
+  t: T,
+): { key: string; name: string; tasks: GatheringTaskRow[] }[] {
   const byName = new Map<string, GatheringTaskRow[]>()
   const orphans: GatheringTaskRow[] = []
 
@@ -425,7 +433,7 @@ function groupByTemplate(tasks: GatheringTaskRow[]): { key: string; name: string
     // with `git grep` returning nothing), so a file grep skips is a file every future sweep
     // declares clean. Neither Node nor SWC objects to the byte, which is why nothing catches
     // it. `npm run lint` on this file is not evidence; `file` reporting UTF-8 text is.
-    groups.push({ key: '\u0000orphans', name: 'Not from a template', tasks: orphans })
+    groups.push({ key: '\u0000orphans', name: t('gath.notFromTemplate'), tasks: orphans })
   }
   return groups
 }

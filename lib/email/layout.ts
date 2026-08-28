@@ -22,7 +22,8 @@
  * public HTTP endpoint, and "internal helper" is a comment rather than a boundary.
  */
 
-import { APP_NAME, APP_LEAD, APP_TAGLINE, APP_VALUES } from '@/lib/brand'
+import { APP_NAME, APP_TAGLINE } from '@/lib/brand'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * HTML-escape an interpolated value.
@@ -66,6 +67,27 @@ export interface EmailButton {
 }
 
 export interface EmailOptions {
+  /**
+   * The RECIPIENT's language, bound — for the CHROME this file renders, not for the copy the
+   * caller passes in.
+   *
+   * ── THREE STRINGS WERE ENGLISH FOR EVERY READER UNTIL 2026-08-27 ─────────────────
+   * Every caller in `templates.ts` already composed its own paragraphs from the email
+   * catalogue, so the six member-facing emails read correctly — and then rendered "If the
+   * button does not work, paste this into your browser:" underneath in English, plus the
+   * brand lead line and the three values in the footer. It was invisible to
+   * `npm run i18n:literals` because that gate deliberately does not sweep `lib/`, where the
+   * catalogues live and their English IS the source.
+   *
+   * ── `APP_TAGLINE` IS NOT ON THAT LIST, AND MUST NOT JOIN IT ─────────────────────
+   * "Generations Embracing Nurturing Our Roots, Relationships & Ancestry" is what the letters
+   * of the name STAND FOR. Translating it breaks the acronym — the initials would no longer
+   * spell GENORRA — so it is a proper noun in the same sense the product name is, and
+   * `lib/brand.ts` stays its one home. `APP_LEAD` and `APP_VALUES` ARE copy and are keyed,
+   * which is the line `/about` already drew: *a brand constant is a finished English sentence,
+   * and a translator needs the finished sentence rather than a constant to interpolate.*
+   */
+  t: T
   /** The line the inbox shows beside the subject. Extends the subject, never repeats it. */
   preheader: string
   heading: string
@@ -89,7 +111,8 @@ export interface EmailOptions {
  * add it there.
  */
 function renderEmail(o: EmailOptions): string {
-  const values = APP_VALUES.map(v => `<span style="color:#6d5a53;">${esc(v)}</span>`)
+  const values = o.t('email.chrome.values').split('|')
+    .map(v => `<span style="color:#6d5a53;">${esc(v.trim())}</span>`)
     .join('<span style="color:#d6a24a;">&nbsp;&bull;&nbsp;</span>')
 
   const button = o.button ? `
@@ -106,8 +129,8 @@ function renderEmail(o: EmailOptions): string {
               <tr>
                 <td class="gn-btn" align="center" bgcolor="#6b2d3a" style="background-color:#6b2d3a; border-radius:8px;">
                   <a href="${o.button.href}"
-                     style="display:inline-block; padding:15px 38px; font-family:${SANS}; font-size:16px; font-weight:600; line-height:20px; color:#e5d9c6; text-decoration:none; border-radius:8px;">
-                    ${esc(o.button.label)}
+                     style="display:inline-block; padding:15px 38px; font-family:${SANS}; font-size:16px; font-weight:600; line-height:20px; color:#e5d9c6 !important; text-decoration:none; border-radius:8px;">
+                    <span style="color:#e5d9c6 !important;">${esc(o.button.label)}</span>
                   </a>
                 </td>
               </tr>
@@ -127,7 +150,7 @@ function renderEmail(o: EmailOptions): string {
         <tr>
           <td class="gn-pad" style="padding:26px 44px 0 44px;">
             <div class="gn-muted" style="font-family:${SANS}; font-size:13px; line-height:20px; color:#6d5a53; padding-bottom:8px;">
-              If the button does not work, paste this into your browser:
+              ${esc(o.t('email.chrome.fallback'))}
             </div>
             <div class="gn-code gn-muted" style="font-family:${MONO}; font-size:12px; line-height:19px; color:#6d5a53; background-color:#f2ece3; border:1px solid #e7dccf; border-radius:8px; padding:12px 14px; word-break:break-all;">
               ${o.fallbackUrl}
@@ -146,6 +169,16 @@ function renderEmail(o: EmailOptions): string {
 <title>${esc(o.heading)}</title>
 <style>
   /* Enhancement only — see supabase/templates/README.md. Inline styles carry the design. */
+  /*
+     THE CSS PROPERTY, NOT JUST THE META TAGS. Both meta tags were here and the property was
+     not, and the property is the half that matters: iOS Mail and Outlook read it to decide
+     whether to apply their OWN dark-mode inversion on top of the design. Without it they
+     darken the sand button label until it vanishes into the burgundy behind it. No @media
+     rule can fix that, because the client inverts AFTER ours have applied.
+  */
+  :root { color-scheme: light dark; supported-color-schemes: light dark; }
+  body  { color-scheme: light dark; supported-color-schemes: light dark; }
+
   @media (prefers-color-scheme: dark) {
     .gn-page  { background-color: #1e1216 !important; }
     .gn-card  { background-color: #26191e !important; border-color: #402931 !important; }
@@ -154,9 +187,30 @@ function renderEmail(o: EmailOptions): string {
     .gn-muted { color: #b9afa4 !important; }
     .gn-rule  { border-color: #402931 !important; }
     .gn-btn   { background-color: #7d474f !important; }
-    .gn-btn a { color: #faf7f2 !important; }
+    /* NOT the label. Sand is pinned INLINE with an important flag on both the anchor and the
+       span inside it, so no client rewrite can reach it — and an inline important beats a
+       stylesheet one, so a rule here would be dead. It does not need one: sand is 7.37:1 on
+       the light band and 5.27:1 on this one, so one colour is correct in both themes and
+       there is nothing to swap. */
     .gn-code  { background-color: #1e1216 !important; border-color: #402931 !important; color: #b9afa4 !important; }
   }
+
+  /*
+     OUTLOOK.COM REWRITES COLOURS AND IGNORES prefers-color-scheme. It stamps data-ogsc
+     (original get style color) and data-ogsb (background) on whatever it has rewritten, and
+     those attributes are the only hook for putting a colour back. In any client that never
+     sets them these select nothing.
+  */
+  [data-ogsc] .gn-page  { background-color: #1e1216 !important; }
+  [data-ogsc] .gn-card  { background-color: #26191e !important; border-color: #402931 !important; }
+  [data-ogsc] .gn-h1    { color: #e5d9c6 !important; }
+  [data-ogsc] .gn-text  { color: #e5d9c6 !important; }
+  [data-ogsc] .gn-muted { color: #b9afa4 !important; }
+  [data-ogsc] .gn-rule  { border-color: #402931 !important; }
+  [data-ogsc] .gn-btn   { background-color: #7d474f !important; }
+  [data-ogsc] .gn-code  { background-color: #1e1216 !important; border-color: #402931 !important; color: #b9afa4 !important; }
+  [data-ogsb] .gn-band  { background-color: #6b2d3a !important; }
+
   @media only screen and (max-width: 620px) {
     .gn-pad  { padding-left: 24px !important; padding-right: 24px !important; }
     .gn-btn  { width: 100% !important; }
@@ -178,14 +232,14 @@ function renderEmail(o: EmailOptions): string {
       <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" class="gn-card" style="width:600px; max-width:600px; background-color:#faf7f2; border:1px solid #e7dccf; border-radius:14px; overflow:hidden;">
 
         <tr>
-          <td align="center" bgcolor="#6b2d3a" style="background-color:#6b2d3a; padding:28px 24px 22px 24px;">
-            <img src="${ASSET_ORIGIN_PLACEHOLDER}/identity/genorra-mail-mark-256.png" width="64" height="64" alt="" border="0" style="display:block; width:64px; height:64px; border:0; outline:none; text-decoration:none;">
+          <td align="center" bgcolor="#6b2d3a" class="gn-band" style="background-color:#6b2d3a; padding:28px 24px 22px 24px;">
+            <img src="${ASSET_ORIGIN_PLACEHOLDER}/identity/genorra-app-256.png" width="64" height="64" alt="" border="0" style="display:block; width:64px; height:64px; border:0; outline:none; text-decoration:none; border-radius:14px;">
             <div style="height:12px; line-height:12px; font-size:12px;">&nbsp;</div>
             <div style="font-family:${SERIF}; font-size:26px; line-height:30px; letter-spacing:0.22em; color:#e5d9c6; text-transform:uppercase; mso-line-height-rule:exactly;">
               ${esc(APP_NAME)}
             </div>
             <div style="font-family:${SANS}; font-size:12px; line-height:18px; color:#e5d9c6; padding-top:6px;">
-              ${esc(APP_LEAD)}
+              ${esc(o.t('email.chrome.lead'))}
             </div>
           </td>
         </tr>

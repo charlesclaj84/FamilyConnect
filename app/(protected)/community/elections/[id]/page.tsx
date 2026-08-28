@@ -1,7 +1,6 @@
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronLeft, MapPin, Trophy } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { getMyPersonId } from '@/lib/auth/family'
 import { requireView } from '@/lib/auth/permissions'
 import {
@@ -14,6 +13,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ELECTION_PHASE_PILL, ELECTION_WINDOW } from '@/components/elections/status'
 import { ELECTION_PHASE_LABEL } from '@/lib/election-phase'
 import { PageShell } from '@/components/layout/PageShell'
+import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 export const metadata = { title: 'Election' }
 
@@ -37,8 +38,8 @@ export const metadata = { title: 'Election' }
  */
 export default async function ElectionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
+  const { t } = await callerI18n(user?.id ?? null)
   if (!user) redirect('/login')
 
   await requireView(user.id, 'community/elections')
@@ -63,8 +64,7 @@ export default async function ElectionDetailPage({ params }: { params: Promise<{
     <PageShell width="reading" className="space-y-8">
       <div>
         <Link href="/community/elections" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-4">
-          <ChevronLeft className="h-3.5 w-3.5" /> Back to Elections
-        </Link>
+          <ChevronLeft className="h-3.5 w-3.5" />{t('comm.backElections')}</Link>
         <div className="flex items-start justify-between gap-4">
           <h1 className="text-3xl font-bold">{election.title}</h1>
           <span className={`text-xs px-2.5 py-1 rounded-full shrink-0 ${ELECTION_PHASE_PILL[election.phase]}`}>
@@ -127,7 +127,7 @@ export default async function ElectionDetailPage({ params }: { params: Promise<{
                 </CardHeader>
                 <CardContent>
                   {posResults.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No votes cast.</p>
+                    <p className="text-sm text-muted-foreground">{t('comm.noVotesCast')}</p>
                   ) : (
                     <ul className="space-y-2">
                       {posResults.slice(0, pos.max_winners).map((r, i) => (

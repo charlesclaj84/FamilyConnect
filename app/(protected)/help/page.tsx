@@ -1,13 +1,15 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { ChevronRight } from 'lucide-react'
-import { createClient } from '@/lib/supabase/server'
 import { requireViewOrPending } from '@/lib/auth/permissions'
 import { resolveHelpAvailability } from '@/lib/help/availability'
 import { HELP_PARTS } from '@/lib/help/content'
+import { localizePart } from '@/lib/help/keys'
+import { helpT } from '@/lib/help/strings'
 import { HelpAvailabilityBadge } from '@/components/help/HelpAvailabilityBadge'
 import { PageShell } from '@/components/layout/PageShell'
-import { APP_NAME } from '@/lib/brand'
+import { callerI18n } from '@/lib/i18n/server'
+import { currentUser } from '@/lib/auth/current-user'
 
 export const metadata = { title: 'Help' }
 
@@ -42,11 +44,15 @@ export const metadata = { title: 'Help' }
  * access is one decision away.
  */
 export default async function HelpIndexPage() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const { user } = await currentUser()
   if (!user) redirect('/login')
+  const { t } = await callerI18n(user.id)
 
   const gate = await requireViewOrPending(user.id, 'help')
+
+  const { locale } = await callerI18n(user.id)
+
+  const help = helpT(locale)
 
   const availability = gate.pending ? null : await resolveHelpAvailability(user.id)
 
@@ -57,11 +63,7 @@ export default async function HelpIndexPage() {
           FamilySettingsClient capping its name box: a constraint on one element belongs on
           that element, and the page keeps the measure its neighbours have. */}
       <div className="max-w-3xl">
-        <h1 className="mb-2 text-3xl font-bold">Help</h1>
-        <p className="text-muted-foreground">
-          How every screen in {APP_NAME} works — what it is for, what each control does, and
-          what to do when something is not where you expected it.
-        </p>
+        <h1 className="text-3xl font-bold">{t('page./help.title')}</h1>
       </div>
 
       {gate.pending && (
@@ -70,14 +72,18 @@ export default async function HelpIndexPage() {
             Your membership of{' '}
             <span className="font-medium">{gate.membership.familyName}</span>{' '}
             has not been decided yet, so most of the product is not open to you.{' '}
-            <Link href="/help/joining-a-family">Creating or joining a family</Link>{' '}
+            <Link href="/help/joining-a-family">{t('hlp.creatingJoiningFamily')}</Link>{' '}
             is the chapter that explains what happens next. Everything else is here to read
             in the meantime.
           </p>
         </div>
       )}
 
-      {HELP_PARTS.map(part => (
+      {/* LOCALIZED ONCE, HERE. `localizePart` returns the same shape, so everything below
+          renders unchanged and a key with no translation falls back to the English —
+          which is what lets a partly translated manual read as prose rather than as key
+          names. See lib/help/keys.ts. */}
+      {HELP_PARTS.map(part => localizePart(part, help)).map(part => (
         <section key={part.id} aria-labelledby={`part-${part.id}`} className="space-y-4">
           <div>
             <h2 id={`part-${part.id}`} className="text-2xl">{part.title}</h2>

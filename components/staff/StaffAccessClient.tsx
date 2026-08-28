@@ -19,11 +19,13 @@ import {
   grantStaffAccess, revokeStaffAccess, setStaffRole,
   type StaffTeamRow,
 } from '@/app/actions/staff/access'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * The staff team, and the three things an owner can do to it.
  *
- * ── THE TWO IMPOSSIBLE ACTIONS ARE DISABLED WITH THEIR REASON, NOT MERELY REFUSED ──
+ * ── THE TWO IMPOSSIBLE ACTIONS ARE DISABLED WITH THEIR REASON, NOT MERELY refused(t) ──
  * This is the whole reason this screen is more than a table with two controls on it.
  * `app/actions/staff/access.ts` enforces both rules — nobody changes or revokes their own
  * row (rule 4), and the last owner cannot be demoted or revoked (rule 5) — and an action
@@ -86,10 +88,12 @@ import {
 /** In escalation order, so the most powerful option is the last one in the list. */
 const ROLES: readonly StaffRole[] = ['support', 'engineer', 'owner']
 
-const ROLE_LABEL: Record<StaffRole, string> = {
-  support: 'Support',
-  engineer: 'Engineer',
-  owner: 'Owner',
+function roleLabel(t: T): Record<StaffRole, string> {
+  return {
+    support: t('staff.support'),
+    engineer: t('staff.engineer'),
+    owner: t('staff.owner'),
+  }
 }
 
 /**
@@ -102,17 +106,14 @@ const ROLE_LABEL: Record<StaffRole, string> = {
  * `20260808000000` spent a whole migration removing from `permission_resources.actions`.
  * So it says so instead.
  */
-const ROLE_HINT: Record<StaffRole, string> = {
-  support:
-    'Can open the console and read every family and every account on the platform, and can '
-    + 'restore a removed family. Cannot see or change who has access.',
-  engineer:
-    'Exactly the same access as Support today — nothing in the console tells the two apart. '
-    + 'It is a label for your own records, not a level.',
-  owner:
-    'Everything above, plus this screen: they can grant staff access, change what kind '
-    + 'anybody has, and take it away — including yours.',
+function roleHint(t: T): Record<StaffRole, string> {
+  return {
+    support: t('staff.hint.support'),
+    engineer: t('staff.hint.engineer'),
+    owner: t('staff.hint.owner'),
+  }
 }
+
 
 /**
  * The sentence used when an action refuses with no message of its own.
@@ -123,7 +124,8 @@ const ROLE_HINT: Record<StaffRole, string> = {
  * sentence is what the screen shows: none of them is restated here, so the screen and the
  * server cannot come to describe the same rule in two different ways.
  */
-const REFUSED = 'That did not go through. Try again.'
+// A FUNCTION now, for the same reason every other module-scope caption became one.
+const refused = (t: T) => t('staff.grantFailed')
 
 /** How a row is named in a sentence, a confirmation and a label. */
 function nameOf(row: StaffTeamRow): string {
@@ -131,6 +133,7 @@ function nameOf(row: StaffTeamRow): string {
 }
 
 export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
+  const t = useT()
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
 
@@ -175,7 +178,7 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
         note: note.trim(),
       })
       if (!result.success) {
-        setGrantError(result.message ?? REFUSED)
+        setGrantError(result.message ?? refused(t))
         return
       }
       // Cleared only on success. A refused grant keeps every field, because the thing most
@@ -190,18 +193,14 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
   return (
     <div className="space-y-8">
       <section className="space-y-3">
-        <h2 className="text-lg">Who has access</h2>
+        <h2 className="text-lg">{t('staff.whoHasAccess')}</h2>
 
         {/* Beside the controls that cause it. Renders nothing for an empty message, which
             is why there is no `{rowError && …}` guard. */}
         <FormError message={rowError} />
 
         {team.length === 0 ? (
-          <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
-            The staff list could not be read. That is a refused query rather than an empty
-            team — you are on it, or this page would have answered 404 rather than rendering.
-            Try again in a moment, and check the server log for the reason.
-          </p>
+          <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">{t('stf.staffListCouldNot')}</p>
         ) : (
           /*
            * A real <table> with real `<th scope="col">`, so a cell is announced with the
@@ -226,14 +225,14 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-semibold">Account</th>
-                  <th scope="col" className="px-3 py-2 font-semibold">Access</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Why</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Granted</th>
+                  <th scope="col" className="px-3 py-2 font-semibold">{t('staff.account')}</th>
+                  <th scope="col" className="px-3 py-2 font-semibold">{t('staff.access')}</th>
+                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.why')}</th>
+                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.granted')}</th>
                   {/* A column with no caption to give still owes one — without it a screen
                       reader announces the revoke button under whatever heading came last. */}
                   <th scope="col" className="px-3 py-2 font-semibold">
-                    <span className="sr-only">Actions</span>
+                    <span className="sr-only">{t('money.actions')}</span>
                   </th>
                 </tr>
               </thead>
@@ -254,13 +253,8 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
 
       <section className="space-y-3 rounded-xl border bg-card p-5">
         <div>
-          <h2 className="text-lg">Grant access</h2>
-          <p className="text-sm text-muted-foreground">
-            The address has to belong to an account that already exists. Somebody who has
-            never registered cannot be granted anything, and this screen will say so rather
-            than write a row for an id — which is why it asks for an address and not for a
-            user id.
-          </p>
+          <h2 className="text-lg">{t('staff.grantAccess')}</h2>
+          <p className="text-sm text-muted-foreground">{t('stf.addressBelongAccountAlready')}</p>
         </div>
 
         {/* A real form, so Enter in the address field submits and Enter in the reason box
@@ -269,20 +263,20 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
         <form className="space-y-3" onSubmit={e => { e.preventDefault(); handleGrant() }}>
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-0 flex-1 space-y-1.5 sm:max-w-xs">
-              <Label htmlFor="grant-email" required>Email address</Label>
+              <Label htmlFor="grant-email" required>{t('field.emailAddress')}</Label>
               <Input
                 id="grant-email"
                 type="email"
                 // Nothing about this screen belongs in a browser's saved-address list, and
                 // an autofilled colleague from an unrelated form is a grant nobody meant.
                 autoComplete="off"
-                placeholder="name@example.com"
+                placeholder={t('staff.emailPh')}
                 value={email}
                 onChange={e => { setEmail(e.target.value); setGrantError('') }}
               />
             </div>
             <div className="min-w-0 space-y-1.5 sm:w-48">
-              <Label htmlFor="grant-role" required>Kind of access</Label>
+              <Label htmlFor="grant-role" required>{t('staff.kindOfAccess')}</Label>
               <Select
                 id="grant-role"
                 value={role}
@@ -294,9 +288,9 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
                     alone without noticing, on the one screen where the value decides
                     whether the newcomer can grant access to anybody else. So the form
                     starts with an answer the action refuses, and the owner has to say. */}
-                <option value="">Choose…</option>
+                <option value="">{t('staff.choose')}</option>
                 {ROLES.map(r => (
-                  <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+                  <option key={r} value={r}>{roleLabel(t)[r]}</option>
                 ))}
               </Select>
             </div>
@@ -306,17 +300,17 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
               guess. Only once something is chosen: a hint under a placeholder would be
               describing whichever option happened to be first. */}
           {role ? (
-            <p className="text-xs text-muted-foreground">{ROLE_HINT[role]}</p>
+            <p className="text-xs text-muted-foreground">{roleHint(t)[role]}</p>
           ) : null}
 
           <div className="space-y-1.5">
-            <Label htmlFor="grant-note" required>Why they need it</Label>
+            <Label htmlFor="grant-note" required>{t('staff.whyNeeded')}</Label>
             <Textarea
               id="grant-note"
               rows={2}
               autoGrow
               maxRows={4}
-              placeholder="e.g. On the support rotation from August. Escalations for billing tickets."
+              placeholder={t('staff.whyPh')}
               value={note}
               onChange={e => { setNote(e.target.value); setGrantError('') }}
             />
@@ -324,11 +318,7 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
                 action (`NOTE_MAX`) and is not exported; a `500` typed in here would be a
                 second answer that drifts the first time the cap moves, and the refusal
                 already names the number. */}
-            <p className="text-xs text-muted-foreground">
-              Recorded on the row and shown in the list above. It is the only thing that
-              will explain this grant to whoever reads the list in a year, which is why it
-              is required.
-            </p>
+            <p className="text-xs text-muted-foreground">{t('stf.recordedRowShownList')}</p>
           </div>
 
           {/* NOT `affirm`. That token is the create/record/pay role and it is right for a
@@ -346,7 +336,7 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
               disabled={isPending || !email.trim() || !role || !note.trim()}
             >
               <UserPlus className="h-4 w-4" aria-hidden="true" />
-              {isPending ? 'Granting…' : 'Grant access'}
+              {isPending ? t('staff.granting') : t('staff.grantAccess')}
             </Button>
           </div>
 
@@ -381,6 +371,8 @@ function TeamRow({ row, ownerTotal, onError }: {
   ownerTotal: number
   onError: (message: string) => void
 }) {
+  const intl = useIntlTag()
+  const t = useT()
   const confirm = useConfirm()
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -395,9 +387,9 @@ function TeamRow({ row, ownerTotal, onError }: {
    */
   const lock =
     row.isSelf
-      ? 'Your own access. Another owner has to change it — that is what stops one click locking the console.'
+      ? t('staff.ownAccess')
       : row.role === 'owner' && ownerTotal <= 1
-        ? 'The last owner. Make somebody else an owner first, or nobody will be able to grant staff access.'
+        ? t('staff.lastOwner')
         : null
 
   const frozen = isPending || lock !== null
@@ -438,7 +430,7 @@ function TeamRow({ row, ownerTotal, onError }: {
           : `${label} keeps the console and everything it reads, and loses this screen: they `
             + `will not be able to grant staff access to anybody. That leaves `
             + `${remaining} owner${remaining === 1 ? '' : 's'}.`,
-        confirmLabel: next === 'owner' ? 'Make owner' : `Change to ${ROLE_LABEL[next]}`,
+        confirmLabel: next === 'owner' ? t('staff.makeOwner') : `Change to ${roleLabel(t)[next]}`,
       })
       if (!ok) {
         setRole(row.role)
@@ -450,7 +442,7 @@ function TeamRow({ row, ownerTotal, onError }: {
       const result = await setStaffRole({ userId: row.userId, role: next })
       if (!result.success) {
         setRole(row.role)
-        onError(result.message ?? REFUSED)
+        onError(result.message ?? refused(t))
         return
       }
       router.refresh()
@@ -470,7 +462,7 @@ function TeamRow({ row, ownerTotal, onError }: {
         + 'or their family memberships changes. The reason recorded for this grant goes with '
         + 'the row and is not kept anywhere, so if they need access again it is a new grant '
         + 'with a new reason.',
-      confirmLabel: 'Remove access',
+      confirmLabel: t('staff.removeAccess'),
       destructive: true,
     })
     if (!ok) return
@@ -478,14 +470,14 @@ function TeamRow({ row, ownerTotal, onError }: {
     startTransition(async () => {
       const result = await revokeStaffAccess({ userId: row.userId })
       if (!result.success) {
-        onError(result.message ?? REFUSED)
+        onError(result.message ?? refused(t))
         return
       }
       router.refresh()
     })
   }
 
-  const grantedOn = formatDate(row.grantedAt) ?? '—'
+  const grantedOn = formatDate(row.grantedAt, intl) ?? '—'
   // NULL IS THREE FACTS AND THE SCREEN MUST NOT PICK ONE — nobody was recorded, the
   // granter's account is gone (`granted_by` is deliberately not a foreign key, so the uuid
   // dangles rather than erasing the trail), or the lookup failed. The action's own comment
@@ -506,13 +498,13 @@ function TeamRow({ row, ownerTotal, onError }: {
           )}
           {row.isSelf && (
             <span className="shrink-0 rounded-full bg-brand-soft px-1.5 py-0.5 text-[11px] font-medium text-brand-on-soft">
-              You
+              {t('staff.you')}
             </span>
           )}
         </span>
         {!row.email && (
           <p className="mt-1 text-xs text-muted-foreground">
-            Address not known from here.
+            {t('staff.addressUnknown')}
           </p>
         )}
         {lock && (
@@ -544,7 +536,7 @@ function TeamRow({ row, ownerTotal, onError }: {
           onChange={e => { void handleRole(e.target.value as StaffRole) }}
         >
           {ROLES.map(r => (
-            <option key={r} value={r}>{ROLE_LABEL[r]}</option>
+            <option key={r} value={r}>{roleLabel(t)[r]}</option>
           ))}
         </Select>
       </td>
@@ -569,7 +561,7 @@ function TeamRow({ row, ownerTotal, onError }: {
           onClick={() => { void handleRevoke() }}
         >
           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-          Revoke
+          {t('staff.revoke')}
         </Button>
       </td>
     </tr>

@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireStaff } from '@/lib/auth/staff'
 import { normalizeTier, type FamilyTier } from '@/lib/tiers'
+import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Every family on the platform, for the GENORRA staff console.
@@ -286,13 +287,14 @@ export async function getStaffFamilyCounts(): Promise<StaffFamilyCounts> {
  */
 export async function restoreFamily(familyCode: string): Promise<StaffFamilyActionResult> {
   const staff = await requireStaff()
+  const { t } = await callerI18n(staff.userId)
 
   // Upper-cased and trimmed here as well as inside the function. Not belt and braces: the
   // message below names the code back to the caller, and echoing whatever they typed
   // while the database matched something else would be confusing in exactly the moment
   // somebody is deciding whether the restore worked.
   const code = (familyCode ?? '').trim().toUpperCase()
-  if (!code) return { success: false, message: 'Enter a family code.' }
+  if (!code) return { success: false, message: t('act.enterFamilyCode2') }
 
   const { data, error } = await createAdminClient().rpc('staff_set_family_status', {
     p_family_code: code,
@@ -302,7 +304,7 @@ export async function restoreFamily(familyCode: string): Promise<StaffFamilyActi
 
   if (error) {
     console.error(`[staff/families] restore of ${code} was refused: ${error.message}`)
-    return { success: false, message: 'Could not restore that family. Please try again.' }
+    return { success: false, message: t('act.couldNotRestoreFamilyPlease') }
   }
 
   // RETURNS TABLE, so supabase-js hands back an array even though the function emits one
@@ -312,7 +314,7 @@ export async function restoreFamily(familyCode: string): Promise<StaffFamilyActi
     { ok: boolean; family_code: string | null; status: string | null; message: string | null } | undefined
 
   if (!row) {
-    return { success: false, message: 'The restore returned no result. Please try again.' }
+    return { success: false, message: t('act.restoreReturnedNoResultPlease') }
   }
   if (!row.ok) {
     // The function's own message, verbatim. It distinguishes 'Not authorized' from 'No
