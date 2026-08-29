@@ -1,6 +1,7 @@
 import { NotificationBell } from '@/components/layout/NotificationBell'
 import { FamilySwitcher } from '@/components/layout/FamilySwitcher'
 import { AccountMenu } from '@/components/layout/AccountMenu'
+import { LocaleSwitcher } from '@/components/layout/LocaleSwitcher'
 import { MobileNav } from '@/components/layout/Sidebar'
 import { ContextHelpLink } from '@/components/help/ContextHelpLink'
 import { HELP_ROUTE_INDEX } from '@/lib/help/routes'
@@ -176,12 +177,16 @@ export default async function TopBar({
             THE ORDER, right to left, is by how often a control is reached for. The account
             portrait keeps the corner — it is the anchor everything else is measured from,
             and moving it is the one change a member would notice on every page. The bell is
-            next, because it is the control something happens IN. Help is leftmost of the
-            three, being the rarest: it is the thing somebody goes looking for once, on the
-            one screen they did not understand, and putting it on the corner would spend the
-            most valuable position in the bar on the least-used destination. The family
-            switcher sits outside all of that, first, because for most accounts it renders
-            nothing at all. */}
+            next, because it is the control something happens IN. Then the LANGUAGE, and it
+            is in the bar at all for a reason that beats its own frequency: it was a row
+            inside the account menu until 2026-08-29, which put the one control standing
+            between a reader and every other word on the screen behind a portrait nobody
+            opens. A switch that cannot be found is a switch that does not exist. Help is
+            leftmost of the four, being the rarest: it is the thing somebody goes looking for
+            once, on the one screen they did not understand, and putting it on the corner
+            would spend the most valuable position in the bar on the least-used destination.
+            The family switcher sits outside all of that, first, because for most accounts it
+            renders nothing at all. */}
         <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2">
           {/* Renders NOTHING for a single-family account, which is most of them — and is
               why this bar matches the Golden Master's three controls for most people
@@ -201,6 +206,14 @@ export default async function TopBar({
               `lib/help/content.ts`, which is the whole manual; importing it from the client
               component would ship ~79KB of prose to the browser on every page. */}
           <ContextHelpLink entries={HELP_ROUTE_INDEX} />
+          {/* The language, beside the bell. It renders NOTHING while the product speaks one
+              language — `hasLanguageChoice()` is its whole condition — so this position is
+              empty rather than a picker with a single option.
+
+              NOT KEYED, unlike the bell below it: `people.locale` is a fact about the member
+              rather than about the family, so a family switch cannot make it stale. See the
+              component. */}
+          <LocaleSwitcher />
           {showBell && (
             // KEYED, for the reason the <main> in app/(protected)/layout.tsx is keyed: a
             // family switch is a `router.refresh()`, which merges new server props without

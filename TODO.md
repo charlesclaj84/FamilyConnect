@@ -8,6 +8,41 @@ Everything here is open. Completed work is deleted rather than archived — the 
 are in git history, and the lessons worth keeping have been promoted to AGENTS.md.
 GO LIVE is a checklist rather than a backlog.
 
+## Scrubbed 2026-08-29
+
+Every remaining entry was re-checked against the tree. **Nothing was newly closed** — each one
+is still real work. What moved is the Send Email hook, which is now ON and whose entry has been
+narrowed to what genuinely remains, plus six references that had gone stale under features that
+shipped after they were written:
+
+| | |
+|---|---|
+| Send Email hook | steps 1–3 done; narrowed to proving it and deleting the frozen templates |
+| SMS | My Profile → **Text Messages** is **Notifications** since `20260826000000` |
+| Photo thumbnails | `/review/photos` is `/community/gallery`; the three `<img>` sites are under `components/gallery/` |
+| Advisors | `family_removal_challenges` is `family_action_challenges` since `20260825000000` |
+| Privacy policy | no longer "one route, one link" — `LOCALIZED_ROOTS` and three catalogues, and it fails `npm test` without the first |
+| Sorting | `useTableSort` threads the reader's collation for free; the 14 remaining are unchanged and were counted one by one |
+| `http` | "the last extension anything wants" was falsified four days later by `unaccent` |
+
+Two figures were off by one and are corrected in place: `BACKLOG_CEILING` is 69, and the
+"Three smaller Stripe follow-ups" heading listed four.
+
+**This pass landed on top of an earlier, uncommitted one** that had already deleted the four
+`RESOLVED` blocks (the admin-who-could-pay invariant, `pg_cron`, Meta's money half, and the five
+mutable `search_path` functions) — which is what this file's own header prescribes for completed
+work. So `git diff` against `master` shows ~270 deleted lines that are not from this scrub. That
+pass left one dangling cross-reference, *"see the resolved item above"* in the birthday entry,
+now repointed at the `http` item; it was the only one.
+
+**What this scrub could NOT check, and nobody reading it should assume otherwise:** every GO
+LIVE item is a setting in somebody's dashboard, and by construction nothing in this repo can
+see any of them. Their code-side halves were verified — `TIER_IS_SOLD.premium` is still
+`false`, `CONNECT_ACCOUNT_COUNTRY` is still `'us'`, `smsConfigured()` still reads four
+variables, `app/sitemap.ts` still emits one URL per route, `withheld_since` still does not
+exist, `LINK_EXISTING_PERSON_ENABLED` is still `false`, and `setTemplatePermission` still
+validates no scope — but "is the flag set on hosted" is answered by a person or by nobody.
+
 ## GO LIVE
 
 Things that must be true of the **hosted project** before real families use it. These
@@ -15,18 +50,41 @@ are not code changes and none of them is done by `db push` — every one is a se
 a credential on the deployed environment, which is exactly why they are easy to reach
 launch day without.
 
-### [ ] Two `[auth]` values are set in `config.toml` and not on hosted
+### [~] Two `[auth]` values are set in `config.toml` and not on hosted — ONE APPLIED 2026-08-29, THE OTHER NEEDS A PLAN
 
-**Action:** one trip to the dashboard, or one PATCH. Both are settings, not code, and
-nothing in the repo can detect either. **Still open because no `SUPABASE_ACCESS_TOKEN`
-exists in this checkout** — not in `.env.local`, not in the Machine/User/Process
-environment, not in `supabase/.env.probe` (which is absent). Whoever has the token does
-this in about a minute.
+**Action:** nothing, until somebody decides whether this project goes to Pro. The first half
+is done and verified; the second is refused by the API and cannot be done at any price short
+of an upgrade.
 
-| Setting | `config.toml` | hosted | Where |
+| Setting | `config.toml` | hosted | State |
 |---|---|---|---|
-| `secure_password_change` | `true` | **false** | Authentication → Providers → Email → "Secure password change" |
-| `sessions_inactivity_timeout` | `168h` (7 days) | **unset** | Authentication → Sessions → "Inactivity timeout" (Pro plan and up) |
+| `secure_password_change` | `true` | ~~false~~ → **`true`** | **DONE 2026-08-29.** PATCHed and confirmed by re-reading |
+| `sessions_inactivity_timeout` | `168h` (7 days) | **unset, and must stay so for now** | **BLOCKED: HTTP 402.** *"User sessions can only be configured on Pro Plans and up."* This project is on Free |
+
+**THE BLOCKER WAS NEVER THE TOKEN**, which is what this entry said for two weeks. A
+project-scoped Management API token with **`Auth: Read + Write` and nothing else** is
+sufficient for both PATCHes — the whole account-wide token the entry implied is not needed,
+and the narrower one is what should be minted next time. The second setting is gated on the
+PROJECT'S PLAN, which no token can widen.
+
+**Do the two as SEPARATE PATCHes, which is how the split above was learned.** The 402 refuses
+the whole request, so the combined `-d` below would have taken the password flag down with the
+session timeout and reported one failure for two settings. It is left as written because it is
+what the original sweep ran; send one field at a time.
+
+**What changed for members the moment the first one landed.** GoTrue now demands the emailed
+reauthentication code for a password change on any session older than 24 hours — before, the
+flag was off, so there was no code at ANY session age, which is the gap AGENTS.md's "A fresh
+session can change the password without the emailed code" was written against. The mail is
+`supabase/templates/reauthentication.html` (the Send Email hook is still off on hosted, so
+GoTrue renders it), and that template is pushed by `migrate.yml`. **Nobody has yet seen one
+arrive** — see the validation note below.
+
+**One environment fact worth carrying to the other items on this list.** On a machine behind a
+TLS-inspecting proxy, Python's verifier rejects the injected CA (`Basic Constraints of CA cert
+not marked critical`) while `curl` succeeds, because the Windows build links Schannel and reads
+the Windows trust store. Reach for `curl` for anything hitting `api.supabase.com` from here;
+the answer is never `verify=False` or `curl -k`, on a channel carrying a bearer token.
 
 **Do not do any of this with `npx supabase config push`.** It sends the whole `[auth]`
 block, `site_url` included — so pushing one setting from a checkout whose config points
@@ -55,12 +113,23 @@ curl -s -X PATCH -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
 ```
 
 Re-read the GET afterwards. Neither value is visible from the app, from
-`/auth/v1/settings`, or from any test.
+`/auth/v1/settings`, or from any test — **the GET is the verification, and there is no other.**
+In particular a password change on genorra.com proves nothing about the flag: GoTrue reads it
+as "reauthenticate *or* have logged in recently", where recent is `session.created_at + 24h`,
+so a session you have just created sails through with no code whether the flag is on or off.
+**The one functional check that means anything needs a session more than 24 hours old**, and it
+is still owed — nobody has watched a reauthentication email arrive on hosted.
+
+The 2026-08-29 run also confirmed `sessions_timebox` is unset, which matters more than it looks:
+a timebox at or under 24h caps `session.created_at` so no session ever reaches the age at which
+the flag is enforced, silently turning the setting just applied back into decoration. Check it
+in the same GET if anybody ever sets one — [config.toml:476](supabase/config.toml#L476) argues
+it at length.
 
 **Why each matters.** `secure_password_change` is what AGENTS.md's "A fresh session can
-change the password without the emailed code" is written on — and on hosted the flag is
-*off*, so there is no reauthentication code at **any** session age, not merely inside
-GoTrue's 24-hour window. `sessions_inactivity_timeout` bounds how long an abandoned cookie
+change the password without the emailed code" is written on — and on hosted the flag was
+*off* until 2026-08-29, so there was no reauthentication code at **any** session age, not
+merely inside GoTrue's 24-hour window. `sessions_inactivity_timeout` bounds how long an abandoned cookie
 stays renewable; 7 days was chosen because the floor is about an hour (auth-js refreshes a
 live tab roughly every 58 minutes at `jwt_expiry = 3600`, and by measurement the only clock
 that setting watches is the refresh, so anything lower signs out people who are working).
@@ -71,9 +140,11 @@ no `d`, so seven days is `"168h"`; the Management API takes seconds, so the same
 `604800`. `"7d"` is a parse error and `7` is seven nanoseconds.
 
 Found 2026-08-12 by a read-only sweep comparing every `[auth]` key `config.toml` declares
-against that endpoint. Eighteen keys, three divergences; `otp_length` is now 8 in both and
-`max_frequency`'s 1s/60s split is deliberate and says so in `config.toml`. These two are the
-residue, and they are the same failure the template sync was built to stop, one field over:
+against that endpoint. Eighteen keys, three divergences; `otp_length` is now 8 in both —
+re-confirmed on hosted 2026-08-29, `mailer_otp_length = 8` — and `max_frequency`'s 1s/60s
+split is deliberate and says so in `config.toml`. **One of the two remaining is now closed and
+the other cannot be**, and they are the same failure the template sync was built to stop, one
+field over:
 written in `config.toml`, verified locally, never applied to the project that serves real
 families.
 
@@ -112,9 +183,12 @@ The `claude_probe` Postgres role is `VALID UNTIL 2026-10-01`. It holds `LOGIN` a
 grants — enough to read `pg_policies` and `pg_catalog`, not enough to read a single row of
 family data. Nothing needs doing when it lapses; verifying it lapsed is the item.
 
-The local half of this is already gone: neither `.claude/settings.local.json` nor
-`supabase/.env.probe` is present in this checkout — confirmed 2026-08-12, there is no
-`.claude/` directory at all. And the durable replacement is live, so granting an agent
+The local half of this is already gone: `supabase/.env.probe` is not present in this checkout,
+and `.claude/settings.local.json` holds nothing but a Bash permission allowlist — no
+credentials of any kind. *(This said "there is no `.claude/` directory at all", confirmed
+2026-08-12. There is one now; re-read 2026-08-29 and it carries six `Bash(…)` allow patterns
+and nothing else. The substance is unchanged — what mattered was that no probe credential
+lives in the checkout, and none does.)* And the durable replacement is live, so granting an agent
 `db push` on production has no remaining justification: migrations reach hosted from CI on
 merge and gate the Vercel release, reviewed and recorded, with nobody holding write
 credentials. See AGENTS.md, "How migrations reach the hosted project".
@@ -171,8 +245,6 @@ from a client bundle.
 > Product has no live counterpart, so production needs its own keys, its own two endpoints
 > (pointed at `genorra.com`, not a preview URL) and its own six Prices — created again, by
 > hand, at the same figures. **Leave this item open until that is done.**
-
-
 
 | Variable | Notes |
 |---|---|
@@ -368,7 +440,7 @@ onboarding process with a real-world identity behind it.**
 
 `/community/safety-check-ins` is `tier: 'premium'` because the ask is meant to arrive as a text
 message. The consent half is built (`20260823000002`, `lib/sms/consent.ts`,
-`app/actions/sms-consent.ts`, My Profile → **Text Messages**); the sending half is not, and this
+`app/actions/sms-consent.ts`, My Profile → **Notifications**); the sending half is not, and this
 is what it is waiting on rather than on code.
 
 **1. A2P 10DLC REGISTRATION IS THE BINDING CONSTRAINT, and it is worth understanding before
@@ -400,13 +472,36 @@ merged:
 | `SMS_FROM_NUMBER` | The registered long code or toll-free number, E.164 |
 
 With any of them missing, `sendSms` answers `{ sent: false, error: 'no SMS provider configured' }`
-and the profile panel says *"Text messages are not switched on yet"* rather than offering a code
-that cannot arrive. **Check that sentence is gone from the screen** as the first sign it worked.
+and the panel says *"Text messages are not switched on yet"* (`notify.smsNotOn`) rather than
+offering a code that cannot arrive. **Check that sentence is gone from the screen** as the first
+sign it worked — and check it in all three languages, since that string is a catalogue key like
+every other.
 
 **4. Validation, and "the API returned 201" is not it.** Send yourself a verification code from My
-Profile → Text Messages on a real handset, confirm it, then reply **STOP** to it and check the
+Profile → **Notifications** on a real handset, confirm it, then reply **STOP** to it and check the
 consent status moves to *stopped* on that screen and that `grantSmsConsent` then refuses. That last
 step is the whole of the legal model and is the one nobody tests.
+
+**The panel was called "Text Messages" until `20260826000000`**, which replaced it with a
+grid — a row per notification, a column per channel — over `notification_preferences`. Nothing
+in the consent model moved with it: `person_sms`, `sms_consent_events` and
+`phone_verifications` are untouched, and `sms_consent_events` is still the legal record. What
+changed is only where a member expresses the choice, so every rule in this item survives the
+rename. `components/personal-info/Notifications.tsx` is the screen.
+
+**5. THE SMS COLUMN READS "Coming Soon" UNTIL THIS ITEM IS DONE, as of 2026-08-29,** and that
+is one more thing to check when it is. It was a live switch beside a note saying texts were not
+switched on yet — a control that collects a consent record for a message nobody can deliver,
+which is the dead affordance this codebase refuses everywhere else. `cellState` in that
+component is what decides it, from `smsAvailable`, so **setting the four variables above brings
+the switches back with no code change**; nothing about it is a second flag to remember.
+
+Two things about it that a change here must not undo. A member whose consent is already
+`granted` KEEPS a working switch whatever `smsAvailable` says — rule 2 of that screen, *turning
+it off is never harder than turning it on*, and hiding the control would make withdrawing
+impossible. And the CATALOGUE is untouched: `sms: 'opt-in'` in `lib/notification-prefs.ts` is
+still the right default for the day a provider lands, and marking it `'unavailable'` there
+would make `setMyNotificationPref` refuse that withdrawal too.
 
 Recorded 2026-08-23.
 
@@ -460,79 +555,6 @@ Day counted from `delinquent_since`. Every email goes to the ADMINS, meaning **w
 6. **AN ADMIN WHO PAYS ON DAY 59 MUST BE FULLY RESTORED BY THE `invoice.paid` HANDLER**, which
    means clearing `delinquent_since` (it already does) AND unwinding the lockout in the same
    transaction. A family that pays and stays locked out is the worst possible bug here.
-
-### RESOLVED: a family with no admin who could pay
-
-That hazard is closed rather than mitigated. `20260823000007` makes "a family with approved
-members always has at least one `admin/settings:edit` holder" an invariant enforced by three
-triggers, so the state the ladder could not recover from is now unreachable: moving the last
-holder to another template, switching them off, or taking the grant off the template that
-carries it are all refused, by the database, including through the service role.
-
-Two things about it are worth knowing before touching that migration:
-
-* **It refuses a statement that TAKES THE LAST HOLDER AWAY, not one that leaves a family
-  without one.** The obvious rule is the second, and it makes an already-broken family
-  UNREPAIRABLE — granting the missing permission is itself a template write. That was the first
-  version, and `tests/rls` caught it by refusing the very statement on its way to fixing things.
-* **It fires on UPDATE and not on DELETE.** Deleting the last administrator's `people` row in
-  SQL is not refused; nothing in the product does that, and firing on DELETE would abort
-  `reset_families.sql`. Stated in the migration as the honest boundary rather than a complete
-  one.
-
-Recorded 2026-08-23.
-
-## SUPERSEDED 2026-08-23: what happens when a family stops paying
-
-**The conversation happened and the ladder above is the answer.** What survives here is the
-REASONING — the questions that had to be settled and why each one was left open rather than
-guessed at — because the next policy decision on this feature will meet the same shape. The
-schedule itself is above; do not build from this section.
-
-`invoice.payment_failed` stamps `platform_billing_accounts.delinquent_since` and
-`last_payment_failure` and stops there. No tier drops, no email goes, nothing is scheduled, and
-the **Billing** band on `/admin/settings` says so out loud: *"A card payment has been failing
-since … Nothing has changed about what this family can reach."*
-
-**THAT IS A HOLDING POSITION, NOT AN ANSWER.** A family whose card expired keeps Premium
-indefinitely, and the only trace is a date on a screen an administrator may never open.
-
-**Why it was left open rather than guessed at.** Stripe retries a failed card for days — the
-exact schedule is a Dashboard setting — so a family whose payment fails on Tuesday and succeeds
-on Thursday must not lose their pages in between. Any rule tighter than that is a product
-decision about a real family's real card, and the wrong one closes a hundred and forty people's
-family album over a bank's fraud hold.
-
-**The questions, roughly in the order they have to be answered:**
-
-1. **How long is the grace period?** Stripe's own dunning runs about two weeks by default. A
-   grace period shorter than that fights it; one much longer is a free plan with extra steps.
-2. **What does the family SEE, and when?** The band exists. Does the dashboard say something?
-   Does the administrator get an email — and which administrator, given
-   `platform_billing_accounts` deliberately holds no billing email (see the entry below)?
-3. **What actually happens at the end of it?** The mechanism exists and is one row:
-   `scheduled_tier = 'free'`, `scheduled_tier_on = <the day>`, and the sweep does the rest. The
-   decision is the DATE, not the code.
-4. **Is a prepaid lapse the same thing?** It is not, today. A prepaid term that runs out is
-   swept straight to Free with no grace at all, because nothing is retrying and nothing failed —
-   the family simply stopped buying. Those two paths reaching the same tier by different rules
-   is defensible and is currently undocumented anywhere a family would read it.
-5. **Does Stripe's own dunning email replace ours?** It is configurable in the Dashboard, it is
-   free, and it comes from Stripe rather than from an address a family might not recognise.
-   Probably yes, and then item 2 is much smaller.
-
-**Where the code would go, so the estimate is honest.** `onInvoiceFailed` in
-`lib/stripe/platform-events.ts` for the stamp (already there), the sweep in
-`20260823000004` §5 for the drop (already there — it would need a `delinquent_since + N days`
-branch beside the prepaid one), and `lib/platform-billing.ts` for the pure "is this family past
-the grace period" function, which is where it should be tested by value rather than by running
-a webhook.
-
-**One thing NOT to do:** put the grace period in a policy or in `families.tier` semantics. No
-RLS policy consults the tier and none may, and a family in dunning must keep every row it has —
-the whole point of a soft failure is that paying fixes it with nothing to restore.
-
-Recorded 2026-08-23.
 
 ## BUILD: a downgrade withholds for 60 days, then deletes — decided 2026-08-23
 
@@ -628,68 +650,43 @@ expensive to take later — the same ground `20260819000006` retired Events on.
 
 Recorded 2026-08-23.
 
-## RESOLVED 2026-08-23: `pg_cron` is installed, and `http` is what is left
+## `http` is not installed, and one unbuilt feature wants it
 
-**`pg_cron` is in** — `20260823000006` creates the extension and schedules
-`apply_due_platform_tier_changes()` hourly at five past, asserting in the same file that the job
-exists exactly once, is active, survives a re-schedule without duplicating, and that its command
-actually runs. That closes the prepaid-lapse gap the sweep shipped with: a family that paid three
-months in advance no longer keeps its tier until some other family's payment happens to arrive.
+**Action:** decide it when the weather poller is built. Nothing else wants it.
 
-**The delinquency ladder and the 60-day retention are therefore UNBLOCKED**, and each needs its
-own `cron.schedule` line in the migration that builds it — daily rather than hourly, since every
-step of both is keyed to a date.
+`pg_cron` went in with `20260823000006`, which schedules `apply_due_platform_tier_changes()`
+hourly at five past — so the delinquency ladder and the 60-day retention above are unblocked and
+each needs its own daily `cron.schedule` line in the migration that builds it. `pg_net` (0.20.3),
+`http` (1.6) and `postgis` (3.3.7) are all AVAILABLE on this project and none is installed.
 
-**`http` IS STILL NOT INSTALLED**, and only the weather poller wants it. The note below about
-choosing it over `pg_net` stands and is untouched by any of this.
+**This said "the last extension anything wants" and that was falsified within four days**, by
+`20260827000000`, which installs `unaccent` so full-text search folds accents — a thing
+`20260819000005` had explicitly declined to do. The claim was never load-bearing, and the
+correction is worth keeping rather than quietly rewording: **an entry that says "this is the
+last one" is a prediction, and this file is not the place for those.** What is still true, and
+is the whole item, is that `http` is wanted by exactly one unbuilt feature and by nothing else.
 
-**AND THE INVISIBILITY WARNING NOW HAS A LIVE EXAMPLE.** `cron.job` is database state:
-`db:check` compares migration versions, `db:audit` reads policies, and a fresh `db reset`
-schedules nothing until the migration runs. A job created in the dashboard is drift with nothing
-in the repo able to see it. The sweep's job is created in a migration and asserted there; the
-next one must be too.
+**What is still waiting on a scheduler**, in the order the value falls:
 
-FutureFeature.md §1 carried *"there is no cron, no worker, no queue and no `vercel.json`"* for
-months and it is true of the **app layer only**. On this project's Postgres:
-
-| Extension | Available | Installed |
-|---|---|---|
-| `pg_cron` | 1.6.4 | — |
-| `pg_net` | 0.20.3 | — |
-| `http` | 1.6 | — |
-| `postgis` | 3.3.7 | — |
-
-All four are available and none is installed. The database is reached by a migration, which is
-the one deployment path this repo sanctions — so this is not new infrastructure, and it does not
-need anybody to hold production credentials.
-
-**What it unblocks, in the order the value falls:**
-
-1. **A LAPSED PREPAID PLAN, and this one is now REAL rather than prospective.**
-   `apply_due_platform_tier_changes()` (`20260823000004` §5) is written for a scheduler and has
-   none: it is called at the end of every Stripe webhook delivery, which is EXACT for a monthly
-   renewal (the invoice IS the period boundary) and a genuine gap for a term bought outright. A
-   family that prepaid three months in January keeps its tier until some OTHER family's payment
-   happens to arrive — and on a product with no families paying, until nothing does. The function
-   takes no arguments, is idempotent, and is safe hourly forever; scheduling it is one line.
-2. **Automatic dues reminders** — the last unbuilt Premium bullet whose two halves are both done
+1. **Automatic dues reminders** — the last unbuilt Premium bullet whose two halves are both done
    elsewhere. `/reporting/dues-projections` computes what is owed and `app/actions/distributions.ts`
    is a working resumable per-recipient fan-out. FutureFeature.md §1 has the one decision it still
    needs (a uniqueness key on person/schedule/period, in the schema rather than in the job).
-3. **Alert-driven check-in suggestions** — FutureFeature.md §5. A poller over `api.weather.gov`,
-   which needs no API key.
-4. Anything else that has to happen with nobody watching.
+2. **Alert-driven check-in suggestions** — FutureFeature.md §5. A poller over `api.weather.gov`,
+   which needs no API key, and the only thing in the product that wants `http`.
 
-**Three things to get right, and the second is the one that will bite:**
+**`http` (synchronous) probably beats `pg_net` for that poller.** `pg_net` is fire-and-forget —
+the response lands in a `net` table for a limited window, so a job that needs the body is two
+passes and a reaper. A poll that fetches, matches and writes in one statement wants the
+synchronous extension, with an explicit timeout so a hanging endpoint cannot wedge the job.
 
-* **`http` (synchronous) probably beats `pg_net` here.** `pg_net` is fire-and-forget — the
-  response lands in a `net` table for a limited window, so a job that needs the body is two
-  passes and a reaper. A poll that fetches, matches and writes in one statement wants the
-  synchronous extension, with an explicit timeout so a hanging endpoint cannot wedge the job.
+**Two things to carry into whatever is scheduled next, and the first is the one that will bite.**
+
 * **A CRON JOB IS DATABASE STATE, which is the same invisibility class as realtime publication
   membership.** `db:check` compares migration versions, `db:audit` reads policies, and a fresh
-  `db reset` schedules nothing. A job created in the dashboard is drift. **It must be created in a
-  migration and asserted there** — AGENTS.md's "REALTIME NEEDS THE TABLE IN A PUBLICATION" is the
+  `db reset` schedules nothing. A job created in the dashboard is drift with nothing in the repo
+  able to see it. **It must be created in a migration and asserted there** — the sweep's job is,
+  and the next one must be too. AGENTS.md's "REALTIME NEEDS THE TABLE IN A PUBLICATION" is the
   same incident arriving through `cron.job`, and that section's warning about an instruction in a
   migration addressed to a person applies word for word.
 * **A job has no `auth.uid()`, so it has no caller to authorize.** That is why the alert poller
@@ -735,14 +732,34 @@ Canadian family collecting dues today would be charged in USD into a CAD account
 allowed on a direct charge and settles with conversion; it is not obviously what anybody
 intended.
 
-## GO LIVE: turn the Send Email hook on hosted, and in this order
+## GO LIVE: the Send Email hook is ON. What is left is proving it and retiring the fallback
 
-**BUILT 2026-08-27 and proven locally** — `npm run auth-email:check` reports all five auth
-emails composed by this app, in all three languages, with the right `type=` on every link and
-both halves of an address change. What is left is one auth-config change on the hosted
-project, and the ORDER matters more than the change does.
+**BUILT 2026-08-27, and TURNED ON — reported 2026-08-29.** The hook is configured on the
+hosted project; steps 1–3 below are done and are kept as the record of what was done and in
+what order, because turning it back on after a rollback is the same three steps and the order
+still matters. `npm run auth-email:check` reports all five auth emails composed by this app,
+in all three languages, with the right `type=` on every link and both halves of an address
+change — and `20260827…`-era work has not touched that path since.
 
-### THE ORDER, AND WHY GETTING IT BACKWARDS TAKES AUTH DOWN
+**Nothing in this repo can confirm the hook is on**, which is why this item does not close on
+a report. `config.toml`'s `[auth.hook.send_email]` is `enabled = false` and stays that way —
+that is the LOCAL stack, and AGENTS.md explains why it is off there (a local signup would then
+need `npm run dev` answering, and without it every signup 500s and leaves no `auth.users`
+row). The hosted flag is dashboard state, in the same invisibility class as realtime
+publication membership and a `cron.job` row.
+
+### WHAT IS ACTUALLY LEFT
+
+1. **Send yourself a real signup and a real password reset, and look at both on a phone.**
+   This is the whole remaining item. `auth-email:check` proves the bytes are composed; it
+   opens no mail client and renders nothing. The GO LIVE item above already asks for this.
+2. **Then delete `supabase/templates/*.html`** — see the second bullet under "THE TWO THINGS
+   TO WATCH", which is now a live cleanup rather than a note. Until they go, the English
+   exists twice and `email:push` keeps pushing a copy GoTrue no longer reads.
+3. **Confirm `/api/auth/send-email` answers 401 to an unsigned POST** on production if it was
+   not checked at step 1. That is the open-relay check and it costs one `curl`.
+
+### THE ORDER IT WAS DONE IN, AND WHY GETTING IT BACKWARDS TAKES AUTH DOWN
 
 GoTrue calls the hook SYNCHRONOUSLY, and a non-2xx rolls the whole operation back — measured:
 a failing hook on a signup leaves no `auth.users` row at all. So a hook enabled before the
@@ -751,18 +768,17 @@ every attempt fails with `unexpected_failure`.
 
 1. **Merge to `master` and let it deploy.** `/api/auth/send-email` has to be live and
    answering before anything is switched on. Confirm with an unsigned POST — it must answer
-   401, which is also the open-relay check.
+   401, which is also the open-relay check. *(Done: `e0f03d5`, on `master`.)*
 2. **Set `SUPABASE_AUTH_HOOK_SECRET` in Vercel** (all environments), and `RESEND_API_KEY` must
    already be there — it is, or no mail works today.
 3. **Then** enable the hook on the hosted project: `hook_send_email_enabled`,
    `hook_send_email_uri = https://genorra.com/api/auth/send-email`, and
    `hook_send_email_secrets` = the same secret. Dashboard → Authentication → Hooks, or the
    Management API.
-4. **Send yourself a real signup and a real password reset** and look at both on a phone. The
-   GO LIVE item above already asks for this; it is now the same click.
 
-To undo, disable the hook. GoTrue falls straight back to `supabase/templates/*.html`, which is
-why those are still in the repo and still pushed.
+To undo, disable the hook. GoTrue falls straight back to `supabase/templates/*.html` — which
+is exactly why item 2 above is "delete them once turning the hook off is not the plan" rather
+than "delete them now".
 
 ### WHY IT IS NOT PUSHED FROM CI, WHICH IS A DECISION RATHER THAN AN OMISSION
 
@@ -775,15 +791,20 @@ step 1 land is the whole safeguard.
 If it is ever automated, it has to be ordered AFTER the Vercel alias moves — which is
 `migrate.yml`'s Deployment Check in reverse, and that is a mechanism nobody has built.
 
-### THE TWO THINGS TO WATCH ONCE IT IS ON
+### THE TWO THINGS TO WATCH NOW IT IS ON
 
 * **Auth mail now depends on the Next deployment.** It did not before. A build that fails to
   alias, or an outage, takes auth email with it — and a signup attempted during one leaves no
   account rather than an account with no email, so nothing is stranded. Worth knowing before
-  reading a support ticket that says "I cannot sign up".
-* **`supabase/templates/*.html` are FROZEN, not live.** They are the fallback and the English
-  in them is now a second copy. Change wording in `lib/email/auth-mail.ts`; delete the HTML
-  once the hook has been on for long enough that turning it off is not the plan.
+  reading a support ticket that says "I cannot sign up". **This is live behaviour now, not a
+  future consequence.**
+* **`supabase/templates/*.html` are FROZEN and now UNREAD in production.** They are the
+  fallback, the English in them is a second copy, and `migrate.yml` still pushes all ten
+  mailer fields on every merge — so a wording change made in the HTML reaches hosted and
+  changes nothing anybody receives, which is the worst kind of edit to make by mistake.
+  Change wording in `lib/email/auth-mail.ts`. Delete the HTML — and the `email:push` step
+  with it — once the hook has been on long enough that turning it off is not the plan.
+  **That deletion is now the second item on the list above rather than a someday note.**
 
 ## BUILD: the sitemap lists one URL per route, and there are now three
 
@@ -857,7 +878,7 @@ that a greeting HAPPENED, so "did anyone say anything to Ada?" is unanswerable �
 prompt reappears every year whether or not the family acted on it last time.
 
 **And there is no scheduler**, which is the constraint that shapes the whole thing. `pg_cron` is
-installed (see the resolved item above) but nothing in the product runs on a clock except the
+installed (`20260823000006`; see the `http` item above) but nothing in the product runs on a clock except the
 Stripe webhook's opportunistic sweep. A prompt rendered when somebody OPENS the app needs no
 scheduler at all and is another reason to prefer option 1.
 
@@ -921,74 +942,22 @@ worth a `verify.yml`-shaped assertion more than it is worth the delete.
 
 Recorded 2026-08-23.
 
-## RESOLVED 2026-08-23: Meta's money half is wired
+## Meta: `Lead` has no surface, the validation table is owed, and nothing reports on it
 
-**It has a caller now.** `lib/stripe/platform-events.ts` calls `trackSubscriptionPayment` from
-the verified webhook after Stripe confirms the charge, and `app/actions/billing.ts` calls
-`trackCheckoutStarted` when a hosted Checkout Session is actually created. All four rules this
-entry set out are honoured at the call site: `transactionId` is the invoice or payment-intent id
-rather than the subscription, `firstPayment` comes from Stripe's own
-`billing_reason === 'subscription_create'`, `amountCents` is `invoice.amount_paid` rather than
-`TIER_PRICE`, and a renewal sends `SubscriptionRenewal` alone.
+**Action:** walk the validation table on a preview deployment, decide what a `Lead` is here, and
+build the campaign-to-paying-family report.
 
-Two things it does that this entry could not have specified:
+**The money half is wired.** `lib/stripe/platform-events.ts` calls `trackSubscriptionPayment`
+from the verified webhook after Stripe confirms the charge, and `app/actions/billing.ts` calls
+`trackCheckoutStarted` when a hosted Checkout Session is created. The four rules that call site
+has to keep — the id is the CHARGE and never the subscription, `firstPayment` comes from the
+PROVIDER, `amountCents` comes from the transaction rather than from `TIER_PRICE`, and a renewal
+is deliberately not a `Purchase` — are argued at length in `lib/meta/billing.ts`, which is where
+a future edit meets them.
 
-* **It never throws into the webhook.** A Meta outage must not make the endpoint answer 500,
-  because Stripe would then redeliver an event whose money has already been applied. The tier is
-  granted first; the analytics are best effort, in that order.
-* **A placeholder address is never hashed.** The holder comes from the family's founder row, and
-  a generated `@genorra.com` address is passed as `null` rather than as an email — it would be a
-  match key that matches nothing and drags Event Match Quality down.
-
-**THE VALIDATION TABLE AT THE BOTTOM IS STILL OWED**, and is now checkable — it moved to the
-Stripe GO LIVE item's own table. What remains open here is `Lead`, which still has no lead
-surface (no waitlist, no demo request, no newsletter), and the reporting half below.
-
-The rest of this entry is kept because it is the argument for the shape, and because the four
-rules are the things a future edit will get wrong:
-
-**What wiring it cost** — one import in the verified webhook handler, after the charge is
-confirmed:
-
-```ts
-import { trackSubscriptionPayment } from '@/lib/meta/billing'
-
-await trackSubscriptionPayment({
-  transactionId: invoice.id,            // the CHARGE, never the subscription — see below
-  subscriptionId: invoice.subscription,
-  amountCents: invoice.amount_paid,     // what was charged, NEVER TIER_PRICE
-  currency: invoice.currency,
-  planId: 'standard',
-  billingInterval: 'monthly',
-  firstPayment: invoice.billing_reason === 'subscription_create',
-  holder: { userId, email, firstName, lastName },
-  occurredAtMs: invoice.created * 1000,
-})
-```
-
-Four things about that call that a future edit will get wrong, and each is argued at length
-in the file:
-
-* **`transactionId` must identify the CHARGE.** Every renewal of one subscription shares the
-  subscription id, so keying on that makes month two look like a duplicate of month one and
-  it is discarded forever — silently, because a suppressed duplicate is indistinguishable
-  from a working integration.
-* **`firstPayment` comes from the PROVIDER**, never inferred from our own records. Inferring
-  it ("have we seen this family pay before?") is wrong the first time a family cancels and
-  resubscribes, and the first time the ledger is restored from a backup.
-* **`amountCents` comes from the transaction.** After a proration, a coupon, a partial refund
-  or a tax line, the catalogue price and the charge disagree, and the reported figure has to
-  be the one the bank moved.
-* **A renewal is deliberately not a `Purchase`.** A subscription business sends far more
-  renewals than acquisitions; folding them together makes the new-customer count grow every
-  month with no new customers in it, and makes cost per acquisition fall as an artefact of
-  the existing base. The revenue is not lost — turn `SubscriptionRenewal` into a custom
-  conversion in Events Manager when lifetime revenue is wanted.
-
-**`InitiateCheckout` HAS its real checkout session now.** **`Lead` still waits for a real lead
-surface** — there is no waitlist, demo request or newsletter in this product, and using `Lead`
-to mean "viewed pricing" would make a Lead-optimised campaign chase readers instead of
-prospects.
+**`Lead` still waits for a real lead surface.** There is no waitlist, demo request or newsletter
+in this product, and using `Lead` to mean "viewed pricing" would make a Lead-optimised campaign
+chase readers instead of prospects.
 
 **Validation, now checkable and therefore OWED rather than hypothetical.** It needs
 `META_TEST_EVENT_CODE` and a Stripe test key on the same preview deployment:
@@ -1001,15 +970,15 @@ prospects.
 | Compare `value` against the Stripe charge | Dollars, not cents. A $5.00 charge reported as `500` is the failure |
 | `SELECT * FROM marketing_conversion_events WHERE delivery <> 'sent'` | Empty, or a readable reason in `detail` |
 
-**And the reporting half is owed too, and is now one join rather than none.**
-`marketing_attribution` records which campaign found each account, and the question it exists to
-answer — *which campaign produced this paying family?* — is answerable the moment
-`platform_payments` has rows in it. A `/reporting` screen for it is the natural follow-up, and
-the join is `marketing_attribution` → account → `people.family_code` → `platform_payments`.
+**And the reporting half is one join rather than none.** `marketing_attribution` records which
+campaign found each account, and the question it exists to answer — *which campaign produced this
+paying family?* — is answerable the moment `platform_payments` has rows in it. A `/reporting`
+screen for it is the natural follow-up, and the join is `marketing_attribution` → account →
+`people.family_code` → `platform_payments`.
 
-Recorded 2026-08-23; the wiring half resolved the same day.
+Recorded 2026-08-23.
 
-## Three smaller Stripe follow-ups, none of them urgent
+## Four smaller Stripe follow-ups, none of them urgent
 
 **Action:** four short conversations and a few hours of code, in whatever order they come up.
 
@@ -1041,14 +1010,16 @@ Recorded 2026-08-23; the wiring half resolved the same day.
    would assert the credential check and pass with every family conjunct deleted. Giving
    `tests/rls` a Stripe TEST key would make all eleven reachable and turn each verdict into a
    real case — and would make the suite talk to the network, which is a slower and flakier
-   suite. `BACKLOG_CEILING` was raised from 57 to 68 to admit them and its own comment carries
+   suite. `BACKLOG_CEILING` was raised from 57 to admit them (69 today) and its own comment carries
    the trade.
 
 Recorded 2026-08-23.
 
 ## The consent banner has no privacy policy to link to
 
-**Action:** write a privacy page, then link it from the banner. One route, one link.
+**Action:** write a privacy page, then link it from the banner. It was "one route, one link"
+when this was recorded; **since 2026-08-27 the public site is three sites and it is four
+things.** See the cost below — the second one fails `npm test` rather than shipping quietly.
 
 `components/consent/ConsentBanner.tsx` names Meta, says what the measurement is for, and
 states the boundary — no names, relationships, birthdays, photographs or messages — because
@@ -1072,7 +1043,27 @@ having none.
 adding it there is the whole of the wiring. `npm run sitemap:check` and `npm run help:check`
 will both have opinions.
 
-Recorded 2026-08-23.
+**AND SINCE 2026-08-27 IT IS A THREE-LANGUAGE PAGE, which is most of what this now costs.**
+Re-checked 2026-08-29:
+
+1. **`LOCALIZED_ROOTS` in `lib/i18n/route-locale.ts` needs the entry**, or `/es/privacy` and
+   `/fr/privacy` 404 while the English one works — invisible in English and invisible in a
+   build. It will not ship quietly: `lib/i18n/route-locale.test.ts` reads `app/(marketing)`
+   off disk and asserts every directory in it is on that list, so **the page fails `npm test`
+   until it is added**, and the failure names the route. That gate is the reason this is a
+   line item rather than a hazard.
+2. **The copy is catalogue keys in `lib/marketing/strings/{en,es,fr}.ts`**, not prose in the
+   component. `npm run i18n:literals` has a ceiling of ZERO and is a `verify.yml` step, so a
+   privacy policy typed into JSX is a red build — and a privacy policy is a page of prose,
+   which makes it the largest single addition either bundle has taken.
+3. **A legal document translated by this pass is a legal document nobody has reviewed in
+   Spanish or French.** That is not the testimonials rule (a translation is an edit of words
+   somebody actually said) but it rhymes with it, and it is a decision for a person: publish
+   three reviewed versions, or publish English and say so on the localized routes. Deciding
+   it is part of writing the page.
+4. Then the `alternates` block, exactly as every other page there has it.
+
+Recorded 2026-08-23; the i18n cost added 2026-08-29.
 
 ## `resource-groups.ts` pulls the admin client into the browser's module graph
 
@@ -1137,12 +1128,28 @@ to stay in lockstep, four matching columns each — plus `DuesPlanSection` and
 axis and a weekday header, and `components/ui/table-collapse.tsx` is the shared primitive
 rather than a table. None of the three has rows to order.
 
-**Two things to carry into each one**, both learned on the first two rather than guessed. Sort
+**Three things to carry into each one**, all learned on a conversion rather than guessed. Sort
 the value the cell is BUILT from, never the string it prints — a money column sorts on
 `amount_cents` or "$9.00" lands after "$10.00", and a date sorts on `YYYY-MM-DD` or the column
 orders by month name. And where a column is composed in the browser rather than carried on the
 row, sort through the SAME lookup the cell renders from: Members & Access's Position reads
 `board.holders`, because `MemberSummary` has no title on it.
+
+**And since 2026-08-27 a text column sorts in the READER'S alphabet — which costs a conversion
+NOTHING, and is worth knowing so nobody re-plumbs it.** `compareValues` and `sortRows` take an
+`Intl` tag, and **`useTableSort` calls `useIntlTag()` itself** and threads it, so a table
+converted the ordinary way is locale-correct with no extra line. It matters because `ñ` is a
+letter of its own in Spanish and files after `n`, and `sensitivity: 'base'` does not collapse
+it — measured. The tag defaults to `'en'` rather than to `undefined`, deliberately: passing
+`undefined` asks the RUNTIME, and a comparator that answers differently on two hosts is a row
+order nothing in this repo decides.
+
+**Where it does cost something is a table that sorts by hand.** `DuesPlanSection` and
+`PaymentHistorySection` use `SortTh` with their own state and their own comparators rather
+than `useTableSort` — that is what "sorted before any of this existed and now share the
+module" means above, and it is only the HEADER they share. Both already hold an `intl` from
+`useIntlTag()` for their money and date formatting, so if either is ever moved onto
+`useTableSort`, the tag is the thing to check reached the comparator and not just the labels.
 
 **One asymmetry is deliberately unresolved.** Both member tables sort Name on the DISPLAYED name
 rather than on surname, which is the less useful order — `MemberRecord` has `last_name` and
@@ -1211,34 +1218,6 @@ and the case says so) and the positive half of
 `link-person.linkPersonToCurrentUser (feature off + cross-family)`. The cross-family
 half of that case is live either way and needs no change.
 
-## RESOLVED 2026-08-22: five functions had a mutable `search_path`
-
-`20260822000010` sets `search_path = ''` on all five — `_perm_predicate`, `set_updated_at`,
-`update_funds_updated_at`, `update_photo_collections_updated_at` and, the one that mattered,
-`auth_uid_is_room_participant`, which is SECURITY DEFINER and is evaluated by **Realtime** as
-the subscribing role.
-
-Two things from the old entry are worth keeping because they are what made this a migration
-rather than a five-line edit, and the next function that needs pinning will need both.
-
-**The trap.** `SET search_path = ''` means every reference in the body must be
-schema-qualified, and plpgsql does not resolve names until the body RUNS — so a broken version
-is created without complaint and throws for its first caller. `20260806000012` shipped exactly
-that (`public.gen_random_bytes` where pgcrypto lives in `extensions`) and applied cleanly. The
-migration therefore CALLS both callable bodies in its verify block rather than asserting the
-catalogue, and `auth_uid_is_room_participant` is exercised first precisely because it has no
-call site in the tree: a broken version surfaces as chat silently delivering nothing.
-
-**The exposure was real and narrow, and it is worth knowing which.** With a mutable path, a
-caller who can create objects in a schema that resolves earlier shadows a table the body
-references, and a DEFINER body runs the shadow as its owner. What held it shut was that
-nothing grants `CREATE ON SCHEMA public` to `anon` or `authenticated` — one missing grant away
-from mattering. The other four were INVOKER, so tidiness rather than exposure.
-
-The verify block asserts **no function in `public` has a mutable path**, so a new one arrives
-pinned or the migration chain refuses to apply. Every function added since 2026-08-12 was
-already clean; that assertion is what keeps it true.
-
 ## The advisors: what is left, and why each one is a decision rather than a fix
 
 **Action:** enable leaked-password protection in the dashboard (below). Nothing else here is
@@ -1277,10 +1256,12 @@ What five migrations closed: `function_search_path_mutable` (5), `multiple_permi
 * **`rls_enabled_no_policy`, the two INFO.** `genorra_staff` has RLS enabled and ZERO policies
   because that is the whole mechanism — staffness is resolved on the server through the
   service role and there is no client-side check to spoof (AGENTS.md, "Three words"). Same for
-  `family_removal_challenges`: the challenge is minted in TypeScript and consumed by
-  `consume_family_removal_challenge`, and the browser must never read a hash it could compare
+  `family_action_challenges`: the challenge is minted in TypeScript and consumed by
+  `consume_family_action_challenge`, and the browser must never read a hash it could compare
   against. Both are the §2c pattern working as intended, and both would be a finding if they
-  ever gained a policy.
+  ever gained a policy. *(That table was `family_removal_challenges` when this was measured;
+  `20260825000000` generalised it — a `purpose` column and a second caller, disconnecting
+  Stripe — which changes the name and none of the argument.)*
 
 * **`unused_index`, and it got LOUDER on purpose — 15 findings locally became 88.**
   `20260822000014` created 73 foreign-key indexes, and an index on a database with no traffic
@@ -1399,9 +1380,15 @@ Recorded 2026-08-19; narrowed 2026-08-20 and again 2026-08-23.
 `verify.yml` blocks on a single warning. What that closed was the *reporting* question; this
 is the thing the last of those warnings was actually pointing at, and it is real.
 
-`/review/photos` renders a grid of thumbnails at a quarter width, and each `<img>` fetches
+`/community/gallery` renders a grid of thumbnails at a quarter width, and each `<img>` fetches
 the **whole uploaded file** — `uploadPhoto` caps at 10 MB, so a twenty-photograph album can
 be 200 MB of downloads to show twenty thumbnails. On a phone, on a family's data plan.
+
+*(It was `/review/photos` until 2026-08-22, and the components moved with it: the three sites
+carrying the disable are `components/gallery/CollectionCard.tsx` and two in
+`components/gallery/CollectionView.tsx`. Re-checked 2026-08-29 — still three, still plain
+`<img>`, still no `images.remotePatterns` in `next.config.ts` and still no thumbnail column
+on `photos`.)*
 
 **Why a plain `<img>` was the right pick anyway, and is not the problem.** Every `next/image`
 in this tree is a STATIC import of a file in the repo; there is no `images.remotePatterns` in
@@ -1439,18 +1426,8 @@ to fill, which is exactly what `next/image`'s `fill` cannot express.
 
 ## Authorization
 
-**Nothing open.** This section held the findings that came out of building `tests/rls`
-(see AGENTS.md §7), and both of them are closed as of 2026-08-21:
-
-* `notifications` possibly not being in the realtime publication. The publication held no
-  tables at all; `20260821000002` fixed it, and the per-database confirmation that survives
-  is not an authorization question and has its own entry above.
-* `saveChapterAndPropagate` never moving a member's account-less children — a write on the
-  user client against a policy that admitted only the caller's own row, so it matched nothing
-  and said nothing. `lib/chapter-propagation.ts` is the repair, shared with the administrator's
-  new `setMemberChapter`, and `personal-info.saveChapterAndPropagate (the children follow)` is
-  the first assertion anywhere that the propagation happens at all. AGENTS.md §8b carries what
-  the fix cost, including a fixture that turned out to be resting on the bug.
+**Nothing open.** The two findings that came out of building `tests/rls` (see AGENTS.md §7)
+are both closed.
 
 The heading stays because the next finding of this shape belongs under it.
 

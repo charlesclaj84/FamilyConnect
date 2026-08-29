@@ -2,7 +2,6 @@
 
 import { useRef, useState } from 'react'
 import { useT } from '@/components/layout/LocaleProvider'
-import { LocaleSwitcher } from '@/components/layout/LocaleSwitcher'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronDown, ExternalLink, LogOut, ShieldCheck, UserCircle, Users } from 'lucide-react'
@@ -161,17 +160,15 @@ export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false 
                 <span className="opacity-90">{t('account.appearance')}</span>
                 <ThemeToggle />
               </div>
-              {/* ── LANGUAGE, BESIDE APPEARANCE ────────────────────────────────────────
-                  The two are the same kind of thing — how the product presents itself to
-                  this one person, changed in place, not a page to visit. Neither closes the
-                  menu, for the reason the Appearance row gives above: comparing is something
-                  people do two or three times in a row.
-
-                  IT RENDERS NOTHING while the product speaks one language, so this row is
-                  absent rather than a picker with a single option. See LocaleSwitcher. */}
-              <div className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm text-card-foreground">
-                <LocaleSwitcher className="ml-auto" />
-              </div>
+              {/* ── THE LANGUAGE IS NOT IN HERE, AND IT WAS UNTIL 2026-08-29 ───────────
+                  It sat right here, beside Appearance, on the argument that the two are the
+                  same kind of thing: how the product presents itself to this one person,
+                  changed in place, not a page to visit. That reading is still true and was
+                  not enough. Appearance is a preference somebody sets once; the language is
+                  the thing standing between a reader and every other word on the screen, and
+                  a member who has just been handed a screen they cannot read should not have
+                  to guess that the fix is behind a portrait. It is a control in the bar now,
+                  beside the bell — see `TopBar` for the ordering. */}
               {/* THE STAFF CONSOLE, and only for staff.
                   ─────────────────────────────────────────────────────────────────
                   `isStaff` is a SERVER answer (see the prop). This renders nothing at

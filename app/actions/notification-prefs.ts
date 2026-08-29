@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache'
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireMember } from '@/lib/auth/guard'
-import { consentStatus, lastFour, toE164, type SmsConsentStatus } from '@/lib/sms/consent'
+import { consentStatus, toE164, type SmsConsentStatus } from '@/lib/sms/consent'
 import { smsConfigured } from '@/lib/sms/send'
 import {
   CHANNELS, NOTIFICATIONS, channelDefault,
@@ -47,8 +47,22 @@ export interface NotificationContact {
   email: string | null
   /** True where that address is a generated placeholder — see `lib/family-tree.ts`. */
   emailIsPlaceholder: boolean
-  /** Last four digits of the number we would text, or null. Never the whole number. */
-  phoneEnding: string | null
+  /**
+   * The number we would text, in E.164, or null.
+   *
+   * ── IT WAS THE LAST FOUR DIGITS UNTIL 2026-08-29, AND THE REDACTION PROTECTED NOTHING ──
+   * `phoneEnding` came back instead, on the argument that a mobile number is the kind of thing
+   * a screenshot leaks. That is true of somebody ELSE's number. This is the caller's own, on
+   * the caller's own profile, two rail items away from the **General** section that prints it
+   * in full in an editable box — so the redaction hid it from exactly one person, the one it
+   * belongs to, and hid nothing from anybody who could already read the screen.
+   *
+   * What it cost is the whole question this block exists to answer: *is the number you would
+   * text the right one?* "Ending 2189" cannot answer that for anybody with an old handset in a
+   * drawer, and this screen's own rule is that it never lets a switch marked On imply a
+   * delivery it cannot make.
+   */
+  phone: string | null
 }
 
 export interface MyNotificationSettings {
@@ -69,7 +83,7 @@ export interface ActionResult {
 
 const EMPTY: MyNotificationSettings = {
   prefs: [],
-  contact: { email: null, emailIsPlaceholder: false, phoneEnding: null },
+  contact: { email: null, emailIsPlaceholder: false, phone: null },
   smsAvailable: false,
   smsConsent: 'none',
   smsNumberVerified: false,
@@ -82,18 +96,28 @@ const EMPTY: MyNotificationSettings = {
  * This screen used to collect a mobile number of its own. It does not any more: the number and
  * the address the family already holds are what a notification would use, and asking for them
  * twice is how two columns describing one fact come to disagree (AGENTS.md §4b's `is_minor`
- * trap, in miniature). `people.phone` and `people.primary_email` are the source, and the screen
- * links to General to change either.
+ * trap, in miniature). `people.primary_phone` and `people.primary_email` are the source, and the
+ * screen links to General to change either.
  *
- * `person_sms.phone_e164` is still read, and only for `phoneEnding` and `smsNumberVerified` —
- * it is the SEND target and the confirmation record, which is a different thing from the number
- * on the profile. Where the two differ the send target wins on this screen, because it is what
+ * `person_sms.phone_e164` is still read, and only for `phone` and `smsNumberVerified` — it is
+ * the SEND target and the confirmation record, which is a different thing from the number on
+ * the profile. Where the two differ the send target wins on this screen, because it is what
  * would actually be texted.
  *
- * ── THE NUMBER DOES NOT COME BACK, ONLY ITS LAST FOUR DIGITS ───────────────────────
- * §5 in spirit: the browser gets what the screen needs and no more. A mobile number is the kind
- * of thing a screenshot leaks and a shared laptop shows, and "ending 0134" is enough for
- * somebody to recognise their own.
+ * ── THE COLUMN IS `primary_phone`, AND ASKING FOR `phone` EMPTIED THE WHOLE READ ───
+ * It said `.select('primary_email, email_is_placeholder, phone')` until 2026-08-29. There is no
+ * `people.phone` — `lib/phone-format.ts`'s `PHONE_COLUMNS` is `['primary_phone']` and no
+ * migration has ever created the other one — so PostgREST answered **42703 and killed the whole
+ * query**, exactly as AGENTS.md's own "code ahead of schema" incident describes.
+ *
+ * The visible cost was not the phone number. It was the EMAIL ADDRESS beside it: `person` came
+ * back null, so a member with a perfectly good address on file was shown *"None on file"* and a
+ * withheld-tone note telling them nothing marked on for Email would arrive. Measured against
+ * the live project — every account there has a real, non-placeholder address.
+ *
+ * That is §8 in one line: `const { data }` discards the error and an empty result reads as no
+ * rows. `personRes.error` is checked below now, for the same reason `prefsRes.error` already
+ * was.
  *
  * ── THE ADMIN CLIENT, §3 BY HAND, AND WHY ─────────────────────────────────────────
  * `person_notification_prefs` and `person_sms` both have own-row SELECT policies the user
@@ -113,7 +137,7 @@ export async function getMyNotificationSettings(): Promise<MyNotificationSetting
       .select('notification_key, channel, opted_in')
       .eq('family_code', g.familyCode).eq('person_id', g.personId),
     admin.from('people')
-      .select('primary_email, email_is_placeholder, phone')
+      .select('primary_email, email_is_placeholder, primary_phone')
       .eq('family_code', g.familyCode).eq('id', g.personId).maybeSingle(),
     admin.from('person_sms').select('phone_e164, verified_at')
       .eq('family_code', g.familyCode).eq('person_id', g.personId).maybeSingle(),
@@ -126,6 +150,16 @@ export async function getMyNotificationSettings(): Promise<MyNotificationSetting
   // forgotten their choice. Logged and reported as the conservative shape.
   if (prefsRes.error) {
     console.error(`[notification-prefs] could not read the grid for ${g.personId}: ${prefsRes.error.message}`)
+    return { ...EMPTY, smsAvailable: available }
+  }
+
+  // §8, AND THE ONE THAT ACTUALLY BIT. A refused `people` read is indistinguishable from a
+  // member with no contact details at all, and the screen renders the second: "None on file",
+  // in the withheld tone, over an address that is right there in the row. Logged so the next
+  // one is a line in a server log rather than a member concluding the product has lost their
+  // email address. Reported as the conservative shape for the same reason the grid is.
+  if (personRes.error) {
+    console.error(`[notification-prefs] could not read the contact details for ${g.personId}: ${personRes.error.message}`)
     return { ...EMPTY, smsAvailable: available }
   }
 
@@ -151,7 +185,12 @@ export async function getMyNotificationSettings(): Promise<MyNotificationSetting
       // to; the profile number is what it would be adopted from if the member opts in and
       // there is nothing on file yet. Showing the profile's when a different one is confirmed
       // would tell somebody a text is going to a number it is not.
-      phoneEnding: lastFour(smsNumber) ?? lastFour(normalise(person?.phone as string | null)),
+      //
+      // BOTH SIDES GO THROUGH `normalise`, so the screen prints one shape whichever answered.
+      // The profile column holds whatever a member typed — the live project has `9033481886`
+      // beside `+14698912189` — and `toE164` refuses what it cannot parse, which is the right
+      // answer for a number that is not quite a number (see its own header).
+      phone: normalise(smsNumber) ?? normalise(person?.primary_phone as string | null),
     },
     smsAvailable: available,
     smsConsent: consentStatus((eventsRes.data ?? []).map(e => ({
@@ -267,9 +306,13 @@ export async function setMyNotificationPref(input: {
       const { data: existing } = await admin.from('person_sms').select('id, phone_e164')
         .eq('family_code', g.familyCode).eq('person_id', g.personId).maybeSingle()
       if (!existing?.phone_e164) {
-        const { data: person } = await admin.from('people').select('phone')
+        // `primary_phone`, not `phone` — see `getMyNotificationSettings`. The second copy of
+        // that mistake was quieter than the first: it made this adoption a no-op for every
+        // member, so opting in never picked up the number already on their profile, which is
+        // the one thing this block exists to do.
+        const { data: person } = await admin.from('people').select('primary_phone')
           .eq('family_code', g.familyCode).eq('id', g.personId).maybeSingle()
-        const e164 = normalise(person?.phone as string | null)
+        const e164 = normalise(person?.primary_phone as string | null)
         if (e164) {
           const { error } = await admin.from('person_sms').upsert({
             id: existing?.id,

@@ -141,7 +141,6 @@ export const es: Catalogue = {
 
   // ── THE LANGUAGE SWITCHER ────────────────────────────────────────────────────────
   // *Elija*, not *Elige* — formal.
-  'language.label': 'Idioma',
   'language.choose': 'Elija un idioma',
 
   // ── PAGE HEADINGS ────────────────────────────────────────────────────────────────
@@ -330,12 +329,13 @@ export const es: Catalogue = {
     'Su familia levanta un aviso durante una tormenta, una evacuación o una emergencia, y '
     + 'pregunta si está a salvo.',
   'notify.colNotification': 'Notificación',
-  'notify.notBuilt': 'Aún no está disponible',
+  'notify.notBuilt': 'Próximamente',
   'notify.stopped': 'Detenido',
+  'notify.on': 'Activado',
+  'notify.off': 'Desactivado',
   'notify.toggleLabel': '{channel} para {notification}',
   'notify.noneOnFile': 'No hay ninguno registrado',
   'notify.placeholderAddress': 'Una dirección generada: nada puede llegar ahí',
-  'notify.endingIn': 'Termina en {digits}',
   'notify.fromGeneral':
     'Estos vienen de sus datos **generales**: cámbielos ahí y todas las notificaciones lo '
     + 'siguen.',

@@ -539,8 +539,41 @@ async function onSubscription(
     patch.scheduled_tier = 'free'
     patch.scheduled_tier_on = todayISO()
   } else if (subscriptionIsCurrent(subscription.status) && periodEnd) {
-    // Recorded, not granted. `invoice.paid` is what moves the tier.
-    patch.paid_through = addDays(isoFromUnix(periodEnd), -1)
+    // ── A TERM IS A TIER **AND** A DATE, AND THIS WROTE ONLY THE DATE ────────────────
+    // `platform_billing_term_pair` is `(paid_tier IS NULL) = (paid_through IS NULL)`, and its
+    // own comment says why: *"either alone describes nothing, and `entitlementOn()` would
+    // report Free over a family that had paid."* So writing `paid_through` onto an account
+    // with no `paid_tier` is refused by the database, the handler returns `handled: false`,
+    // the route answers 500, and Stripe retries the event until it gives up.
+    //
+    // THAT IS THE ORDINARY PATH HERE, NOT A CORNER. Every recurring checkout this product
+    // creates carries a `trial_end` — that is how "everybody bills on the 1st" is expressed
+    // (see `startPlanCheckout`) — so `customer.subscription.created` arrives with status
+    // `trialing`, which `subscriptionIsCurrent` counts, BEFORE any `invoice.paid` has set a
+    // tier. Found in the hosted event log on 2026-08-29, against a real subscription:
+    //
+    //     customer.subscription.created   processed_at NULL
+    //     could not record the subscription: new row for relation
+    //     "platform_billing_accounts" violates check constraint "platform_billing_term_pair"
+    //
+    // The repair is NOT to write a tier alongside it. This handler must not grant one — the
+    // header argues that at length, and `customer.subscription.updated` firing on a downgrade
+    // is the case that makes it a rule rather than a preference. So the date is recorded only
+    // where there is already a term for it to belong to, and a family whose first invoice has
+    // not landed simply has no term yet, which is the truth.
+    const { data: account, error: readError } = await admin
+      .from('platform_billing_accounts')
+      .select('paid_tier')
+      .eq('family_code', familyCode)
+      .maybeSingle()
+    // §8: a refused read is not "no tier". Reported rather than assumed, so Stripe retries a
+    // transient failure instead of this silently declining to record a real period end.
+    if (readError) {
+      return { handled: false, detail: `could not read the term for ${familyCode}: ${readError.message}` }
+    }
+    // Recorded, not granted. `invoice.paid` is what moves the tier — and what establishes the
+    // term this date extends.
+    if (account?.paid_tier) patch.paid_through = addDays(isoFromUnix(periodEnd), -1)
   }
 
   const { error } = await admin

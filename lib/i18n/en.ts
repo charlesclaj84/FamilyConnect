@@ -150,7 +150,6 @@ export const en: Catalogue = {
   // The endonyms themselves are NOT here: they live in `lib/i18n/locales.ts` and are never
   // translated, because a member looking for their own language scans for the word they would
   // use for it and that word does not change with the interface they are reading.
-  'language.label': 'Language',
   'language.choose': 'Choose a language',
 
   // ── PAGE HEADINGS ────────────────────────────────────────────────────────────────
@@ -363,12 +362,13 @@ export const en: Catalogue = {
     'Your family raises a check-in during a storm, an evacuation or an emergency, and asks '
     + 'whether you are safe.',
   'notify.colNotification': 'Notification',
-  'notify.notBuilt': 'Not built yet',
+  'notify.notBuilt': 'Coming Soon',
   'notify.stopped': 'Stopped',
+  'notify.on': 'On',
+  'notify.off': 'Off',
   'notify.toggleLabel': '{channel} for {notification}',
   'notify.noneOnFile': 'None on file',
   'notify.placeholderAddress': 'A placeholder address — nothing can reach it',
-  'notify.endingIn': 'Ending {digits}',
   'notify.fromGeneral':
     'These come from your **General** details — change them there and every notification '
     + 'follows.',

@@ -131,8 +131,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Family switcher', text: 'Shown when your account belongs to more than one family. Picking a different family reloads the page you are on as that family.' },
                 { term: 'Help', text: 'A question mark, linking to the chapter of this manual that describes the screen you are on. It is not there on the few screens no chapter covers yet, and not on these help pages.' },
                 { term: 'Bell', text: 'Your notifications, plus a standing row for any family with people waiting to be approved — including families you are not currently looking at.' },
-                { term: 'Appearance', text: 'Light, Dark, or System. It is remembered in this browser.' },
-                { term: 'Your name', text: 'Opens the account menu: [My Profile](/personal-info), [My Families](/my-families), appearance, and sign out.' },
+                { term: 'Language', text: 'The two-letter code beside the bell — **EN**, **ES** or **FR**. Picking one changes the product into that language everywhere, and on every device you sign in on, because it is kept with your profile rather than with this browser. It is not shown while the product speaks only one language.' },
+                { term: 'Your name', text: 'Opens the account menu: [My Profile](/personal-info), [My Families](/my-families), **Appearance** — Light, Dark or System, remembered in this browser — and sign out.' },
               ),
               p('Each of these closes itself a few seconds after you move away from it, so a panel is never left sitting over the page you went on to read. It stays open for as long as your pointer is over it, and for as long as you are moving through it with the keyboard.'),
             ],
@@ -256,13 +256,13 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'notifications',
             heading: 'Notifications',
             blocks: [
-              p('**Notifications** is a grid: a row for each thing your family can contact you about, and a column for each way it could reach you — **Email**, **SMS** and **Push Notification**. Each cell is one press, **On** or **Off**, and it saves the moment you press it. There is nothing to submit.'),
+              p('**Notifications** is a grid: a row for each thing your family can contact you about, and a column for each way it could reach you — **Email**, **SMS** and **Push Notification**. It opens as a list of what you have chosen; press **Edit** above it to change anything, then **Done** when you have finished. There is no **Save**, and no **Cancel**: each cell is one press, **On** or **Off**, and it takes effect the moment you press it, so **Done** only puts the switches away again.'),
               p('It uses the email address and mobile number already in your **General** details. Both are shown at the top of the screen so you can see where a notification would go, and changing either one there changes it for every notification at once. This screen never asks you for a second number.'),
               defs(
                 { term: 'Safety Check', text: 'Your family raises a check-in during a storm, an evacuation or an emergency and asks whether you are safe. Email is on unless you turn it off; SMS is off unless you turn it on.' },
               ),
               note('**Email is on by default and SMS is not**, and that is deliberate rather than inconsistent. A check-in that reaches nobody is the thing worth avoiding, and your family already has your address — but a text has to be agreed to before anybody sends one, so nothing about SMS is ever on because you did not notice it.'),
-              note('**Push Notification** says **Not built yet** on every row. The column is there so you can see what is coming rather than being surprised by it later; nothing in the product sends one today.'),
+              note('**Push Notification** says **Coming Soon** on every row, and today **SMS** does too. Both columns are there so you can see what is coming rather than being surprised by it later; nothing in the product sends either one yet, and Email is the channel that works. If you agreed to be texted before they were switched off, your **SMS** switch stays where it is and you can still turn it off — turning something off is never harder than turning it on was.'),
             ],
           },
           {
@@ -282,7 +282,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'notifications-stopping',
             heading: 'Stopping texts',
             blocks: [
-              p('Turning the **SMS** cell off stops them immediately, with nothing to confirm and no reason asked for. You can turn it back on whenever you like.'),
+              p('While **SMS** reads **Coming Soon** there is nothing to stop, because nothing in the product sends a text yet. What follows applies once they are switched on, and to anybody who agreed to them before that. Turning the **SMS** cell off stops them immediately, with nothing to confirm and no reason asked for. You can turn it back on whenever you like.'),
               p('Replying **STOP** to any text we send stops them too — and that one is different in a way worth knowing about. It is your mobile network that acts on it, not us, so we cannot switch it back on from this page and neither can anybody in your family. The cell says **Stopped** rather than offering a switch. If you want them back, text **START** to the number that messaged you.'),
             ],
           },

@@ -10639,10 +10639,20 @@ CASES.push(...SMS_CONSENT_CASES)
  *   * **THE GUARD TRIGGER.** `tg_notification_pref_guard_family` is unreachable through the
  *     product, because the action never takes a person id — so no action-shaped case can fire
  *     it. That migration probes it directly with a real cross-family row.
- *   * **THE MARKER SCAN.** `getMyNotificationSettings` returns an email address and the LAST FOUR
- *     digits of a number, never the number — so even with every conjunct deleted an ALPHA mobile
- *     could not appear in a BRAVO response, because the action does not put one in any response.
- *     §5 working as designed, and the reason the assertions below are spelled out by value.
+ *   * **THE MARKER SCAN, AND IT CHANGED ON 2026-08-29.** This said the action returned the LAST
+ *     FOUR digits of a number and never the number, so no ALPHA mobile could appear in a BRAVO
+ *     response whatever was deleted — §5 working as designed. It returns the WHOLE number now,
+ *     because the redaction hid the member's own number from the member and from nobody else
+ *     (see `NotificationContact.phone`), so `+15125559101` is a string a BRAVO response can
+ *     genuinely be scanned for and the scan is live evidence here for the first time. The
+ *     assertions below stay spelled out by value regardless: a marker scan can see a LEAKED
+ *     answer and never a WRONG one.
+ *   * **THE `people` READ ITSELF, which the control now covers by accident and did not.** That
+ *     select named `phone`, a column no migration has ever created, so PostgREST answered 42703
+ *     and killed the whole statement — and the visible cost was the EMAIL beside it reading
+ *     "None on file". Both halves passed throughout: the attack because a failed read leaks
+ *     nothing, and the control because it asserted only `smsConsent` and the digits, neither of
+ *     which comes from that row. `expectPositive` names the address now.
  *
  * ── MUTATION-CHECKED ──────────────────────────────────────────────────────────────
  *   `.eq('person_id', …)` dropped from the prefs read        control  FAIL  (two rows for one
@@ -10666,7 +10676,14 @@ const NOTIFICATION_PREF_CASES = [
       positiveActor: 'alphaMember',
       expectPositive: v => v?.smsConsent === 'granted'
         && v?.smsNumberVerified === true
-        && v?.contact?.phoneEnding === '9101',
+        // The WHOLE number since 2026-08-29, in E.164 — `toE164` normalises the send target
+        // and the profile column alike, so the shape is the same whichever answered.
+        && v?.contact?.phone === '+15125559101'
+        // AND THE ADDRESS, which nothing asserted until the `people` read was found broken.
+        // It comes from the one statement in that action that named a column the database
+        // does not have, so it is the half a 42703 takes out — and the half a member sees.
+        && v?.contact?.email === 'alpha.member@rls.test'
+        && v?.contact?.emailIsPlaceholder === false,
     }),
   read('notification-prefs.getMyNotificationSettings (pending member)',
     'app/actions/notification-prefs.ts', 'getMyNotificationSettings', {

@@ -46,13 +46,17 @@ export const helpEs: Catalogue = {
   'help.finding-your-way-around.the-top-bar.b1.i2.text':
     'Sus notificaciones, más una fila fija por cada familia con personas esperando '
     + 'aprobación, incluidas las familias que no está viendo en este momento.',
-  'help.finding-your-way-around.the-top-bar.b1.i3.term': 'Apariencia',
+  'help.finding-your-way-around.the-top-bar.b1.i3.term': 'Idioma',
   'help.finding-your-way-around.the-top-bar.b1.i3.text':
-    'Claro, Oscuro o Sistema. Se recuerda en este navegador.',
+    'El código de dos letras junto a la campana: **EN**, **ES** o **FR**. Elegir uno cambia '
+    + 'el producto a ese idioma en todas partes, y en todos los dispositivos donde inicie '
+    + 'sesión, porque se guarda con su perfil y no con este navegador. No se muestra mientras '
+    + 'el producto hable un solo idioma.',
   'help.finding-your-way-around.the-top-bar.b1.i4.term': 'Su nombre',
   'help.finding-your-way-around.the-top-bar.b1.i4.text':
     'Abre el menú de la cuenta: [Mi perfil](/personal-info), [Mis familias](/my-families), '
-    + 'apariencia y cerrar sesión.',
+    + '**Apariencia** — Claro, Oscuro o Sistema, recordado en este navegador — y cerrar '
+    + 'sesión.',
   'help.finding-your-way-around.the-top-bar.b2':
     'Cada uno de estos se cierra solo unos segundos después de que usted se aleja, así que '
     + 'un panel nunca queda encima de la página que se puso a leer. Se mantiene abierto '
@@ -189,9 +193,11 @@ export const helpEs: Catalogue = {
   'help.my-profile.notifications.b0':
     '**Notificaciones** es una cuadrícula: una fila por cada cosa sobre la que su familia '
     + 'puede contactarlo, y una columna por cada vía por la que podría llegarle — **Correo**, '
-    + '**SMS** y **Notificación push**. Cada celda es una pulsación, **Activado** o '
-    + '**Desactivado**, y se guarda en el momento en que usted la pulsa. No hay nada que '
-    + 'enviar.',
+    + '**SMS** y **Notificación push**. Se abre como una lista de lo que usted ha elegido; '
+    + 'pulse **Editar** encima de ella para cambiar algo, y **Listo** cuando haya terminado. '
+    + 'No hay **Guardar** ni **Cancelar**: cada celda es una pulsación, **Activado** o '
+    + '**Desactivado**, y surte efecto en el momento en que usted la pulsa, así que **Listo** '
+    + 'solo vuelve a guardar los interruptores.',
   'help.my-profile.notifications.b1':
     'Usa la dirección de correo y el número de móvil que ya están en sus datos de '
     + '**General**. Los dos se muestran en la parte superior de la pantalla para que vea a '
@@ -209,9 +215,12 @@ export const helpEs: Catalogue = {
     + 'alguien lo envíe, así que nada relacionado con el SMS queda activado porque usted no '
     + 'se dio cuenta.',
   'help.my-profile.notifications.b4':
-    '**Notificación push** dice **Todavía no está disponible** en todas las filas. La '
-    + 'columna está ahí para que vea lo que viene en vez de que le sorprenda más adelante; '
-    + 'hoy nada en el producto envía una.',
+    '**Notificación push** dice **Próximamente** en todas las filas, y hoy **SMS** también. '
+    + 'Las dos columnas están ahí para que vea lo que viene en vez de que le sorprenda más '
+    + 'adelante; hoy nada en el producto envía ninguna de las dos, y el correo es la vía que '
+    + 'funciona. Si usted aceptó recibir mensajes de texto antes de que se desactivaran, su '
+    + 'interruptor de **SMS** se queda donde está y todavía puede desactivarlo: desactivar '
+    + 'algo nunca es más difícil que activarlo.',
   'help.my-profile.notifications-delivery.heading':
     'Cuando Activado no significa que vaya a llegar',
   'help.my-profile.notifications-delivery.b0':
@@ -231,8 +240,11 @@ export const helpEs: Catalogue = {
     + 'elección ahora y empezaremos a usarla en cuanto lo estén.',
   'help.my-profile.notifications-stopping.heading': 'Detener los mensajes de texto',
   'help.my-profile.notifications-stopping.b0':
-    'Desactivar la celda de **SMS** los detiene de inmediato, sin nada que confirmar y sin '
-    + 'que se le pregunte por qué. Puede volver a activarla cuando quiera.',
+    'Mientras **SMS** diga **Próximamente** no hay nada que detener, porque hoy nada en el '
+    + 'producto envía un mensaje de texto. Lo que sigue vale una vez que se activen, y para '
+    + 'quien los haya aceptado antes de eso. Desactivar la celda de **SMS** los detiene de '
+    + 'inmediato, sin nada que confirmar y sin que se le pregunte por qué. Puede volver a '
+    + 'activarla cuando quiera.',
   'help.my-profile.notifications-stopping.b1':
     'Responder **STOP** a cualquier mensaje que le enviemos también los detiene, y ese caso '
     + 'es distinto de una forma que vale la pena conocer. Quien actúa sobre él es su '

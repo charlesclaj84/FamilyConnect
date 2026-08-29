@@ -544,13 +544,34 @@ export async function startPlanCheckout(input: {
     allow_promotion_codes: true,
     // ── THE BUTTON, AND WHAT CHECKOUT WILL AND WILL NOT LET US SAY ────────────────
     // `submit_type` is a CLOSED ENUM — `auto | book | donate | pay | subscribe`. There is no
-    // free-text button label in Checkout, so "Join GENORRA" is not available at any price;
-    // `'pay'` is the honest one of the five, because money moves today.
+    // free-text button label in Checkout, so "Join GENORRA" is not available at any price.
     //
-    // It is set on both shapes deliberately. On the recurring one Checkout may still render
-    // its own trial wording over the top — the trial is real, in Stripe's sense — which is
-    // exactly why the message below exists rather than being left to the button.
-    submit_type: 'pay',
+    // ── AND THE ENUM IS NARROWED AGAIN BY THE MODE, WHICH IS NOT IN ANY TYPE ─────
+    // `'pay'` was sent on BOTH shapes until 2026-08-29, on the argument that money moves
+    // today either way. Stripe refuses it outright on the recurring one:
+    //
+    //     invalid_request_error
+    //     You can not pass `submit_type: 'pay'` in `subscription` mode.
+    //
+    // So every monthly checkout 400'd at `sessions.create` and the family was shown this
+    // action's own "could not start payment" — the prepaid path, which is `mode: 'payment'`,
+    // was unaffected, which is why it read as a Standard-upgrade problem rather than as a
+    // checkout one. The SDK's type is one union for both modes and its own doc comment says
+    // only that the field may be set "in `payment` or `subscription` mode", so neither
+    // `npm run typecheck` nor the parameter's documentation can see this; the API reference's
+    // description of `'auto'` is the one place it is written down —
+    // *"`pay` will be used for `payment` mode sessions and `subscribe` will be used for
+    // `subscription` mode sessions"*.
+    //
+    // Written as the ternary rather than as `'auto'`, which would resolve to exactly these
+    // two values: the constraint is then visible at the call site instead of being a default
+    // somebody has to look up, and a third mode arriving here is a decision rather than a
+    // silent inheritance.
+    //
+    // The recurring button therefore reads *Subscribe* and Checkout may render its own trial
+    // wording over the top — the trial is real, in Stripe's sense — which is exactly why the
+    // message below exists rather than being left to the button.
+    submit_type: mode === 'recurring' ? 'subscribe' : 'pay',
     // ── AND THE ONE SENTENCE THAT CORRECTS "N DAYS FREE" ─────────────────────────
     // Stripe puts a "35 days free" badge on the subscription line whenever a trial is set,
     // and it is not wrong on its own terms — the SUBSCRIPTION charges nothing until the 1st.

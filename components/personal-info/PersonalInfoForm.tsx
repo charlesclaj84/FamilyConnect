@@ -883,13 +883,20 @@ function railItems(t: T): MainRailItem<ProfileSection>[] {
  * meaningless on them. Sign-in & Security carries its own two forms, each with its own
  * confirmation step; an Edit button above them would suggest a fourth thing to save.
  *
- * Notifications is on the list for a sharper version of the same reason: every cell of its grid
- * commits on its own press, and the SMS column is legally significant. An Edit/Save frame over
- * them would imply consent is a draft you can revise before saving, which is the one thing it is
- * not — it is an event, recorded when pressed.
+ * ── NOTIFICATIONS CAME OFF THIS LIST ON 2026-08-29 ─────────────────────────────────
+ * It was here for a sharper version of the same reason: every cell of its grid commits on its
+ * own press, and the SMS column is legally significant, so an Edit/Save frame would imply
+ * consent is a draft you can revise before saving — which is the one thing it is not.
+ *
+ * That argument was against a FORM, and it proved too much. What it cost was a read-only
+ * state: the pane opened as nine live switches, on the one screen in the product whose other
+ * three sections open as a record. So it has a mode now and still has no draft — the switches
+ * appear behind **Edit**, each press is the same immediate write it always was, and the action
+ * row says **Done** rather than Save, with no Cancel. See the component, which carries the
+ * whole argument including why there is deliberately nothing to cancel.
  */
 const NO_EDIT_TRIGGER: ReadonlySet<ProfileSection> =
-  new Set<ProfileSection>(['notifications', 'security'])
+  new Set<ProfileSection>(['security'])
 
 export function PersonalInfoForm({
   existing, chapters = [], familyName = '', photosAllowed, initialSection, signInEmail,
@@ -985,12 +992,14 @@ export function PersonalInfoForm({
         editing={editingSection === 'additional'}
         onEditDone={() => setEditingSection(null)}
       />
-      {/* Neither of the last two takes an `editing` prop: they are never in the rail's edit
-          mode — see NO_EDIT_TRIGGER. Each opens and closes its own controls. */}
       <NotificationsSection
         visible={section === 'notifications'}
         settings={notificationSettings}
+        editing={editingSection === 'notifications'}
+        onEditDone={() => setEditingSection(null)}
       />
+      {/* The last one takes no `editing` prop: it is never in the rail's edit mode — see
+          NO_EDIT_TRIGGER. It opens and closes its own two forms. */}
       <SignInSecuritySection
         visible={section === 'security'}
         signInEmail={signInEmail}

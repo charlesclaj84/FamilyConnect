@@ -47,13 +47,17 @@ export const helpFr: Catalogue = {
     'Vos notifications, plus une ligne permanente pour chaque famille où des personnes '
     + 'attendent une approbation — y compris les familles que vous ne consultez pas en ce '
     + 'moment.',
-  'help.finding-your-way-around.the-top-bar.b1.i3.term': 'Apparence',
+  'help.finding-your-way-around.the-top-bar.b1.i3.term': 'Langue',
   'help.finding-your-way-around.the-top-bar.b1.i3.text':
-    'Clair, Sombre ou Système. C’est retenu dans ce navigateur.',
+    'Le code à deux lettres à côté de la cloche : **EN**, **ES** ou **FR**. En choisir un '
+    + 'fait passer le produit dans cette langue partout, et sur chaque appareil où vous vous '
+    + 'connectez, parce que c’est conservé avec votre profil et non avec ce navigateur. Il ne '
+    + 's’affiche pas tant que le produit ne parle qu’une seule langue.',
   'help.finding-your-way-around.the-top-bar.b1.i4.term': 'Votre nom',
   'help.finding-your-way-around.the-top-bar.b1.i4.text':
     'Ouvre le menu du compte : [Mon profil](/personal-info), [Mes familles](/my-families), '
-    + 'l’apparence et la déconnexion.',
+    + '**Apparence** — Clair, Sombre ou Système, retenu dans ce navigateur — et la '
+    + 'déconnexion.',
   'help.finding-your-way-around.the-top-bar.b2':
     'Chacun d’eux se referme de lui-même quelques secondes après que vous vous en éloignez, '
     + 'de sorte qu’un panneau ne reste jamais posé sur la page que vous vous êtes mis à lire. '
@@ -196,9 +200,12 @@ export const helpFr: Catalogue = {
   'help.my-profile.notifications.b0':
     '**Notifications** est une grille : une ligne pour chaque chose sur laquelle votre '
     + 'famille peut vous contacter, et une colonne pour chaque moyen de vous joindre — '
-    + '**Courriel**, **SMS** et **Notification push**. Chaque case est une pression, '
-    + '**Activé** ou **Désactivé**, et elle s’enregistre au moment où vous appuyez. Il n’y a '
-    + 'rien à soumettre.',
+    + '**Courriel**, **SMS** et **Notification push**. Elle s’ouvre comme une liste de ce que '
+    + 'vous avez choisi ; appuyez sur **Modifier** au-dessus pour changer quoi que ce soit, '
+    + 'puis sur **Terminé** quand vous avez fini. Il n’y a pas d’**Enregistrer** ni '
+    + 'd’**Annuler** : chaque case est une pression, **Activé** ou **Désactivé**, et elle '
+    + 'prend effet au moment où vous appuyez, donc **Terminé** ne fait que ranger les '
+    + 'interrupteurs.',
   'help.my-profile.notifications.b1':
     'Elle utilise l’adresse courriel et le numéro de mobile déjà présents dans vos '
     + 'informations **Général**. Les deux sont affichés en haut de l’écran pour que vous '
@@ -216,9 +223,13 @@ export const helpFr: Catalogue = {
     + 'quiconque en envoie, de sorte que rien concernant le SMS n’est jamais activé parce que '
     + 'vous ne l’auriez pas remarqué.',
   'help.my-profile.notifications.b4':
-    '**Notification push** indique **Pas encore développé** sur chaque ligne. La colonne '
-    + 'est là pour que vous voyiez ce qui arrive plutôt que d’en être surpris plus tard ; '
-    + 'rien dans le produit n’en envoie aujourd’hui.',
+    '**Notification push** indique **Bientôt disponible** sur chaque ligne, et **SMS** aussi '
+    + 'aujourd’hui. Les deux colonnes sont là pour que vous voyiez ce qui arrive plutôt que '
+    + 'd’en être surpris plus tard ; rien dans le produit n’envoie encore ni l’une ni '
+    + 'l’autre, et le courriel est le moyen qui fonctionne. Si vous avez accepté les textos '
+    + 'avant qu’ils ne soient désactivés, votre interrupteur **SMS** reste où il est et vous '
+    + 'pouvez toujours le désactiver : désactiver quelque chose n’est jamais plus difficile '
+    + 'que de l’activer.',
   'help.my-profile.notifications-delivery.heading':
     'Quand Activé ne veut pas dire que cela arrivera',
   'help.my-profile.notifications-delivery.b0':
@@ -239,8 +250,11 @@ export const helpFr: Catalogue = {
     + 'choix dès maintenant et nous commencerons à l’appliquer dès qu’ils le seront.',
   'help.my-profile.notifications-stopping.heading': 'Arrêter les textos',
   'help.my-profile.notifications-stopping.b0':
-    'Désactiver la case **SMS** les arrête immédiatement, sans rien à confirmer et sans '
-    + 'qu’on vous demande pourquoi. Vous pouvez la réactiver quand vous le voulez.',
+    'Tant que **SMS** indique **Bientôt disponible**, il n’y a rien à arrêter, car rien dans '
+    + 'le produit n’envoie encore de texto. Ce qui suit vaut une fois qu’ils seront activés, '
+    + 'et pour quiconque les a acceptés avant cela. Désactiver la case **SMS** les arrête '
+    + 'immédiatement, sans rien à confirmer et sans qu’on vous demande pourquoi. Vous pouvez '
+    + 'la réactiver quand vous le voulez.',
   'help.my-profile.notifications-stopping.b1':
     'Répondre **STOP** à n’importe quel texto que nous envoyons les arrête aussi — et ce '
     + 'cas-là est différent d’une manière qui vaut la peine d’être connue. C’est votre '

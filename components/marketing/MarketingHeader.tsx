@@ -109,11 +109,14 @@ export function MarketingHeader() {
         </nav>
 
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          {/* Hidden below `sm` and offered in the disclosure instead. Three language chips,
+          {/* Hidden below `sm` and offered in the disclosure instead. The language trigger,
               the theme toggle, a sign-in button, a call to action and a menu trigger do not
               fit 375px beside the mark — and the language is the one of the five a reader can
               afford to find one tap in, because the page they are on already reads correctly
-              in whatever the proxy negotiated for them. */}
+              in whatever the proxy negotiated for them.
+
+              It is a DROPDOWN since 2026-08-29 rather than a chip per language, so this stays
+              one control however many languages the site speaks. See the component. */}
           <MarketingLanguagePicker className="hidden sm:flex" />
 
           <ThemeToggle />
