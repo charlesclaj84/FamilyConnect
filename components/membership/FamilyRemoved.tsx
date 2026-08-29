@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { PowerOff } from 'lucide-react'
 import { PageShell } from '@/components/layout/PageShell'
 import { isActiveFamily, isApproved, type FamilyMembership } from '@/lib/auth/family'
-import { useT } from '@/components/layout/LocaleProvider'
+import { type T } from '@/lib/i18n/t'
 
 /**
  * What a member sees when the family they are viewing has been removed.
@@ -37,11 +37,17 @@ import { useT } from '@/components/layout/LocaleProvider'
  * family data at all, which is the right shape for a screen shown to somebody whose family
  * has been switched off.
  */
-export function FamilyRemoved({ membership, families }: {
+export function FamilyRemoved({ membership, families, t }: {
   membership: FamilyMembership
   families: FamilyMembership[]
+  /**
+   * The reader's translator. A PROP for the same reason `intl` beside it is one, and this
+   * component SHIPPED with `useT()` in its body instead — a client hook in a module with no
+   * `'use client'`, which throws *"Attempted to call useT() from the server"* and renders the
+   * error boundary over the whole page. `npm run audit:client-hooks` is the gate.
+   */
+  t: T
 }) {
-  const t = useT()
   // APPROVED and ACTIVE, both tested positively. A pending membership in another family is
   // not somewhere to send them, and a second removed one is this screen again.
   const elsewhere = families.filter(

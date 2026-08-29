@@ -4335,6 +4335,57 @@ chain that a fifth source might join is worth being able to assert.
 | a server ACTION | **`g.t`**, off the guard. See below |
 | a module-level registry | `Record<K, {label}>` → `function(t)`. The ids are the contract; the words are looked up |
 
+### AND A COMPONENT WITH NO DIRECTIVE IS THE FIRST ROW OR THE THIRD, NEVER BOTH. `npm run audit:client-hooks`
+
+**`useT()` IN A MODULE WITH NO `'use client'` IS A PAGE THAT CRASHES FOR THE READER**, and it
+is the one i18n mistake in this codebase that no other gate can see. `useT`, `useLocale` and
+`useIntlTag` are exported from `components/layout/LocaleProvider.tsx`, which is `'use client'`
+— so a Server Component that imports one gets a client REFERENCE rather than the function, and
+calling it throws at RENDER:
+
+    Attempted to call useT() from the server but useT is on the client.
+
+**It shipped on TEN components at once and every gate was green.** `typecheck` sees the same
+TYPE for a client reference; `lint`'s react-hooks rule sees a hook called from a component,
+which is legal; `build` resolves the boundary at render and not at build; `test:rls` calls
+server ACTIONS and never renders a component; `i18n:check` asks only whether the keys exist.
+Two of the ten reached production and were reported by a member — the Dashboard and Gatherings
+— and the digest Next hands the browser is a hash of the message plus the stack, so it names
+nothing on its own.
+
+**AND IT HIDES BEHIND A CONDITION, which is why a local sweep is not proof.** `DuesBalanceKpi`
+reaches the call only for a member who HAS a dues summary, and the RLS fixture seeds none — so
+every route rendered perfectly on a laptop while the same page threw in production. Two things
+follow for anybody testing this by hand: **DEV DOES NOT RENDER THE PRODUCTION BOUNDARY**, it
+renders the overlay with the raw message, so a sweep grepping for *"Something went wrong"*
+reports a throwing page as clean; and the crashing branch has to be REACHED, not merely
+imported.
+
+**THE FIX IS A `t` PROP, NOT A `'use client'` DIRECTIVE**, and the distinction is the whole
+rule:
+
+| The component is rendered by | Do |
+|---|---|
+| Server Components **and** client ones | **`t` as a prop.** It crosses server-to-server by reference and lives inside one client bundle; a missing one is a TYPE error |
+| client components only — it takes `on*` FUNCTION props, so nothing else can render it | add `'use client'` and keep the hook |
+
+Seven of the ten were the first row and three were the second. `'use client'` on the seven
+would have fixed the crash by pushing each module, and everything it imports, into the browser
+bundle for pages that render fine without it — and several of them argue in their own headers
+why they have no directive (*"NO HOOKS AND NO HANDLERS, which is what lets it render from
+either side of the client boundary"*), which is the sharpest version of the failure: the i18n
+pass added a hook to a component whose doc comment explains why it must not have one.
+
+**A `'use client'` MENTIONED IN A COMMENT IS NOT A DIRECTIVE, and three of the ten say the
+words.** The gate walks past comments and blank lines and requires the next STATEMENT to be
+the directive — and it strips a trailing `//` comment, because `app/(protected)/error.tsx` is
+written `'use client' // Error boundaries must be Client Components` and a stricter test calls
+the error boundary itself an offender.
+
+**Its ceiling is 0 and it is a ratchet.** What it cannot see is in its own header: it reads
+text rather than a module graph, so it cannot flag a `'use client'` module that never needed
+to be one, and a hook reached through an alias is invisible to it.
+
 **`GuardOk` CARRIES `t` AND `intl`, RESOLVED IN THE `Promise.all` `resolve()` ALREADY AWAITS.**
 So an action reads `g.t('act.…')` with no extra round trip and no extra line. The alternative
 was `const { t } = await callerI18n(g.userId)` written out at a hundred call sites, each

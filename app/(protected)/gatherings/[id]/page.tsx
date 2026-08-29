@@ -188,7 +188,7 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
           `gatherings/budget:view` must not learn that money is attached), one honest line for
           `'unavailable'` (the caller holds the key and the read failed). Neither is the same
           thing as a gathering with no budget set, which is a `'shown'` band with a dash in it. */}
-      <BudgetBand budget={gathering.budget} state={gathering.budgetState} intl={intl} />
+      <BudgetBand budget={gathering.budget} state={gathering.budgetState} intl={intl} t={t} />
 
       {/* ── THE TASK TABLE, OR WHAT WOULD BE IN IT ───────────────────────────────
           A Free family has no tasks and never will while they are on Free, so the table would

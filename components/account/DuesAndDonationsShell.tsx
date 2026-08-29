@@ -112,7 +112,7 @@ export function DuesAndDonationsShell({
           </div>
         ) : (
           <div className="space-y-4">
-            <DonationsSection donations={donations} chargesReady={online.chargesReady} intl={intl} />
+            <DonationsSection donations={donations} chargesReady={online.chargesReady} intl={intl} t={t} />
             {/* Said ONCE under the list, not as a greyed-out Give on every drive. It is the
                 same judgement the dues pane makes about its own totals card: a promise about
                 a capability is a property of the SCREEN, and repeating it per row makes the

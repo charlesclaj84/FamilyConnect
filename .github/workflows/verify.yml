@@ -173,6 +173,20 @@ jobs:
       - name: No new screen ships in English only
         run: npm run i18n:literals
 
+      # AND THE THIRD i18n GATE, which is about the MECHANISM rather than the words. `useT()`
+      # comes from a `'use client'` module, so a Server Component that calls it gets a client
+      # REFERENCE and throws at render — *"Attempted to call useT() from the server"* — which
+      # the member sees as the error boundary over a whole page.
+      #
+      # It shipped on ten components at once and every other step in this file was GREEN: the
+      # type checker sees the same type, `lint`'s react-hooks rule sees a legal call, `build`
+      # resolves the boundary at render rather than at build, `test:rls` calls actions and
+      # never renders a component, and `i18n:check` only asks whether the keys exist. Two of
+      # the ten reached production and were reported by a member. Static; no database, no
+      # network.
+      - name: No client hook is called from a Server Component
+        run: npm run audit:client-hooks
+
       - uses: supabase/setup-cli@v1
         with:
           # Pinned. This is the version that will also apply migrations to production in

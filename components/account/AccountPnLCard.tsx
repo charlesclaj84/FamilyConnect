@@ -2,7 +2,7 @@ import { TrendingUp, TrendingDown, Scale, ArrowRightLeft, Wallet, Landmark } fro
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/lib/currency-utils'
 import type { PnLData } from '@/app/actions/dues'
-import { useT } from '@/components/layout/LocaleProvider'
+import { type T } from '@/lib/i18n/t'
 
 interface Props {
   /**
@@ -10,6 +10,12 @@ interface Props {
    * `useIntlTag()`, because this is a Server Component. See lib/i18n/server.ts.
    */
   intl: string
+  /**
+   * The reader's translator. A PROP for `intl`'s reason above, and this card SHIPPED with
+   * `useT()` in its body instead — a client hook in a module with no `'use client'`, which
+   * throws when a Server Component renders it. `npm run audit:client-hooks` is the gate.
+   */
+  t: T
   data: PnLData
 }
 
@@ -37,8 +43,7 @@ interface Props {
  * number ends up in a board pack under the wrong heading. Naming the period is the honest
  * minimum; a period selector is a feature, and this is not it.
  */
-export function AccountPnLCard({ data, intl }: Props) {
-  const t = useT()
+export function AccountPnLCard({ data, intl, t }: Props) {
   const net = data.netCents
   const isPositive = net >= 0
   const unrouted = data.unroutedIncomeCents

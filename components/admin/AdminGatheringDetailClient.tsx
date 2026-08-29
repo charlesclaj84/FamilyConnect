@@ -731,7 +731,7 @@ export function AdminGatheringDetailClient({
           {/* `budgetState`, not `budget !== null`: a failed money read is not a withheld one,
               and this screen is the sharper case of the two because its caller holds the console
               and expects the figures to be there. */}
-          <BudgetBand budget={budget} state={gathering.budgetState} intl={intl} />
+          <BudgetBand budget={budget} state={gathering.budgetState} intl={intl} t={t} />
           {mayEdit && (
             <BudgetForm
               gatheringId={gathering.id}

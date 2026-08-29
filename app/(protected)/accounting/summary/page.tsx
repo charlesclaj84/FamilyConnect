@@ -130,9 +130,9 @@ export default async function AccountSummaryPage() {
               until the next edit to one of them. No `showViewLink`: the section heading
               below carries the way through to /dues, so a button here would be a second
               one saying the same thing. */}
-          {canDues && <DuesBalanceKpi summary={duesSummary} intl={intl} />}
-          {canDues && <NextInstallmentsCard summary={duesSummary} intl={intl} />}
-          {canHistory && <PaidThisYearCard history={paymentHistory} intl={intl} />}
+          {canDues && <DuesBalanceKpi summary={duesSummary} intl={intl} t={t} />}
+          {canDues && <NextInstallmentsCard summary={duesSummary} intl={intl} t={t} />}
+          {canHistory && <PaidThisYearCard history={paymentHistory} intl={intl} t={t} />}
         </div>
       )}
 
@@ -165,7 +165,7 @@ export default async function AccountSummaryPage() {
               [Dues & Donations](/accounting/dues-and-donations?pane=donations). A digest that
               shows the ask and cannot take the gift sends somebody to another screen to press
               the same button. */}
-          <DonationsSection donations={openDrives} chargesReady={online.chargesReady} intl={intl} />
+          <DonationsSection donations={openDrives} chargesReady={online.chargesReady} intl={intl} t={t} />
           {closedCount > 0 && (
             <p className="text-xs text-muted-foreground">
               {closedCount} closed drive{closedCount === 1 ? ' is' : 's are'} not shown here —

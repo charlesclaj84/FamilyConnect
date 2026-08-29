@@ -290,8 +290,8 @@ export function DuesPlanSection({ summary, online }: {
           DuesBalanceKpi is the dashboard's Account card, unchanged — see its header for
           why there is exactly one of it. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <DuesBalanceKpi summary={rows} intl={intl} />
-        <NextInstallmentsCard summary={rows} intl={intl} />
+        <DuesBalanceKpi summary={rows} intl={intl} t={t} />
+        <NextInstallmentsCard summary={rows} intl={intl} t={t} />
       </div>
 
       {/* THE ONE QUESTION THIS SCREEN RELIABLY RAISES, answered where it is raised.

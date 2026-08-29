@@ -1,3 +1,13 @@
+'use client'
+
+// ── IT IS A CLIENT COMPONENT AND ALWAYS WAS. The directive was missing until 2026-08-29.
+// Every prop below that starts with `on` is a FUNCTION, so this can only ever be rendered by
+// another client component — `ChatShell`, its one caller, is `'use client'`. So it was already
+// compiled into the browser bundle and `useT()` worked; what it lacked was the line SAYING so,
+// which is what would stop a Server Component importing it one day and crashing. Unlike the
+// seven dual-use cards fixed the same day, there is nothing here to keep off the client.
+// `npm run audit:client-hooks` is the gate.
+
 import { Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { RoomListItem } from './RoomListItem'

@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import type { DonationSummary } from '@/app/actions/dues'
-import { useT } from '@/components/layout/LocaleProvider'
+import { type T } from '@/lib/i18n/t'
 
 /**
  * The family's donation drives and how far the FAMILY has got toward each goal.
@@ -45,9 +45,16 @@ import { useT } from '@/components/layout/LocaleProvider'
  * keeps its own border — that separates one drive from the next, which is a different
  * job from fencing off the list.
  */
-export function DonationsSection({ donations, chargesReady = false, intl }: {
+export function DonationsSection({ donations, chargesReady = false, intl, t }: {
   /** The reader's `Intl` tag. A prop — this is a Server Component. */
   intl: string
+  /**
+   * The reader's translator. A PROP for the same reason `intl` beside it is one, and this
+   * component SHIPPED with `useT()` in its body instead — a client hook in a module with no
+   * `'use client'`, which throws *"Attempted to call useT() from the server"* and renders the
+   * error boundary over the whole page. `npm run audit:client-hooks` is the gate.
+   */
+  t: T
   donations: DonationSummary[]
   /**
    * The family has a connected card processor whose card payments are active.
@@ -63,7 +70,7 @@ export function DonationsSection({ donations, chargesReady = false, intl }: {
   return (
     <div className="space-y-4">
       {donations.map(d => (
-        <DonationRow key={d.schedule.id} donation={d} chargesReady={chargesReady} intl={intl} />
+        <DonationRow key={d.schedule.id} donation={d} chargesReady={chargesReady} intl={intl} t={t} />
       ))}
     </div>
   )
@@ -72,13 +79,14 @@ export function DonationsSection({ donations, chargesReady = false, intl }: {
 /**
  * One drive: what it is, the window it runs in, and the family's progress to its goal.
  */
-function DonationRow({ donation: d, chargesReady, intl }: {
+function DonationRow({ donation: d, chargesReady, intl, t }: {
   /** The reader's `Intl` tag. A prop — this is a Server Component. */
   intl: string
+  /** The translator, threaded from the section above. See its prop for why it is not a hook. */
+  t: T
   donation: DonationSummary
   chargesReady: boolean
 }) {
-  const t = useT()
   const { schedule, goalCents, raisedCents, myGivenCents, progressPercent, goalMet, closed } = d
   // What would meet the goal, or null when there is no goal or it is already met. Context
   // for the giver, never a proposed amount — see `GiveButton`.

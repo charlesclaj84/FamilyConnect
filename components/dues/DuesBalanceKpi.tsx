@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils'
 import { formatCurrency } from '@/lib/currency-utils'
 import { isOutstanding } from '@/lib/dues-utils'
 import { type DuesSummary } from '@/app/actions/dues'
-import { useT } from '@/components/layout/LocaleProvider'
+import { type T } from '@/lib/i18n/t'
 
 interface Props {
   /**
@@ -13,6 +13,22 @@ interface Props {
    * `useIntlTag()`, because this is a Server Component. See lib/i18n/server.ts.
    */
   intl: string
+  /**
+   * The reader's translator. A PROP for `intl`'s reason, one line up — and this card
+   * SHIPPED with `useT()` here instead, which is the whole of the crash.
+   *
+   * `useT` comes from `components/layout/LocaleProvider.tsx`, which is `'use client'`, so a
+   * Server Component importing it gets a client REFERENCE and calling it throws *"Attempted
+   * to call useT() from the server"* — the error boundary over the whole Dashboard. It went
+   * unseen because the throw is behind a condition nobody local had: the fixtures seed no
+   * dues summary, so this card returned before it ever reached the call.
+   *
+   * A prop rather than a `'use client'` directive because this renders from BOTH sides — the
+   * Dashboard and Summary are Server Components, `DuesPlanSection` is not — so the directive
+   * would push this module and everything it imports into the browser bundle for two pages
+   * that do not need it. `npm run audit:client-hooks` is the gate.
+   */
+  t: T
   summary: DuesSummary[]
   /**
    * The dashboard's way through to [Dues](/dues). Off by default, because the other two
@@ -88,8 +104,7 @@ function PlanLine({ summary: s, intl }: { summary: DuesSummary; intl: string }) 
   )
 }
 
-export function DuesBalanceKpi({ summary, showViewLink = false, className, intl }: Props) {
-  const t = useT()
+export function DuesBalanceKpi({ summary, showViewLink = false, className, intl, t }: Props) {
   const outstanding = summary.filter(isOutstanding)
   const requiredDue = outstanding.filter(s => s.required)
   const optionalDue = outstanding.filter(s => !s.required)

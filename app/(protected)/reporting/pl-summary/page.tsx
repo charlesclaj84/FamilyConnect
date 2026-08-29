@@ -62,7 +62,7 @@ export default async function FamilyFinancesPage() {
       </div>
 
       <section className="space-y-3">
-        <AccountPnLCard data={pnlData} intl={intl} />
+        <AccountPnLCard data={pnlData} intl={intl} t={t} />
       </section>
 
       <section>

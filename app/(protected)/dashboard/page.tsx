@@ -152,7 +152,7 @@ export default async function DashboardPage() {
   const myFamilies = await getMyFamilies(user.id)
   const viewing = myFamilies.find(f => f.isActive) ?? myFamilies[0]
   if (viewing && !isActiveFamily(viewing.familyStatus)) {
-    return <FamilyRemoved membership={viewing} families={myFamilies} />
+    return <FamilyRemoved membership={viewing} families={myFamilies} t={t} />
   }
 
   const firstName = user.user_metadata?.first_name || user.email?.split('@')[0] || 'Member'
@@ -673,7 +673,7 @@ export default async function DashboardPage() {
               order here is the order they appear in: what you owe, then what you are being
               asked to give. */}
           <AtAGlance tiles={tiles} t={t}>
-            <DuesBalanceKpi summary={duesSummary} showViewLink intl={intl} />
+            <DuesBalanceKpi summary={duesSummary} showViewLink intl={intl} t={t} />
             <DonationDrivesCard donations={donations} t={t} intl={intl} />
           </AtAGlance>
           {/* Merged and ordered on the server: pinned announcements first, then

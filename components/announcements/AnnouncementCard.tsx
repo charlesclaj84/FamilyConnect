@@ -1,3 +1,13 @@
+'use client'
+
+// ── A CLIENT COMPONENT, AND THE DIRECTIVE WAS MISSING UNTIL 2026-08-29 ──────────────────
+// Its one caller is `AnnouncementBoard`, which is `'use client'` because it owns the pin and
+// dismiss state — so this was already in the browser bundle and `useT()` worked. The line is
+// here to keep it that way: without it, the first Server Component to render this card gets a
+// client reference for `useT` and throws. The seven cards fixed alongside it took a `t` prop
+// instead, because each of those genuinely renders from both sides; this one does not.
+// `npm run audit:client-hooks` is the gate.
+
 import Link from 'next/link'
 import { ChevronRight, Pin, Vote } from 'lucide-react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'

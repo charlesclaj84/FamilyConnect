@@ -3,7 +3,7 @@ import { formatCurrency } from '@/lib/currency-utils'
 import { HelpLink } from '@/components/help/HelpLink'
 import { gatheringBudgetMath } from '@/lib/gathering-budget'
 import type { GatheringBudgetView, GatheringBudgetState } from '@/app/actions/gatherings'
-import { useT } from '@/components/layout/LocaleProvider'
+import { type T } from '@/lib/i18n/t'
 
 /**
  * A gathering's money, and the red line.
@@ -101,6 +101,20 @@ export interface BudgetBandProps {
    * `useIntlTag()`, because this is a Server Component. See lib/i18n/server.ts.
    */
   intl: string
+  /**
+   * The reader's translator. A PROP for `intl`'s reason, one line up — and this band SHIPPED
+   * with `useT()` in its body instead, which is the whole of the crash.
+   *
+   * `useT` comes from `components/layout/LocaleProvider.tsx`, which is `'use client'`, so a
+   * Server Component importing it gets a client REFERENCE and calling it throws *"Attempted to
+   * call useT() from the server"* — the error boundary over the whole of Gatherings, on a Free
+   * family, reported the same day as the Dashboard's.
+   *
+   * A prop rather than a `'use client'` directive because this renders from BOTH sides:
+   * `/gatherings/[id]` is a Server Component and `AdminGatheringDetailClient` is not.
+   * `npm run audit:client-hooks` is the gate.
+   */
+  t: T
   /** From `getGatheringDetail` / `getAdminGatheringDetail`. Null for both null states below. */
   budget: GatheringBudgetView | null
   /**
@@ -113,8 +127,7 @@ export interface BudgetBandProps {
   className?: string
 }
 
-export function BudgetBand({ budget, state, className, intl }: BudgetBandProps) {
-  const t = useT()
+export function BudgetBand({ budget, state, className, intl, t }: BudgetBandProps) {
   // The caller is entitled and the figures did not come back. Say it, once, in the space the
   // band would have occupied — see the header on why this is neither nothing nor a FormError.
   if (state === 'unavailable') {

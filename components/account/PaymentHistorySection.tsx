@@ -124,7 +124,7 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
       {/* `sm:max-w-sm` rather than a half-width grid cell: it is the only card on this
           screen, and a single stat card stretched across a 6xl measure reads as a banner
           rather than as a figure. */}
-      <PaidThisYearCard history={history} className="sm:max-w-sm" intl={intl} />
+      <PaidThisYearCard history={history} className="sm:max-w-sm" intl={intl} t={t} />
 
       <div>
         <div className="mb-3 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">

@@ -1,3 +1,8 @@
+'use client'
+
+// A CLIENT COMPONENT, for `RoomList`'s reason one file up: `onClick` and `onDelete` are
+// functions, so no Server Component can render it. The directive was missing until 2026-08-29.
+
 import { MessageCircle, Users, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { RoomWithMeta } from '@/app/actions/chat'

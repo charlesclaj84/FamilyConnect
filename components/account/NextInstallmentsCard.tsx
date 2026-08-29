@@ -4,7 +4,7 @@ import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { isOutstanding } from '@/lib/dues-utils'
 import type { DuesSummary } from '@/app/actions/dues'
-import { useT } from '@/components/layout/LocaleProvider'
+import { type T } from '@/lib/i18n/t'
 
 /**
  * What the member pays next, across every schedule that has a date.
@@ -28,14 +28,20 @@ import { useT } from '@/components/layout/LocaleProvider'
  * one date and had to infer that the other two existed. It lists each schedule's own
  * next date, and says "Installments" when it means more than one.
  */
-export function NextInstallmentsCard({ summary, className, intl }: {
+export function NextInstallmentsCard({ summary, className, intl, t }: {
   /** The reader's `Intl` tag. A prop — this is a Server Component. */
   intl: string
+  /**
+   * The reader's translator. A PROP for the same reason `intl` beside it is one, and this
+   * component SHIPPED with `useT()` in its body instead — a client hook in a module with no
+   * `'use client'`, which throws *"Attempted to call useT() from the server"* and renders the
+   * error boundary over the whole page. `npm run audit:client-hooks` is the gate.
+   */
+  t: T
   summary: DuesSummary[]
   /** Sizing from the parent — a grid cell in every current call site. */
   className?: string
 }) {
-  const t = useT()
   // `isOutstanding`, not `!paid`: a due the member has DECLINED is neither paid nor
   // owed, and counting it here would put a figure on the card against something they
   // have already said no to.
