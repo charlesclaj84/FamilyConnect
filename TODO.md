@@ -1224,32 +1224,137 @@ Re-checked 2026-08-29:
 
 Recorded 2026-08-23; the i18n cost added 2026-08-29.
 
-## Sorting is on two tables of sixteen
+## DONE 2026-08-31: sorting is on every table that should have it
 
-**Action:** work through the list. The pattern is proven and each table is three lines.
+**No action.** Kept because the four decisions below are the ones a new table has to make, and
+because three of them are about tables that deliberately do NOT sort.
 
 `lib/sort-rows.ts` (pure, 18 tests, eight mutations measured) plus `useTableSort` and `SortTh`
-in [components/ui/sortable-header.tsx](components/ui/sortable-header.tsx) are the mechanism, and
-they are done. What is left is applying them.
+in [components/ui/sortable-header.tsx](components/ui/sortable-header.tsx) are the mechanism.
+Seventeen more tables across eleven files were converted on 2026-08-31, joining
+`MemberDirectoryClient`, `AdminAccessClient`, `DuesPlanSection` and `PaymentHistorySection`.
 
-**Has sorting:** `MemberDirectoryClient` and `AdminAccessClient` — the pair AGENTS.md requires
-to stay in lockstep, four matching columns each — plus `DuesPlanSection` and
-`PaymentHistorySection`, which sorted before any of this existed and now share the module.
+**`SortTh` WAS MISSING `scope="col"` THE WHOLE TIME**, while every hand-written `<th>` in the
+app carried it — so the four tables that already sorted had been announcing their cells without
+a column since the component was written. Fixed in the component, which fixed all four.
 
-**Still to do**, and it is mechanical:
+### Four tables do not sort, and each refusal is a different rule
 
 | | |
 |---|---|
-| Accounting | `AdminFundsClient`, `AdminIncomeClient`, `DuesProjectionsClient` |
-| Admin | `AdminRegionsChaptersClient`, `AdminBoardPositionsClient` |
-| Gatherings | `AdminGatheringsClient`, `AdminGatheringTemplatesClient`, `AdminGatheringDetailClient`, `GatheringDetailClient` |
-| Money | `TransactionsClient` |
-| Community | `BirthdaysPane` |
-| Staff | `StaffFamiliesClient`, `StaffAccountsClient`, `StaffAccessClient` |
+| the dues-routing waterfall, view AND edit (`AdminFundsClient`) | the row order IS the datum — funds fill in sequence, the first column is that ordinal, and the edit table exists to change it |
+| the template steps table (`AdminGatheringTemplatesClient`) | same shape: `StepRow` takes `isFirst`/`isLast`/`onMove`, and "move up" is incoherent under a table sorted by budget |
+| `StaffFamiliesClient`, `StaffAccountsClient` | SERVER-PAGED. A client sort orders the 25 rows on screen and looks like it ordered 400 — and Accounts pages through GoTrue's `listUsers`, which cannot order at all, so there is no server-side version to reach for either |
 
-**Out of scope and not oversights:** `DonutChart` and `MonthCalendar` use `<th>` for a chart
-axis and a weekday header, and `components/ui/table-collapse.tsx` is the shared primitive
-rather than a table. None of the three has rows to order.
+`AdminGatheringTemplatesClient` turned out to hold **only** that steps table — its library is
+cards — so the file drops off the list entirely. `DonutChart` and `MonthCalendar` use `<th>` for
+a chart axis and a weekday header, and `components/ui/table-collapse.tsx` is the shared
+primitive rather than a table; none has rows to order.
+
+### The four decisions, which are what a new table has to make
+
+**1. THE DEFAULT REPRODUCES THE ORDER THE LIST ARRIVES IN.** `useTableSort` has no unsorted
+state, so every conversion picks the key that reproduces first paint, and where the incoming
+order is a decision somebody made, that is a constraint rather than a preference. Three shapes
+came up:
+
+* **A single column says it** — `.order('label')`, `.order('name')`, `.order('starts_on')`.
+  Most tables. Pass that key; the stable sort even preserves the secondary `.order()`.
+* **A composite says it** — `DuesProjectionsClient`'s member table is already sorted standing,
+  then outstanding descending, then name, and the lede says "Least settled first". `sortRows`
+  is STABLE, so sorting the already-sorted array by standing alone leaves the other two keys
+  exactly where they were. The default is reproduced to the row.
+* **Nothing printed says it** — a gathering's tasks are ordered by `position`, the narrative
+  the organizer authored, and no heading corresponds to it. Those take an extractor named
+  `authored` **with no heading**: nothing shows an active arrow until a heading is pressed. The
+  cost is that the authored order cannot be returned to without reloading.
+
+The one default that CHANGED is `AdminBoardPositionsClient`, and deliberately: its `sort_order`
+is `max + 1` on create with no reorder control anywhere, so it records the order somebody
+happened to add the offices in — not a fact the screen prints or a reader could infer.
+
+**2. AN ENUM SORTS ON THE PRINTED LABEL, NOT ON A RANK — WITH ONE EXCEPTION.** Alphabetical by
+the word in the cell is what a reader can predict, and it is locale-correct for free because
+`useTableSort` threads the `Intl` tag. A rank has to be INVENTED, and on the staff console
+inventing one would have meant saying something about support versus engineer that
+`lib/auth/staff.ts` is explicit nothing distinguishes. The exception is
+`DuesProjectionsClient`'s Standing, where `STANDING_ORDER` was not invented — the screen
+already shipped it, already sorts by it and already draws its pills in it.
+
+`PaymentLedger`'s Status is the sharpest case FOR the label: the pill reads "Reversed" or
+"Correcting entry" for rows whose stored `status` is an ordinary `'paid'`, so ordering by the
+column would file a reversed payment among the paid ones under a heading plainly saying
+otherwise.
+
+**3. SORT THE VALUE THE CELL IS BUILT FROM.** Money on `amount_cents` — about twenty currency
+columns in this pass, and "$9.00" sorts after "$10.00" as text. Dates on the stored
+`YYYY-MM-DD`, which is chronological as a string, so no `Date` is built and no timezone moves a
+row a day from the date printed beside it. And `AdminRegionsChaptersClient`'s Attached column
+sorts on a TOTAL of the five counts its caption is assembled from — returning `0` rather than
+`null` for nothing-attached, so ascending answers "what can I delete?" instead of burying those
+rows as blanks.
+
+**AND AN EXTRACTOR MUST READ ITS OWN ROW AND NOTHING ELSE** — the one defect in this pass that
+survived typecheck, lint and build, caught on review rather than by a gate. `useTableSort`'s
+memo depends on `rows` and deliberately not on the extractor map, so a column COMPOSED FROM
+ANOTHER LIST re-renders its cells with the new figure while keeping the order derived from the
+old one. Three tables here do that — a region's chapter count out of `chapters`, a milestone's
+fund name out of `funds`, a segment's task count out of `tasks` — and all three panes write
+optimistically with **no `router.refresh()`**, so nothing comes along to correct it: an
+ascending sort by chapter count sits there showing 5 above 3 for the rest of the visit.
+
+A `deps` parameter on the hook was the obvious fix and **cannot be written**: the React
+Compiler lint rule requires that dep list to be an array literal, so there is nothing to spread
+into. The answer is to compose the value onto the row in a `useMemo` of the caller's own that
+lists the other array — `regionRows`, `milestoneRows`, `segmentRows` — and let the extractor
+read the field. That is also the contract the hook documents, and it has a second benefit worth
+copying: the milestone Fund cell now reads `m.fundName` instead of running its own second
+`funds.find`, so the column's order and both places its text is drawn are one value.
+
+**4. TWO COLUMNS WERE LEFT UNSORTABLE FOR THEIR OWN REASONS**, which is a legitimate outcome:
+`BirthdaysPane`'s **Turning**, because `birthdayAge` withholds a number for 30–60 and a sort
+keyed on the true age would let a reader read a withheld age off its position; its **Day**,
+because a weekday's alphabetical order is nonsense and the row carries no weekday index; and
+`GatheringDetailClient`'s **Answer**, because `answer` is JSONB whose shape depends on `kind`.
+
+### Two things fixed on the way through
+
+**`DuesProjectionsClient`'s ten headings were English in all three languages** — the
+lone-capitalised-word class AGENTS.md says `i18n:literals` structurally cannot see and only the
+render diff can. Six new `proj.col*` keys in all three catalogues; `proj.collected` and
+`proj.waived` already existed for the figure tiles on the same screen and are reused rather
+than duplicated. **`AdminFundsClient`'s "% of dues"** was the same defect and now uses
+`fnd.shareOfDuesPrefix`, the key its own folded `RowMeta` copy was already labelled with.
+
+**`LedgerTable` was widened rather than unpicked.** Four ledgers share it, and a column opts
+into sorting by naming its key (`sort: 'amount'`); a generic ties that to the caller's
+`useTableSort` map, so naming a column that does not exist is a compile error. Four copies
+would have been four chances to sort a rendered string. `PaymentLedger`'s hook had to move
+ABOVE its `rows.length === 0` return — a hook after a conditional return breaks exactly when a
+ledger takes its first row.
+
+**One asymmetry is still deliberately unresolved.** Both member tables sort Name on the
+DISPLAYED name rather than on surname, which is the less useful order — `MemberRecord` has
+`last_name` and `MemberSummary` carries a pre-joined `name`, so surname order on both needs
+`lastName` added to `MemberSummary` server-side. Until then the two agree, which is what "a
+table is a table" is about. Both call sites say so; if that field is ever added, move both.
+
+**And a text column sorts in the READER'S alphabet, which costs a conversion nothing.**
+`compareValues` and `sortRows` take an `Intl` tag and **`useTableSort` calls `useIntlTag()`
+itself**, so a table converted the ordinary way is locale-correct with no extra line. It
+matters because `ñ` is a letter of its own in Spanish and files after `n`, and `sensitivity:
+'base'` does not collapse it — measured. The tag defaults to `'en'` rather than `undefined`
+deliberately: passing `undefined` asks the RUNTIME, and a comparator that answers differently
+on two hosts is a row order nothing in this repo decides.
+
+**Where it still costs something is a table that sorts by hand.** `DuesPlanSection` and
+`PaymentHistorySection` use `SortTh` with their own state and their own comparators rather
+than `useTableSort` — they sorted before any of this existed and share only the HEADER. Both
+already hold an `intl` from `useIntlTag()` for their money and date formatting, so if either is
+ever moved onto `useTableSort`, the tag is the thing to check reached the comparator and not
+just the labels.
+
+Recorded 2026-08-21; completed 2026-08-31.
 
 **Three things to carry into each one**, all learned on a conversion rather than guessed. Sort
 the value the cell is BUILT from, never the string it prints — a money column sorts on

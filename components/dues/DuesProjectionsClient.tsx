@@ -9,6 +9,7 @@ import { formatDate } from '@/lib/date-utils'
 import { disambiguatedName } from '@/lib/name-utils'
 import { matchesPersonQuery } from '@/lib/person-search'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
+import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { HelpLink } from '@/components/help/HelpLink'
 import { collectedPercent, type DuesStanding, type MemberStatus } from '@/lib/dues-projection'
 import type { DuesProjectionResult, ProjectionPerson } from '@/app/actions/dues'
@@ -200,6 +201,45 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
       || a.name.localeCompare(b.name))
   }, [projection.members, byId, nameOf, onlyOwing, query])
 
+  // ── SORTING, AND THE MEMBER TABLE IS THE ONE CASE IN THE PASS WITH A COMPOSITE DEFAULT ──
+  // `rows` above is already sorted three deep — standing, then outstanding descending, then
+  // name — and that order is this screen's whole editorial line: the lede under the table says
+  // "Least settled first". A single-key hook cannot express three keys, so it does not have to:
+  // `sortRows` is STABLE, so sorting the already-composite-sorted array by standing alone
+  // leaves the two secondary keys exactly where they were inside each standing group. The
+  // default therefore reproduces the old order to the row, and the machinery is honest about
+  // what it is doing rather than smuggling a second comparator in.
+  //
+  // STANDING SORTS ON A RANK, WHICH CONTRADICTS THE RULE THIS PASS TOOK EVERYWHERE ELSE —
+  // deliberately, and the distinction is where the rank came from. On the staff console and
+  // the board-position list an ordering of the enum would have had to be INVENTED, so those
+  // sort on the printed label. `STANDING_ORDER` is not invented here: it is a constant this
+  // screen already shipped, already sorts by, and already draws its pills in. Sorting on the
+  // label instead would make the default order unreachable from the heading that sets it.
+  //
+  // THE SCHEDULE TABLE DEFAULTS TO `schedule`, which is `getDuesSchedules`' `.order('label')`.
+  //
+  // EVERY FIGURE ON BOTH TABLES SORTS ON CENTS. Ten currency columns between them, and
+  // `formatCurrency` is applied only in the cell.
+  const scheduleSort = useTableSort(projection.schedules, {
+    schedule: s => s.label,
+    paying: s => s.payingMembers,
+    expected: s => s.expectedCents,
+    collected: s => s.collectedCents,
+    waived: s => s.waivedCents,
+    outstanding: s => s.outstandingCents,
+  }, 'schedule')
+
+  const memberSort = useTableSort(rows, {
+    standing: r => STANDING_ORDER.indexOf(r.standing),
+    member: r => r.name,
+    status: r => memberStatus(t)[r.status].label,
+    dues: r => r.liableSchedules,
+    expected: r => r.expectedCents,
+    paid: r => r.collectedCents,
+    outstanding: r => r.outstandingCents,
+  }, 'standing')
+
   const percent = collectedPercent(projection)
   const owing = projection.members.filter(m => m.outstandingCents > 0).length
 
@@ -313,18 +353,16 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-semibold">
-                    {t('col.schedule')}
-                  </th>
-                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Paying</th>
-                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Expected</th>
-                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Collected</th>
-                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Waived</th>
-                  <th scope="col" className="px-3 py-2 text-right font-semibold">Outstanding</th>
+                  <SortTh label={t('col.schedule')} {...scheduleSort.sortProps('schedule')} className="px-3 py-2 font-semibold" />
+                  <SortTh label={t('proj.colPaying')} align="right" {...scheduleSort.sortProps('paying')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.colExpected')} align="right" {...scheduleSort.sortProps('expected')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.collected')} align="right" {...scheduleSort.sortProps('collected')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.waived')} align="right" {...scheduleSort.sortProps('waived')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.colOutstanding')} align="right" {...scheduleSort.sortProps('outstanding')} className="px-3 py-2 font-semibold" />
                 </tr>
               </thead>
               <tbody>
-                {projection.schedules.map(s => (
+                {scheduleSort.rows.map(s => (
                   <tr key={s.scheduleId} className="border-b align-top last:border-0 sm:align-middle">
                     <td className="px-3 py-2.5">
                       <span className="font-medium">{s.label}</span>
@@ -481,20 +519,16 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-semibold">
-                    {t('col.member')}
-                  </th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Standing</th>
+                  <SortTh label={t('col.member')} {...memberSort.sortProps('member')} className="px-3 py-2 font-semibold" />
+                  <SortTh label={t('proj.colStanding')} {...memberSort.sortProps('standing')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   {/* THE SECOND AXIS. It folds like Standing does and is restated in the same
                       meta line, so a phone loses neither — see the header for why they are two
                       columns rather than one pill. */}
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>
-                    {t('col.status')}
-                  </th>
-                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Dues</th>
-                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Expected</th>
-                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Paid</th>
-                  <th scope="col" className="px-3 py-2 text-right font-semibold">Outstanding</th>
+                  <SortTh label={t('col.status')} {...memberSort.sortProps('status')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.colDues')} align="right" {...memberSort.sortProps('dues')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.colExpected')} align="right" {...memberSort.sortProps('expected')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.colPaid')} align="right" {...memberSort.sortProps('paid')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.colOutstanding')} align="right" {...memberSort.sortProps('outstanding')} className="px-3 py-2 font-semibold" />
                 </tr>
               </thead>
               <tbody>
@@ -502,7 +536,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                   <tr>
                     <td colSpan={7} className="px-3 py-6 text-center text-xs text-muted-foreground">{t('dues.noMembersMatchFilter')}</td>
                   </tr>
-                ) : rows.map(r => {
+                ) : memberSort.rows.map(r => {
                   const pill = (
                     <span title={standing(t)[r.standing].hint}
                       className={cn('inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',

@@ -39,7 +39,13 @@ export function SortTh({
 }) {
   const Icon = active ? (dir === 'asc' ? ChevronUp : ChevronDown) : ArrowUpDown
   return (
-    <th className={cn(
+    // `scope="col"` — added 2026-08-31 when sorting was rolled out to the rest of the tables,
+    // and it was MISSING here while every hand-written `<th>` in the app carries it. That is
+    // the half of "a table is a table" this component exists to protect: a cell is announced
+    // with its column, and a heading with no scope leaves the association to the browser's
+    // guess. It was wrong on all four tables already converted, so fixing the component fixed
+    // them too — which is the argument for the component rather than a `<th>` per table.
+    <th scope="col" className={cn(
       'py-2 pr-3 text-xs font-medium text-muted-foreground',
       align === 'right' ? 'text-right' : 'text-left',
       className,
@@ -121,6 +127,22 @@ export function useTableSort<
     // `columns` is an object literal at the call site and so is a new identity every render —
     // depending on it would defeat the memo entirely. The KEY is what selects the extractor,
     // and a table does not change what a column means while it is on screen.
+    //
+    // ── SO AN EXTRACTOR MUST READ ITS OWN ROW, AND NOTHING ELSE ──────────────────────
+    // Added 2026-08-31 after three tables in that rollout broke this. `rows` is the only
+    // data in the dep list, so a column COMPOSED FROM ANOTHER LIST — a region's chapter
+    // count out of `chapters`, a milestone's fund name out of `funds`, a segment's task
+    // count out of `tasks` — re-renders its CELLS with the new figure while keeping the
+    // ORDER derived from the old one. A table sorted ascending by chapter count then shows
+    // 5 above 3, and all three of those panes write optimistically with no
+    // `router.refresh()`, so nothing comes along to correct it.
+    //
+    // A `deps` parameter was the obvious fix and cannot be written: the React Compiler
+    // lint rule requires this dep list to be an array literal, so there is nothing to
+    // spread into. COMPOSE THE VALUE ONTO THE ROW INSTEAD, in a `useMemo` of the caller's
+    // own that lists the other list as a dependency, and let the extractor read the field.
+    // `AdminRegionsChaptersClient` is the worked example. That is also the shape the
+    // contract above describes — the extractor returns a `SortValue` off its row.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rows, key, dir, intl],
   )

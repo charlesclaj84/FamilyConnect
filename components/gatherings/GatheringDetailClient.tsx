@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input'
 import { Label, RequiredMark } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
+import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { AnswerText } from '@/components/gatherings/AnswerText'
 import { TaskStatusPill } from '@/components/gatherings/StatusPill'
 import { GATHERING_TASK_STATUSES, GATHERING_TASK_STATUS_LABEL, isCompleteAnswer, type GatheringTaskStatus, type TaskProgress } from '@/lib/gatherings'
@@ -290,6 +291,31 @@ function TaskGroup({ heading, occursOn, location, tasks, showTaskBudgets }: {
   const when = formatDate(occursOn, intl)
   const meta = [when, location].filter(Boolean).join(' · ')
 
+  // ── ONE SORT PER SEGMENT, WHICH IS THE RIGHT SCOPE RATHER THAN A LIMITATION ───────
+  // The hook is called here, inside `TaskGroup`, so each segment's table sorts on its own and
+  // pressing Due on the Picnic leaves the Welcome alone. That is what a reader means: these
+  // are separate lists under separate headings, and one sort spanning all of them would have
+  // to dissolve the segments to express itself.
+  //
+  // THE DEFAULT IS THE AUTHORED ORDER, through `authored` — an extractor on `position` with no
+  // heading of its own. Same decision, and the same reasoning, as the organizer's copy of this
+  // table on `/admin/gatherings/[id]`: a gathering's steps are a narrative somebody wrote, and
+  // a member opening the reunion to see what they have been asked to do must not be handed it
+  // alphabetised. Nothing carries an active arrow until a heading is pressed.
+  //
+  // ANSWER IS NOT SORTABLE. `answer` is JSONB whose shape is decided by `kind` (a currency, a
+  // date, a yes/no, a paragraph), so there is no single value to order a mixed column by —
+  // `SortValue` would take whatever `String()` made of it, which is how a column comes to sort
+  // by the word "object". The other five are all one comparable fact each.
+  const { rows, sortProps } = useTableSort(tasks, {
+    authored: task => task.position,
+    task: task => task.label,
+    assignee: task => task.assignee?.name ?? null,
+    status: task => GATHERING_TASK_STATUS_LABEL[task.status],
+    due: task => task.dueOn,
+    budget: task => task.budgetCents,
+  }, 'authored')
+
   return (
     <div className="space-y-2">
       {/* The wrapper holds only the `<h3>` when there is nothing to add, so a segment that states
@@ -305,18 +331,20 @@ function TaskGroup({ heading, occursOn, location, tasks, showTaskBudgets }: {
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <th scope="col" className="px-3 py-2 font-semibold">{t('gath.task')}</th>
-              <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('gath.assignedTo')}</th>
-              <th scope="col" className="px-3 py-2 font-semibold">{t('money.status')}</th>
-              <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('gath.due')}</th>
+              <SortTh label={t('gath.task')} {...sortProps('task')} className="px-3 py-2 font-semibold" />
+              <SortTh label={t('gath.assignedTo')} {...sortProps('assignee')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+              <SortTh label={t('money.status')} {...sortProps('status')} className="px-3 py-2 font-semibold" />
+              <SortTh label={t('gath.due')} {...sortProps('due')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
               {showTaskBudgets && (
-                <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('budget.heading')}</th>
+                <SortTh label={t('budget.heading')} align="right" {...sortProps('budget')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
               )}
+              {/* Not sortable — see the extractor map above: `answer` is JSONB whose shape
+                  depends on `kind`, so the column holds no one comparable value. */}
               <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('gath.answer')}</th>
             </tr>
           </thead>
           <tbody>
-            {tasks.map(task => (
+            {rows.map(task => (
               <TaskRow key={task.id} task={task} showTaskBudgets={showTaskBudgets} />
             ))}
           </tbody>

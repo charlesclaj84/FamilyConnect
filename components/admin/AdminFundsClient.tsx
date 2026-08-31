@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { Trash2, Pencil, X, ChevronUp, ChevronDown } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useConfirm } from '@/components/ui/confirm'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
+import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { FormError } from '@/components/ui/form-message'
 import { cn } from '@/lib/utils'
 import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
@@ -82,6 +83,60 @@ export function AdminFundsClient({
   // `useState` initializer would go stale for the rest of the visit.
   const [funds, setFunds] = useServerState(initialFunds)
   const [milestones, setMilestones] = useServerState(allMilestones)
+
+  // ── TWO OF THIS SCREEN'S FOUR TABLES SORT, AND THE OTHER TWO MUST NOT ─────────────
+  // The dues-routing tables below — the view one and the edit one — are the WATERFALL, and
+  // their row order is the datum: funds fill in the order the rows are in, the first column is
+  // that ordinal, and the edit table's whole purpose is to change it. A heading that reordered
+  // either would leave "move up" acting on a sequence the reader can no longer see, which is
+  // the same reason `AdminGatheringTemplatesClient`'s step table is not sortable. Funds and
+  // Milestones are unordered lists of records and sort freely.
+  //
+  // BOTH DEFAULT TO NAME, which is what `getFunds` (`.order('priority').order('name')`) and
+  // `getFundMilestones` (`.order('sort_order')`) put on screen closely enough to be the same
+  // first paint for any family that has not reordered its funds — and unlike the waterfall,
+  // priority is not printed on THIS table, so nothing visible is displaced.
+  //
+  // EVERY FIGURE SORTS ON CENTS, never on `fmt(...)`. That is the money half of the rule this
+  // pass is built on: "$9.00" sorts after "$10.00" as text, and this table has five currency
+  // columns to get it wrong in. `% of dues` sorts on `allocation_bps` for the same reason —
+  // the cell prints a percentage rounded to two places, so two funds at 12.5% and 12.504% look
+  // identical and must still order deterministically.
+  //
+  // A MILESTONE'S FUND IS COMPOSED IN THE BROWSER, which is AGENTS.md's third rule for a
+  // conversion and the reason `milestoneRows` below exists: where a column is composed rather
+  // than carried on the row, the ORDER has to be built from the same value the text is, or
+  // the two disagree. A milestone whose fund is missing prints an em-dash and sorts as a
+  // blank, which is the same absence stated twice.
+  const fundSort = useTableSort(funds, {
+    fund: f => f.name,
+    share: f => f.allocation_bps,
+    balance: f => f.balance_cents,
+    collected: f => f.total_contributed_cents,
+    disbursed: f => f.total_disbursed_cents,
+    transferred: f => f.net_transfers_cents,
+    minimum: f => f.minimum_cents,
+  }, 'fund')
+
+  // THE FUND NAME IS COMPOSED ONTO THE ROW, and it has to be. `FundMilestone` carries only
+  // `fund_id`, so the Fund column resolves out of `funds` — and `useTableSort`'s memo depends
+  // on the array it is given, not on the extractor map (its header has the argument). This
+  // panel edits funds optimistically, so renaming one would change every name in that column
+  // while leaving `milestones` untouched: the cells would re-render and the order would keep
+  // the old names. A memo that lists `funds` is what keeps the two together.
+  const milestoneRows = useMemo(
+    () => milestones.map(m => ({
+      ...m,
+      fundName: funds.find(f => f.id === m.fund_id)?.name ?? null,
+    })),
+    [milestones, funds],
+  )
+
+  const milestoneSort = useTableSort(milestoneRows, {
+    milestone: m => m.name,
+    fund: m => m.fundName,
+    award: m => m.amount_cents,
+  }, 'milestone')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -405,18 +460,23 @@ export function AdminFundsClient({
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-semibold">{t('fnd.fund')}</th>
-                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>% of dues</th>
-                    <th scope="col" className="px-3 py-2 text-right font-semibold">{t('fnd.balance')}</th>
-                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('fnd.collected')}</th>
-                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('fnd.disbursed')}</th>
-                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('fnd.transferred')}</th>
-                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('fnd.minimum')}</th>
+                    <SortTh label={t('fnd.fund')} {...fundSort.sortProps('fund')} className="px-3 py-2 font-semibold" />
+                    {/* WAS THE LITERAL "% of dues", which was English in all three languages —
+                        the lone-heading class AGENTS.md says `i18n:literals` structurally
+                        cannot see. `fnd.shareOfDuesPrefix` is the key the `RowMeta` line
+                        already labels this same figure with, so the heading and its folded
+                        copy now read identically instead of being two words for one fact. */}
+                    <SortTh label={t('fnd.shareOfDuesPrefix')} align="right" {...fundSort.sortProps('share')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                    <SortTh label={t('fnd.balance')} align="right" {...fundSort.sortProps('balance')} className="px-3 py-2 font-semibold" />
+                    <SortTh label={t('fnd.collected')} align="right" {...fundSort.sortProps('collected')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                    <SortTh label={t('fnd.disbursed')} align="right" {...fundSort.sortProps('disbursed')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                    <SortTh label={t('fnd.transferred')} align="right" {...fundSort.sortProps('transferred')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                    <SortTh label={t('fnd.minimum')} align="right" {...fundSort.sortProps('minimum')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                     <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {funds.map(f => (
+                  {fundSort.rows.map(f => (
                     <tr key={f.id} className="border-b align-top last:border-0 sm:align-middle">
                       <td className="px-3 py-2.5">
                         <div className="flex flex-wrap items-center gap-2">
@@ -582,25 +642,28 @@ export function AdminFundsClient({
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-semibold">{t('fnd.milestone')}</th>
-                    <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('fnd.fund')}</th>
-                    <th scope="col" className="px-3 py-2 text-right font-semibold">{t('fnd.award')}</th>
+                    <SortTh label={t('fnd.milestone')} {...milestoneSort.sortProps('milestone')} className="px-3 py-2 font-semibold" />
+                    <SortTh label={t('fnd.fund')} {...milestoneSort.sortProps('fund')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                    <SortTh label={t('fnd.award')} align="right" {...milestoneSort.sortProps('award')} className="px-3 py-2 font-semibold" />
                     <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {milestones.map(m => {
-                    const fund = funds.find(f => f.id === m.fund_id)
+                  {milestoneSort.rows.map(m => {
+                    // `m.fundName`, resolved once in `milestoneRows` above, rather than a
+                    // second `funds.find` here. Both copies would agree today and the point
+                    // is that they cannot drift: the column's ORDER and the two places its
+                    // text is drawn are now one value.
                     return (
                       <tr key={m.id} className="border-b align-top last:border-0 sm:align-middle">
                         <td className="px-3 py-2.5">
                           <span className="font-medium">{m.name}</span>
                           {m.description && <p className="text-xs text-muted-foreground">{m.description}</p>}
                           <RowMeta>
-                            <MetaIf value={fund?.name} prefix={t('fnd.paidFromPrefix')} />
+                            <MetaIf value={m.fundName ?? undefined} prefix={t('fnd.paidFromPrefix')} />
                           </RowMeta>
                         </td>
-                        <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{fund?.name ?? '—'}</td>
+                        <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{m.fundName ?? '—'}</td>
                         <td className="px-3 py-2.5 text-right font-medium whitespace-nowrap">{fmt(m.amount_cents)}</td>
                         <td className="w-px px-3 py-2.5 text-right">
                           {mayDeleteMilestone && (

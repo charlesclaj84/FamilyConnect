@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Trash2, UserPlus } from 'lucide-react'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
+import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { FormError } from '@/components/ui/form-message'
 import { useConfirm } from '@/components/ui/confirm'
 import { Button } from '@/components/ui/button'
@@ -167,6 +168,32 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
    */
   const owners = team.filter(r => r.role === 'owner').length
 
+  // ── SORTING, AND HERE IT REPLACES NO ORDER AT ALL ─────────────────────────────────
+  // `listStaffTeam` issues no `.order()`, so this list arrives in whatever order Postgres
+  // happened to return — which makes `account` ascending a free choice rather than a
+  // replacement for a decision somebody made. That is unlike every other table converted in
+  // this pass, and it is why the default here is the reading of the screen ("who has access")
+  // rather than a reproduction of the incoming order.
+  //
+  // ACCESS SORTS ON THE PRINTED LABEL, not on the role value and not on a rank. Alphabetical
+  // by the word in the cell is what the reader can predict, and it is locale-correct for free
+  // because `useTableSort` threads the reader's `Intl` tag. A RANK was the obvious alternative
+  // and is refused: owner above the other two is defensible, but any rank has to say something
+  // about support versus engineer, and AGENTS.md is explicit that nothing distinguishes them
+  // and that inventing a distinction is a control nothing consults.
+  //
+  // AN UNNAMED ACCOUNT SORTS LAST, which is `lib/sort-rows.ts`' blanks rule and is worth
+  // knowing here specifically: `email` is `''` when the GoTrue lookup did not answer, and the
+  // action's own header calls that "the most important row on this screen rather than one to
+  // hide". Last is not hidden — this table is a handful of rows and every one of them is on
+  // screen — but it does mean the blank can never be sorted to the top, in either direction.
+  const { rows, sortProps } = useTableSort(team, {
+    account: r => r.email,
+    access: r => roleLabel(t)[r.role],
+    why: r => r.note,
+    granted: r => r.grantedAt,
+  }, 'account')
+
   function handleGrant() {
     setGrantError('')
     startTransition(async () => {
@@ -225,10 +252,10 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-semibold">{t('staff.account')}</th>
-                  <th scope="col" className="px-3 py-2 font-semibold">{t('staff.access')}</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.why')}</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.granted')}</th>
+                  <SortTh label={t('staff.account')} {...sortProps('account')} className="px-3 py-2 font-semibold" />
+                  <SortTh label={t('staff.access')} {...sortProps('access')} className="px-3 py-2 font-semibold" />
+                  <SortTh label={t('staff.why')} {...sortProps('why')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('staff.granted')} {...sortProps('granted')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   {/* A column with no caption to give still owes one — without it a screen
                       reader announces the revoke button under whatever heading came last. */}
                   <th scope="col" className="px-3 py-2 font-semibold">
@@ -237,7 +264,7 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
                 </tr>
               </thead>
               <tbody>
-                {team.map(row => (
+                {rows.map(row => (
                   <TeamRow
                     key={row.userId}
                     row={row}

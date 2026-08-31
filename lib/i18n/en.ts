@@ -747,6 +747,18 @@ export const en: Catalogue = {
   'proj.expectedThisYear': 'Expected this year',
   'proj.collected': 'Collected',
   'proj.waived': 'Waived',
+  // ── THE TWO PROJECTION TABLES' COLUMN HEADINGS ────────────────────────────────────
+  // Added 2026-08-31 with sorting. Ten headings on `/reporting/dues-projections` were bare
+  // English literals in all three languages — the lone-capitalised-word class AGENTS.md says
+  // `i18n:literals` structurally cannot see and only the render diff can. `proj.collected` and
+  // `proj.waived` above already existed for the figure tiles at the top of the same screen and
+  // are reused rather than duplicated: same word, same screen, same meaning.
+  'proj.colPaying': 'Paying',
+  'proj.colExpected': 'Expected',
+  'proj.colOutstanding': 'Outstanding',
+  'proj.colStanding': 'Standing',
+  'proj.colDues': 'Dues',
+  'proj.colPaid': 'Paid',
   'proj.stillToCollect': 'Still to collect',
   'proj.oweSomethingOne': '1 of {total} members owes something',
   'proj.oweSomethingMany': '{paying} of {total} members owe something',

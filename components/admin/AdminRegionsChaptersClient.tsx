@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,6 +10,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
+import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { cn } from '@/lib/utils'
 import { useServerState } from '@/lib/use-server-state'
 import type { ScopeAttached } from '@/lib/scope-attached'
@@ -93,6 +94,29 @@ function attachedCaption(a: ScopeAttached, t: T): string | null {
   return parts.length ? parts.join(' · ') : null
 }
 
+/**
+ * How much is attached, as ONE NUMBER, so the Attached column can be sorted.
+ *
+ * The caption above is a sentence composed from five counts, and sorting the SENTENCE would
+ * order the table by the word "announcement" — AGENTS.md's rule for a conversion is to sort
+ * the value the cell is BUILT from rather than the string it prints, and here that value is
+ * the counts underneath.
+ *
+ * A TOTAL AND NOT `a.any`, because the boolean has two states and this column has to order a
+ * list. And it returns `0` rather than `null` for nothing-attached, which is the decision that
+ * makes the column worth sorting at all: `0` is a figure and sorts against the others, so
+ * ascending puts the regions and chapters nothing depends on FIRST — which is exactly the
+ * question this pane is asked ("what can I delete?"). Blanks sort last in both directions, so
+ * a `null` here would make that reading unreachable.
+ *
+ * `omitMembers` mirrors what the chapters table prints: members have their own column there,
+ * so counting them twice would order that column by a figure already sorted beside it.
+ */
+function attachedTotal(a: ScopeAttached, omitMembers = false): number {
+  return (omitMembers ? 0 : a.members)
+    + a.schedules + a.announcements + a.positions + a.elections
+}
+
 export function AdminRegionsChaptersClient({
   initialRegions, initialChapters, usage, mayCreate, mayEdit, mayDelete,
 }: Props) {
@@ -144,6 +168,58 @@ export function AdminRegionsChaptersClient({
   const usageOfChapter = (id: string) => usage.chapters[id] ?? NOTHING
   const chaptersInRegion = (id: string) => chapters.filter(c => c.region_id === id).length
   const nationalCount = chapters.filter(c => !c.region_id).length
+
+  // ── TWO TABLES, TWO SORTS ─────────────────────────────────────────────────────────
+  // Both default to name ascending, which is the order `getRegions`/`getChapters` already
+  // return (`.order('name')`), so neither table looks different on first paint than it did
+  // before it could be sorted.
+  //
+  // THE COUNTS SORT AS NUMBERS AND THE CAPTIONS SORT AS TOTALS — see `attachedTotal`. The
+  // only column here that sorts on a rendered string is the chapter's Region, and it does so
+  // BECAUSE OF WHAT THE ABSENCE MEANS: `region_id` is null for a chapter under no region, and
+  // the cell prints "National" for it, which is a place rather than a blank. Extracting the
+  // raw `region_name` would make every national chapter sort last as an absence, under a
+  // heading whose own cells say otherwise.
+  // ── THE COMPOSED FIGURES ARE PUT ON THE ROW, AND THAT IS NOT TIDINESS ─────────────
+  // `useTableSort`'s memo depends on the ARRAY it is given and deliberately not on the
+  // extractor map (its header has the argument). So an extractor that reaches into another
+  // list is a sort that goes stale: the Chapters column counts rows out of `chapters`, this
+  // pane writes to `chapters` OPTIMISTICALLY with no `router.refresh()`, and `regions` does
+  // not change when a chapter is added — so the counts in the cells would update while the
+  // order kept the old ones, showing 5 above 3 under an ascending sort for the rest of the
+  // visit. Composing the figure onto the row here, in a memo that DOES list `chapters`, is
+  // what makes the two move together; the extractors below then read their own row, which is
+  // the contract that hook actually documents.
+  const regionRows = useMemo(
+    () => regions.map(r => ({
+      ...r,
+      chapterCount: chapters.filter(c => c.region_id === r.id).length,
+      attachedCount: attachedTotal(usage.regions[r.id] ?? NOTHING),
+    })),
+    [regions, chapters, usage],
+  )
+
+  const chapterRows = useMemo(
+    () => chapters.map(c => ({
+      ...c,
+      memberCount: (usage.chapters[c.id] ?? NOTHING).members,
+      attachedCount: attachedTotal(usage.chapters[c.id] ?? NOTHING, true),
+    })),
+    [chapters, usage],
+  )
+
+  const regionSort = useTableSort(regionRows, {
+    region: r => r.name,
+    chapters: r => r.chapterCount,
+    attached: r => r.attachedCount,
+  }, 'region')
+
+  const chapterSort = useTableSort(chapterRows, {
+    chapter: c => c.name,
+    region: c => c.region_name ?? t('common.national'),
+    members: c => c.memberCount,
+    attached: c => c.attachedCount,
+  }, 'chapter')
 
   function handleAddRegion() {
     const name = newRegion.trim()
@@ -279,14 +355,14 @@ export function AdminRegionsChaptersClient({
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-semibold">{t('dir.region')}</th>
-                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('rep.chapters')}</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('org.attached')}</th>
+                  <SortTh label={t('dir.region')} {...regionSort.sortProps('region')} className="px-3 py-2 font-semibold" />
+                  <SortTh label={t('rep.chapters')} align="right" {...regionSort.sortProps('chapters')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('org.attached')} {...regionSort.sortProps('attached')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                 </tr>
               </thead>
               <tbody>
-                {regions.map(region => {
+                {regionSort.rows.map(region => {
                   const attached = usageOfRegion(region.id)
                   const count = chaptersInRegion(region.id)
                   return (
@@ -364,15 +440,15 @@ export function AdminRegionsChaptersClient({
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-semibold">{t('field.chapter')}</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('dir.region')}</th>
-                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('rep.members')}</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('org.attached')}</th>
+                  <SortTh label={t('field.chapter')} {...chapterSort.sortProps('chapter')} className="px-3 py-2 font-semibold" />
+                  <SortTh label={t('dir.region')} {...chapterSort.sortProps('region')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('rep.members')} align="right" {...chapterSort.sortProps('members')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('org.attached')} {...chapterSort.sortProps('attached')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                 </tr>
               </thead>
               <tbody>
-                {chapters.map(chapter => {
+                {chapterSort.rows.map(chapter => {
                   const attached = usageOfChapter(chapter.id)
                   // ONE ELEMENT, RENDERED TWICE — see table-collapse.tsx. Both copies exist
                   // in the DOM, only one is ever visible or focusable, and both are bound to

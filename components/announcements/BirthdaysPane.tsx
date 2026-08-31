@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Cake, Search } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
+import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { cn } from '@/lib/utils'
 import { formatMonthDay } from '@/lib/date-utils'
 import { matchesPersonQuery } from '@/lib/person-search'
@@ -121,6 +122,34 @@ export function BirthdaysPane({ birthdays, prompts }: {
     query,
   ))
 
+  // ── SORTING, AND THE DEFAULT IS THE ORDER THE LIST ARRIVES IN ─────────────────────
+  // `countdown` ascending reproduces `upcomingBirthdays`' own soonest-first order exactly, so
+  // the pane looks on first paint the way it did before it could be sorted. That is the thing
+  // to preserve when converting a table whose incoming order was itself a decision: the header
+  // adds an alternative reading, it does not choose one.
+  //
+  // DATE AND COUNTDOWN ARE THE SAME ORDER, deliberately, and both are offered. `onDate` is the
+  // next occurrence rather than the birth date, so the two columns cannot disagree — somebody
+  // reaching for the Date heading gets what they meant, and nobody has to know that.
+  //
+  // ── TWO COLUMNS ARE NOT SORTABLE AND EACH FOR ITS OWN REASON ──────────────────────
+  // DAY, because a weekday's alphabetical order is nonsense — Friday, Monday, Saturday — and
+  // this row carries no weekday index to order it by properly. A heading that reorders the
+  // table into an order nobody wanted is worse than one that does not move.
+  //
+  // TURNING, because sorting it would UNDO what the column withholds. `birthdayAge` prints a
+  // smiling face rather than a number for 30 to 60 (see the cell below), and a sort keyed on
+  // the true age would file each of those rows between two printed numbers — so a reader could
+  // read a withheld age off its position to within a year. Sorting on the PRINTED value would
+  // be safe, and is not offered either: it would cluster every discreet and untrusted row at
+  // the end under a heading claiming to order by age, which is a control that means something
+  // other than it says.
+  const { rows, sortProps } = useTableSort(filtered, {
+    name: b => `${b.firstName} ${b.lastName}`,
+    date: b => b.onDate,
+    countdown: b => b.daysAway,
+  }, 'countdown')
+
   // Whether either half of the sentence under the table is worth printing — see it below.
   // Measured over the WHOLE list rather than the filtered one, so the explanation for an
   // em-dash does not vanish the moment a search hides the row that needed it.
@@ -184,20 +213,25 @@ export function BirthdaysPane({ birthdays, prompts }: {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-semibold">{t('field.name')}</th>
-                <th scope="col" className="px-3 py-2 font-semibold">{t('money.date')}</th>
+                <SortTh label={t('field.name')} {...sortProps('name')} className="px-3 py-2 font-semibold" />
+                <SortTh label={t('money.date')} {...sortProps('date')} className="px-3 py-2 font-semibold" />
                 {/* The two folded columns, and each `<th>` folds WITH its cells — hide two
                     cells behind five headings and every remaining cell is announced under the
                     wrong column. `display: none` takes both out of the accessibility tree,
                     which is what keeps the narrow table coherent. Name, Date and Countdown
-                    stay because they are what the table answers: who, when, and how soon. */}
+                    stay because they are what the table answers: who, when, and how soon.
+
+                    These two stay plain `<th>`s rather than becoming `SortTh` — see the
+                    extractor map above: a weekday has no meaningful alphabetical order, and a
+                    sortable Turning column would let a reader read a withheld age off its
+                    position. */}
                 <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('common.day')}</th>
-                <th scope="col" className="px-3 py-2 font-semibold">{t('bday.countdown')}</th>
+                <SortTh label={t('bday.countdown')} {...sortProps('countdown')} className="px-3 py-2 font-semibold" />
                 <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('bday.turning')}</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(b => {
+              {rows.map(b => {
                 const weekday = birthdayWeekday(b.onDate)
                 const age = birthdayAge(b.turning)
                 return (

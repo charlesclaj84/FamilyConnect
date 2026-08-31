@@ -9,6 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useConfirm } from '@/components/ui/confirm'
 import { COLLAPSING_CELL, RowMeta, MetaIf } from '@/components/ui/table-collapse'
+import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { PersonMultiSelect, type SelectablePerson } from '@/components/ui/person-multi-select'
 import { FormError } from '@/components/ui/form-message'
 import { cn } from '@/lib/utils'
@@ -689,6 +690,34 @@ export function AdminIncomeClient({
   const copy = kindCopy(t)[creatingKind ?? kind]
   const visibleSchedules = schedules.filter(s => s.kind === kind)
 
+  // ── SORTING, AND ONE EXTRACTOR MAP OVER TWO COLUMN SETS ───────────────────────────
+  // Name ascending is `getDuesSchedules`' own `.order('label')`, so first paint is unchanged.
+  //
+  // THE MAP COVERS BOTH KINDS AND THE HEADINGS DO NOT. A donation pane draws Goal; a dues pane
+  // draws Due amount, Frequency and Payment. Both sets of extractors are declared here because
+  // `kind` is fixed for the life of a render and the unused keys are simply never spread onto a
+  // heading — the alternative is two maps that have to agree about Name and the two dates,
+  // which is three chances for them to drift apart for no gain.
+  //
+  // GOAL MIRRORS THE CELL'S `?? 0`, deliberately. A donation with no goal PRINTS `$0.00` rather
+  // than an em-dash, so extracting `null` would sort it as a blank — last, in both directions,
+  // away from the zeroes it is displayed as. Sort the value the cell is built from, and here
+  // the cell coalesces before it prints.
+  //
+  // PAYMENT SORTS ON THE BOOLEAN, which `lib/sort-rows.ts` puts true-first ascending on the
+  // grounds that a boolean column is "is it flagged" and the flagged rows are what somebody
+  // pressing the heading is after. That reads correctly here: Required first, which is the
+  // larger obligation and the pill drawn in the resting `--brand-soft`.
+  const { rows, sortProps } = useTableSort(visibleSchedules, {
+    name: s => s.label,
+    goal: s => s.goal_cents ?? 0,
+    amount: s => s.amount_cents,
+    frequency: s => s.frequency,
+    payment: s => s.required,
+    start: s => s.start_date,
+    end: s => s.end_date,
+  }, 'name')
+
   function startEdit(s: DuesSchedule) {
     // A due is locked by ANY payment against it, a donation only by money actually
     // received — see ScheduleUsage for why the two differ.
@@ -995,23 +1024,23 @@ export function AdminIncomeClient({
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    <th scope="col" className="px-3 py-2 font-semibold">{t('field.name')}</th>
+                    <SortTh label={t('field.name')} {...sortProps('name')} className="px-3 py-2 font-semibold" />
                     {kind === 'donation' ? (
-                      <th scope="col" className="px-3 py-2 text-right font-semibold">{t('inc.goal')}</th>
+                      <SortTh label={t('inc.goal')} align="right" {...sortProps('goal')} className="px-3 py-2 font-semibold" />
                     ) : (
                       <>
-                        <th scope="col" className="px-3 py-2 text-right font-semibold">{t('inc.dueAmount')}</th>
-                        <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('inc.frequency')}</th>
-                        <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('inc.payment')}</th>
+                        <SortTh label={t('inc.dueAmount')} align="right" {...sortProps('amount')} className="px-3 py-2 font-semibold" />
+                        <SortTh label={t('inc.frequency')} {...sortProps('frequency')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                        <SortTh label={t('inc.payment')} {...sortProps('payment')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                       </>
                     )}
-                    <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('inc.startDate')}</th>
-                    <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('inc.endDate')}</th>
+                    <SortTh label={t('inc.startDate')} {...sortProps('start')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                    <SortTh label={t('inc.endDate')} {...sortProps('end')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                     <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                   </tr>
                 </thead>
                 <tbody>
-              {visibleSchedules.map(s => (
+              {rows.map(s => (
                 <tr key={s.id} className="border-b align-top last:border-0 sm:align-middle">
                       <td className="px-3 py-2.5">
                         {/* Description on hover, matching how a member sees the same

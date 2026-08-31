@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError, FieldError } from '@/components/ui/form-message'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
+import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { PersonPicker } from '@/components/ui/person-picker'
 import { HelpLink } from '@/components/help/HelpLink'
 import type { SelectablePerson } from '@/components/ui/person-multi-select'
@@ -32,7 +33,7 @@ import { disambiguatedName } from '@/lib/name-utils'
 import { formatDate } from '@/lib/date-utils'
 import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
 import {
-  GATHERING_STATUSES, GATHERING_STATUS_LABEL, type GatheringStatus,
+  GATHERING_STATUSES, GATHERING_STATUS_LABEL, GATHERING_TASK_STATUS_LABEL, type GatheringStatus,
 } from '@/lib/gatherings'
 import {
   updateGathering, deleteGathering, setGatheringPremier, setGatheringBudget,
@@ -467,6 +468,67 @@ export function AdminGatheringDetailClient({
     return counts
   }, [tasks])
 
+  // ── TWO SORTED TABLES, AND THE AUTHORED ORDER IS WHAT EACH DEFAULT PROTECTS ───────
+  // `getGatheringDetail` returns both lists in `position` order — the order the organizer
+  // authored, which on a gathering is a NARRATIVE (the Welcome, the Picnic, the Send Off, and
+  // the steps within each). That is the thing a conversion here can destroy, so each table's
+  // default is chosen to keep it, and the two are kept differently because only one of them
+  // can be.
+  //
+  // TASKS KEEP IT EXACTLY, through `authored` — an extractor on `position` with NO HEADING.
+  // The hook has no unsorted state, so the only way to open in the incoming order is to make
+  // that order a column and then not draw it. Nothing shows an active arrow on first paint,
+  // which is honest: no column is sorted, and pressing one is what starts sorting. The cost is
+  // that the authored order cannot be returned to without reloading, and it is worth it —
+  // opening a reunion's checklist shuffled into alphabetical order is the conversion being
+  // visible, which is the one thing it must not be.
+  //
+  // SEGMENTS CANNOT, and the honest default is Day. `GatheringDetail.templates` carries `id`,
+  // `name`, `occursOn` and `location` — `position` is ordered by in SQL and DROPPED in the
+  // mapping, so there is nothing here to extract. Adding it would mean inventing one at the
+  // optimistic insert in `handleAddTemplate`, which has no position to know: a plausible value
+  // describing nothing is the `dues_member_plans.start_date` trap, and it is not worth paying
+  // to save a default. Day is a real reading of the same list and close to it in practice; a
+  // segment with no day yet sorts LAST as a blank, which is the right end for the one still
+  // needing a date.
+  //
+  // THE BUDGET EXTRACTOR IS DECLARED UNCONDITIONALLY AND ITS HEADING IS NOT. `mayManageBudget`
+  // withholds the column, so `sortProps('budget')` is never spread onto anything and the key
+  // cannot be selected — making the map conditional instead would make an extractor's type
+  // depend on a permission for no gain.
+  //
+  // STATUS SORTS ON THE PRINTED LABEL, per the rule this pass took for every enum reaching a
+  // cell through a lookup. It orders Approved · Needs another look · Not started · Waiting for
+  // review rather than by the lifecycle — a reviewer wanting the queue presses Status twice or
+  // reads the count in the lede, and a heading ordering by a progression the word does not
+  // describe would be a control meaning something other than it says.
+  // THE TASK COUNT IS COMPOSED ONTO THE SEGMENT ROW. `taskCountBySegment` is memoized off
+  // `tasks`, which this screen writes to optimistically — and `useTableSort`'s memo depends on
+  // the array it is handed rather than on the extractor map, so reviewing a task would change
+  // the figures in that column while leaving `usedTemplates` untouched, and the order would go
+  // on describing the counts from before. Listing `taskCountBySegment` in a memo of our own is
+  // what keeps the column's order and its figures the same fact.
+  const segmentRows = useMemo(
+    () => usedTemplates.map(s => ({ ...s, taskCount: taskCountBySegment.get(s.id) ?? 0 })),
+    [usedTemplates, taskCountBySegment],
+  )
+
+  const segmentSort = useTableSort(segmentRows, {
+    segment: s => s.name,
+    day: s => s.occursOn,
+    place: s => s.location,
+    tasks: s => s.taskCount,
+  }, 'day')
+
+  const taskSort = useTableSort(tasks, {
+    authored: task => task.position,
+    task: task => task.label,
+    assignee: task => nameOf(task.assignee),
+    due: task => task.dueOn,
+    budget: task => task.budgetCents,
+    status: task => GATHERING_TASK_STATUS_LABEL[task.status],
+  }, 'authored')
+
   return (
     <div className="space-y-8">
       {/* ── Who and when ─────────────────────────────────────────────────────────── */}
@@ -773,19 +835,19 @@ export function AdminGatheringDetailClient({
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-semibold">{t('agat.segment')}</th>
+                  <SortTh label={t('agat.segment')} {...segmentSort.sortProps('segment')} className="px-3 py-2 font-semibold" />
                   {/* Day, Place and Tasks fold, and each `<th>` folds WITH its cells — hide the
                       cells and leave the headings and every remaining cell is announced under the
                       wrong column. Both halves of the day and the place are the same control
                       rendered twice; see `SegmentRow`. */}
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('agat.day')}</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('agat.place')}</th>
-                  <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('gath.tasks')}</th>
+                  <SortTh label={t('agat.day')} {...segmentSort.sortProps('day')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('agat.place')} {...segmentSort.sortProps('place')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('gath.tasks')} align="right" {...segmentSort.sortProps('tasks')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                 </tr>
               </thead>
               <tbody>
-                {usedTemplates.map(segment => (
+                {segmentSort.rows.map(segment => (
                   <SegmentRow
                     // Keyed by the template id, which is per-family — so switching family
                     // replaces the ids and React remounts every row, and a half-typed place
@@ -891,18 +953,18 @@ export function AdminGatheringDetailClient({
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-semibold">{t('gath.task')}</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('gath.assignedTo')}</th>
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('gath.due')}</th>
+                  <SortTh label={t('gath.task')} {...taskSort.sortProps('task')} className="px-3 py-2 font-semibold" />
+                  <SortTh label={t('gath.assignedTo')} {...taskSort.sortProps('assignee')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('gath.due')} {...taskSort.sortProps('due')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   {mayManageBudget && (
-                    <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('budget.heading')}</th>
+                    <SortTh label={t('budget.heading')} align="right" {...taskSort.sortProps('budget')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   )}
-                  <th scope="col" className="px-3 py-2 font-semibold">{t('money.status')}</th>
+                  <SortTh label={t('money.status')} {...taskSort.sortProps('status')} className="px-3 py-2 font-semibold" />
                   <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                 </tr>
               </thead>
               <tbody>
-                {tasks.map(task => {
+                {taskSort.rows.map(task => {
                   const assignee = nameOf(task.assignee)
                   return (
                     <tr key={task.id} className="border-b align-top last:border-0 sm:align-middle">

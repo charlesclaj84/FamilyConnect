@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError, FieldError } from '@/components/ui/form-message'
 import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table-collapse'
+import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { MainRail } from '@/components/layout/MainRail'
 import { AdminGatheringTemplatesClient } from '@/components/admin/AdminGatheringTemplatesClient'
 import { ADMIN_GATHERING_PANES, type AdminGatheringPane } from '@/lib/gathering-panes'
@@ -26,7 +27,7 @@ import { useServerState } from '@/lib/use-server-state'
 import { formatDate, todayLocal } from '@/lib/date-utils'
 import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
 import { gatheringBudgetMath } from '@/lib/gathering-budget'
-import type { TaskProgress } from '@/lib/gatherings'
+import { GATHERING_STATUS_LABEL, type TaskProgress } from '@/lib/gatherings'
 import {
   createGathering, deleteGathering, reviewGatheringTask,
   type AdminGatheringRow, type ReviewQueueRow, type GatheringBudgetView,
@@ -180,6 +181,40 @@ export function AdminGatheringsClient({
   const confirm = useConfirm()
   const [pane, setPane] = useState<AdminGatheringPane>(initialPane)
   const [gatherings, setGatherings] = useServerState(initialGatherings)
+
+  // ── SORTING, DEFAULTING TO THE ORDER `getAdminGatherings` RETURNS ─────────────────
+  // `.order('starts_on').order('created_at')`, so `when` ascending reproduces first paint
+  // exactly — the secondary key survives too, because `sortRows` is stable and rows tying on
+  // the day keep the order they arrived in.
+  //
+  // WHEN SORTS ON `startsOn`, NOT ON WHAT THE CELL PRINTS. `formatWhenBrief` renders "3 days
+  // from Sat 8 Aug" for a series and a plain date for a single day, so the column holds two
+  // sentence shapes and sorting them as text would file every series under "3". `startsOn` is
+  // `YYYY-MM-DD` and therefore chronological as a string, which is the property
+  // `lib/sort-rows.ts` decision 3 relies on: no `Date` is constructed and no timezone can move
+  // a row a day.
+  //
+  // TASKS SORTS ON HOW COMPLETE IT IS, which is what the caption reports rather than what it
+  // says. The cell reads "4 of 11 approved · 2 waiting", and ordering that text alphabetically
+  // would sort by the digit 4 — a table ordered by an accident of decimal notation. The
+  // fraction is the fact underneath, so ascending puts the gatherings needing the most work
+  // first, and a gathering with NO tasks is `null` rather than 0: it has no completeness, and
+  // as a blank it sorts last in both directions instead of impersonating the least-done row.
+  //
+  // BUDGET SORTS ON `budgetCents` THROUGH THE SAME `budget` OBJECT THE CELL READS, so a row
+  // whose figures did not come back (`budgetState === 'unavailable'`, which prints
+  // "Unavailable" rather than an em-dash) sorts as a blank. That is right: an unread figure is
+  // not a small one, and putting it at either numeric end would be the sort asserting the very
+  // thing the cell is careful not to.
+  const { rows, sortProps } = useTableSort(gatherings, {
+    gathering: row => row.title,
+    when: row => row.startsOn,
+    status: row => GATHERING_STATUS_LABEL[row.status],
+    budget: row => row.budget?.budgetCents ?? null,
+    tasks: row => row.taskCounts.total === 0
+      ? null
+      : row.taskCounts.approved / row.taskCounts.total,
+  }, 'when')
   const [queue, setQueue] = useServerState(initialQueue)
   const [creating, setCreating] = useState(false)
   const [listError, setListError] = useState('')
@@ -276,22 +311,22 @@ export function AdminGatheringsClient({
                 <table className="w-full border-collapse text-sm">
                   <thead>
                     <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      <th scope="col" className="px-3 py-2 font-semibold">{t('cal.kind.gathering')}</th>
-                      <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('agat.when')}</th>
-                      <th scope="col" className="px-3 py-2 font-semibold">{t('money.status')}</th>
+                      <SortTh label={t('cal.kind.gathering')} {...sortProps('gathering')} className="px-3 py-2 font-semibold" />
+                      <SortTh label={t('agat.when')} {...sortProps('when')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                      <SortTh label={t('money.status')} {...sortProps('status')} className="px-3 py-2 font-semibold" />
                       {/* The money column exists only where the money was fetched. A caller
                           without `gatherings/budget:view` has `budget: null` on every row, so
                           a rendered column would be a column of em-dashes suggesting nothing
                           is budgeted. */}
                       {mayManageBudget && (
-                        <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('budget.heading')}</th>
+                        <SortTh label={t('budget.heading')} align="right" {...sortProps('budget')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                       )}
-                      <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('gath.tasks')}</th>
+                      <SortTh label={t('gath.tasks')} {...sortProps('tasks')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                       <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {gatherings.map(row => (
+                    {rows.map(row => (
                       <tr key={row.id} className="border-b align-top last:border-0 sm:align-middle">
                         <td className="px-3 py-2.5">
                           <div className="flex flex-wrap items-center gap-2">

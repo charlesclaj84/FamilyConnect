@@ -12,6 +12,7 @@ import { Dialog } from '@/components/ui/dialog'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError, FieldError } from '@/components/ui/form-message'
 import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
+import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { useServerState } from '@/lib/use-server-state'
 import { cn } from '@/lib/utils'
 import {
@@ -112,6 +113,27 @@ export function AdminBoardPositionsClient({
   // family remounts the whole page through the layout key, so neither list can be stale for
   // the family the caller just left.
   const [positions] = useServerState(initialPositions)
+
+  // ── SORTING, AND THIS IS THE ONE TABLE IN THE PASS WHOSE DEFAULT ORDER CHANGES ────
+  // `getBoardPositions` orders by `sort_order`, which looks like a curated hierarchy and is
+  // not: `createBoardPosition` writes `max(sort_order) + 1` and there is no reorder control
+  // anywhere, so the column records the order somebody happened to add the offices in. That
+  // is not a fact the screen prints or a reader could infer, so replacing it with Position
+  // ascending displaces nothing — unlike the routing waterfall two screens over, where the
+  // ordinal IS the datum and the table is therefore deliberately not sortable.
+  //
+  // CATEGORY AND SCOPE SORT ON THE PRINTED LABEL, which is the rule this pass took everywhere
+  // an enum reaches a cell through a lookup: alphabetical by the word in the cell is what the
+  // reader can predict, and it is locale-correct for free because `useTableSort` threads the
+  // reader's `Intl` tag. Sorting on the raw enum would order by the English identifier in
+  // every language. A hierarchy — national above regional above chapter — is the tempting
+  // alternative for Scope and is refused for the same reason it was on the staff console: an
+  // order the heading does not describe is a control that means something other than it says.
+  const { rows, sortProps } = useTableSort(positions, {
+    position: p => p.name,
+    category: p => positionCategoryLabel(t, p.category),
+    scope: p => positionScopeLabel(t, p.scope),
+  }, 'position')
 
   const [showAdd, setShowAdd]       = useState(false)
   const [form, setForm]             = useState<{ name: string; category: PositionCategory; scope: PositionScope }>({
@@ -272,16 +294,16 @@ export function AdminBoardPositionsClient({
               <table className="w-full text-sm">
                 <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
-                    <th scope="col" className="px-3 py-2">{t('pos.position')}</th>
-                    <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>{t('common.category')}</th>
-                    <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>{t('common.scope')}</th>
+                    <SortTh label={t('pos.position')} {...sortProps('position')} className="px-3 py-2" />
+                    <SortTh label={t('common.category')} {...sortProps('category')} className={cn('px-3 py-2', COLLAPSING_CELL)} />
+                    <SortTh label={t('common.scope')} {...sortProps('scope')} className={cn('px-3 py-2', COLLAPSING_CELL)} />
                     {(mayEdit || mayDelete) && (
                       <th scope="col" className="px-3 py-2 text-right"><span className="sr-only">{t('money.actions')}</span></th>
                     )}
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {positions.map(p => {
+                  {rows.map(p => {
                     const editing = editingId === p.id
                     return (
                       <tr key={p.id} className="align-top sm:align-middle">

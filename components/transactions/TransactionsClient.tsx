@@ -36,6 +36,7 @@ import {
 import { ledgerLabels, type Ledger } from '@/components/transactions/ledgers'
 import { MainRail } from '@/components/layout/MainRail'
 import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
+import { SortTh, useTableSort, type SortDir } from '@/components/ui/sortable-header'
 import { FormError } from '@/components/ui/form-message'
 
 interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null; date_of_birth?: string | null }
@@ -293,13 +294,22 @@ function viewOfTransfer(tr: FundTransfer | undefined, zone: string, t: T, intl: 
  *
  * `min-w-*` is gone with the scroll it existed to cause; what remains fits 320px.
  */
-function LedgerTable({ columns, children }: {
+function LedgerTable<K extends string>({ columns, sortProps, children }: {
   /**
    * `right: true` for a figures column, so the heading sits over its own numbers.
    * `collapse: true` folds the column away below `sm` — the row is then responsible
    * for restating it in a `<RowMeta>`.
+   *
+   * `sort` is the key in the caller's `useTableSort` map that this column orders by. A
+   * column that names one is drawn as a `SortTh`; one that does not stays a plain `<th>`.
    */
-  columns: { label: string; right?: boolean; srOnly?: boolean; collapse?: boolean }[]
+  columns: { label: string; right?: boolean; srOnly?: boolean; collapse?: boolean; sort?: K }[]
+  /**
+   * `sortProps` straight off the caller's `useTableSort`. Optional so a ledger can be drawn
+   * unsorted, and TypeScript ties `K` to that hook's key union — so a `sort` naming a column
+   * the caller never declared is a compile error rather than a heading that does nothing.
+   */
+  sortProps?: (col: K) => { active: boolean; dir: SortDir; onClick: () => void }
   children: React.ReactNode
 }) {
   return (
@@ -307,15 +317,35 @@ function LedgerTable({ columns, children }: {
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {/* ── SORTING FOUR LEDGERS THROUGH ONE HEADER ────────────────────────────
+                Added 2026-08-31. The other tables in that pass each own their own `<th>`s
+                and grew a `SortTh` apiece; these four share this component, so the choice
+                was to widen it or to unpick it into four copies. Widening is what the file
+                already argues for at length — "the classes that keep five tables looking
+                like one" — and a per-ledger copy would be four chances for one of them to
+                sort the RENDERED string instead of the cents behind it.
+
+                A column opts in by naming its key, so the Actions column stays a plain
+                heading with nothing to press and no reordering of what it holds. */}
             {columns.map(c => (
-              <th key={c.label} scope="col"
-                className={cn(
-                  'px-3 py-2 font-semibold',
-                  c.right && 'text-right',
-                  c.collapse && COLLAPSING_CELL,
-                )}>
-                {c.srOnly ? <span className="sr-only">{c.label}</span> : c.label}
-              </th>
+              c.sort && sortProps ? (
+                <SortTh
+                  key={c.label}
+                  label={c.label}
+                  align={c.right ? 'right' : 'left'}
+                  {...sortProps(c.sort)}
+                  className={cn('px-3 py-2 font-semibold', c.collapse && COLLAPSING_CELL)}
+                />
+              ) : (
+                <th key={c.label} scope="col"
+                  className={cn(
+                    'px-3 py-2 font-semibold',
+                    c.right && 'text-right',
+                    c.collapse && COLLAPSING_CELL,
+                  )}>
+                  {c.srOnly ? <span className="sr-only">{c.label}</span> : c.label}
+                </th>
+              )
             ))}
           </tr>
         </thead>
@@ -432,6 +462,45 @@ export function TransactionsClient({
   const [contributions, setContributions] = useServerState(initialContributions)
   const [disbursements, setDisbursements] = useServerState(initialDisbursements)
   const [transfers, setTransfers] = useServerState(initialTransfers)
+
+  // ── THE THREE FUND LEDGERS SORT, AND ALL THREE OPEN NEWEST FIRST ──────────────────
+  // `getFundContributions`, `getFundDisbursements` and `getFundTransfers` each order by
+  // their own date DESCENDING, so every one of these passes `'desc'` as the initial
+  // direction — the fourth argument to `useTableSort`, which exists for exactly this. A
+  // ledger is read newest-first and a conversion that quietly flipped it to oldest-first
+  // would put the row a treasurer just entered at the bottom of the page.
+  //
+  // AMOUNT SORTS ON `amount_cents` ON ALL THREE. This is the money rule at its plainest:
+  // the cell prints `formatCurrency`, and "$9.00" sorts after "$10.00" as text.
+  //
+  // THE DATE COLUMNS SORT ON THE STORED `YYYY-MM-DD`, never on `formatDate(...)`. That
+  // string is chronological as text (`lib/sort-rows.ts` decision 3), so no `Date` is built
+  // and the reader's timezone cannot move a row a day away from the date printed beside it —
+  // which matters more here than anywhere, because these tables also carry `zone`.
+  //
+  // A TRANSFER SORTS ON THE FUND IT LEFT. The cell reads "Building → Reunion" with an arrow
+  // between two names, so there is no one string to order it by; the origin is the fact the
+  // column leads with and is what somebody scanning for "everything that came out of
+  // Building" is looking for.
+  const contributionSort = useTableSort(contributions, {
+    from: c => c.contributor_name,
+    fund: c => c.fund_name,
+    date: c => c.contributed_date,
+    amount: c => c.amount_cents,
+  }, 'date', 'desc')
+
+  const disbursementSort = useTableSort(disbursements, {
+    paid: d => d.person_name,
+    fund: d => d.fund_name,
+    date: d => d.disbursed_date,
+    amount: d => d.amount_cents,
+  }, 'date', 'desc')
+
+  const transferSort = useTableSort(transfers, {
+    from: tr => tr.from_fund_name,
+    date: tr => tr.transferred_date,
+    amount: tr => tr.amount_cents,
+  }, 'date', 'desc')
 
   // ── Record payment (dues or donation, decided by the ledger it opened from) ──
   // 'pending' is gone from this union: a treasurer typing an entry in is recording
@@ -846,12 +915,14 @@ export function TransactionsClient({
                  was already carrying it. */
               <LedgerTable
                 columns={[
-                  { label: 'From' },
-                  { label: 'Fund', collapse: true }, { label: 'Date', collapse: true },
-                  { label: 'Amount', right: true },
+                  { label: 'From', sort: 'from' },
+                  { label: 'Fund', collapse: true, sort: 'fund' },
+                  { label: 'Date', collapse: true, sort: 'date' },
+                  { label: 'Amount', right: true, sort: 'amount' },
                 ]}
+                sortProps={contributionSort.sortProps}
               >
-                {contributions.map(c => (
+                {contributionSort.rows.map(c => (
                   <LedgerRow key={c.id} onOpen={() => setViewing({ ledger: 'contributions', id: c.id })}>
                     <td className="px-3 py-2.5">
                       <LedgerRowTrigger onOpen={() => setViewing({ ledger: 'contributions', id: c.id })}>
@@ -888,11 +959,14 @@ export function TransactionsClient({
                  fund, so "Reunion Fund · Graduation" is one fact, not two. */
               <LedgerTable
                 columns={[
-                  { label: t('tx.paid') }, { label: t('tx.fundMilestone'), collapse: true },
-                  { label: 'Date', collapse: true }, { label: 'Amount', right: true },
+                  { label: t('tx.paid'), sort: 'paid' },
+                  { label: t('tx.fundMilestone'), collapse: true, sort: 'fund' },
+                  { label: 'Date', collapse: true, sort: 'date' },
+                  { label: 'Amount', right: true, sort: 'amount' },
                 ]}
+                sortProps={disbursementSort.sortProps}
               >
-                {disbursements.map(d => (
+                {disbursementSort.rows.map(d => (
                   <LedgerRow key={d.id} onOpen={() => setViewing({ ledger: 'disbursements', id: d.id })}>
                     <td className="px-3 py-2.5">
                       <LedgerRowTrigger onOpen={() => setViewing({ ledger: 'disbursements', id: d.id })}>
@@ -940,12 +1014,13 @@ export function TransactionsClient({
                  always there to read. */
               <LedgerTable
                 columns={[
-                  { label: t('tx.from') },
-                  { label: 'Date', collapse: true },
-                  { label: 'Amount', right: true },
+                  { label: t('tx.from'), sort: 'from' },
+                  { label: 'Date', collapse: true, sort: 'date' },
+                  { label: 'Amount', right: true, sort: 'amount' },
                 ]}
+                sortProps={transferSort.sortProps}
               >
-                {transfers.map(t => (
+                {transferSort.rows.map(t => (
                   <LedgerRow key={t.id} onOpen={() => setViewing({ ledger: 'transfers', id: t.id })}>
                     <td className="px-3 py-2.5">
                       <LedgerRowTrigger onOpen={() => setViewing({ ledger: 'transfers', id: t.id })}>
@@ -1369,6 +1444,35 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
 }) {
   const t = useT()
   const intl = useIntlTag()
+  const isDonations = kind === 'donations'
+
+  // ── ABOVE THE EMPTY-STATE RETURN, WHICH IS NOT A STYLE CHOICE ─────────────────────
+  // `useTableSort` is a hook, and the `rows.length === 0` branch below returns before it. A
+  // hook after a conditional return is called on some renders and not others, which is the
+  // rules-of-hooks violation React reports as "rendered more hooks than during the previous
+  // render" — and it would fire exactly when a ledger went from empty to holding its first
+  // row, i.e. the moment a treasurer records anything on a fresh family.
+  //
+  // `payment_date` DESCENDING, which is `getDuesPayments`' own order: a ledger opens newest
+  // first, and this one especially, because the row a treasurer has just entered is the one
+  // they are looking for.
+  //
+  // STATUS SORTS ON THE PRINTED LABEL rather than the raw `status`, and here that is not the
+  // rule of thumb this pass took elsewhere — it is the only thing that works. The pill says
+  // "Reversed" or "Correcting entry" for rows whose stored `status` is an ordinary `'paid'`
+  // (see `StatusPill` above), so ordering by the column would file a reversed payment among
+  // the paid ones under a heading whose cells plainly say otherwise. `paymentStatusLabel` is
+  // reached through the same three-way the cell uses.
+  const paymentSort = useTableSort(rows, {
+    member: p => p.person_name,
+    schedule: p => p.schedule_label,
+    date: p => p.payment_date,
+    status: p => p.reversed_by_id ? t('tx.reversed')
+      : p.reverses_id ? t('tx.correctingEntryPill')
+        : paymentStatusLabel(t, p.status),
+    amount: p => p.amount_cents,
+  }, 'date', 'desc')
+
   if (rows.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -1376,23 +1480,25 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
       </p>
     )
   }
-  const isDonations = kind === 'donations'
   return (
     <LedgerTable
       columns={[
-        { label: 'Member' },
-        { label: isDonations ? 'Donation' : 'Schedule', collapse: true },
-        { label: 'Date', collapse: true },
+        { label: 'Member', sort: 'member' as const },
+        { label: isDonations ? 'Donation' : 'Schedule', collapse: true, sort: 'schedule' as const },
+        { label: 'Date', collapse: true, sort: 'date' as const },
         // Status collapses like the rest, but its pill is NOT restated as text in the
         // meta line — the pill itself moves there. It is the one collapsed value that
         // carries a colour, and "Reversed" in plain grey next to a struck-through
         // amount is the row's most important fact rendered as its least visible one.
-        ...(isDonations ? [] : [{ label: 'Status', collapse: true }]),
-        { label: 'Amount', right: true },
+        ...(isDonations ? [] : [{ label: 'Status', collapse: true, sort: 'status' as const }]),
+        { label: 'Amount', right: true, sort: 'amount' as const },
+        // NO `sort`, deliberately: the reverse control is not a fact about the row and
+        // there is nothing in this column to put in an order.
         { label: 'Actions', srOnly: true },
       ]}
+      sortProps={paymentSort.sortProps}
     >
-      {rows.map(p => {
+      {paymentSort.rows.map(p => {
         const isReversal = Boolean(p.reverses_id)
         const isReversed = Boolean(p.reversed_by_id)
         // Only a settled, un-reversed original can be reversed. A pending row has
