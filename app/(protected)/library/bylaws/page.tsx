@@ -4,8 +4,11 @@ import { getBylawRights, getBylaws } from '@/app/actions/bylaws'
 import { BylawsClient } from '@/components/bylaws/BylawsClient'
 import { PageShell } from '@/components/layout/PageShell'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Bylaws' }
+export async function generateMetadata() {
+  return docTitle('doc./library/bylaws.title')
+}
 
 /**
  * The family's governing documents, searchable. SCAFFOLDING.

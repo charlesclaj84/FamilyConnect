@@ -507,6 +507,135 @@ export const CASES = [
       // and `todayLocal()` is local, so the exact figure legitimately differs by a day.
       && r.find(b => b.id === fx.alpha.birthdayPerson.id).daysAway <= 60,
   }),
+  // ── birthday greetings (20260831000002) ───────────────────────────────────
+  // FOUR ACTIONS OVER ONE TABLE WITH NO WRITE POLICY (§2c), so every write goes through the
+  // admin client with a hand-written `.eq('family_code', …)` and a guard trigger underneath.
+  // What these cases can and cannot see is worth stating before they are read:
+  //
+  //   * The two READS are on the ADMIN client — `getBirthdayPrompts` has to count every
+  //     approved person whether or not the caller may open the Directory, for the reason all
+  //     four reports give (§3: a narrowed roster is a WRONG figure, not a withheld one). So no
+  //     policy is underneath either of them and the family conjunct is the only thing there is.
+  //     Deleting it is what these attack halves catch.
+  //   * `composeBirthdayGreeting` takes a `personId` FROM THE CLIENT and writes an
+  //     announcement about them — §4 exactly. `belongsToFamily` is the guard, and the attack is
+  //     BRAVO's administrator naming an ALPHA relative.
+  //   * `getMyBirthdayBanner` reads the CALLER'S OWN row, so there is no id to forge and the
+  //     honest assertion is the positive control: it must answer for a member whose birthday is
+  //     today and null for everybody else.
+  //
+  // ── CHECKED BY MUTATION, 2026-08-31. MEASURED, all three against 1015/1015 ────────────
+  //   m1  `getBirthdayPrompts`: drop `.eq('family_code', g.familyCode)` from the roster read
+  //       ->  1014/1015, `birthdays.getBirthdayPrompts` RED. Load-bearing.
+  //   m2  `getBirthdayPrompts`: drop `.is('sunset_date', null)`
+  //       ->  1014/1015, `birthdays.getBirthdayPrompts` RED **through the POSITIVE CONTROL**.
+  //       This is the mutation that found the real bug in the first place — the filter was
+  //       missing when these cases were written. See the note on the assertion itself.
+  //   m3  `composeBirthdayGreeting`: neuter the `belongsToFamily('people', …)` check
+  //       ->  1015/1015. **STILL GREEN, AND THAT IS RECORDED RATHER THAN LEFT LOOKING LIKE
+  //       PROOF.** A SECOND layer refuses it: the `sunset_date` read added the same day is
+  //       itself `.eq('family_code', g.familyCode)`, so a cross-family `personId` resolves to
+  //       no row and the action answers "person not found" for a different reason. That is
+  //       exactly AGENTS.md §8b's finding on the distributions module — "three of four mutation
+  //       checks left every probe green … each is stopped by a second layer that then refuses
+  //       for a different reason". So `composeBirthdayGreeting`'s case below is evidence that
+  //       the ACTION cannot be turned into a cross-family write, and is NOT evidence for the
+  //       `belongsToFamily` line specifically. Both layers are worth keeping; neither is
+  //       individually asserted, and reaching the first one would mean removing the second.
+  read('birthdays.getBirthdayPrompts', 'app/actions/birthdays.ts', 'getBirthdayPrompts', {
+    // The default marker scan is the attack: `f.birthdayPerson`'s id and name are on ALPHA's
+    // marker list, so a BRAVO caller offered them to greet is caught.
+    //
+    // The CONTROL is spelled out because the default — at least one marker came back — would
+    // be satisfied by the DEPARTED relative appearing, which is the opposite of the assertion.
+    expectPositive: (r, fx) => r !== null && Array.isArray(r.prompts)
+      // Ten days out, so inside `BIRTHDAY_COMPOSE_LEAD_DAYS` of 14. This is the row the whole
+      // prompt exists for, and an account-less relative besides (§4b).
+      && r.prompts.some(p => p.id === fx.alpha.birthdayPerson.id)
+      // Twelve days out and dead since 1998. THIS IS THE LINE THAT FOUND A REAL BUG on the
+      // first run: the action reused the pane's `upcomingBirthdays` walk — which knows nothing
+      // about `sunset_date` and never should — and its own fetch had left
+      // `.is('sunset_date', null)` out, so the product was going to ask the family to write a
+      // birthday message for a relative who died in 1998. The ATTACK half passed throughout;
+      // it was the control that said so (§7).
+      && !r.prompts.some(p => p.id === fx.alpha.sunsetBirthdayPerson.id)
+      // The lead is 14 days and the pane's horizon is 60, so the prompt list is strictly the
+      // shorter one. Asserted as a bound rather than an equality: `inDays` is UTC and
+      // `todayLocal()` is local, so the figure legitimately differs by a day.
+      && r.prompts.every(p => p.daysAway <= 14),
+  }),
+  read('birthdays.getBirthdayPrompts (pending member)',
+    'app/actions/birthdays.ts', 'getBirthdayPrompts', {
+      attacker: 'alphaPending',
+      // An applicant is inside ALPHA's boundary by every test the case above applies, so this
+      // is where the membership gate is asserted: `requireMember()` refuses them.
+      //
+      // AN EMPTY PAGE, NOT `null`. This action answers a SHAPE either way —
+      // `{ prompts: [], canCompose: false, failed: false }` — because the pane it feeds reads
+      // `null` as "not fetched" (§5, the prop is skipped for a caller without the grant) and
+      // an empty array as "nothing coming up". Asserting `null` here reported an isolation
+      // failure over an action that was withholding perfectly, which is what the first run of
+      // this case did.
+      expectAttack: r => r !== null && Array.isArray(r.prompts) && r.prompts.length === 0
+        && r.canCompose === false && r.failed === false,
+      expectPositive: (r, fx) => r !== null && Array.isArray(r.prompts)
+        && r.prompts.some(p => p.id === fx.alpha.birthdayPerson.id),
+    }),
+  {
+    kind: 'write',
+    id: 'birthdays.composeBirthdayGreeting (a relative in another family)',
+    mod: 'app/actions/birthdays.ts', fn: 'composeBirthdayGreeting',
+    // §4: the id is a client parameter, and the row it lands on carries the CALLER's family
+    // code — so every policy is satisfied while the announcement names somebody else's
+    // grandmother. `belongsToFamily` is the only thing standing here.
+    args: fx => [{
+      personId: fx.alpha.birthdayPerson.id,
+      title: 'Happy birthday!',
+      body: 'From all of us in BRAVO, which is the point.',
+    }],
+    // BOTH TABLES, because the damage has two halves and either alone is a false pass: the
+    // greeting row is what stops the family being asked again, and the ANNOUNCEMENT is what
+    // the family actually reads.
+    probe: (db, fx) => snapshot('birthday_greetings', 'family_code, person_id, greeting_year',
+      { person_id: fx.alpha.birthdayPerson.id })(db),
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [{
+      personId: fx.alpha.birthdayPerson.id,
+      title: 'Happy birthday!',
+      body: 'Wishing you a wonderful day from all of us.',
+    }],
+  },
+  {
+    kind: 'write',
+    id: 'birthdays.dismissBirthdayPrompt (a relative in another family)',
+    mod: 'app/actions/birthdays.ts', fn: 'dismissBirthdayPrompt',
+    args: fx => [fx.alpha.sunsetBirthdayPerson.id],
+    probe: (db, fx) => snapshot('birthday_greetings', 'family_code, person_id, status',
+      { person_id: fx.alpha.sunsetBirthdayPerson.id })(db),
+    // ITS OWN ROW, so the compose case above is not consumed by this one — §8b's named fixture
+    // trap ("a positive control that mutates a row a later case depends on"). The departed
+    // relative is the right one to put away: nothing else asserts anything about his greeting.
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [fx.alpha.sunsetBirthdayPerson.id],
+  },
+  read('birthdays.getMyBirthdayBanner', 'app/actions/birthdays.ts', 'getMyBirthdayBanner', {
+    // NO ID TO FORGE. The action reads the caller's own `people` row through their own guard,
+    // so there is no cross-family parameter and the attack half is trivially satisfied — said
+    // out loud rather than left looking like proof (§7).
+    //
+    // The CONTROL is the whole value of this case, and it is the negative direction: no actor
+    // in this fixture has a birthday TODAY, so every one of them must be answered `null`. That
+    // is what catches the failure mode this band would have — a gold hero with confetti on the
+    // dashboard of somebody whose birthday is in ten days, or in three months.
+    positive: 'not-applicable',
+    why: 'No fixture actor has a birthday today, and making one would put a permanent gold '
+      + 'banner on that actor\'s dashboard for every other case in the suite to read past. '
+      + 'What is asserted instead is the NEGATIVE: every actor gets null. `isBirthdayToday` is '
+      + 'covered by value in lib/birthday-greetings.test.ts, which is where the month-day '
+      + 'comparison and the leap-day decision belong (§7b).',
+    expectAttack: r => r === null,
+  }),
+
   read('announcements.getUpcomingBirthdays (pending member)',
     'app/actions/announcements.ts', 'getUpcomingBirthdays', {
       attacker: 'alphaPending',
@@ -8016,6 +8145,133 @@ const STAFF_BASE_CASES = [
     probe: staffTeamProbe,
     positiveActor: 'staffOwner',
   },
+
+  // ══════════════════════════════════════════════════════════════════════════════════
+  // THE DESTRUCTIVE HALF (20260831000001). OWNER-ONLY, WHICH IS WHY THEY BELONG HERE
+  // ══════════════════════════════════════════════════════════════════════════════════
+  //
+  // These three sit in STAFF_BASE_CASES rather than in a block of their own for one reason,
+  // and it is the whole value of putting them here: the generator below derives an attacker
+  // called `staffSupport` — GENUINELY GENORRA STAFF, and refused anyway. That is the only
+  // assertion in this suite about the line `genorra_staff.role` draws, and it is the line
+  // standing between a support engineer working a ticket and a family's records.
+  //
+  // A cross-FAMILY assertion would be meaningless for all three: reading and writing across
+  // every family is what the console is for. The claim is about the ROLE.
+  //
+  // ── AND MUTATION-CHECKED, WHICH FOUND THAT ONLY ONE OF THE THREE IS EVIDENCE ──────
+  // Measured 2026-08-31 by replacing all three `requireStaffOwner()` calls with
+  // `requireStaff()` and re-running. **Exactly ONE line went red**, and knowing which is the
+  // difference between three assertions and one:
+  //
+  //   requestFamilyDeleteCode (a support staffer)     RED. It is evidence for the
+  //                                                  action-layer owner gate.
+  //   deleteFamilyPermanently (a support staffer)     stayed green — `staff_consume_challenge`
+  //                                                  refuses it anyway, because these callers
+  //                                                  have no challenge and `emailedCode` is
+  //                                                  '000000'. Evidence for the CHALLENGE.
+  //   deleteStaffAccount (a support staffer)          stayed green — `staff_delete_account`
+  //                                                  re-asks `is_genorra_staff_owner()` in
+  //                                                  SQL. Evidence for the DATABASE gate.
+  //
+  // That is AGENTS.md's "an action that narrows by hand hides its own policy" in a third
+  // costume: a second layer refusing for a different reason makes the first layer's case
+  // vacuous, and the case looks identical either way. The defence-in-depth is real and doing
+  // its job — what is NOT true is that these two lines test the gate they sit next to.
+  //
+  // WHAT IS STILL OWED: a run with BOTH layers relaxed, which is the only thing that could
+  // show the pair is what holds. TODO.md carries it.
+  {
+    kind: 'write',
+    id: 'staff/destroy.requestFamilyDeleteCode (a family administrator)',
+    mod: 'app/actions/staff/destroy.ts', fn: 'requestFamilyDeleteCode',
+    // CHARLIE, the family that exists to be destroyed by a control — and this action
+    // destroys nothing, so it is the safe half of the pair. It mints a challenge and sends
+    // mail; `sendEmail` refuses a reserved-TLD recipient in the harness, which is why the
+    // run prints a "refusing reserved-TLD recipient" line and the action still succeeds.
+    args: () => [CHARLIE],
+    // THE CHALLENGE ROWS FOR THIS FAMILY, whoever they belong to. Wider than the case needs,
+    // for `staffTeamProbe`'s reason: the mutation this most has to catch is a mint that
+    // landed under the wrong actor, and a probe scoped to one `user_id` would call that
+    // unchanged.
+    probe: async (db) => {
+      const { data, error } = await db
+        .from('genorra_staff_challenges')
+        .select('user_id, family_code, consumed_at')
+        .eq('family_code', CHARLIE)
+        .order('user_id')
+      if (error) throw new Error(`probe genorra_staff_challenges: ${error.message}`)
+      return JSON.stringify(data)
+    },
+    positiveActor: 'staffOwner',
+  },
+  {
+    kind: 'write',
+    id: 'staff/destroy.deleteFamilyPermanently (a family administrator)',
+    mod: 'app/actions/staff/destroy.ts', fn: 'deleteFamilyPermanently',
+    // EVERY FIELD DELIBERATELY WELL-FORMED, including a `confirmCode` that matches. An
+    // attacker sending a mismatched code would be refused by a check that has nothing to do
+    // with the gate, and the case would then be evidence for the confirmation field rather
+    // than for `requireStaffOwner`. The emailed code is the one thing that cannot be right —
+    // there is no challenge for these callers — so every refusal here has to come from the
+    // gate or from the challenge, and the probe below is what distinguishes them.
+    args: () => [{
+      familyCode: CHARLIE,
+      confirmCode: CHARLIE,
+      emailedCode: '000000',
+      note: 'scope-case delete attempt from the RLS harness',
+    }],
+    // THE FAMILY IS STILL THERE. The one thing worth asserting about a delete attempt.
+    probe: async (db) => {
+      const { data, error } = await db
+        .from('families').select('family_code, family_name').eq('family_code', CHARLIE)
+      if (error) throw new Error(`probe families: ${error.message}`)
+      return JSON.stringify(data)
+    },
+    positive: 'not-applicable',
+    why: 'a control would destroy CHARLIE, which REMOVAL_CASES above depends on — thirteen '
+      + 'assertions rest on that family existing, and a fixture that deleted it mid-run would '
+      + 'turn them all green for the wrong reason. Adding a fourth throwaway family is the '
+      + 'fix and TODO.md carries it. What IS asserted meanwhile: the owner gate, five times '
+      + 'over, including once against a real support staffer; and 20260831000001 §6 asserts '
+      + 'in SQL that the function is unreachable from either browser role and that its '
+      + 'derived sweep finds more than forty family-scoped tables — a sweep that selected '
+      + 'none would report success having deleted nothing',
+  },
+  {
+    kind: 'write',
+    id: 'staff/destroy.deleteStaffAccount (a family administrator)',
+    mod: 'app/actions/staff/destroy.ts', fn: 'deleteStaffAccount',
+    // `staffGrantee` — a real account, so the refusal cannot be "no account with that
+    // address", which would be a refusal for the wrong reason.
+    args: fx => [{
+      email: fx.users.staffGrantee.email,
+      confirmEmail: fx.users.staffGrantee.email,
+      note: 'scope-case account delete attempt from the RLS harness',
+    }],
+    // THE ACCOUNT IS STILL THERE, read through `people` rather than `auth.users`: PostgREST
+    // does not expose the `auth` schema (the trap `tests/rls/raw/storage.mjs` records about
+    // `storage`), so a probe on `auth.users` would answer nothing at all and every attack
+    // half would pass over a probe that could not see a single row.
+    probe: async (db, fx) => {
+      const { data, error } = await db
+        .from('genorra_staff').select('user_id').eq('user_id', fx.users.staffGrantee.userId)
+      if (error) throw new Error(`probe genorra_staff: ${error.message}`)
+      // The grantee has no staff row in the reset fixture, so this is `[]` either way — what
+      // it proves is that the probe RAN. The account's survival is asserted by the next
+      // case's own sign-in: a deleted account cannot sign in, and `run.mjs` signs every actor
+      // in at the start of the run.
+      return JSON.stringify(data)
+    },
+    positive: 'not-applicable',
+    why: 'a control would delete a fixture account, and every actor in this suite is signed '
+      + 'in once at the start of the run — so the deletion would not surface as a failure '
+      + 'here but as an opaque sign-in error on the NEXT run, which is the worst shape a '
+      + 'fixture failure can take. A throwaway account with no other case naming it is the '
+      + 'fix; TODO.md carries it. The owner gate is asserted five times over meanwhile, and '
+      + '20260831000001 asserts the refusals a control could not reach anyway: self-deletion '
+      + 'and the last console owner',
+  },
 ]
 
 /**
@@ -8031,6 +8287,42 @@ const STAFF_ATTACKERS = [
   ['staffSupport', 'a support staffer'],
   ['anon', 'a signed-out caller'],
 ]
+
+/**
+ * The subscriptions screen, and it is the one staff action in this file that a SUPPORT
+ * staffer must be able to perform.
+ *
+ * ── SO IT CANNOT USE THE GENERATOR BELOW, AND THAT IS THE POINT OF SAYING SO ───────
+ * `STAFF_ATTACKERS` lists `staffSupport` as a caller who must be REFUSED, which is right for
+ * every owner-only action above and is the opposite of the claim here: reading what the
+ * platform is owed destroys nothing and is where most support conversations start. Folding
+ * this into that list would assert the wrong thing and pass, because `requireStaff()` would
+ * happily let support through and the generated case expects a refusal.
+ *
+ * So the attackers are named by hand and `staffSupport` is the POSITIVE CONTROL — the one
+ * assertion in this suite that the console's read/destroy line falls where it is supposed to.
+ */
+const STAFF_SUBSCRIPTION_CASES = [
+  ['bravoAdmin', "a family administrator"],
+  ['alphaPending', 'an unadmitted applicant'],
+  ['anon', 'a signed-out caller'],
+].map(([attacker, label]) => ({
+  kind: 'read',
+  id: `staff/subscriptions.listStaffSubscriptions (${label})`,
+  mod: 'app/actions/staff/subscriptions.ts', fn: 'listStaffSubscriptions',
+  attacker,
+  args: () => [],
+  // `requireStaff()` calls `notFound()`, so the call THROWS rather than returning a shape —
+  // the runner consults this only when it returned, which makes "returning at all is the
+  // failure" the correct assertion. A `{ rows: [] }` would otherwise pass for the wrong
+  // reason, exactly as `listStaffTeam`'s case argues.
+  expectAttack: () => false,
+  positiveActor: 'staffSupport',
+  // THE SUMMARY IS NOT `failed`, which is the assertion worth having: that flag is what the
+  // action sets when any of its three reads was refused, and a screen of zeros over a refused
+  // read reports a platform with no customers. A vacuous control would look identical.
+  expectPositive: v => !!v && v.summary?.failed === false && Array.isArray(v.rows),
+}))
 
 export const STAFF_CASES = STAFF_BASE_CASES.flatMap(c => [
   c,
@@ -9533,7 +9825,8 @@ CASES.push(...MORE_CASES, ...PENDING_CASES, ...SWEEP_CASES, ...ELECTION_RAW_CASE
   ...REMOVAL_CASES, ...APPROVAL_CASES,
   ...MONEY_CASES, ...GATHERING_CASES, ...GATHERING_PENDING_CASES, ...PROFILE_EDIT_CASES,
   ...DISTRIBUTION_CASES, ...DISTRIBUTION_PENDING_CASES,
-  ...STORAGE_CASES, ...BYLAW_CASES, ...BYLAW_RAW_CASES, ...STAFF_CASES)
+  ...STORAGE_CASES, ...BYLAW_CASES, ...BYLAW_RAW_CASES, ...STAFF_CASES,
+  ...STAFF_SUBSCRIPTION_CASES)
 
 /**
  * NOT COVERED, and why — so the gap is a decision rather than an oversight.

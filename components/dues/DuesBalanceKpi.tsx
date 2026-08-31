@@ -127,7 +127,9 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className, intl,
         <>
           <div className="flex items-end gap-2">
             <p className="text-3xl font-bold">{formatCurrency(requiredCents, intl)}</p>
-            <span className="mb-1 text-sm text-muted-foreground">required</span>
+            <span className="mb-1 text-sm text-muted-foreground">
+              {t('dues.requiredWord')}
+            </span>
           </div>
 
           {requiredCents === 0 ? (
@@ -176,7 +178,8 @@ export function DuesBalanceKpi({ summary, showViewLink = false, className, intl,
               which is the icon the Upcoming Dues rail item already uses for them. */}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <CalendarClock className="h-3.5 w-3.5 shrink-0" />
-            {summary.length} schedule{summary.length !== 1 ? 's' : ''}
+            {t(summary.length === 1 ? 'dues.schedulesOne' : 'dues.schedulesMany',
+              { n: String(summary.length) })}
             {declinedCount > 0 && ` · ${declinedCount} declined`}
           </div>
         </>

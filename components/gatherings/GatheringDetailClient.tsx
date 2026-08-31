@@ -184,8 +184,12 @@ export function GatheringDetailClient({ tasks, taskCounts, showTaskBudgets, segm
   const summary = [
     `${taskCounts.total} ${taskCounts.total === 1 ? 'task' : 'tasks'}`,
     taskCounts.approved > 0 ? `${taskCounts.approved} approved` : null,
-    taskCounts.submitted > 0 ? `${taskCounts.submitted} waiting for review` : null,
-    taskCounts.denied > 0 ? `${taskCounts.denied} need another look` : null,
+    taskCounts.submitted > 0
+      ? t('agat.waitingForReview', { n: String(taskCounts.submitted) })
+      : null,
+    taskCounts.denied > 0
+      ? t('gath.needAnotherLook', { n: String(taskCounts.denied) })
+      : null,
   ].filter(Boolean).join(' · ')
 
   return (
@@ -236,8 +240,9 @@ export function GatheringDetailClient({ tasks, taskCounts, showTaskBudgets, segm
         /* NEVER A SILENTLY SHORT LIST. The filter is the only thing that can empty a table that
            has rows, and saying so is what stops somebody concluding a task was deleted. */
         <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-          No task matches what you are looking for. {taskCounts.total}{' '}
-          {taskCounts.total === 1 ? 'task is' : 'tasks are'} on this gathering.
+          {t(taskCounts.total === 1
+            ? 'gath.noTaskMatchesOne'
+            : 'gath.noTaskMatchesMany', { n: String(taskCounts.total) })}
         </p>
       ) : (
         <div className="space-y-6">

@@ -185,8 +185,12 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
       positions: f.positions.map(p => (p.title && !allowed.has(p.title) ? { ...p, title: '' } : p)),
     }))
     setScopeNote(dropped.length
-      ? `${dropped.join(', ')} ${dropped.length === 1 ? 'is' : 'are'} not a `
-        + `${next === 'national' ? 'national' : next} office, so ${dropped.length === 1 ? 'it has' : 'they have'} been cleared.`
+      ? t(dropped.length === 1 ? 'ael.droppedOne' : 'ael.droppedMany', {
+          // The family's own office names, joined in the reader's conventions.
+          titles: new Intl.ListFormat(intl, { style: 'long', type: 'conjunction' })
+            .format(dropped),
+          level: t(`elec.level.${next}`),
+        })
       : '')
   }
 
@@ -244,10 +248,12 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
     const willAnnounce = announce[e.id] ?? true
     const ok = await confirm({
       title: t('ael.publishConfirm'),
-      description: `"${e.title}" goes on the calendar for ${e.scope_label}. Nominations open `
-        + `${formatDate(e.nominations_open_on, intl)} and voting closes ${formatDate(e.voting_close_on, intl)}; `
-        + 'both windows open and close on their own from then on.'
-        + (willAnnounce ? ' An announcement will be posted.' : ''),
+      description: t('ael.publishBody', {
+        title: e.title,
+        where: e.scope_label,
+        opens: formatDate(e.nominations_open_on, intl) ?? '',
+        closes: formatDate(e.voting_close_on, intl) ?? '',
+      }) + (willAnnounce ? t('ael.announcementWillBePosted') : ''),
       confirmLabel: t('ael.publish'),
     })
     if (!ok) return
@@ -261,8 +267,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
   async function handleUnpublish(e: OrganizerElection) {
     const ok = await confirm({
       title: t('ael.returnToDraft'),
-      description: `Take "${e.title}" off the family's calendar and back to a draft? Nobody has `
-        + 'been nominated and nothing has been voted on, so nothing is lost.',
+      description: t('ael.returnToDraftBody', { title: e.title }),
       confirmLabel: t('ael.returnToDraft'),
     })
     if (!ok) return
@@ -277,9 +282,12 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
     const ok = await confirm({
       title: t('ael.delete'),
       description: e.nomination_count || e.vote_count
-        ? `Delete "${e.title}", its ${e.nomination_count} nomination(s) and its `
-          + `${e.vote_count} vote(s)? This cannot be undone.`
-        : `Delete "${e.title}" and all of its positions? This cannot be undone.`,
+        ? t('ael.deleteWithVotesBody', {
+            title: e.title,
+            nominations: String(e.nomination_count),
+            votes: String(e.vote_count),
+          })
+        : t('ael.deleteBody', { title: e.title }),
       confirmLabel: t('ael.delete'),
       destructive: true,
     })
@@ -452,7 +460,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
                 </div>
                 {form.positions.length > 1 && (
                   <Button size="sm" variant="ghost"
-                    aria-label={`Remove position ${i + 1}`}
+                    aria-label={t('ael.removePositionAria', { n: String(i + 1) })}
                     className="text-destructive hover:text-destructive h-8 w-8 p-0"
                     onClick={() => setForm(f => ({
                       ...f, positions: f.positions.filter((_, idx) => idx !== i),
@@ -462,8 +470,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
             ))}
             {availableRoles.length === 0 && (
               <p className="text-xs text-muted-foreground">
-                No {form.scope === 'national' ? 'national' : form.scope} offices recorded yet.
-                Add them under Members › Organization first.
+                {t('ael.noOfficesAtLevel', { level: t(`elec.level.${form.scope}`) })}
               </p>
             )}
             <FieldError message={scopeNote} />

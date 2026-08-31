@@ -285,6 +285,1041 @@ export const fr: Catalogue = {
   'nav.menu': 'Menu',
   'brand.motto.lead': 'Nos racines',
   'brand.motto.rest': 'sont profondes, notre lien l’est plus encore.',
+  // ── CONNECT: WHERE A FAMILY BANKS ──────────────────────────────────────────
+  // `country.<iso>` is keyed on the alpha-2 code because that is what
+  // `identity.country` takes and what `family_stripe_accounts.country` stores — the id is
+  // the contract and the name is copy. Only the ENABLED countries are here; enabling one
+  // in `lib/stripe/connect-countries.ts` owes three lines in this file, and `i18n:check`
+  // names the missing one rather than letting the picker print a key.
+  'proc.countryLabel': 'Où la famille a sa banque',
+  'proc.countryPermanent': 'Stripe ne peut pas modifier ceci après la création du compte : cela décide de la devise des versements et des documents qui vous seront demandés.',
+  'act.countryNotAvailableForDues': 'La collecte des cotisations en ligne n’est pas encore disponible dans ce pays.',
+  'country.us': 'États-Unis',
+  'country.ca': 'Canada',
+  'country.mx': 'Mexique',
+  // ── THE STAFF CONSOLE'S DESTRUCTIVE HALF, 2026-08-31 ───────────────────────
+  // Two irreversible acts and one read-only screen. `stf.sub*` is the platform's OWN
+  // revenue and never a family's dues — the two ledgers must not meet, and a caption
+  // here that blurred them would be quoted.
+  'staff.subscriptions': 'Abonnements',
+  'stf.subscriptionsLede': 'Ce que chaque famille paie à GENORRA, et lesquelles relancer. Il s’agit des revenus de la plateforme — jamais des cotisations d’une famille.',
+  'stf.subscriptionsReadFailed': 'Nous n’avons pas pu lire les enregistrements de facturation à l’instant. Aucun plan de famille n’est en cause — rafraîchissez la page, et si cela persiste ces chiffres ne sont pas à citer.',
+  'stf.subPaying': 'Payantes aujourd’hui',
+  'stf.subMrr': 'Mensuel',
+  'stf.subMrrHint': 'Forfaits récurrents seulement',
+  'stf.subLifetime': 'Encaissé à ce jour',
+  'stf.subLifetimeShort': 'À ce jour',
+  'stf.subAttention': 'À surveiller',
+  'stf.subAttentionHint': '{delinquent} en échec, {leaving} partent',
+  'stf.subNoneYet': 'Aucune famille n’est encore arrivée au paiement.',
+  'stf.subFamily': 'Famille',
+  'stf.subPlan': 'Forfait',
+  'stf.subPaidThrough': 'Payé jusqu’au',
+  'stf.subStanding': 'Situation',
+  'stf.subPaidFor': 'A payé pour {tier}',
+  'stf.subMode.recurring': 'Mensuel',
+  'stf.subMode.prepaid': 'Période prépayée',
+  'stf.subScheduled': '{tier} à partir du {on}',
+  'stf.subDelinquentSince': 'Paiement échoué le {on}',
+  'stf.subLeaving': 'Non renouvelé',
+  'stf.subNeverPaid': 'Jamais payé',
+  'stf.subPaid': 'Payé',
+  'staff.deleteForever': 'Supprimer…',
+  'staff.deleteForeverConfirm': 'Supprimer définitivement',
+  'staff.deleting': 'Suppression…',
+  'staff.deleteFamilyTitle': 'Supprimer {name} ?',
+  'staff.deleteFamilyLede': '{code} · {members} membres. C’est définitif et il n’y a pas de restauration.',
+  'staff.deleteFamilyWhatGoes': 'Chaque personne, paiement, fonds, photographie, document, message, rassemblement, élection et réunion de cette famille est détruit, avec ses fichiers. Les comptes ne sont pas supprimés — un membre d’une autre famille garde le sien.',
+  'staff.deleteWhyLabel': 'Pourquoi',
+  'staff.deleteWhyPlaceholder': 'Le ticket, et qui l’a demandé',
+  'staff.deleteWhyHint': 'Conservé définitivement. C’est le seul enregistrement qui survit à ceci.',
+  'staff.deleteTypeCodeLabel': 'Tapez {code} pour confirmer',
+  'staff.deleteEmailedLabel': 'Code à six chiffres',
+  'staff.deleteSendCode': 'M’envoyer un code',
+  'staff.deleteAccount': 'Supprimer…',
+  'staff.deleteAccountConfirm': 'Supprimer ce compte',
+  'staff.deleteAccountTitle': 'Supprimer ce compte ?',
+  'staff.deleteAccountLede': '{email} ne pourra plus se connecter, et l’adresse redevient disponible pour une inscription.',
+  'staff.deleteAccountKeeps': 'Leurs {families} familles les gardent sur l’arbre, dans l’annuaire et dans chaque registre — comme un parent sans compte. Rien n’est supprimé d’aucune famille.',
+  'staff.deleteAccountKeepsNone': 'Ce compte n’appartient à aucune famille, il n’y a donc rien d’autre à conserver.',
+  'staff.deleteAccountWhyPlaceholder': 'Le ticket, et qui l’a demandé',
+  'staff.deleteTypeAddressLabel': 'Tapez l’adresse pour confirmer',
+  'staff.noAddress': 'Aucune adresse',
+  'staff.actions': 'Actions',
+  'act.couldNotReadThatFamily': 'Nous n’avons pas pu lire cette famille. Réessayez.',
+  'act.noFamilyWithThatCode': 'Aucune famille avec ce code.',
+  'act.couldNotEmailYouCode': 'Nous n’avons pas pu vous envoyer un code par courriel. Réessayez.',
+  'act.codeEmailedToYou': 'Un code à six chiffres est en route vers votre boîte de réception.',
+  'act.typeFamilyCodeToConfirm': 'Tapez le code de la famille exactement pour confirmer.',
+  'act.sayWhyFamilyDeleted': 'Indiquez pourquoi cette famille est supprimée.',
+  'act.couldNotCheckThatCode': 'Nous n’avons pas pu vérifier ce code. Réessayez.',
+  'act.couldNotDeleteThatFamily': 'Nous n’avons pas pu supprimer cette famille. Rien n’a été modifié.',
+  'act.deleteReturnedNoResult': 'Cela n’a renvoyé aucun résultat. Vérifiez avant de réessayer.',
+  'act.familyDeletedPermanently': '{code} n’existe plus. {rows} enregistrements ont été détruits.',
+  'act.someObjectsRemain': 'Certains fichiers n’ont pas pu être supprimés et sont désormais orphelins : {detail}',
+  'act.typeAddressToConfirm': 'Tapez l’adresse exactement pour confirmer.',
+  'act.sayWhyAccountDeleted': 'Indiquez pourquoi ce compte est supprimé.',
+  'act.couldNotDeleteThatAccount': 'Nous n’avons pas pu supprimer ce compte. Rien n’a été modifié.',
+  'act.accountDeleted': '{email} ne peut plus se connecter.',
+  // ── BIRTHDAYS, 2026-08-31 ──────────────────────────────────────────────────
+  // `birthday.familyPosted` and `birthday.fromUs` are NOT interchangeable and must not
+  // be merged: the first says the family spoke and the second says only that we did.
+  // The whole design turns on never claiming the first when nobody wrote anything —
+  // see 20260831000002's header.
+  'birthday.today': 'Aujourd’hui',
+  'birthday.heroGreeting': 'Joyeux anniversaire, {name} !',
+  'birthday.familyPosted': 'Votre famille vous a publié un message.',
+  'birthday.fromUs': 'De toute l’équipe GENORRA — nous espérons que votre famille vous gâtera aujourd’hui.',
+  'birthday.readIt': 'Le lire',
+  'birthday.promptHeading': 'Quelqu’un a bientôt son anniversaire',
+  'birthday.promptLede': 'Dans les {days} prochains jours, et personne n’a encore rien dit. Ce que vous écrivez est ce que la famille publie — nous ne l’écrivons jamais à votre place.',
+  'birthday.promptReadFailed': 'Nous n’avons pas pu vérifier qui a bientôt son anniversaire. Rafraîchissez la page.',
+  'birthday.isToday': 'Aujourd’hui',
+  'birthday.inDays': 'Dans {days} jours · {on}',
+  'birthday.saySomething': 'Écrire un mot',
+  'birthday.notThisYear': 'Pas cette année',
+  'birthday.notThisYearFor': 'Ranger le rappel d’anniversaire de {name}',
+  'birthday.suggestedTitle': 'Joyeux anniversaire, {name} !',
+  'birthday.suggestedBody': 'Nous souhaitons à {name} un merveilleux anniversaire, de la part de nous tous.',
+  'birthday.editFirst': 'Modifiez ce que vous voulez avant de publier — cela paraît en votre nom, pas au nôtre.',
+  'birthday.postGreeting': 'Publier',
+  'birthday.posting': 'Publication…',
+  'act.chooseRelative': 'Choisissez un parent.',
+  'act.greetingPosted': 'Publié. Épinglé sur le tableau de la famille pour les deux prochains jours.',
+  'act.greetingPostedNotRecorded': 'Publié — mais nous n’avons pas pu l’enregistrer, il est possible qu’on vous le redemande.',
+  'act.promptPutAway': 'Rangé pour cette année.',
+  'act.couldNotPostThat': 'Nous n’avons pas pu publier cela. Réessayez.',
+  'bill.chooseMonths': 'Choisissez entre 1 et {max} mois.',
+  'bill.notOnSale': '{plan} n’est pas encore en vente.',
+  'bill.notBuyableThisWay': '{plan} ne peut pas encore être acheté de cette façon.',
+  'bill.notBuyableMonthly': '{plan} ne peut pas encore être acheté au mois.',
+  'bill.notBuyableYet': '{plan} ne peut pas encore être acheté.',
+  'bill.useChangePlanInstead':
+    'Passer à {plan} ne coûte rien — utilisez Changer de forfait. Cela prend effet à la fin de la période déjà payée.',
+  'bill.tooFewDaysOne':
+    'Il ne reste qu’1 jour ce mois-ci, ce qui est un montant trop petit pour être facturé seul. Choisissez l’option qui couvre ce mois et le suivant.',
+  'bill.tooFewDaysMany':
+    'Il ne reste que {days} jours ce mois-ci, ce qui est un montant trop petit pour être facturé seul. Choisissez l’option qui couvre ce mois et le suivant.',
+  'bill.checkoutSubmitCovers':
+    '{amount} aujourd’hui vous couvre jusqu’à la fin de {month}. {plan} se renouvelle ensuite à {monthly} par mois, le 1er.',
+  'bill.alreadyOnPlan': 'Cette famille est déjà sur {plan}.',
+  'bill.startsOnNextBilling':
+    '{plan} commence le {on}, la prochaine date de facturation. Rien ne change avant, et il n’y a aucun remboursement pour les jours déjà payés.',
+  'bill.effectOnceDifferencePaid':
+    '{plan} prend effet dès que le montant supplémentaire est payé. Stripe facture maintenant la différence pour le reste de cette période.',
+  'bill.planStopsOn':
+    'Le forfait s’arrête le {on}. Toutes les pages restent ouvertes jusque-là, et tous les enregistrements sont conservés ensuite.',
+  'bill.startsOnNoRefund':
+    '{plan} commence le {on}. Rien ne change avant, et il n’y a aucun remboursement pour la période déjà payée.',
+  'bill.activeNowCredit':
+    '{plan} est actif maintenant, payé jusqu’au {through}. Ce qui restait de l’ancienne période — {credit} — est conservé en crédit sur votre prochaine facture.',
+  'bill.activeNowExact':
+    '{plan} est actif maintenant, payé jusqu’au {through}. La période que vous aviez déjà payée le couvrait exactement.',
+  'bill.openingStripeToCollect': 'Ouverture de Stripe pour encaisser {amount}.',
+  'bill.priceMisconfigured':
+    '{plan} n’est pas configuré correctement pour {way} sur ce déploiement. Rien n’a été facturé. Veuillez le signaler plutôt que de réessayer.',
+  'bill.wayMonthly': 'le paiement mensuel',
+  'bill.wayInAdvance': 'le paiement à l’avance',
+  'tmpl.addStepTo': 'Ajouter une étape à {template}',
+  'tmpl.editStepQuoted': 'Modifier « {step} »',
+  'tmpl.deleteStepConfirm':
+    'Supprimer l’étape « {step} » de {template} ? Toute tâche déjà créée à partir d’elle conserve son libellé, son responsable et sa réponse — seul le modèle perd l’étape. Ceci est irréversible.',
+  'tmpl.editTemplateAria': 'Modifier le modèle {template}',
+  'tmpl.unarchiveTitle': 'Remettre {template} dans la liste des modèles programmables',
+  'tmpl.archiveTitle':
+    'Retirer {template} de la liste des modèles programmables, en laissant tous les rassemblements tels quels',
+  'tmpl.cannotDeleteUsedOne':
+    '{template} a servi à créer 1 rassemblement, il ne peut donc pas être supprimé. Archivez-le à la place.',
+  'tmpl.cannotDeleteUsedMany':
+    '{template} a servi à créer {n} rassemblements, il ne peut donc pas être supprimé. Archivez-le à la place.',
+  'tmpl.deleteTemplateAria': 'Supprimer le modèle {template}',
+  'tmpl.editStepAria': 'Modifier l’étape « {step} »',
+  'tmpl.moveStepEarlierIn': 'Déplacer « {step} » plus tôt dans {template}',
+  'tmpl.moveStepEarlier': 'Déplacer « {step} » plus tôt',
+  'tmpl.moveStepLaterIn': 'Déplacer « {step} » plus tard dans {template}',
+  'tmpl.moveStepLater': 'Déplacer « {step} » plus tard',
+  'tmpl.deleteStepAria': 'Supprimer l’étape « {step} »',
+  'plan.downgradeConfirmTitle': 'Rétrograder cette famille vers {plan} ?',
+  'plan.whatYouGainOn': 'Ce que vous gagnez avec {plan}',
+  'plan.whatYouHaveNowOn': 'Ce que vous avez actuellement avec {plan}',
+  'plan.whatYouKeepOn': 'Ce que vous conservez avec {plan}',
+  'plan.whatYouGetTitle': '{plan} — ce que vous obtenez',
+  'plan.includedInYours': 'Inclus dans {plan}, le forfait de votre famille. Tout ici est activé.',
+  'plan.yourFamilyIsOnWhatAdds':
+    'Votre famille est sur {current}. Voici ce que {plan} ajouterait, à côté de ce que vous avez déjà.',
+  'plan.rateSetUpInBilling':
+    '{rate} Cela se configure dans la section Facturation des Paramètres.',
+  'plan.rateNoPaymentStep':
+    '{rate} Il n’y a pas encore d’étape de paiement — rien ici n’est facturé.',
+  'plan.whatPlanAdds': 'Ce que {plan} ajoute',
+  'plan.whatPlanIncludes': 'Ce que {plan} comprend',
+  'plan.whatYouWouldGainOn': 'Ce que vous gagneriez avec {plan}',
+  'plan.alsoIncludedFrom': 'Également inclus, depuis {plan}',
+  'perm.scope.none': '—',
+  'perm.scope.own': 'Les siens',
+  'perm.scope.any': 'Tous',
+  'perm.action.view': 'Voir',
+  'perm.action.create': 'Créer',
+  'perm.action.edit': 'Modifier',
+  'perm.action.delete': 'Supprimer',
+  'perm.verb.view': 'voir',
+  'perm.verb.create': 'créer',
+  'perm.verb.edit': 'modifier',
+  'perm.verb.delete': 'supprimer',
+  'perm.grantedPair': '{action} {scope}',
+  'perm.whoMayAction': '{resource} — qui peut {verb}',
+  'perm.switchTitle': '{resource} · {verb} · {scope}',
+  'access.actionsFor': 'Actions pour {name}',
+  'access.applyTemplateConfirm':
+    'Placer {name} sur « {template} » ? Son accès devient exactement ce que ce modèle accorde.',
+  'access.applyTemplateConfirmReplacing':
+    'Placer {name} sur « {template} » ? Son accès devient exactement ce que ce modèle accorde, en remplacement de « {previous} ».',
+  'access.enableConfirm':
+    'Réactiver l’accès de {name} ? Cette personne retrouve tout ce que son modèle accorde.',
+  'access.disableConfirm':
+    'Désactiver l’accès de {name} ? Cette personne conserve son compte et son profil, mais ne verra rien de cette famille jusqu’à ce que vous le réactiviez.',
+  'access.copyStartsFrom':
+    'Le nouveau modèle commence avec exactement ce que {template} accorde aujourd’hui. C’est une copie, pas un lien — modifier l’un ensuite laisse l’autre intact.',
+  'access.renameTemplateConfirm':
+    'Renommer « {from} » en « {to} » et enregistrer sa description ?',
+  'access.saveTemplateConfirm': 'Enregistrer vos modifications sur « {template} » ?',
+  'access.templateStillHasOne':
+    '« {template} » a encore 1 membre. Déplacez-le d’abord vers un autre modèle.',
+  'access.templateStillHasMany':
+    '« {template} » a encore {n} membres. Déplacez-les d’abord vers un autre modèle.',
+  'access.deleteTemplateConfirm': 'Supprimer « {template} » ? Ceci est irréversible.',
+  'access.setGrantConfirm':
+    'Régler « {template} » sur {action} {scope} pour {resource} ? {applies}',
+  'access.setGrantNotAllowed':
+    'Régler « {template} » pour que {resource} n’autorise pas de {verb} ? {applies}',
+  'access.appliesToOne': 'Ceci s’applique à l’unique membre du modèle.',
+  'access.appliesToMany': 'Ceci s’applique aux {n} membres du modèle.',
+  'elec.boardReadFailed':
+    'Impossible de lire les fonctions du conseil de cette famille. Réessayez.',
+  'elec.level.national': 'national',
+  'elec.level.regional': 'régional',
+  'elec.level.chapter': 'de section',
+  'elec.wrongLevelOne':
+    '{titles} n’est pas une fonction {level} du conseil. Une élection {level} ne peut pourvoir que des fonctions {level} — ajoutez la fonction ou modifiez sa portée dans Membres › Organisation d’abord.',
+  'elec.wrongLevelMany':
+    '{titles} ne sont pas des fonctions {level} du conseil. Une élection {level} ne peut pourvoir que des fonctions {level} — ajoutez les fonctions ou modifiez leur portée dans Membres › Organisation d’abord.',
+  'elec.createdWithoutPositions': 'L’élection a été créée mais pas ses fonctions : {error}',
+  'elec.savedWithoutPositions': 'L’élection a été enregistrée mais pas ses fonctions : {error}',
+  'elec.announceWholeFamily':
+    'Une nouvelle élection, « {title} », est ouverte à toute la famille.',
+  'elec.announceForArea': 'Une nouvelle élection, « {title} », concerne {where}.',
+  'elec.nominationsOpenOn': 'Les candidatures ouvrent le {on}.',
+  'elec.cannotUnpublish':
+    'Cette élection compte déjà {nominations} candidature(s) et {votes} vote(s), elle ne peut donc pas revenir au brouillon. Laissez-la se dérouler ou supprimez-la — ce qui supprime avec elle toutes les candidatures et tous les votes.',
+  'elec.nominationsNotOpenedYet': 'Les candidatures ne sont pas encore ouvertes.',
+  'elec.notPublishedYet': 'Cette élection n’a pas encore été publiée.',
+  'elec.nominationsClosedOn': 'Les candidatures ont fermé le {on}.',
+  'elec.nominationsClosed': 'Les candidatures sont fermées.',
+  'elec.votingClosedOn': 'Le vote a fermé le {on}.',
+  'elec.votingOpensOn': 'Le vote ouvre le {on}.',
+  'elec.votingNotOpen': 'Le vote n’est pas ouvert.',
+  'elec.thisPosition': 'cette fonction',
+  'elec.standDownFrom': 'Se retirer de {position} ?',
+  'elec.retractOthersStayOne':
+    '{name} a aussi été proposé par un autre membre, cette personne reste donc sur le bulletin pour {position} — seul votre nom est retiré.',
+  'elec.retractOthersStayMany':
+    '{name} a aussi été proposé par {n} autres membres, cette personne reste donc sur le bulletin pour {position} — seul votre nom est retiré.',
+  'elec.retractOnlySupporter':
+    'Vous êtes la seule personne à avoir proposé {name} pour {position}, cette personne sortira donc du bulletin.',
+  'elec.standingOne': '1 personne proposée',
+  'elec.standingMany': '{n} personnes proposées',
+  'elec.toBeElected': '{n} à élire',
+  'elec.nominateFor': 'Proposer pour {position}',
+  'elec.onlyAreaMayBeNominated': 'Seuls {where} peuvent être proposés dans cette élection.',
+  'elec.nobodyInAreaYet': 'Personne dans {where} ne peut encore être proposé.',
+  'elec.nominatedByYou': 'proposé par vous',
+  'elec.nominatedByYouAndOne': 'proposé par vous et une autre personne',
+  'elec.nominatedByYouAndMany': 'proposé par vous et {n} autres',
+  'elec.onTheBallot': 'sur le bulletin',
+  'elec.nominatedByOne': 'proposé par 1 membre',
+  'elec.nominatedByMany': 'proposé par {n} membres',
+  'chk.payForPlan': 'Payer {plan}',
+  'chk.shortMonthCombinedOne':
+    'Il ne reste qu’1 jour ce mois-ci, ce qui est un montant trop petit pour être facturé seul — le premier paiement couvre donc {through}. Le paiement suivant est ensuite {next}.',
+  'chk.shortMonthCombinedMany':
+    'Il ne reste que {days} jours ce mois-ci, ce qui est un montant trop petit pour être facturé seul — le premier paiement couvre donc {through}. Le paiement suivant est ensuite {next}.',
+  'chk.throughDate': 'jusqu’au {date}',
+  'chk.nextMonthToo': 'le mois prochain aussi',
+  'chk.onTheFirst': 'le 1er',
+  'chk.everyPaymentOnFirst':
+    'Dans les deux cas, chaque paiement après le premier a lieu le 1er — le prochain {next}.',
+  'chk.isDate': 'est le {date}',
+  'chk.isFirstOfNextMonth': 'est le 1er du mois prochain',
+  'chk.upgradeToPlan': 'Passer à {plan}',
+  'chk.payNowAmount': 'Payer {amount} maintenant',
+  'chk.throughEndOfThisMonth': '{plan} jusqu’à la fin de ce mois.',
+  'chk.coverNextTooAmount': 'Couvrir aussi le mois prochain — {amount}',
+  'chk.throughEndOfNextMonth': '{plan} jusqu’à la fin du mois prochain.',
+  'chk.upgradeNothingToPay': 'Passer à {plan} — rien à payer',
+  'chk.upgradePayAmount': 'Passer à {plan} — payer {amount}',
+  'dues.freq.annual': 'annuel',
+  'dues.freq.semi-annual': 'semestriel',
+  'dues.freq.quarterly': 'trimestriel',
+  'dues.freq.monthly': 'mensuel',
+  'dues.freq.one-time': 'paiement unique',
+  'dues.cad.weekly': 'Hebdomadaire',
+  'dues.cad.monthly': 'Mensuel',
+  'dues.cad.quarterly': 'Trimestriel',
+  'dues.cad.annual': 'Annuel',
+  'dues.cad.one-time': 'Paiement unique',
+  'dues.cadWord.weekly': 'hebdomadaire',
+  'dues.cadWord.monthly': 'mensuel',
+  'dues.cadWord.quarterly': 'trimestriel',
+  'dues.cadWord.annual': 'annuel',
+  'dues.cadWord.one-time': 'unique',
+  'agat.removeTemplateConfirm':
+    'Retirer « {template} » de ce rassemblement ? Ses étapes que personne n’a encore reçues sont supprimées. Si l’une d’elles a été attribuée ou répondue, rien n’est retiré et on vous dira combien — réattribuez ou approuvez celles-là d’abord.',
+  'agat.deleteConfirm':
+    'Supprimer « {title} » ? Toutes ses tâches disparaissent avec lui, ainsi que chaque réponse et note écrite par quiconque. S’il n’a simplement pas lieu, passez son statut à Annulé — rien n’est perdu et il peut être réouvert. Ceci est irréversible.',
+  'agat.startedBy': 'lancé par {name}',
+  'agat.approvedOfTotal': '{approved} sur {total} approuvées',
+  'agat.waitingForReview': '{n} en attente de relecture',
+  'agat.sentBackCount': '{n} renvoyées',
+  'agat.dayHappensOn': 'Le jour où « {segment} » a lieu',
+  'agat.whereHeld': 'Où « {segment} » se déroule',
+  'agat.removeSegment': 'Retirer {segment} de ce rassemblement',
+  'agat.approveConfirm':
+    'Approuver « {task} » sur {gathering} ? L’approbation est définitive — cela devient l’enregistrement de la famille et la personne qui l’a soumise ne pourra plus le modifier. Renvoyez-la plutôt si quelque chose doit encore être travaillé.',
+  'agat.theHolder': 'la personne qui l’a en charge',
+  'agat.nobodyUnassigned': 'personne, car elle n’est pas attribuée',
+  'agat.notesBack': 'Notes en retour : {notes}',
+  'agat.whoeverHoldsIt': 'quiconque l’a en charge',
+  'agat.sentWithTaskRequired':
+    'Envoyé avec la tâche à {name}. Une tâche renvoyée sans notes ne laisse rien sur quoi agir, c’est pourquoi ceci est obligatoire.',
+  'agat.approvedRecordNote':
+    'C’est l’enregistrement de la famille pour {task} et la personne qui l’a soumise ne peut pas le modifier. Réouvrez-la si elle doit changer — la réponse et chaque soumission restent exactement telles quelles, et elle retourne à cette personne pour modification.',
+  'agat.sentWithTaskTo': 'Envoyé avec la tâche à {name}.',
+  'agat.nobodyUnassignedTold':
+    'personne — cette tâche n’est pas attribuée, personne n’est donc informé',
+  'plan.optOutOf': 'Se retirer de {schedule} ?',
+  'plan.optBackInTo': 'Réintégrer {schedule} ?',
+  'plan.optBackInHint':
+    '{schedule} comptera de nouveau dans ce que vous devez, à {amount} par échéance {cadence}.',
+  'plan.stopAutoHint':
+    'Aucun autre paiement par carte ne sera prélevé pour {schedule}. Tout ce que vous avez déjà payé reste sur votre relevé.',
+  'plan.includesOverdueOne': 'Comprend 1 échéance due depuis le {since}',
+  'plan.includesOverdueMany': 'Comprend {n} échéances dues depuis le {since}',
+  'plan.startsWhenYouTurn': 'Commence le {date}, à vos {age} ans',
+  'plan.termsProrated': '{now} cette année · {full}/an ensuite · {frequency}',
+  'plan.termsPlain': '{amount}/an · {frequency}',
+  'plan.optionsFor': 'Options pour {schedule}',
+  'plan.changeCadenceHint':
+    'À quelle fréquence vous payez {schedule}. Le total annuel ne change pas — la fréquence le divise.',
+  'plan.thenEachTime': ', puis {amount} à chaque fois',
+  'plan.enterAmountFor': 'Saisissez un montant pour {schedule}, ou zéro pour l’exclure.',
+  'plan.mostThatCanBePaid': 'Le maximum qui peut être payé sur {schedule} est {amount}.',
+  'plan.coversEarlierOne': 'couvre 1 échéance antérieure',
+  'plan.coversEarlierMany': 'couvre {n} échéances antérieures',
+  'plan.payAmountByCard': 'Payer {amount} par carte',
+  'plan.payCadenceFor': 'Fréquence de paiement de {schedule}',
+  'plan.perInstallment': 'par échéance',
+  'plan.nextPaymentCovering': 'Prochain paiement {amount}, couvrant ce qui est dû jusqu’à présent',
+  'plan.payAmountNext': 'Payer ensuite {amount}',
+  'tree.openedElsewhere':
+    'Vous n’avez encore aucun parent ni enfant enregistré, donc ceci s’ouvre sur votre famille plutôt que sur une page vide.',
+  'tree.unattachedLede':
+    '{who} dans la famille mais sans lien avec personne, elles n’apparaissent donc nulle part ci-dessus. Cliquez sur un nom pour y centrer l’arbre, puis renseignez les parents autour.',
+  'tree.rosterLede':
+    'L’arbre ci-dessus montre les quatre générations autour d’une personne. Cliquez sur n’importe qui ici pour y centrer l’arbre.',
+  'tree.moreInGeneration': '+ {n} de plus dans cette génération. Retrouvez-les sous',
+  'tree.removeLinkConfirm':
+    'Supprimer le lien entre {a} et {b} ? Ceci ne supprime que la connexion — personne n’est retiré de la famille et rien de ce qu’ils ont enregistré n’est supprimé.',
+  'tree.showingBloodline':
+    'Affichage des {n} personnes descendant de la lignée de cette famille. Les conjoints et les parents par alliance ou adoption sont masqués.',
+  'tree.showingEveryone': 'Toute la famille — {total} personnes, dont {blood} par le sang.',
+  'tree.addSomeonesFather': 'Ajouter le père de {who}',
+  'tree.addSomeonesMother': 'Ajouter la mère de {who}',
+  'tree.addAnother': 'Ajouter un autre {relation}',
+  'tree.withPerson': 'Avec {name}',
+  'tree.noChildrenWith': 'Aucun enfant enregistré avec {name}.',
+  'tree.someonesSiblings': 'Frères et sœurs de {name}',
+  'tree.editRecordAria': 'Modifier la fiche de {name} ou l’inviter',
+  'tree.removeConnectionAria': 'Supprimer la connexion avec {name}',
+  'gal.imagesReadyOne': '1 image prête',
+  'gal.imagesReadyMany': '{n} images prêtes',
+  'gal.notAnImageFormat': '{name} n’est pas {formats} — il sera ignoré.',
+  'gal.moreKeepTyping': '{n} de plus — continuez à taper pour affiner.',
+  'gal.deletePhotoNamedConfirm':
+    'Supprimer « {caption} » ? Elle est retirée pour tout le monde, avec ses étiquettes, et le fichier image part aussi. Ceci est irréversible.',
+  'gal.photographsAddedOne': '1 photographie ajoutée.',
+  'gal.photographsAddedMany': '{n} photographies ajoutées.',
+  'gal.addedSomeFailed': '{added} ajoutées. {failed} non : {reasons}',
+  'gal.formatsAndSize': '{formats}, jusqu’à 10 Mo chacune.',
+  'gal.uploadingCount': 'Téléversement de {n}…',
+  'gal.uploadOne': 'Téléverser la photographie',
+  'gal.uploadMany': 'Téléverser {n} photographies',
+  'gal.removeTagForConfirm': 'Retirer l’étiquette de {name} de cette photographie ?',
+  'gal.addedByName': 'Ajoutée par {name}',
+  'gal.removeTagForAria': 'Retirer l’étiquette de {name}',
+  'staff.makeOwnerTitle': 'Faire de {name} un propriétaire ?',
+  'staff.takeOwnerTitle': 'Retirer l’accès propriétaire à {name} ?',
+  'staff.makeOwnerBody':
+    '{name} pourra accorder l’accès du personnel, changer le type que possède quiconque et le retirer — y compris le vôtre. Rien d’autre ne change dans ce qu’il peut voir.',
+  'staff.takeOwnerBodyOne':
+    '{name} conserve la console et tout ce qu’elle lit, et perd cet écran : il ne pourra accorder l’accès du personnel à personne. Il reste 1 propriétaire.',
+  'staff.takeOwnerBodyMany':
+    '{name} conserve la console et tout ce qu’elle lit, et perd cet écran : il ne pourra accorder l’accès du personnel à personne. Il reste {n} propriétaires.',
+  'staff.changeToRole': 'Changer en {role}',
+  'staff.removeAccessTitle': 'Retirer l’accès du personnel pour {name} ?',
+  'staff.removeAccessBody':
+    '{name} perd toute la console dès sa prochaine requête : chacune de ses pages répond 404, exactement comme pour un client. Rien ne change concernant son propre compte ni ses adhésions familiales. Le motif enregistré pour cette autorisation part avec la ligne et n’est conservé nulle part, donc s’ils ont de nouveau besoin d’un accès ce sera une nouvelle autorisation avec un nouveau motif.',
+  'dist.stopSendingTitle': 'Arrêter l’envoi de « {subject} » ?',
+  'dist.stopSendingBody':
+    'Le courriel a déjà été envoyé à {sent} des {total} parents. Ces messages sont partis et ne peuvent pas être rappelés. Le reste ne sera pas envoyé.',
+  'dist.stopSending': 'Arrêter l’envoi',
+  'dist.deleteRecordTitle': 'Supprimer l’enregistrement de « {subject} » ?',
+  'dist.relativesCount': '{n} parents',
+  'dist.notInAudience': '{n} hors de ce public',
+  'dist.noEmailOnFile': '{n} sans adresse de courriel enregistrée',
+  'dist.deleteRecordAria': 'Supprimer l’enregistrement de {subject}',
+  'dist.willBeEmailedOne': 'Le courriel sera envoyé à 1 parent',
+  'dist.willBeEmailedMany': 'Le courriel sera envoyé à {n} parents',
+  'dist.unreachableMoreOne':
+    '. 1 autre est sur l’arbre familial sans adresse de courriel et ne peut pas être contacté.',
+  'dist.unreachableMoreMany':
+    '. {n} autres sont sur l’arbre familial sans adresse de courriel et ne peuvent pas être contactés.',
+  'dist.preparing': 'Préparation…',
+  'dist.sendToCount': 'Envoyer à {n}',
+  'dist.notInAudienceOne': '1 parent n’était pas dans ce public.',
+  'dist.notInAudienceMany': '{n} parents n’étaient pas dans ce public.',
+  'ael.droppedOne': '{titles} n’est pas une fonction {level}, elle a donc été effacée.',
+  'ael.droppedMany': '{titles} ne sont pas des fonctions {level}, elles ont donc été effacées.',
+  'ael.publishBody':
+    '« {title} » est ajouté au calendrier de {where}. Les candidatures ouvrent le {opens} et le vote ferme le {closes} ; à partir de là, les deux fenêtres s’ouvrent et se ferment d’elles-mêmes.',
+  'ael.announcementWillBePosted': ' Une annonce sera publiée.',
+  'ael.returnToDraftBody':
+    'Retirer « {title} » du calendrier de la famille et la repasser en brouillon ? Personne n’a été proposé et rien n’a été voté, donc rien n’est perdu.',
+  'ael.deleteWithVotesBody':
+    'Supprimer « {title} », ses {nominations} candidature(s) et ses {votes} vote(s) ? Ceci est irréversible.',
+  'ael.deleteBody': 'Supprimer « {title} » et toutes ses fonctions ? Ceci est irréversible.',
+  'ael.removePositionAria': 'Retirer la fonction {n}',
+  'ael.noOfficesAtLevel':
+    'Aucune fonction {level} enregistrée. Ajoutez-les d’abord dans Membres › Organisation.',
+  'chk.monthlyBlurb':
+    '{amount} par mois, prélevé le 1er, jusqu’à ce que vous l’arrêtiez. Modifiez-le ou arrêtez-le quand vous voulez — ce que vous avez déjà payé reste ouvert.',
+  'chk.payRemainderOne': 'Payer {amount} pour le jour restant ce mois-ci',
+  'chk.payRemainderMany': 'Payer {amount} pour les {days} jours restants ce mois-ci',
+  'chk.payRestAndNext': 'Payer {amount} pour le reste de ce mois et le suivant',
+  'chk.inAdvanceBlurb':
+    'Un seul paiement couvrant le reste de ce mois plus des mois entiers ensuite, jusqu’à {max}. Rien ne le renouvelle, donc rien n’est facturé de nouveau avant que vous le décidiez.',
+  'chk.payNowSimple': 'Payer {amount} maintenant',
+  'chk.prorationBreakdownOne':
+    '{proration} pour le jour restant ce mois-ci, plus {months} pour {n} mois entier.',
+  'chk.prorationBreakdownMany':
+    '{proration} pour les {days} jours restants ce mois-ci, plus {months} pour {n} mois entiers.',
+  'chk.yourTermUnused': 'Votre période {plan}, non utilisée',
+  'chk.paidThroughDate': 'Payé jusqu’au {date}',
+  'chk.nextPaymentDate': 'Prochain paiement {date}',
+  'agat.noBudgetFund': 'Aucun budget · {fund}',
+  'agat.overBy': 'Dépassement de {amount}',
+  'agat.overWithOthersBy': 'Dépassement de {amount} avec les autres rassemblements sur ce fonds',
+  'agat.approveRowConfirm':
+    'Approuver « {task} » sur {gathering} ? L’approbation est définitive — la réponse devient l’enregistrement de la famille et la personne qui l’a soumise ne pourra plus la modifier. Renvoyez-la plutôt si quelque chose doit encore être travaillé.',
+  'agat.whoeverHoldsThisTask': 'quiconque a cette tâche',
+  'agat.sentToWithTask':
+    'Envoyé à {name} avec la tâche. Une tâche renvoyée sans notes ne laisse rien sur quoi agir, c’est pourquoi ceci est obligatoire.',
+  'agat.chosenTemplatesOne':
+    '1 choisi · ses étapes deviennent les tâches de ce rassemblement, dans l’ordre affiché',
+  'agat.chosenTemplatesMany':
+    '{n} choisis · leurs étapes deviennent les tâches de ce rassemblement, dans l’ordre affiché',
+  'agat.createdStepsFailed':
+    'Créé, mais les étapes de {templates} n’ont pas pu être ajoutées. Ajoutez de nouveau le modèle depuis le rassemblement.',
+  'agat.templateArchived':
+    '« {template} » est archivé et ne peut pas lancer un nouveau rassemblement',
+  'agat.cannotDeleteAnsweredOne':
+    '1 tâche de « {title} » a reçu une réponse, elle ne peut donc pas être supprimée. Passez son statut à Annulé — rien n’est perdu et il peut être réouvert.',
+  'agat.cannotDeleteAnsweredMany':
+    '{n} tâches de « {title} » ont reçu une réponse, il ne peut donc pas être supprimé. Passez son statut à Annulé — rien n’est perdu et il peut être réouvert.',
+  'agat.savedOutsideOneDay':
+    'Enregistré. Ce jour est en dehors du rassemblement, qui a lieu le {on}.',
+  'agat.savedOutsideRange':
+    'Enregistré. Ce jour est en dehors du rassemblement, qui va du {from} au {to}.',
+  'agat.templateAlreadyPart': '« {template} » fait déjà partie de ce rassemblement',
+  'agat.couldNotAddSteps':
+    'Impossible d’ajouter les étapes de {templates}. Rien n’a été modifié — réessayez.',
+  'agat.templateNotPart': '« {template} » ne fait pas partie de ce rassemblement',
+  'agat.cannotRemoveInFlightOne':
+    '1 tâche de ce modèle a été attribuée ou répondue, elle ne peut donc pas être retirée. Réattribuez-la ou approuvez-la d’abord.',
+  'agat.cannotRemoveInFlightMany':
+    '{n} tâches de ce modèle ont été attribuées ou répondues, il ne peut donc pas être retiré. Réattribuez-les ou approuvez-les d’abord.',
+  'budget.claimedByOthers': '{amount} en sont réclamés par d’autres rassemblements',
+  'budget.theFund': 'le fonds',
+  'budget.overFundSentence': '{budget} dépasse de {over} ce que détient {fund}.',
+  'budget.overWithOthersSentence':
+    'D’autres rassemblements en cours réclament déjà {others} du même fonds, donc {total} sont engagés sur {fund} — {over} de plus qu’il ne détient.',
+  'budget.overAllocatedSentence':
+    'Les budgets des tâches totalisent {lines}, soit {over} de plus que ce rassemblement n’a budgété. Rien n’a été dépensé — augmentez le budget ou réduisez une ligne de tâche.',
+  'fnd.routingGapUnder':
+    'Il reste {percent}% — ajoutez-les à n’importe quel fonds ci-dessous, ou répartissez-les.',
+  'fnd.routingGapOver': 'Cela dépasse de {percent}%. Retirez-les de l’un des fonds ci-dessous.',
+  'fnd.deleteNamedBody':
+    'Supprimer le fonds « {name} » ? Son solde de {balance} et ses jalons partent avec lui. Ceci est irréversible.',
+  'fnd.openNamedBody': 'Permettre aux membres de contribuer directement à « {name} » ?',
+  'fnd.closeNamedBody': 'Empêcher les membres de contribuer directement à « {name} » ?',
+  'fnd.deleteMilestoneNamedBody':
+    'Supprimer le jalon « {name} » ({amount}) ? Ceci est irréversible.',
+  'fnd.minimumBalanceFor': 'Solde minimum pour {fund}',
+  'fnd.allocationPercentFor': 'Pourcentage d’affectation pour {fund}',
+  'proj.expectedThisYear': 'Prévu cette année',
+  'proj.collected': 'Encaissé',
+  'proj.waived': 'Exonéré',
+  'proj.stillToCollect': 'Reste à encaisser',
+  'proj.oweSomethingOne': '1 des {total} membres doit quelque chose',
+  'proj.oweSomethingMany': '{paying} des {total} membres doivent quelque chose',
+  'proj.percentOfBilled': '{percent}% de ce qui a été facturé, exonérations comprises',
+  'proj.nothingBilledYet': 'Rien n’a encore été facturé',
+  'proj.waivedCaption': 'Remis — solde la cotisation et n’est pas un revenu',
+  'proj.everybodyUpToDate': 'Tout le monde est à jour',
+  'proj.outstandingOne': '1 membre a un solde impayé',
+  'proj.outstandingMany': '{n} membres ont un solde impayé',
+  'proj.pendingSettlement':
+    '{amount} est en attente de règlement — engagé et pas encore confirmé. Ce montant n’est pas compté comme encaissé et n’a pas été retiré de ce qui reste dû.',
+  'proj.bloodlineUnknownNote':
+    'Personne ne doit ceci : votre famille n’a pas indiqué de quel ancêtre sa lignée descend, il n’y a donc aucune lignée à facturer. Réglez {control} sur l’arbre familial.',
+  'proj.thatPartOfTheFamily': 'cette partie de la famille',
+  'proj.scopeEmptyNote':
+    'Personne ne doit ceci : aucun membre de la famille n’est dans {where}. Les membres choisissent leur section sur leur propre profil, et quiconque n’a pas de section relève du National.',
+  'proj.fullYear': 'Année complète',
+  'proj.leastSettledFirst': 'Les moins réglés d’abord. {shown} sur {total} affichés.',
+  'ann.deleteNamedBody':
+    'Supprimer « {title} » ? Les membres ne le verront plus, ni sur le tableau ni dans leurs mises à jour. Ceci est irréversible.',
+  'ann.unpinNamedBody':
+    'Désépingler « {title} » ? Cela reste sur ce tableau et cesse d’apparaître en haut des Mises à jour récentes de tous.',
+  'ann.pinNamedBody':
+    'Épingler « {title} » en haut des Mises à jour récentes de chaque membre ? Chacun pourra ensuite le masquer pour lui-même.',
+  'ann.unpin': 'Désépingler',
+  'ann.pin': 'Épingler',
+  'ann.hideFromMyUpdates': 'Masquer « {title} » en haut de vos propres mises à jour',
+  'ann.showInMyUpdates': 'Réafficher « {title} » en haut de vos propres mises à jour',
+  'ann.unpinForEveryone': 'Désépingler « {title} » pour tous',
+  'ann.pinForEveryone': 'Épingler « {title} » pour tous',
+  'org.deleteRegionMovingOne':
+    'Supprimer la région {name} ? Sa section passe au National, et tous ses membres restent exactement où ils sont. Ceci est irréversible.',
+  'org.deleteRegionMovingMany':
+    'Supprimer la région {name} ? Ses {n} sections passent au National, et tous leurs membres restent exactement où ils sont. Ceci est irréversible.',
+  'org.deleteRegionBody': 'Supprimer la région {name} ? Ceci est irréversible.',
+  'org.deleteChapterBody': 'Supprimer la section {name} ? Ceci est irréversible.',
+  'org.deleteRegionTitleAttr': 'Supprimer la région {name}',
+  'org.deleteChapterTitleAttr': 'Supprimer la section {name}',
+  'org.underNationalOne': '1 section relève du National.',
+  'org.underNationalMany': '{n} sections relèvent du National.',
+  'org.memberPicksChapter': 'Chaque membre choisit sa section sur son propre profil.',
+  'inc.ageProrationHint':
+    'Un membre ne doit rien avant ses {age} ans, puis les mois de cette année suivant son anniversaire — et le montant intégral chaque année ensuite. Toute personne sans date de naissance enregistrée le doit intégralement.',
+  'inc.beneficiaryHint':
+    'Toute personne nommée ici ne peut voir cette collecte nulle part dans {app} — ni l’objectif, ni la progression, ni un seul don. Cela vaut aussi pour les administrateurs, une collecte peut donc rester cachée de la personne qu’elle doit surprendre. Tous les autres voient à qui elle est destinée.',
+  'inc.descriptionPlaceholder': 'À quoi sert {noun}…',
+  'inc.applyEditsDonation': 'Appliquer vos modifications à « {label} » (objectif {goal}) ?',
+  'inc.applyEditsDues': 'Appliquer vos modifications à « {label} » ({amount} {frequency}) ?',
+  'inc.deleteNamedBody':
+    'Supprimer {noun} « {label} » ({amount} {frequency}) ? Ceci est irréversible.',
+  'inc.deleteThisBody': 'Supprimer {noun} ? Ceci est irréversible.',
+  'inc.deleteNoun': 'Supprimer {noun}',
+  'pos.holdersBlockOne': '1 personne occupe « {name} ». Retirez-la-lui d’abord.',
+  'pos.holdersBlockMany': '{n} personnes occupent « {name} ». Retirez-la-leur d’abord.',
+  'pos.removeNamedLede': 'Retirer « {name} » des fonctions que votre famille conserve ? ',
+  'pos.renameAria': 'Renommer la fonction {name}',
+  'pos.heldBlockTitleOne': '1 personne occupe ceci — retirez-la-lui d’abord',
+  'pos.heldBlockTitleMany': '{n} personnes occupent ceci — retirez-la-leur d’abord',
+  'pos.cannotRemoveAriaOne': 'Impossible de retirer la fonction {name} : 1 personne l’occupe',
+  'pos.cannotRemoveAriaMany':
+    'Impossible de retirer la fonction {name} : {n} personnes l’occupent',
+  'pos.removeAria': 'Retirer la fonction {name}',
+  'inv.invitedNamed': '{name}, vous avez été invité à rejoindre {family}',
+  'inv.invitedAnon': 'Vous avez été invité à rejoindre {family}',
+  'inv.sentToHasAccount':
+    'Cette invitation a été envoyée à {email}, qui possède déjà un compte {app}. Connectez-vous et vous reviendrez directement ici pour rejoindre — vous n’aurez pas besoin de code familial, cette invitation est votre accès.',
+  'inv.sentToNoAccount':
+    'Cette invitation a été envoyée à {email}. Créez un compte avec cette adresse pour l’accepter — vous n’aurez pas besoin de code familial, cette invitation est votre accès. Vous avez déjà un compte ? Connectez-vous et vous reviendrez directement ici.',
+  'inv.thisAccount': 'ce compte',
+  'inv.sentToOnlyThatAddress':
+    'Elle a été envoyée à {email}, et seule cette adresse peut l’accepter — c’est ce qui empêche un lien transféré de fonctionner pour quelqu’un d’autre. Vous êtes connecté en tant que {account}.',
+  'tasks.waitingOne': '1 tâche vous attend',
+  'tasks.waitingMany': '{n} tâches vous attendent',
+  'tasks.needAnotherLookOne': '1 nécessite un nouvel examen',
+  'tasks.needAnotherLookMany': '{n} nécessitent un nouvel examen',
+  'tasks.wasDue': 'Était dû le {date}',
+  'tasks.due': 'Dû le {date}',
+  'tasks.sentBackHelpLabel': 'Ce qui se passe quand une tâche revient',
+  'tasks.answerFinal': '{status} — cette réponse est définitive.',
+  'tasks.yourNote': 'Votre note : {note}',
+  'tasks.yourAnswerFor': 'Votre réponse pour {task}',
+  'gath.shapeContinuous': 'Un bloc continu',
+  'gath.shapeContinuousHint':
+    'Un rassemblement du vendredi soir au dimanche midi. Il s’affiche comme une seule barre sur ces jours dans le calendrier.',
+  'gath.shapeSeparate': 'Jours séparés, même rassemblement',
+  'gath.shapeSeparateHint':
+    'Une réunion de comité sur trois samedis. Chaque jour s’affiche comme sa propre entrée, toutes portant le titre de ce rassemblement.',
+  'gath.removeDayAria': 'Retirer le jour {n}',
+  'gath.everyDayOwnEntry':
+    'Chaque jour ici est sa propre entrée dans le calendrier, toutes nommées d’après ce rassemblement.',
+  'rel.bloodLinkNote': 'Une relation de sang — la lignée passe par ce lien.',
+  'rel.nonBloodLinkNote': 'Enregistré comme {kind}. La lignée ne passe pas par ce lien.',
+  'rel.parentBloodlineNote':
+    ' {decidedBy} {control}, au-dessus de l’arbre — l’un de vos parents est votre parent par le sang sans faire partie de la lignée de votre famille.',
+  'rel.shareParentsQuestion': 'Partagent-ils les parents de {name} ?',
+  'rel.whoElseIsParent': 'Qui d’autre est parent de ce {relation} ?',
+  'rel.tickingRecordsParent':
+    'Cocher quelqu’un enregistre aussi le lien de parenté, donc cette personne apparaît également sur sa fiche — pas seulement à côté de {name}.',
+  'rel.whoIsWhose': 'Qui est le {relation} de {name} ?',
+  'rel.dateOfBirth': 'Date de naissance',
+  'rel.dateOfBirthOptional': 'Date de naissance (facultative)',
+  'elec.vote': 'Voter',
+  'elec.thisNominee': 'ce candidat',
+  'elec.voteConfirm': '{action} pour {nominee} comme {position} ?',
+  'elec.nominationRespondConfirm':
+    '{action} la candidature pour {position} ? Ceci ne peut pas être modifié.',
+  'elec.theyOpenOn': 'Elles ouvrent le {date}.',
+  'elec.nominationsClosedOnPlain': 'Les candidatures ont fermé le {date}.',
+  'elec.votingOpensOnPlain': 'Le vote ouvre le {date}.',
+  'elec.votingClosedOnPlain': 'Le vote a fermé le {date}.',
+  'pay.maxItems':
+    'Jusqu’à {max} cotisations peuvent être payées en une fois. Payez-en certaines séparément.',
+  'pay.nothingLeftOn': 'Il ne reste rien à payer sur {schedule}.',
+  'pay.moreThanOwed':
+    'C’est plus que ce qui est dû. Le maximum qui peut être payé sur {schedule} est {amount}.',
+  'pay.driveClosed': '{drive} est clôturé. Plus rien ne peut y être versé.',
+  'pay.maxCharge':
+    'Un seul paiement par carte ne peut pas dépasser {amount}. Faites-le en deux fois.',
+  'rep.elecOpenNow': '{n} ouvertes maintenant · publiées seulement',
+  'rep.elecNominations': 'Candidatures',
+  'rep.elecAcrossEvery': 'sur toutes les élections',
+  'rep.elecEmptyMessage': 'Aucune élection n’a encore été publiée.',
+  'rep.elecEmptyHint':
+    'Une fois qu’une élection est publiée, ceci indique sa participation, ses candidatures et toute fonction pour laquelle personne ne s’est présenté.',
+  'rep.elecAcceptedOf': '{accepted} sur {total} acceptées',
+  'rep.elecNobodyStanding': '{n} sans aucun candidat',
+  'rep.elecUnopposedOne': '1 fonction sans opposition',
+  'rep.elecUnopposedMany': '{n} fonctions sans opposition',
+  'rep.elecNotApplicableNote': ' plutôt que 0% — personne n’aurait pu y voter.',
+  'pms.noMembersYet': 'Aucun membre à choisir pour le moment.',
+  'pms.searchMembers': 'Rechercher parmi {n} membres…',
+  'pms.noMatch': 'Aucun membre ne correspond à « {query} ».',
+  'pms.totalOne': '1 membre',
+  'pms.totalMany': '{n} membres',
+  'pms.shownOfTotal': '{shown} sur {total} affichés',
+  'pms.moreKeepTyping': '{n} de plus — continuez à taper pour affiner',
+  'meet.comingUp': 'À venir',
+  'meet.held': 'Tenues',
+  'meet.topicsOne': '1 sujet',
+  'meet.topicsMany': '{n} sujets',
+  'meet.stepOf': 'Étape {step} sur {total} · {name}',
+  'meet.allAdultsInFamily': 'Ce sont les {n} adultes de la famille.',
+  'meet.nobodyUnderEighteen':
+    'Aucune personne de moins de dix-huit ans n’est invitée à une réunion.',
+  'meet.inTheRoomOne': '1 personne dans la salle — voir qui',
+  'meet.inTheRoomMany': '{n} personnes dans la salle — voir qui',
+  'notes.deleteEntryNamedBody':
+    'Supprimer « {title} » ? Chaque note qu’il contient part aussi, pour tous ceux qui occupent cette fonction, maintenant et plus tard. Ceci est irréversible.',
+  'notes.chapterWord': 'section',
+  'notes.regionWord': 'région',
+  'notes.everyoneHoldingReads':
+    '{who} {office} lit ce journal, quelle que soit la {area} pour laquelle il l’occupe.',
+  'notes.thisOffice': 'cette fonction',
+  'notes.nothingRecordedFor': 'Rien n’est encore enregistré pour {office}.',
+  'notes.newEntry': 'Nouvelle entrée',
+  'notes.newEntryForOffice': 'Nouvelle entrée — {office}',
+  'bday.noneMatchName':
+    'Aucun anniversaire dans les {days} prochains jours ne correspond à ce nom.',
+  'bday.inDays': 'dans {n} jours',
+  'bday.shownOfTotal': '{shown} sur {total} affichés',
+  'bday.countOne': '1 anniversaire dans les {days} prochains jours',
+  'bday.countMany': '{n} anniversaires dans les {days} prochains jours',
+  'bday.discreetNote': '{emoji} remplace un âge entre {min} et {max}',
+  'pos.chooseWhichChapter': 'Choisissez quelle section',
+  'pos.chooseWhichRegion': 'Choisissez quelle région',
+  'pos.takeAwayNamedLede': 'Retirer « {position} » à {name} ? ',
+  'pos.somebodysPositions': 'Fonctions de {name}',
+  'pos.takeAwayAria': 'Retirer {position} à {name}',
+  'fnd.builtInCannotSwitchOff': '{name} est intégré et ne peut pas être désactivé.',
+  'fnd.builtInCannotDelete':
+    '{name} est intégré et ne peut pas être supprimé. Chaque don que reçoit la famille est conservé ici.',
+  'fnd.allocationsMustTotal': 'Les affectations doivent totaliser 100% (actuellement {percent}%)',
+  'fnd.couldNotReadBalance': 'Impossible de lire le solde de {name}',
+  'fnd.holdsTransferLess': '{name} détient {amount}. Transférez ce montant ou moins.',
+  'rep.meetings': 'Réunions',
+  'rep.meetRelativesAskedOne': '1 parent invité à une réunion',
+  'rep.meetRelativesAskedMany': '{n} parents invités à une réunion',
+  'rep.minuted': 'Avec procès-verbal',
+  'rep.meetReachedAVote': '{n} ont fait l’objet d’un vote',
+  'rep.meetOnePerTopic': 'un par sujet traité',
+  'rep.meetEmptyMessage': 'La famille n’a pas encore tenu de réunion.',
+  'rep.meetEmptyHint':
+    'Une fois qu’une réunion est programmée, ceci indique qui était dans la salle, ce qui a été abordé et comment les votes se sont déroulés.',
+  'rep.meetVotedOn': '{n} soumis au vote',
+  'safety.deleteNamedBody':
+    '« {title} » et l’enregistrement de qui a répondu seront supprimés. Personne ne pourra voir qui a été interrogé, qui s’est déclaré en sécurité, ni qui n’a jamais été joint.',
+  'safety.raisedBy': 'lancé par {name}',
+  'safety.askRemaining': 'Interroger les {n} restants',
+  'safety.unreachableOne':
+    '1 parent n’a pas d’adresse de courriel enregistrée. Quelqu’un devra lui téléphoner.',
+  'safety.unreachableMany':
+    '{n} parents n’ont pas d’adresse de courriel enregistrée. Quelqu’un devra leur téléphoner.',
+  'slice.descriptionOne': '{chart} · 1 membre · {percent}% de la famille',
+  'slice.descriptionMany': '{chart} · {n} membres · {percent}% de la famille',
+  'slice.invitedNotEmailed': '{name} a été invité, mais le courriel n’a pas pu être envoyé. ',
+  'slice.invited': '{name} a été invité.',
+  'slice.birthdayRecorded': 'Date de naissance de {name} enregistrée.',
+  'pend.waitingOnFamilies':
+    'Vous attendez {n} familles. Chacune est examinée par ses propres administrateurs, elles peuvent donc ne pas répondre en même temps.',
+  'pend.sentTo': 'Envoyé à {family}',
+  'pend.askToLookAgain': 'Demander à {family} de réexaminer',
+  'pend.meantimeFillIn': 'En attendant, vous pouvez compléter',
+  'gal.deleteAlbumWithPhotosOne':
+    'Ceci supprime l’album ET la photographie qu’il contient, pour tout le monde. Le fichier image est également supprimé. Ceci est irréversible.',
+  'gal.deleteAlbumWithPhotosMany':
+    'Ceci supprime l’album ET les {n} photographies qu’il contient, pour tout le monde. Les fichiers image sont également supprimés. Ceci est irréversible.',
+  'gal.deleteAlbumAndOne': 'Supprimer l’album et 1 photo',
+  'gal.deleteAlbumAndMany': 'Supprimer l’album et {n} photos',
+  'gal.albumIsASet':
+    'Un album est un ensemble de photographies que la famille conserve ensemble — un rassemblement, un mariage, une année.',
+  'gal.deleteNamedAlbumAria': 'Supprimer l’album « {name} »',
+  'rec.howRelated': 'Comment {name} est apparenté',
+  'rec.formerMarriageNote':
+    'Un ancien mariage reste sur l’arbre à côté de {name} — c’est généralement d’où vient la moitié des enfants. Un mariage ne transmet jamais le sang.',
+  'rec.recordedAs': 'Enregistré comme {kind} de {name}.',
+  'rec.bloodCarries': ' Les liens de sang transmettent la lignée.',
+  'rec.noBloodThroughLink': ' {name} n’atteint pas la lignée par ce lien.',
+  'rem.nobodyCanOpen':
+    'Personne ne peut l’ouvrir, la rejoindre ni accepter une invitation. {nothingDeleted} — chaque paiement, photographie, évènement et personne est exactement là où il était. Seul le support {app} peut la rétablir ; écrivez-leur pour le demander.',
+  'set.codeSentTo':
+    'Nous avons envoyé un code à six chiffres à {email}. Il dure {minutes} minutes et ne peut servir qu’une fois.',
+  'set.codeFailedTo':
+    '{note} Aucun code n’est parvenu à {email}, il n’y a donc rien à saisir pour l’instant. Réessayez dans un instant.',
+  'gath.notUsableAnswer': 'Ce n’est pas une réponse utilisable pour « {task} ». {hint}',
+  'gath.onlyOrganizerCanSchedule': 'Seul un organisateur peut programmer depuis « {template} »',
+  'gath.scheduledStepsFailed':
+    'Programmé, mais les étapes de {templates} n’ont pas pu être ajoutées. Un organisateur peut les ajouter depuis le rassemblement.',
+  'org.theNamedRegion': 'La région {name}',
+  'org.theNamedChapter': 'La section {name}',
+  'pos.nameTooLong': 'Un nom de fonction fait au maximum {max} caractères',
+  'err.regionNeedsName': 'Une région a besoin d’un nom',
+  'err.regionNotFound': 'Région introuvable',
+  'err.chapterNeedsName': 'Une section a besoin d’un nom',
+  'err.chapterNotFound': 'Section introuvable',
+  'err.positionNeedsName': 'Une fonction a besoin d’un nom',
+  'err.chooseCategory': 'Choisissez une catégorie',
+  'err.chooseScope': 'Choisissez une portée',
+  'err.positionNotFound': 'Fonction introuvable',
+  'err.memberNotFound': 'Membre introuvable',
+  'err.memberNotApproved': 'Ce membre n’a pas encore été approuvé',
+  'err.chooseChapterForPosition': 'Choisissez la section à laquelle correspond cette fonction',
+  'err.chooseRegionForPosition': 'Choisissez la région à laquelle correspond cette fonction',
+  'err.alreadyHoldsPosition': 'Cette personne occupe déjà cette fonction',
+  'err.assignmentGone': 'Cette attribution n’existe plus',
+  'err.notAuthenticated': 'Non authentifié',
+  'err.noFamilyOnAccount': 'Aucune famille associée au compte',
+  'err.noSignInAddress': 'Ce membre n’a aucune adresse de connexion enregistrée.',
+  'err.placeholderEmailNoReset':
+    'Cette fiche a une adresse de courriel provisoire, un lien de réinitialisation n’a donc nulle part où aller.',
+  'err.cannotRemoveSelfFromGroup': 'Vous ne pouvez pas vous retirer du groupe',
+  'err.conversationNotFound': 'Conversation introuvable',
+  'err.familyRoomFailed': 'Impossible de trouver ou de créer le salon de la famille',
+  'err.groupNameRequired': 'Le nom du groupe est obligatoire',
+  'err.groupNotFound': 'Groupe introuvable',
+  'err.invalidMessage': 'Message non valide',
+  'err.noFamily': 'Aucune famille',
+  'err.noFamilyCodeOnAccount': 'Aucun code familial trouvé sur votre compte',
+  'err.onlyCreatorCanAdd': 'Seul le créateur du groupe peut ajouter des membres',
+  'err.onlyCreatorCanRemove': 'Seul le créateur du groupe peut retirer des membres',
+  'err.notInYourFamily': 'Ce membre n’est pas dans votre famille',
+  'err.userNotInFamily': 'Utilisateur introuvable dans votre famille',
+  'err.nationalReservedName': '« National » est un nom réservé',
+  'err.noAccountAttachPosition':
+    'Ce parent n’a pas encore de compte, il n’y a donc rien à quoi rattacher une fonction. Invitez-le d’abord depuis l’arbre familial.',
+  'err.noAccountResetPassword':
+    'Ce parent n’a pas encore de compte, il n’y a donc aucun mot de passe à réinitialiser. Invitez-le plutôt depuis l’arbre familial.',
+  'reg.alreadyRegistered':
+    '{email} est déjà enregistré auprès de {app}, il n’y a donc rien à créer. Connectez-vous et vous reviendrez directement à votre invitation à',
+  'acct.closedDrivesOne': '1 collecte clôturée n’est pas affichée ici —',
+  'acct.closedDrivesMany': '{n} collectes clôturées ne sont pas affichées ici —',
+  'acct.seeDonationsForFull': 'pour l’enregistrement complet.',
+  'err.errorReference': 'Référence de l’erreur : {digest}',
+  'cal.withheldOne':
+    'Ce calendrier n’inclut pas {list}, donc ce que vous voyez ci-dessous n’est pas le mois entier : cet écran ne vous a pas été partagé, ou n’a pas pu être lu à l’instant.',
+  'cal.withheldMany':
+    'Ce calendrier n’inclut pas {list}, donc ce que vous voyez ci-dessous n’est pas le mois entier : ces écrans ne vous ont pas été partagés, ou n’ont pas pu être lus à l’instant.',
+  'hlp.membershipUndecided':
+    'Votre adhésion à {family} n’a pas encore été décidée, la majeure partie du produit ne vous est donc pas ouverte.',
+  'hlp.chapterExplainsNext':
+    'est le chapitre qui explique ce qui se passe ensuite. Tout le reste est là pour être lu en attendant.',
+  'lib.whyNotesStayHelp': 'Pourquoi les notes restent avec la fonction',
+  'lib.officesRecordedUnder': 'Les fonctions sont enregistrées dans',
+  'prof.requestDeclined':
+    '{lede}{family} a été refusée. Vous pouvez tout de même tenir votre profil à jour.',
+  'prof.waitingForApproval':
+    '{lede}{family} attend une approbation. Remplir ceci les aide à vous reconnaître —',
+  'prof.checkTheStatus': 'consulter le statut',
+  'rep.offices': 'Fonctions',
+  'rep.heldInTotalOne': '1 occupée au total',
+  'rep.heldInTotalMany': '{n} occupées au total',
+  'rep.filled': 'Pourvues',
+  'rep.boardEmptyHint':
+    'Ajoutez-les dans Membres → Organisation, et ceci indique qui occupe chacune et lesquelles sont vacantes.',
+  'rep.gathStillToCome': '{n} à venir · annulés exclus',
+  'rep.gathWaitingDecision': '{n} en attente d’une décision',
+  'rep.gathEmptyHint':
+    'Une fois qu’un rassemblement est programmé, ceci indique comment ses tâches avancent.',
+  'stf.familiesTitle': 'Familles',
+  'stf.familiesBlurb':
+    'Chaque famille, son forfait, combien de membres elle compte et si elle a été supprimée. La restauration se fait ici.',
+  'stf.familyOne': 'famille',
+  'stf.familyMany': 'familles',
+  'stf.active': 'actives',
+  'stf.accountsBlurb':
+    'Chaque compte de connexion, si son adresse est confirmée, s’il a déjà été utilisé, et à quelles familles il appartient.',
+  'set.familyNameTooLong': 'Ce nom de famille est trop long ({max} caractères maximum).',
+  'set.paidPlanUseBilling':
+    '{plan} est un forfait payant. Configurez-le dans la section Facturation des Paramètres — rien ici ne peut y faire passer une famille.',
+  'tmpl.nameExists': 'Un modèle appelé « {name} » existe déjà',
+  'tmpl.usedCannotDeleteOne':
+    '« {name} » a servi à créer 1 rassemblement, il ne peut donc pas être supprimé — l’enregistrement de la provenance de ces tâches partirait avec lui. Archivez-le à la place, ce qui le retire de la liste des modèles programmables et laisse chaque rassemblement exactement tel quel.',
+  'tmpl.usedCannotDeleteMany':
+    '« {name} » a servi à créer {n} rassemblements, il ne peut donc pas être supprimé — l’enregistrement de la provenance de ces tâches partirait avec lui. Archivez-le à la place, ce qui le retire de la liste des modèles programmables et laisse chaque rassemblement exactement tel quel.',
+  'access.membersOnTemplateOne': '1 membre est sur ce modèle. Déplacez-le d’abord vers un autre.',
+  'access.membersOnTemplateMany':
+    '{n} membres sont sur ce modèle. Déplacez-les d’abord vers un autre.',
+  'access.lockoutSubject.manageAccess': 'gérer l’accès',
+  'access.lockoutSubject.changeTemplates': 'modifier les modèles de permissions',
+  'access.onlyTemplateThatCan':
+    'C’est le seul modèle qui peut {subject}. Accordez-le d’abord à un autre modèle.',
+  'access.noOtherTemplateHasMembers':
+    'Aucun autre modèle pouvant {subject} n’a de membres. Placez d’abord quelqu’un sur l’un d’eux.',
+  'proc.disconnectedStoppedOne':
+    'Déconnecté, et 1 paiement récurrent arrêté. Chaque paiement déjà enregistré est conservé.',
+  'proc.disconnectedStoppedMany':
+    'Déconnecté, et {n} paiements récurrents arrêtés. Chaque paiement déjà enregistré est conservé.',
+  'usr.chaptersReadFailed': 'Impossible de lire les sections de cette famille : {error}',
+  'usr.chapterSavedMovedOne': 'Section enregistrée. 1 parent sans compte a suivi.',
+  'usr.chapterSavedMovedMany': 'Section enregistrée. {n} parents sans compte ont suivi.',
+  'cht.loadRoomFailed': 'Échec du chargement du salon : {error}',
+  'cht.createRoomFailed': 'Échec de la création du salon : {error}',
+  'cht.enrollFailed': 'Échec de l’inscription des membres : {error}',
+  'dues.driveVisibleToEveryone':
+    'La collecte a été créée, mais elle est VISIBLE PAR TOUS — {reason} Ouvrez-la et indiquez à qui elle est destinée.',
+  'dues.requiredCannotOptOut':
+    '{schedule} est une cotisation obligatoire, on ne peut donc pas s’en retirer.',
+  'gal.fileTooLarge': '{name} dépasse 10 Mo.',
+  'gal.albumGoneFilesLeftOne':
+    'L’album a disparu, mais 1 de ses fichiers image n’a pas pu être retiré du stockage. Il n’est plus listé nulle part ; prévenez un administrateur pour qu’il soit nettoyé.',
+  'gal.albumGoneFilesLeftMany':
+    'L’album a disparu, mais {n} de ses fichiers image n’ont pas pu être retirés du stockage. Ils ne sont plus listés nulle part ; prévenez un administrateur pour qu’ils soient nettoyés.',
+  'jrn.firstNoteNotSaved': 'la première note n’a pas été enregistrée',
+  'jrn.entryCreatedPartial':
+    'L’entrée a été créée, mais {what}. Ouvrez-la et ajoutez ce qui manque.',
+  'meet.secretaryUnderEighteen':
+    '{name} a moins de dix-huit ans. Le procès-verbal doit être rédigé par un adulte.',
+  'meet.guestUnderEighteenOne':
+    '{name} a moins de dix-huit ans. Seuls des adultes peuvent être ajoutés nominativement à une réunion.',
+  'meet.guestUnderEighteenMany':
+    '{names} ont moins de dix-huit ans. Seuls des adultes peuvent être ajoutés nominativement à une réunion.',
+  'fam.alreadyBelongTo': 'Vous appartenez déjà à {family}.',
+  'fam.requestStillAwaiting':
+    'Votre demande d’adhésion à {family} est encore en attente d’approbation.',
+  'reg.invitationSentToAddress':
+    'Cette invitation a été envoyée à {email}. Inscrivez-vous avec cette adresse.',
+  'safety.requeuedOne': '1 parent sera interrogé de nouveau',
+  'safety.requeuedMany': '{n} parents seront interrogés de nouveau',
+  'sms.confirmationBody':
+    'Votre code de confirmation {app} est {code}. Il expire dans {minutes} minutes.',
+  'sms.codeSentToEnding': 'Code envoyé au numéro se terminant par {last4}.',
+  'stf.noAccountUses':
+    'Aucun compte n’utilise {email}. Cette personne doit s’inscrire avant de pouvoir recevoir un accès.',
+  'stf.reasonTooLong': 'Gardez le motif sous {max} caractères',
+  'stf.alreadyHasAccess': '{email} a déjà un accès du personnel. Modifiez son accès sur sa ligne.',
+  'drives.pastTheGoal': '{amount} au-delà de l’objectif',
+  'drives.fromYou': '{amount} de votre part',
+  'drives.raisedAmount': '{amount} récoltés',
+  'plan.nextDuePrefix': 'Prochaine échéance',
+  'fnd.shareOfDues': '{percent} des cotisations',
+  'fnd.ofMinimum': 'sur {amount} minimum',
+  'fnd.minimumBalanceIs': ' Solde minimum {amount}.',
+  'fnd.shareOfDuesPrefix': 'Part des cotisations',
+  'fnd.paidFromPrefix': 'Payé depuis',
+  'drives.giveTo': 'Donner à {label}',
+  'drives.wouldMeetGoal': '{amount} atteindrait l’objectif — donnez ce que vous voulez.',
+  'plan.paymentsRecordedOne': '1 paiement enregistré',
+  'plan.paymentsRecordedMany': '{n} paiements enregistrés',
+  'access.runMigrations':
+    '{lede} Exécutez les migrations dans supabase/migrations. Jusque-là l’accès retombe sur l’ancien indicateur is_admin et rien de ce qui est modifié ici ne prend effet.',
+  'access.regionsChaptersNational': 'Régions, sections et National',
+  'appr.invitedBy': 'Invité par {name}',
+  'appr.expiresOn': 'expire le {date}',
+  'agat.reopenConfirm':
+    'Réouvrir « {task} » sur {gathering} ? Elle retourne à {who}, qui pourra alors modifier la réponse et la soumettre de nouveau. Rien n’est effacé — sa réponse reste sur la tâche comme point de départ et chaque soumission reste dans le dossier.',
+  'tmpl.noneYet': 'Aucun modèle de rassemblement pour le moment.',
+  'agat.noneYet': 'Aucun rassemblement pour le moment.',
+  'bill.cardFailingSince':
+    'Un paiement par carte échoue depuis le {date}. Rien n’a changé concernant ce à quoi cette famille a accès. Mettez à jour la carte dans {where} et Stripe réessaiera.',
+  'elec.waitingToBeAnswered': '{n} en attente de réponse',
+  'elec.votingClosedRange': 'Le vote a fermé {range}.',
+  'elec.snapshotWhileOpen':
+    'Un instantané pendant que le scrutin est ouvert — rien ici n’est définitif avant la fermeture du vote.',
+  'pos.noPositionYet': 'Aucune fonction pour le moment.',
+  'mpe.saveConfirm':
+    'Enregistrer vos modifications sur le profil de {name} ? Cette personne n’est pas notifiée.',
+  'mpe.chapterNotSaved': 'Le profil a été enregistré, mais pas la section : {reason}',
+  'mpe.chapterCouldNotBeSet': 'cette section n’a pas pu être définie.',
+  'mpe.emailResetLede': 'Envoyer à {name} un lien pour choisir un nouveau mot de passe ? ',
+  'login.stillNothing': 'Toujours rien ?',
+  'reg.startsOnFreeNote':
+    '{lede} Free. Rien n’a été facturé — connectez-vous et {app} vous demandera de configurer {plan}.',
+  'reg.nothingChargedNow':
+    'Rien n’est facturé maintenant. Une fois votre famille créée, on vous demandera de configurer le paiement de {plan}, et vous pourrez rester sur Free.',
+  'law.addedBy': '· ajouté par {name}',
+  'law.notADocumentFormat': 'Ce n’est pas {formats}. Choisissez un autre fichier.',
+  'cal.nothingInMonth': 'Rien n’est au calendrier en {month}.',
+  'cal.whatIsOnCaption': 'Ce qui a lieu en {month}, une colonne par jour de la semaine.',
+  'chat.deleteConversationConfirm':
+    'Supprimer votre conversation avec {name} ? Les messages sont retirés et ne peuvent pas être récupérés.',
+  'chat.selectedOne': '1 membre sélectionné',
+  'chat.selectedMany': '{n} membres sélectionnés',
+  'chat.addToGroupConfirm':
+    'Ajouter {name} à « {group} » ? Cette personne pourra lire la conversation.',
+  'chat.removeFromGroupConfirm':
+    'Retirer {name} de « {group} » ? Cette personne perd l’accès à la conversation.',
+  'chat.deleteConversationAria': 'Supprimer la conversation avec {name}',
+  'cns.onlyOwnAccount':
+    '{lede} Seules les données de votre propre compte sont utilisées, et uniquement pour rattacher cette visite à une publicité.',
+  'dash.chapter.theSelected': 'la section sélectionnée',
+  'dash.chapter.confirm':
+    'Définir votre section sur {chapter} ? Les fils ou filles de moins de 18 ans sans compte propre vous suivent.',
+  'drives.moreOpenOne': '1 autre collecte est ouverte.',
+  'drives.moreOpenMany': '{n} autres collectes sont ouvertes.',
+  'dash.link.confirm':
+    'Rattacher la fiche de {name} à votre compte ? Son historique devient le vôtre, et ceci est irréversible.',
+  'dash.finishPayingFor': 'Terminez le paiement de {plan}',
+  'dash.tasksApprovedOne': '{approved} sur 1 tâche approuvée',
+  'dash.tasksApprovedMany': '{approved} sur {total} tâches approuvées',
+  'dash.raisedBy': 'Lancé par {name}',
+  'dist.noDraftToComeBack':
+    'Ceci part par courriel immédiatement. Il n’y a aucun brouillon sur lequel revenir.',
+  'docs.deleteNamedBody':
+    'Supprimer « {name} » ? Le fichier est retiré pour tout le monde. Ceci est irréversible.',
+  'proj.yearFromPrefix': 'Année à partir du',
+  'proj.payingCount': '{n} cotisants',
+  'proj.helpWhoCounted': 'Aide : qui est compté dans ces chiffres',
+  'tree.otherChildren': 'Autres enfants',
+  'tree.otherChildrenEmpty':
+    'Les enfants dont l’autre parent n’est pas enregistré apparaissent ici.',
+  'upg.partOfPlan': 'Inclus dans {plan}',
+  'upg.everythingOnComesWith': 'Tout ce qui est dans {plan} est inclus.',
+  'upg.noAnnualNoContract': '. Aucun forfait annuel, aucun contrat.',
+  'upg.notOnSaleYet': ' Pas encore en vente ; rien n’est facturé aujourd’hui.',
+  'gath.answerInDollars': '{label}, en dollars',
+  'gath.answerOnePerLine': '{label}, un élément par ligne',
+  'gath.needAnotherLook': '{n} nécessitent un nouvel examen',
+  'gath.noTaskMatchesOne':
+    'Aucune tâche ne correspond à votre recherche. Il y a 1 tâche sur ce rassemblement.',
+  'gath.noTaskMatchesMany':
+    'Aucune tâche ne correspond à votre recherche. Il y a {n} tâches sur ce rassemblement.',
+  'gath.dateWithNoTasks': 'Ce sera une date au calendrier de la famille, sans tâches.',
+  'gath.allApprovedOne': 'L’unique tâche est approuvée',
+  'gath.allApprovedMany': 'Les {n} tâches approuvées',
+  'hlp.tierBadgeBody':
+    'Ceci est inclus dans le forfait {plan}, et votre famille est sur un forfait inférieur. Tout ce qui suit est exact — l’écran propose simplement une mise à niveau au lieu de s’ouvrir.',
+  'hlp.permissionBadgeBody':
+    'Votre modèle de permissions n’inclut pas cet écran, donc l’ouvrir indiquera que la page est introuvable. Un administrateur de votre famille peut le modifier depuis Membres.',
+  'inv.joinOnceApproved':
+    'Cette personne rejoindra {family} dès qu’un administrateur l’aura approuvée.',
+  'account.menuFor': 'Menu du compte de {name}',
+  'switcher.viewingClickToSwitch': 'Affichage de {family} — cliquez pour changer de famille',
+  'hlp.comingSoonBadgeBody':
+    'Cette partie du produit n’est pas encore livrée. Le chapitre décrit ce qu’elle fera ; ouvrir l’écran aujourd’hui affiche un avis Prochainement.',
+  'dash.profile.body':
+    'Vos parents vous trouvent dans l’Annuaire des membres, et il n’y a pas encore grand-chose. Ajoutez {missing}.',
+  'idle.warningBody': 'Vous êtes inactif depuis un moment, nous allons donc vous déconnecter.',
+  'idle.signingOutIn': 'Déconnexion dans',
+  'notify.waitingApprovalOne': '1 personne attend une approbation',
+  'notify.waitingApprovalMany': '{n} personnes attendent une approbation',
+  'notes.aFormerOfficer': 'un ancien titulaire',
+  'notes.startedByOn': 'Lancé par {name} · {date}',
+  'meet.ofInTheRoom': 'sur {n} dans la salle',
+  'meet.voteFinalBody':
+    'Votre vote sur « {topic} » est enregistré à votre nom et personne ne peut le modifier ni le retirer.',
+  'meet.voteChoice': 'Voter {choice}',
+  'dir.shownOfTotalOne': '{shown} sur 1 membre',
+  'dir.shownOfTotalMany': '{shown} sur {total} membres',
+  'rem.familyRemovedHeading': '{family} a été supprimée',
+  'rem.switchWithMenu': 'Changez avec le menu famille en haut de la page, ou depuis',
+  'rem.stillOpenToYou': 'vous reste ouvert, ainsi que le',
+  'rem.manual': 'manuel',
+  'pend.welcomeBack': 'Bon retour, {name} !',
+  'fam.adminMustApprove':
+    'Un administrateur de {family} doit vous approuver avant que vous puissiez voir quoi que ce soit. Les détails de votre profil sont partagés entre toutes les familles auxquelles vous appartenez.',
+  'fam.yesJoin': 'Oui, rejoindre {family}',
+  'fam.openByDefault': 'Ouvrir {family} par défaut à la connexion ?',
+  'profile.photo.replaceConfirm':
+    'Remplacer votre photo de profil par « {name} » ? Votre photo actuelle est retirée.',
+  'profile.photo.setConfirm': 'Utiliser « {name} » comme photo de profil ?',
+  'profile.selectedChapter': 'sélectionnée',
+  'profile.confirm.chapterBody':
+    'Enregistrer vos modifications et passer à la section {chapter} ? Les fils ou filles de moins de 18 ans sans compte propre vous suivent.',
+  'sec.codeSentExpires':
+    'Nous avons envoyé un code à 8 chiffres à {email}. Il expire dans une heure.',
+  'rep.nothingToShowAria': '{label} : rien à afficher pour le moment',
+  'rep.everyUnitCount':
+    'Chaque décompte de {unit} dans cette répartition, y compris ceux que le graphique regroupe. ',
+  'safety.relativeOne': '1 parent',
+  'safety.relativesMany': '{n} parents',
+  'safety.withNoEmail': ', {n} sans courriel',
+  'safety.willBeAskedOne': '1 parent sera interrogé.',
+  'safety.willBeAskedMany': '{n} parents seront interrogés.',
+  'safety.noEmailPhoneOne':
+    '1 d’entre eux n’a pas d’adresse de courriel enregistrée, quelqu’un devra donc lui téléphoner.',
+  'safety.noEmailPhoneMany':
+    '{n} d’entre eux n’ont pas d’adresse de courriel enregistrée, quelqu’un devra donc leur téléphoner.',
+  'staff.accessForAria': 'Accès de {name}',
+  'staff.revokeAccessAria': 'Révoquer l’accès du personnel de {name}',
+  'staff.neverRegistered':
+    '{lede} Personne ne l’a jamais enregistré. Si une invitation a été envoyée, elle est ci-dessous.',
+  'staff.noAddressMatches': 'Aucune adresse de cette page ne contient « {query} ».',
+  'staff.never': 'jamais',
+  'staff.restoreBody':
+    '{code} redevient accessible immédiatement : ses membres peuvent s’y connecter, son code familial fonctionne et ses invitations se résolvent. Rien n’a été supprimé lors du retrait, donc chaque enregistrement revient avec elle.',
+  'staff.noFamilyMatches': 'Aucune famille ne correspond à « {query} ».',
+  'cf.confirmWithPassword': 'Confirmez avec votre mot de passe',
+  'cf.sixDigitsEmailed':
+    'Les six chiffres que nous avons envoyés à {email}. Il ne peut servir qu’une fois, et cinq essais erronés l’annulent.',
+  'pp.nobodyElseYet': 'Personne d’autre dans la famille pour le moment.',
+  'pp.moreMatchKeepTyping': '{n} autres correspondances — continuez à taper',
+  'time.yourTime': '{time} votre heure',
+  'upd.announcementsNotIncluded':
+    'Cette liste est ce qui vous a été envoyé. Les annonces de la famille ne sont pas incluses, car votre famille ne vous a pas donné le tableau — voir',
+  'upd.showOlder': 'Afficher {n} plus anciens',
+  'act.relativeHasDied':
+    'Ce parent est décédé, il n’y a donc aucun anniversaire à souhaiter.',
+  'gath.daysFromOne': '1 jour à partir du {date}',
+  'gath.daysFromMany': '{n} jours à partir du {date}',
+  'access.membersOnCardOne': '1 membre',
+  'access.membersOnCardMany': '{n} membres',
+  'chat.participantsOne': '1 membre',
+  'chat.participantsMany': '{n} membres',
+  'dues.schedulesOne': '1 échéancier',
+  'dues.schedulesMany': '{n} échéanciers',
+  'gath.seriesTwo': '{first} et {second}',
+  'gath.seriesOneAndMore': '{first} et {n} de plus',
+  'gath.seriesTwoAndMore': '{first}, {second} et {n} de plus',
+  'dues.requiredWord': 'obligatoire',
+  'dues.optionalWord': 'facultatif',
+  'fnd.balanceWord': 'solde',
+  'col.schedule': 'Échéancier',
+  'col.member': 'Membre',
+  'col.status': 'Statut',
+  'col.date': 'Date',
+  'col.actions': 'Actions',
+  'field.chapterLabel': 'Section',
+  'cal.todaySrOnly': ' — aujourd’hui',
+  'cal.goToMonth': 'Aller à {month}',
+  'bill.monthsSuffix': ' · {n} mois',
+  'hlp.planBadge': 'forfait {plan}',
+  'hlp.badgeComingSoon': 'Prochainement',
+  'hlp.badgeNotInAccess': 'Hors de votre accès',
   // ── TIME ZONES ─────────────────────────────────────────────────────────────
   // Keyed on the IANA name, which is what `people.time_zone` stores — see
   // `timezoneLabel` in lib/date-utils.ts. The bracketed abbreviations are the ones
@@ -313,6 +1348,39 @@ export const fr: Catalogue = {
   'tz.Australia/Sydney': 'Sydney (AEST/AEDT)',
   'tz.Pacific/Auckland': 'Nouvelle-Zélande (NZST/NZDT)',
 
+  // ── DOCUMENT TITLES, 2026-08-31 ────────────────────────────────────────────
+  // The browser TAB, which is not always the <h1>: a tab has no rail above it to say
+  // where it is, so thirteen of these disambiguate against a sibling route. Every other
+  // screen's tab reuses its own `page.<route>.title` and so cannot drift from its
+  // heading — see `lib/i18n/page-metadata.ts` for why that is one key and not two, and
+  // for the measurement that retired the note below.
+  'doc./admin/accounting.title': 'Comptabilité — Administration',
+  'doc./admin/elections.title': 'Élections — Administration',
+  'doc./admin/elections/[id].title': 'Élection',
+  'doc./admin/gatherings.title': 'Rassemblements — Administration',
+  'doc./admin/gatherings/[id].title': 'Rassemblement — Administration',
+  'doc./community/elections/[id].title': 'Élection',
+  'doc./community/gallery/[id].title': 'Album',
+  'doc./gatherings/[id].title': 'Rassemblement',
+  'doc./library/meeting-minutes/[id].title': 'Réunion',
+  'doc./reporting/board.title': 'Rapport du conseil et des fonctions',
+  'doc./reporting/elections.title': 'Rapport des élections',
+  'doc./reporting/gatherings.title': 'Rapport des rassemblements',
+  'doc./reporting/meetings.title': 'Rapport des réunions',
+  'doc./community/distributions.title': 'Distributions',
+  'doc./community/gallery.title': 'Galerie',
+  'doc./community/safety-check-ins.title': 'Vérifications de sécurité',
+  'doc./library/bylaws.title': 'Statuts',
+  'doc./library/meeting-minutes.title': 'Procès-verbaux',
+  'doc./dashboard.title': 'Tableau de bord',
+  'doc./update-password.title': 'Choisir un nouveau mot de passe',
+  'doc./invite.title': 'Invitation',
+  // ── THE STAFF CONSOLE'S HEADINGS, 2026-08-31 ───────────────────────────────
+  // Four of these were bare JSX literals, which the prose gate cannot see.
+  'page./staff.title': 'Console du personnel {app}',
+  'page./staff/access.title': 'Accès',
+  'page./staff/accounts.title': 'Comptes',
+  'page./staff/families.title': 'Familles',
   // ── PAGE HEADINGS ────────────────────────────────────────────────────────────────
   // The same words as the rail for most screens, and kept as separate keys for the reason
   // `en.ts` gives. *Rassemblements* / *Réunions* divides here exactly as it does above.

@@ -42,18 +42,22 @@ import { useT } from '@/components/layout/LocaleProvider'
  * `autoComplete="current-password"` so a password manager offers the right entry rather than
  * treating this as a new one to save over the account's real password.
  */
-export function PasswordReauthField({ valueRef, id, label = 'Confirm with your password', hint }: {
+export function PasswordReauthField({ valueRef, id, label, hint }: {
   valueRef: { current: string }
   /** Unique per screen: two of these in one document would collide on the label's `htmlFor`. */
   id: string
   label?: string
   hint: string
 }) {
+  // The DEFAULT label lives here rather than in the parameter list: a default parameter cannot
+  // call a hook, and an English default on a shared control is the worst place for one — every
+  // caller that does not pass a label gets it.
+  const t = useT()
   const [value, setValue] = useState('')
 
   return (
     <div className="mt-4 rounded-xl border border-brand-withheld/40 bg-brand-withheld/5 p-4">
-      <Label htmlFor={id}>{label}</Label>
+      <Label htmlFor={id}>{label ?? t('cf.confirmWithPassword')}</Label>
       <Input
         id={id}
         type="password"
@@ -113,8 +117,7 @@ export function EmailedCodeField({ valueRef, id, sentTo }: {
         className="mt-1.5 max-w-[12rem] font-mono text-lg tracking-[0.4em]"
       />
       <p className="mt-2 text-xs text-muted-foreground">
-        The six digits we emailed to {sentTo}. It can be used once, and five wrong tries
-        cancel it.
+        {t('cf.sixDigitsEmailed', { email: sentTo })}
       </p>
     </div>
   )

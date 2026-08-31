@@ -1,3 +1,4 @@
+import type { T } from '@/lib/i18n/t'
 import { formatTime } from '@/lib/date-utils'
 import { instantAt, sameClock, timeIn, zoneAbbrev } from '@/lib/tz'
 
@@ -34,9 +35,13 @@ import { instantAt, sameClock, timeIn, zoneAbbrev } from '@/lib/tz'
  * instant is `<day>T<time>` interpreted IN THE STATED ZONE, which is what makes "1:00 PM your
  * time" the right answer rather than an offset applied to a naive date.
  */
-export function StatedTime({ day, time, endTime, zone, readerZone, intl }: {
+export function StatedTime({ day, time, endTime, zone, readerZone, intl, t }: {
   /** The reader's `Intl` tag. A prop — this is a Server Component. */
   intl: string
+  /** And their language, for the one sentence around the figures. A PROP for the same reason
+      `intl` is, and doubly so: this component is imported by a client component AND by a
+      server page, so `useT()` would throw on one of the two. */
+  t: T
   /** `YYYY-MM-DD` — the day the time falls on, which decides the DST answer. */
   day: string
   /** `HH:MM`, or null. Null renders nothing at all. */
@@ -69,7 +74,9 @@ export function StatedTime({ day, time, endTime, zone, readerZone, intl }: {
       <span>{abbrev ? `${stated} ${abbrev}` : stated}</span>
       {differs && (
         <span className="text-xs text-muted-foreground">
-          {formatTime(timeIn(at, readerZone), intl)} your time
+          {t('time.yourTime', {
+            time: formatTime(timeIn(at, readerZone), intl) ?? '',
+          })}
         </span>
       )}
     </span>

@@ -14,8 +14,11 @@ import { can, canAny } from '@/lib/auth/permissions'
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Accounting — Admin' }
+export async function generateMetadata() {
+  return docTitle('doc./admin/accounting.title')
+}
 
 /**
  * Accounting CONFIGURATION: dues, donations, funds, routing, milestones, settings.

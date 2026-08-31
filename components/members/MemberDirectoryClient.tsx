@@ -282,7 +282,9 @@ export function MemberDirectoryClient({ members }: Props) {
       )}
 
       <p className="text-xs text-muted-foreground text-center">
-        {rows.length} of {members.length} member{members.length !== 1 ? 's' : ''}
+        {t(members.length === 1 ? 'dir.shownOfTotalOne' : 'dir.shownOfTotalMany', {
+          shown: String(rows.length), total: String(members.length),
+        })}
       </p>
 
       {/* ── One member, in full ──

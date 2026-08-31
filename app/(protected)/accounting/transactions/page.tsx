@@ -13,8 +13,11 @@ import {
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Transactions' }
+export async function generateMetadata() {
+  return docTitle('page./accounting/transactions.title')
+}
 
 /**
  * Every transaction the family has recorded: dues in, donations in, contributions

@@ -221,25 +221,35 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
           figure on the screen is a fraction of it. */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Figure
-          label="Expected this year"
+          label={t('proj.expectedThisYear')}
           value={formatCurrency(projection.expectedCents, intl)}
-          caption={`${projection.payingMembers} of ${projection.membersCounted} members owe something`}
+          caption={t(projection.payingMembers === 1
+            ? 'proj.oweSomethingOne'
+            : 'proj.oweSomethingMany', {
+            paying: String(projection.payingMembers),
+            total: String(projection.membersCounted),
+          })}
         />
         <Figure
-          label="Collected"
+          label={t('proj.collected')}
           value={formatCurrency(projection.collectedCents, intl)}
-          caption={projection.expectedCents > 0 ? `${percent}% of what was billed, waivers included` : 'Nothing billed yet'}
+          caption={projection.expectedCents > 0
+            ? t('proj.percentOfBilled', { percent: String(percent) })
+            : t('proj.nothingBilledYet')}
           tone="affirm"
         />
         <Figure
-          label="Waived"
+          label={t('proj.waived')}
           value={formatCurrency(projection.waivedCents, intl)}
-          caption="Forgiven — settles the due, and is not income"
+          caption={t('proj.waivedCaption')}
         />
         <Figure
-          label="Still to collect"
+          label={t('proj.stillToCollect')}
           value={formatCurrency(projection.outstandingCents, intl)}
-          caption={owing === 0 ? 'Everybody is up to date' : `${owing} ${owing === 1 ? 'member has' : 'members have'} something outstanding`}
+          caption={owing === 0
+            ? t('proj.everybodyUpToDate')
+            : t(owing === 1 ? 'proj.outstandingOne' : 'proj.outstandingMany',
+                { n: String(owing) })}
           tone="withheld"
         />
       </div>
@@ -248,9 +258,9 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
           standing $0.00 would be a figure nobody can account for. */}
       {projection.pendingCents > 0 && (
         <p className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          <span className="font-medium text-foreground">{formatCurrency(projection.pendingCents, intl)}</span>
-          {' '}is awaiting settlement — started and not yet confirmed. It is not counted as
-          collected, and it has not been taken off what is still owed.
+          {t('proj.pendingSettlement', {
+            amount: formatCurrency(projection.pendingCents, intl),
+          })}
         </p>
       )}
 
@@ -303,7 +313,9 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-semibold">Schedule</th>
+                  <th scope="col" className="px-3 py-2 font-semibold">
+                    {t('col.schedule')}
+                  </th>
                   <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Paying</th>
                   <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Expected</th>
                   <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Collected</th>
@@ -345,10 +357,9 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                           being withheld, which is exactly what that role is for. */}
                       {s.bloodlineUnknown && (
                         <p className="mt-1 text-xs text-brand-withheld">
-                          Nobody owes this: your family has not said which ancestor its line
-                          descends from, so there is no bloodline to charge. Set{' '}
-                          <strong className="font-medium">{t('dues.bloodlineDescendsFrom')}</strong> on
-                          the family tree.
+                          {t('proj.bloodlineUnknownNote', {
+                            control: t('dues.bloodlineDescendsFrom'),
+                          })}
                         </p>
                       )}
                       {/* THE OTHER STATE A TREASURER CANNOT DIAGNOSE FROM THE NUMBERS, and
@@ -358,21 +369,25 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                           as above — nothing has failed and nothing was deleted. */}
                       {s.scopeEmpty && (
                         <p className="mt-1 text-xs text-brand-withheld">
-                          Nobody owes this: no member of the family is in{' '}
-                          {scopeCaption(s, placeNames) ?? 'that part of the family'}. Members
-                          choose their chapter on their own profile, and anybody with no
-                          chapter is under National.
+                          {t('proj.scopeEmptyNote', {
+                            where: scopeCaption(s, placeNames)
+                              ?? t('proj.thatPartOfTheFamily'),
+                          })}
                         </p>
                       )}
                       {/* THE PERIOD, on every row. Two schedules can be measured over two
                           different years, and a table that did not say so would be adding
                           up figures a reader assumes share a window. */}
                       <RowMeta className="gap-x-2">
-                        <MetaIf value={formatCurrency(s.annualCents, intl)} prefix="Full year" />
+                        <MetaIf value={formatCurrency(s.annualCents, intl)}
+                          prefix={t('proj.fullYear')} />
                         <MetaDot />
-                        <MetaIf value={formatDate(s.periodStart, intl) ?? undefined} prefix="Year from" />
+                        <MetaIf value={formatDate(s.periodStart, intl) ?? undefined}
+                          prefix={t('proj.yearFromPrefix')} />
                         <MetaDot />
-                        <MetaIf value={`${s.payingMembers} paying`} />
+                        <MetaIf value={t('proj.payingCount', {
+                          n: String(s.payingMembers),
+                        })} />
                         <MetaDot />
                         <MetaIf value={formatCurrency(s.expectedCents, intl)} prefix="Expected" />
                         <MetaDot />
@@ -427,12 +442,15 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
               <HelpLink
                 slug="dues-projections"
                 section="who-is-counted"
-                label="Help: who is counted in these figures"
+                label={t('proj.helpWhoCounted')}
                 className="size-6"
               />
             </h2>
             <p className="text-xs text-muted-foreground">
-              Least settled first. {rows.length} of {projection.members.length} shown.
+              {t('proj.leastSettledFirst', {
+                shown: String(rows.length),
+                total: String(projection.members.length),
+              })}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -463,12 +481,16 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
             <table className="w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                  <th scope="col" className="px-3 py-2 font-semibold">Member</th>
+                  <th scope="col" className="px-3 py-2 font-semibold">
+                    {t('col.member')}
+                  </th>
                   <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Standing</th>
                   {/* THE SECOND AXIS. It folds like Standing does and is restated in the same
                       meta line, so a phone loses neither — see the header for why they are two
                       columns rather than one pill. */}
-                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>Status</th>
+                  <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>
+                    {t('col.status')}
+                  </th>
                   <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Dues</th>
                   <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Expected</th>
                   <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>Paid</th>

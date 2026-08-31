@@ -301,11 +301,14 @@ export function AddRelativeDialog({
                   decides membership. */}
               <p className="text-xs text-muted-foreground">
                 {linkKind === 'blood'
-                  ? 'A blood relationship — the bloodline travels down this link.'
-                  : `Recorded as ${linkKindLabel(linkKind, meta.label)}. The bloodline does not travel down this link.`}
-                {meta.relation === 'parent' && (
-                  <> {t('tree.decidedBy')} <strong className="font-medium">{t('tree.bloodlineFrom')}</strong>, above the tree — a parent of yours is your blood relative without being part of your family&apos;s line.</>
-                )}
+                  ? t('rel.bloodLinkNote')
+                  : t('rel.nonBloodLinkNote', {
+                      kind: linkKindLabel(linkKind, meta.label),
+                    })}
+                {meta.relation === 'parent' && t('rel.parentBloodlineNote', {
+                  decidedBy: t('tree.decidedBy'),
+                  control: t('tree.bloodlineFrom'),
+                })}
               </p>
             </div>
           )}
@@ -319,8 +322,8 @@ export function AddRelativeDialog({
             <div className="space-y-2 rounded-xl border bg-muted/30 px-4 py-3">
               <Label>
                 {meta?.relation === 'sibling'
-                  ? `Do they share ${anchorName}'s parents?`
-                  : `Who else is a parent of this ${relationLabel}?`}
+                  ? t('rel.shareParentsQuestion', { name: anchorName })
+                  : t('rel.whoElseIsParent', { relation: relationLabel })}
               </Label>
               <div className="space-y-1.5">
                 {coParents.map(p => {
@@ -341,8 +344,7 @@ export function AddRelativeDialog({
                 })}
               </div>
               <p className="text-xs text-muted-foreground">
-                Ticking somebody records the parent link too, so this person appears on
-                their card as well — not only beside {anchorName}.
+                {t('rel.tickingRecordsParent', { name: anchorName })}
               </p>
             </div>
           )}
@@ -358,7 +360,9 @@ export function AddRelativeDialog({
               }))}
               value={existingPersonId}
               onChange={setExistingPersonId}
-              label={`Who is ${anchorName}'s ${relationLabel}?`}
+              label={t('rel.whoIsWhose', {
+                name: anchorName, relation: relationLabel,
+              })}
               emptyMessage={t('rel.everyoneAttached')}
             />
           )}
@@ -422,7 +426,7 @@ export function AddRelativeDialog({
                   year is the commonest thing to get wrong in a date field. */}
               <div className="space-y-1.5">
                 <Label htmlFor="relative-dob" required={needsBirthday}>
-                  Date of birth{needsBirthday ? '' : ' (optional)'}
+                  {t(needsBirthday ? 'rel.dateOfBirth' : 'rel.dateOfBirthOptional')}
                 </Label>
                 <Input
                   id="relative-dob"

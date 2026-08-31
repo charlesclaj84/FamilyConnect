@@ -317,7 +317,7 @@ export function LoginForm({
                 not '/register' — it carries an invitation token across when there is one,
                 which is the whole reason that variable exists. */}
             <p className="mt-2 text-sm text-muted-foreground">
-              Still nothing?{' '}
+              {t('login.stillNothing')}{' '}
               <Link href={registerHref} className="font-medium text-primary hover:underline">
                 {t('auth.createAccount')}
               </Link>{' '}

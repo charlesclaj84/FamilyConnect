@@ -59,7 +59,7 @@ export function RoomListItem({ room, currentUserId, isActive, onClick, onDelete 
         <button
           onClick={e => { e.stopPropagation(); onDelete() }}
           className="opacity-0 group-hover/item:opacity-100 p-1.5 rounded text-muted-foreground hover:text-destructive transition-all shrink-0"
-          aria-label={`Delete conversation with ${label}`}
+          aria-label={t('chat.deleteConversationAria', { name: label })}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </button>

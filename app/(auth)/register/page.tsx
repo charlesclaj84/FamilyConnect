@@ -103,9 +103,9 @@ export default async function RegisterPage({
         <CardHeader>
           <CardTitle as="h1" className="text-2xl">{t('auth.alreadyAccount')}</CardTitle>
           <CardDescription>
-            <span className="font-medium">{invitation.email}</span> is already registered
-            with {APP_NAME}, so there is nothing to create. Sign in and you will come
-            straight back to your invitation to{' '}
+            {t('reg.alreadyRegistered', {
+              email: invitation.email, app: APP_NAME,
+            })}{' '}
             <span className="font-medium">{invitation.familyName}</span> and join it.
           </CardDescription>
         </CardHeader>

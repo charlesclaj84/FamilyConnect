@@ -44,7 +44,7 @@ export function LinkPersonBanner({ unlinkedPeople }: Props) {
     const name = person ? `${person.first_name} ${person.last_name}` : 'this person'
     const ok = await confirm({
       title: t('dash.link.aria'),
-      description: `Link ${name}'s record to your account? Their history becomes yours, and this cannot be undone.`,
+      description: t('dash.link.confirm', { name }),
       confirmLabel: t('dash.link.action'),
     })
     if (!ok) return

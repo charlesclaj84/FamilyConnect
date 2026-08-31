@@ -64,8 +64,9 @@ export function ProfileReminderBanner({ completeness, t }: {
           <p className="mt-0.5 text-xs text-brand-on-soft/80">
             {/* WHAT IT IS FOR, not what is wrong with it. A member is being asked to do
                 something for the rest of the family rather than to satisfy a form. */}
-            Your relatives find you in the Member Directory, and there is not much there yet.
-            Add {missingFieldsSentence(completeness.missing)}.
+            {t('dash.profile.body', {
+              missing: missingFieldsSentence(completeness.missing),
+            })}
           </p>
         </div>
 

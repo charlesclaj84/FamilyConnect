@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { currentUser } from '@/lib/auth/current-user'
+import { callerI18n } from '@/lib/i18n/server'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -84,10 +85,11 @@ async function enrichRoom(admin: any, room: ChatRoom, familyCode: string, canRep
 
 export async function getOrCreateFamilyRoom(): Promise<{ room: ChatRoom | null; error?: string }> {
   const { user } = await currentUser()
-  if (!user) return { room: null, error: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { room: null, error: t('err.notAuthenticated') }
 
   const familyCode = await getMyFamilyCode(user.id)
-  if (!familyCode) return { room: null, error: 'No family code found on your account' }
+  if (!familyCode) return { room: null, error: t('err.noFamilyCodeOnAccount') }
 
   const admin = createAdminClient()
 
@@ -98,7 +100,9 @@ export async function getOrCreateFamilyRoom(): Promise<{ room: ChatRoom | null; 
     .eq('kind', 'family')
     .maybeSingle()
 
-  if (selectError) return { room: null, error: `Failed to load room: ${selectError.message}` }
+  if (selectError) {
+    return { room: null, error: t('cht.loadRoomFailed', { error: selectError.message }) }
+  }
 
   let room: ChatRoom | null = existing as ChatRoom | null
 
@@ -118,13 +122,16 @@ export async function getOrCreateFamilyRoom(): Promise<{ room: ChatRoom | null; 
         .single()
       room = fallback as ChatRoom | null
     } else if (insertError) {
-      return { room: null, error: `Failed to create room: ${insertError.message}` }
+      return {
+        room: null,
+        error: t('cht.createRoomFailed', { error: insertError.message }),
+      }
     } else {
       room = created as ChatRoom | null
     }
   }
 
-  if (!room) return { room: null, error: 'Could not find or create the family room' }
+  if (!room) return { room: null, error: t('err.familyRoomFailed') }
 
   const { data: familyPeople } = await admin
     .from('people')
@@ -141,7 +148,12 @@ export async function getOrCreateFamilyRoom(): Promise<{ room: ChatRoom | null; 
       .from('chat_participants')
       .upsert(rows, { onConflict: 'room_id,user_id', ignoreDuplicates: true })
 
-    if (participantError) return { room: null, error: `Failed to enroll members: ${participantError.message}` }
+    if (participantError) {
+      return {
+        room: null,
+        error: t('cht.enrollFailed', { error: participantError.message }),
+      }
+    }
   }
 
   return { room }
@@ -153,7 +165,8 @@ export async function getOrCreateDmRoom(
   otherUserId: string
 ): Promise<{ room: RoomWithMeta | null; error?: string }> {
   const { user } = await currentUser()
-  if (!user) return { room: null, error: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { room: null, error: t('err.notAuthenticated') }
 
   const familyCode = await getMyFamilyCode(user.id)
   const admin = createAdminClient()
@@ -165,7 +178,7 @@ export async function getOrCreateDmRoom(
     .eq('family_code', familyCode)
     .maybeSingle()
 
-  if (!otherPerson) return { room: null, error: 'User not found in your family' }
+  if (!otherPerson) return { room: null, error: t('err.userNotInFamily') }
 
   const { data: myRooms } = await admin
     .from('chat_participants')
@@ -222,7 +235,8 @@ export async function deleteDm(
   roomId: string
 ): Promise<{ success: boolean; error?: string }> {
   const { user } = await currentUser()
-  if (!user) return { success: false, error: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, error: t('err.notAuthenticated') }
 
   const admin = createAdminClient()
 
@@ -235,7 +249,7 @@ export async function deleteDm(
     .eq('room_id', roomId)
     .eq('user_id', user.id)
     .maybeSingle()
-  if (!mine) return { success: false, error: 'Conversation not found' }
+  if (!mine) return { success: false, error: t('err.conversationNotFound') }
 
   // Hide the room for the deleter
   await admin
@@ -282,11 +296,12 @@ export async function createGroupRoom(
   memberUserIds: string[]
 ): Promise<{ room: RoomWithMeta | null; error?: string }> {
   const { user } = await currentUser()
-  if (!user) return { room: null, error: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { room: null, error: t('err.notAuthenticated') }
 
   const familyCode = await getMyFamilyCode(user.id)
   const trimmedName = name.trim()
-  if (!trimmedName) return { room: null, error: 'Group name is required' }
+  if (!trimmedName) return { room: null, error: t('err.groupNameRequired') }
 
   const admin = createAdminClient()
 
@@ -338,11 +353,12 @@ export async function addGroupMember(
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
   const { user } = await currentUser()
-  if (!user) return { success: false, error: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, error: t('err.notAuthenticated') }
 
   const admin = createAdminClient()
   const familyCode = await getMyFamilyCode(user.id)
-  if (!familyCode) return { success: false, error: 'No family' }
+  if (!familyCode) return { success: false, error: t('err.noFamily') }
 
   const { data: room } = await admin
     .from('chat_rooms')
@@ -355,13 +371,13 @@ export async function addGroupMember(
   // ONE SENTENCE FOR "not yours" AND "does not exist", which is deliberate: telling a caller
   // that a room exists in a family they are not viewing is an enumeration signal, and it is
   // the same answer `deleteChapter` gives for the same reason.
-  if (!room) return { success: false, error: 'Group not found' }
-  if (room.created_by !== user.id) return { success: false, error: 'Only the group creator can add members' }
+  if (!room) return { success: false, error: t('err.groupNotFound') }
+  if (room.created_by !== user.id) return { success: false, error: t('err.onlyCreatorCanAdd') }
 
   // Being the creator authorizes adding people — but only people from the room's own family,
   // which is the family scoping the read above has now established is also the caller's.
   const [allowed] = await membersOfFamily(admin, familyCode, [userId])
-  if (!allowed) return { success: false, error: 'That member is not in your family' }
+  if (!allowed) return { success: false, error: t('err.notInYourFamily') }
 
   const { error } = await admin
     .from('chat_participants')
@@ -383,11 +399,12 @@ export async function removeGroupMember(
   userId: string
 ): Promise<{ success: boolean; error?: string }> {
   const { user } = await currentUser()
-  if (!user) return { success: false, error: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, error: t('err.notAuthenticated') }
 
   const admin = createAdminClient()
   const familyCode = await getMyFamilyCode(user.id)
-  if (!familyCode) return { success: false, error: 'No family' }
+  if (!familyCode) return { success: false, error: t('err.noFamily') }
 
   const { data: room } = await admin
     .from('chat_rooms')
@@ -397,9 +414,9 @@ export async function removeGroupMember(
     .eq('kind', 'group')
     .maybeSingle()
 
-  if (!room) return { success: false, error: 'Group not found' }
-  if (room.created_by !== user.id) return { success: false, error: 'Only the group creator can remove members' }
-  if (userId === user.id) return { success: false, error: 'Cannot remove yourself from the group' }
+  if (!room) return { success: false, error: t('err.groupNotFound') }
+  if (room.created_by !== user.id) return { success: false, error: t('err.onlyCreatorCanRemove') }
+  if (userId === user.id) return { success: false, error: t('err.cannotRemoveSelfFromGroup') }
 
   await admin
     .from('chat_participants')
@@ -547,12 +564,17 @@ export async function sendMessage(
   roomId: string,
   body: string
 ): Promise<{ success: boolean; error?: string }> {
-  const trimmed = body.trim()
-  if (!trimmed || trimmed.length > 4000) return { success: false, error: 'Invalid message' }
-
+  // AUTH FIRST, THEN THE PAYLOAD CHECK. The length test used to run above this, which put a
+  // refusal in front of knowing who was asking — and once that refusal became a translated
+  // string it had nobody's language to compose it in. §2's order: read the user, then check,
+  // then act.
   const supabase = await createClient()
   const { user } = await currentUser()
-  if (!user) return { success: false, error: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, error: t('err.notAuthenticated') }
+
+  const trimmed = body.trim()
+  if (!trimmed || trimmed.length > 4000) return { success: false, error: t('err.invalidMessage') }
 
   const { error } = await supabase
     .from('chat_messages')

@@ -222,7 +222,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
     // is stated back before it does.
     const ok = await confirm({
       title: t('mpe.saveThis'),
-      description: `Save your changes to ${profile.name}’s profile? They are not notified.`,
+      description: t('mpe.saveConfirm', { name: profile.name }),
       confirmLabel: t('action.saveChanges'),
     })
     if (!ok) return
@@ -258,8 +258,9 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
       const chapterResult = await setMemberChapter(profile.peopleId, chapterId || null)
       setSaving(false)
       if (!chapterResult.success) {
-        setError(`The profile was saved, but the chapter was not: `
-          + `${chapterResult.error ?? 'that chapter could not be set.'}`)
+        setError(t('mpe.chapterNotSaved', {
+          reason: chapterResult.error ?? t('mpe.chapterCouldNotBeSet'),
+        }))
         return
       }
     } else {
@@ -274,7 +275,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
     if (!profile) return
     const ok = await confirm({
       title: t('mpe.sendReset'),
-      description: `Email ${profile.name} a link to choose a new password? `
+      description: t('mpe.emailResetLede', { name: profile.name })
         + t('mpe.currentKeeps'),
       confirmLabel: t('mpe.sendLink'),
     })

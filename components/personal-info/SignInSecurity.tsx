@@ -314,7 +314,7 @@ export function SignInSecuritySection({ visible, signInEmail }: {
           <form className="space-y-3" onSubmit={e => { e.preventDefault(); submitPassword() }}>
             <div className="flex items-start gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
-              <p>We sent an 8-digit code to {signInEmail}. It expires in an hour.</p>
+              <p>{t('sec.codeSentExpires', { email: signInEmail })}</p>
             </div>
 
             <div className="space-y-1.5">

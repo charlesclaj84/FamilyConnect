@@ -7,6 +7,7 @@ import { AnnouncementBoard } from '@/components/announcements/AnnouncementBoard'
 import { BirthdaysPane } from '@/components/announcements/BirthdaysPane'
 import { UpdatesArchiveClient } from '@/components/updates/UpdatesArchiveClient'
 import { BIRTHDAY_HORIZON_DAYS, type UpcomingBirthday } from '@/lib/birthdays'
+import type { BirthdayPromptPage } from '@/app/actions/birthdays'
 import { paneLede, type AnnouncementPane } from '@/lib/announcement-panes'
 import type { Announcement, Chapter } from '@/app/actions/announcements'
 import type { UpdatesArchive } from '@/app/actions/updates'
@@ -99,6 +100,16 @@ interface Props {
   // ── The Birthdays pane ────────────────────────────────────────────────────────────
   /** Already sorted, soonest first, by `lib/birthdays.ts`. Empty when not fetched. */
   birthdays: UpcomingBirthday[]
+  /**
+   * The two-week composer prompt, or null when it was not fetched.
+   *
+   * A SECOND PROP rather than folded into `birthdays`, because the two are gated on
+   * different grants: the list needs `community/announcements/birthdays:view` and the
+   * prompt needs `community/announcements:view` plus `:create` for the composer. A caller
+   * can hold either without the other, and merging them would mean resolving one grant and
+   * rendering on the strength of the other.
+   */
+  birthdayPrompts: BirthdayPromptPage | null
   /** The reader's language, resolved by the page. See lib/i18n/catalogues.ts. */
   locale: string
 }
@@ -106,7 +117,7 @@ interface Props {
 export function AnnouncementsShell({
   initialPane, mayViewBoard, mayViewUpdates, mayViewBirthdays,
   initialAnnouncements, chapters, canPost, canPin, deleteScope, myPersonId,
-  archive, birthdays, locale,
+  archive, birthdays, birthdayPrompts, locale,
 }: Props) {
   const t = useT()
   const [pane, setPane] = useState<AnnouncementPane>(initialPane)
@@ -189,7 +200,7 @@ export function AnnouncementsShell({
       )}
 
       {pane === 'birthdays' && mayViewBirthdays && (
-        <BirthdaysPane birthdays={birthdays} />
+        <BirthdaysPane birthdays={birthdays} prompts={birthdayPrompts} />
       )}
     </div>
   )

@@ -211,7 +211,10 @@ export async function renameFamily(familyName: string): Promise<RenameFamilyResu
   const name = (familyName ?? '').trim()
   if (!name) return { success: false, message: t('act.enterFamilyName') }
   if (name.length > MAX_FAMILY_NAME) {
-    return { success: false, message: `That family name is too long (${MAX_FAMILY_NAME} characters maximum).` }
+    return {
+      success: false,
+      message: t('set.familyNameTooLong', { max: String(MAX_FAMILY_NAME) }),
+    }
   }
 
   // `.select()` on the mutation, so a write the policy matched ZERO rows with comes
@@ -434,7 +437,7 @@ export async function setFamilyTier(tier: string): Promise<SetTierResult> {
   if (tierMove(currentTier, tier) === 'upgrade') {
     return {
       success: false,
-      message: `${TIER_LABEL[tier]} is a paid plan. Set it up in the Billing section of Settings — nothing here can move a family onto it.`,
+      message: t('set.paidPlanUseBilling', { plan: TIER_LABEL[tier] }),
     }
   }
 

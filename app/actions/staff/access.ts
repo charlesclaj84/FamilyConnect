@@ -267,7 +267,7 @@ async function resolveAccount(
   }
   return {
     ok: false,
-    message: `No account uses ${email}. They have to register before they can be granted access.`,
+    message: t('stf.noAccountUses', { email }),
   }
 }
 
@@ -466,7 +466,10 @@ export async function grantStaffAccess(input: {
     }
   }
   if (note.length > NOTE_MAX) {
-    return { success: false, message: `Keep the reason under ${NOTE_MAX} characters` }
+    return {
+      success: false,
+      message: t('stf.reasonTooLong', { max: String(NOTE_MAX) }),
+    }
   }
 
   const account = await resolveAccount(input?.email, t)
@@ -503,7 +506,7 @@ export async function grantStaffAccess(input: {
     if (error.code === '23505') {
       return {
         success: false,
-        message: `${account.email} already has staff access. Change their access on their row instead.`,
+        message: t('stf.alreadyHasAccess', { email: account.email }),
       }
     }
     console.error(`[staff/access] grant failed for ${account.userId}: ${error.message}`)

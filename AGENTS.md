@@ -638,6 +638,34 @@ named the first two; the third carries its own copy of the fall-through and its 
 is the bell, on `admin/approvals`. Left behind, it would tell an administrator that a queue
 was waiting in a family whose page then answered 404.
 
+### ADMINISTRATORS HOLD EVERY ACTION, DECLARED OR NOT. THAT IS INTENDED
+
+Decided 2026-08-31, and it is worth stating because the table looks wrong until you know.
+`seed_family_permission_templates()` gives the Administrators template `'any'` on every
+action, and two keys carry an `edit` row while declaring only `view`, `create` and `delete`:
+
+```
+community/distributions    | Administrators | edit | any
+community/safety-check-ins | Administrators | edit | any
+```
+
+**Do not sweep those rows away.** The Administrators template is not a list of the actions
+that exist today — it is the statement that this template is not the thing standing between
+an administrator and their own family's records. So a key that LATER declares an action is
+granted it retroactively, on purpose, and the alternative is a migration that adds an action
+and silently leaves every existing family's administrators unable to use it.
+
+**It breaks no rule, and the reason is precise.** AGENTS.md's *"a switch nothing consults
+reads as a control being honoured"* is about a switch that is RENDERED. Members & Access
+draws its switches from `resource.actions` through `scopesFor()`, so the cell for an
+undeclared action is never drawn, and nothing calls `auth_permission(key, 'edit')` for a key
+with no edit action — the row is read by nothing and shown to nobody until the day it means
+something.
+
+What this is NOT licence for: a grant on a **custom** template for an action its resource
+does not declare. Those are grids an administrator built while looking at the screen, and a
+row there that no switch drew is a row nobody chose.
+
 Since `20260807000000` the row is not quite enough on its own. A member's access is
 the grid on their one **permission template**, and that grid is materialized — every
 template carries an explicit row for every resource and action, so the screen can show
@@ -4434,6 +4462,61 @@ sentence in the file; the honest reason to want to is a false positive, and the 
 to one of those is `NOT_COPY` — a named entry with a reason, which is diffable, rather than a
 number that quietly admits an unknown quantity of English. It does not sweep `lib/`: the
 catalogues live there and their English IS the source.
+
+### AND A CEILING OF ZERO IS A STATEMENT ABOUT THE SHAPES, NOT ABOUT THE PRODUCT
+
+Added 2026-08-31, and it is the sharpest thing in this section. `i18n:literals` read **0** with
+its ceiling at 0 — and **413 strings a reader reads were still English only**. Not a regression
+and not a bug in the script: it recognised four shapes, and there were seven.
+
+| shape added | found | what it is |
+|---|---|---|
+| a TEMPLATE LITERAL whose literal parts read as prose | 279 | `` aria-label={`Actions for ${x}`} ``, every confirm dialog, every `message:` naming a fund or a count |
+| a MIXED JSX TEXT NODE — prose with an expression inside it | 134 | shape 1's regex forbids `{` in the run, so `Next payment {amount}, covering…` matched NOTHING |
+| the CAPTION PROPS on the attribute shape | 30 | `<Figure label="Expected this year" caption=… hint=… prefix=…>` — shape 4 finds `label:` in an OBJECT and not `label=` in JSX |
+| `error:` beside `message:` | 62 | about half of `app/actions/admin/**` answers `{ success: false, error }` |
+
+**The rule that falls out: the four original shapes were chosen because each is UNAMBIGUOUS,
+which is still the right test — but "unambiguous" was doing double duty as "complete".** Every
+one of the four above had been looked at once and judged too noisy to check; three of them carry
+a comment in the script saying so, and the estimate in each was out by an order of magnitude. So
+when a gate's count reaches zero, the next question is not "what else could be keyed" but
+**"what shapes is it not looking at"**.
+
+**Two of the 413 were not translation defects at all**, which is the other reason to widen a
+gate rather than trust a clean one:
+
+* `{n} member{n === 1 ? '' : 's'}` renders **"14 member s"**. JSX does not swallow the space
+  before `member`, and the `'s'` arrives as its own child. A visible bug in ENGLISH, on a screen
+  nobody had looked at closely, found by a translation sweep.
+* `lib/gathering-when.ts` called `formatDate`/`formatDateRange` with no `intl`, so every
+  gathering's dates were English for every reader. `lib/` is deliberately outside the literal
+  gate's sweep, so nothing static could ever have said so.
+
+### THE RENDER DIFF IS THE ONLY THING THAT CAN ANSWER "IS IT ACTUALLY TRANSLATED"
+
+`npm run i18n:onscreen` renders every route as a Spanish-reading member and again as an English
+one and diffs the visible text. It is not in `verify.yml` — it needs the local stack, a seeded
+fixture and a dev server — and it is the only check with no false positives, because a string
+that did not change when the reader changed is by definition not translated.
+
+**IT MUST BE RUN WITH THE DEV SERVER POINTED AT THE LOCAL STACK, and a clean run otherwise is
+worthless.** The probe forges a session cookie named for the Supabase project the APP is
+configured with, and `.env.local` points at HOSTED — so an ordinary `npm run dev` authenticates
+none of its requests, all 46 protected routes render the signed-out shell, and the run reports a
+tidy little list of page titles. That is `tests/rls`' positive-control lesson arriving in a
+tool: **an answer that looks clean because the question was never asked.** The invocation, and
+the tell that the session is live, are in TODO.md.
+
+Two things it finds that neither static gate can, and both are classes rather than strings:
+
+* **A SINGLE CAPITALISED WORD.** `Total`, `Date`, `Status`, `Amount`, `Reverse` — every column
+  heading in the product. `isProse` rejects a lone capitalised word deliberately, because
+  otherwise every `id`, enum member and component name in the tree is a finding. So the static
+  gate can never see a table's headings, and the render diff always can.
+* **A FORMATTER MISSING ITS TAG.** There is no string to key; the defect is an argument that was
+  not passed. `i18n:check` has a PINNED-FORMATTER count for the ones it can see in `app/` and
+  `components/`, and a pure module in `lib/` is out of both gates' sight by design.
 
 ## WHAT MUST NOT BE TRANSLATED, AND EACH FOR ITS OWN REASON
 

@@ -79,7 +79,7 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
   async function handleDelete(doc: DocumentRecord) {
     const ok = await confirm({
       title: t('docs.deleteTitle'),
-      description: `Delete “${doc.name}”? The file is removed for everyone. This cannot be undone.`,
+      description: t('docs.deleteNamedBody', { name: doc.name }),
       confirmLabel: t('docs.deleteTitle'),
       destructive: true,
     })
@@ -311,7 +311,7 @@ function UploadDialog({ onClose, onDone }: { onClose: () => void; onDone: () => 
         </div>
         {rejected && (
           <p className="text-xs text-brand-withheld">
-            That is not {formatList(DOCUMENT_FORMATS)}. Choose another file.
+            {t('law.notADocumentFormat', { formats: formatList(DOCUMENT_FORMATS) })}
           </p>
         )}
 

@@ -14,8 +14,11 @@ import { resolveProfileSection } from '@/components/personal-info/profile-sectio
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'My Profile' }
+export async function generateMetadata() {
+  return docTitle('page./personal-info.title')
+}
 
 export default async function PersonalInfoPage({
   searchParams,
@@ -92,11 +95,17 @@ export default async function PersonalInfoPage({
           <Clock className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
           <p className="text-sm text-muted-foreground">
             {gate.membership.status === 'rejected'
-              ? <>{t('prof.requestJoin')}<span className="font-medium">{gate.membership.familyName}</span>{' '}
-                  was declined. You can still keep your profile up to date.</>
-              : <>{t('prof.membership')}<span className="font-medium">{gate.membership.familyName}</span>{' '}
-                  is waiting for approval. Filling this in helps them recognise you —{' '}
-                  <Link href="/dashboard" className="text-primary hover:underline">check the status</Link>.</>}
+              ? t('prof.requestDeclined', {
+                  lede: t('prof.requestJoin'),
+                  family: gate.membership.familyName,
+                })
+              : <>{t('prof.waitingForApproval', {
+                  lede: t('prof.membership'),
+                  family: gate.membership.familyName,
+                })}{' '}
+                  <Link href="/dashboard" className="text-primary hover:underline">
+                    {t('prof.checkTheStatus')}
+                  </Link>.</>}
           </p>
         </div>
       )}

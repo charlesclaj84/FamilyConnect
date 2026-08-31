@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
 import type { CountSlice } from '@/lib/membership-report'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * A part-to-whole donut. The legend that makes it readable lives beside it, in
@@ -74,7 +75,9 @@ const THICKNESS = 15
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 const GAP = 1.1
 
-export function DonutChart({ slices, palette, label, centerValue, centerLabel, className }: {
+export function DonutChart({
+  slices, palette, label, centerValue, centerLabel, className, t,
+}: {
   slices: readonly CountSlice[]
   palette: DonutPalette
   /** Names the figure for a screen reader. The visible heading is the card's, not this. */
@@ -83,12 +86,15 @@ export function DonutChart({ slices, palette, label, centerValue, centerLabel, c
   centerValue: number
   centerLabel: string
   className?: string
+  /** The reader's language. A PROP, not `useT()` — this file carries no directive. */
+  t: T
 }) {
   const total = slices.reduce((sum, s) => sum + s.count, 0)
 
   if (total === 0) {
     return (
-      <svg viewBox="0 0 100 100" role="img" aria-label={`${label}: nothing to show yet`}
+      <svg viewBox="0 0 100 100" role="img"
+           aria-label={t('rep.nothingToShowAria', { label })}
            className={cn('h-40 w-40 shrink-0', className)}>
         <circle cx="50" cy="50" r={RADIUS} fill="none" stroke="var(--border)" strokeWidth={THICKNESS} />
         <text x="50" y="53" textAnchor="middle" className="fill-muted-foreground text-[9px]">—</text>

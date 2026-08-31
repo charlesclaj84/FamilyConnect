@@ -3,13 +3,13 @@ import { UpdatePasswordForm } from '@/components/auth/UpdatePasswordForm'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
 // `noindex` as well as the `Disallow: /update-password` in robots.txt — same
 // reasoning as /invite/[token]. This page is only reachable holding a live
 // recovery session, and a search result is never how anyone should arrive at it.
-export const metadata = {
-  title: 'Choose a New Password',
-  robots: { index: false, follow: false, nocache: true },
+export async function generateMetadata() {
+  return docTitle('doc./update-password.title', { extra: { robots: { index: false, follow: false, nocache: true } } })
 }
 
 /**

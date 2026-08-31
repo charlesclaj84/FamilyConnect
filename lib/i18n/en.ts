@@ -273,6 +273,1019 @@ export const en: Catalogue = {
   'nav.menu': 'Menu',
   'brand.motto.lead': 'Our Roots',
   'brand.motto.rest': 'run deep, our bond runs deeper.',
+  // ── CONNECT: WHERE A FAMILY BANKS ──────────────────────────────────────────
+  // `country.<iso>` is keyed on the alpha-2 code because that is what
+  // `identity.country` takes and what `family_stripe_accounts.country` stores — the id is
+  // the contract and the name is copy. Only the ENABLED countries are here; enabling one
+  // in `lib/stripe/connect-countries.ts` owes three lines in this file, and `i18n:check`
+  // names the missing one rather than letting the picker print a key.
+  'proc.countryLabel': 'Where the family banks',
+  'proc.countryPermanent': 'Stripe cannot change this after the account is created, so it decides the payout currency and which documents you will be asked for.',
+  'act.countryNotAvailableForDues': 'Online dues collection is not available in that country yet.',
+  'country.us': 'United States',
+  'country.ca': 'Canada',
+  'country.mx': 'Mexico',
+  // ── THE STAFF CONSOLE'S DESTRUCTIVE HALF, 2026-08-31 ───────────────────────
+  // Two irreversible acts and one read-only screen. `stf.sub*` is the platform's OWN
+  // revenue and never a family's dues — the two ledgers must not meet, and a caption
+  // here that blurred them would be quoted.
+  'staff.subscriptions': 'Subscriptions',
+  'stf.subscriptionsLede': 'What every family is paying GENORRA, and which of them need chasing. This is the platform’s own revenue — never a family’s dues.',
+  'stf.subscriptionsReadFailed': 'We could not read the billing records just now. Nothing is wrong with any family’s plan — refresh the page, and if it keeps happening the figures are not safe to quote.',
+  'stf.subPaying': 'Paying today',
+  'stf.subMrr': 'Monthly',
+  'stf.subMrrHint': 'Recurring plans only',
+  'stf.subLifetime': 'Collected to date',
+  'stf.subLifetimeShort': 'To date',
+  'stf.subAttention': 'Need attention',
+  'stf.subAttentionHint': '{delinquent} failed, {leaving} leaving',
+  'stf.subNoneYet': 'No family has reached checkout yet.',
+  'stf.subFamily': 'Family',
+  'stf.subPlan': 'Plan',
+  'stf.subPaidThrough': 'Paid through',
+  'stf.subStanding': 'Standing',
+  'stf.subPaidFor': 'Paid for {tier}',
+  'stf.subMode.recurring': 'Monthly',
+  'stf.subMode.prepaid': 'Prepaid term',
+  'stf.subScheduled': '{tier} from {on}',
+  'stf.subDelinquentSince': 'Payment failed {on}',
+  'stf.subLeaving': 'Not renewing',
+  'stf.subNeverPaid': 'Never paid',
+  'stf.subPaid': 'Paid',
+  'staff.deleteForever': 'Delete…',
+  'staff.deleteForeverConfirm': 'Delete permanently',
+  'staff.deleting': 'Deleting…',
+  'staff.deleteFamilyTitle': 'Delete {name}?',
+  'staff.deleteFamilyLede': '{code} · {members} members. This is permanent and there is no restore.',
+  'staff.deleteFamilyWhatGoes': 'Every person, payment, fund, photograph, document, message, gathering, election and meeting in this family is destroyed, along with its files. Accounts are not deleted — a member of another family keeps it.',
+  'staff.deleteWhyLabel': 'Why',
+  'staff.deleteWhyPlaceholder': 'The ticket, and who asked',
+  'staff.deleteWhyHint': 'Kept permanently. It is the only record that survives this.',
+  'staff.deleteTypeCodeLabel': 'Type {code} to confirm',
+  'staff.deleteEmailedLabel': 'Six-digit code',
+  'staff.deleteSendCode': 'Email me a code',
+  'staff.deleteAccount': 'Delete…',
+  'staff.deleteAccountConfirm': 'Delete this account',
+  'staff.deleteAccountTitle': 'Delete this account?',
+  'staff.deleteAccountLede': '{email} will no longer be able to sign in, and the address becomes free to register again.',
+  'staff.deleteAccountKeeps': 'Their {families} families keep them on the tree, in the directory and in every ledger — as a relative with no account. Nothing about any family is deleted.',
+  'staff.deleteAccountKeepsNone': 'This account belongs to no family, so there is nothing else to keep.',
+  'staff.deleteAccountWhyPlaceholder': 'The ticket, and who asked',
+  'staff.deleteTypeAddressLabel': 'Type the address to confirm',
+  'staff.noAddress': 'No address',
+  'staff.actions': 'Actions',
+  'act.couldNotReadThatFamily': 'We could not read that family. Try again.',
+  'act.noFamilyWithThatCode': 'No family with that code.',
+  'act.couldNotEmailYouCode': 'We could not email you a code. Try again.',
+  'act.codeEmailedToYou': 'A six-digit code is on its way to your inbox.',
+  'act.typeFamilyCodeToConfirm': 'Type the family code exactly to confirm.',
+  'act.sayWhyFamilyDeleted': 'Say why this family is being deleted.',
+  'act.couldNotCheckThatCode': 'We could not check that code. Try again.',
+  'act.couldNotDeleteThatFamily': 'We could not delete that family. Nothing was changed.',
+  'act.deleteReturnedNoResult': 'That returned no result. Check before trying again.',
+  'act.familyDeletedPermanently': '{code} is gone. {rows} records were destroyed.',
+  'act.someObjectsRemain': 'Some files could not be removed and are now orphaned: {detail}',
+  'act.typeAddressToConfirm': 'Type the address exactly to confirm.',
+  'act.sayWhyAccountDeleted': 'Say why this account is being deleted.',
+  'act.couldNotDeleteThatAccount': 'We could not delete that account. Nothing was changed.',
+  'act.accountDeleted': '{email} can no longer sign in.',
+  // ── BIRTHDAYS, 2026-08-31 ──────────────────────────────────────────────────
+  // `birthday.familyPosted` and `birthday.fromUs` are NOT interchangeable and must not
+  // be merged: the first says the family spoke and the second says only that we did.
+  // The whole design turns on never claiming the first when nobody wrote anything —
+  // see 20260831000002's header.
+  'birthday.today': 'Today',
+  'birthday.heroGreeting': 'Happy birthday, {name}!',
+  'birthday.familyPosted': 'Your family has posted something for you.',
+  'birthday.fromUs': 'From everyone at GENORRA — we hope your family spoils you today.',
+  'birthday.readIt': 'Read it',
+  'birthday.promptHeading': 'Somebody has a birthday coming up',
+  'birthday.promptLede': 'Within the next {days} days, and nobody has said anything yet. Whatever you write is what the family posts — we never write it for you.',
+  'birthday.promptReadFailed': 'We could not check who has a birthday coming up. Refresh the page.',
+  'birthday.isToday': 'Today',
+  'birthday.inDays': 'In {days} days · {on}',
+  'birthday.saySomething': 'Say something',
+  'birthday.notThisYear': 'Not this year',
+  'birthday.notThisYearFor': 'Put away the birthday prompt for {name}',
+  'birthday.suggestedTitle': 'Happy birthday, {name}!',
+  'birthday.suggestedBody': 'Wishing {name} a wonderful birthday from all of us.',
+  'birthday.editFirst': 'Change any of this before you post it — it goes out in your name, not ours.',
+  'birthday.postGreeting': 'Post it',
+  'birthday.posting': 'Posting…',
+  'act.chooseRelative': 'Choose a relative.',
+  'act.greetingPosted': 'Posted. It is pinned to the family board for the next two days.',
+  'act.greetingPostedNotRecorded': 'Posted — but we could not record it, so you may be asked again.',
+  'act.promptPutAway': 'Put away for this year.',
+  'act.couldNotPostThat': 'We could not post that. Try again.',
+  'bill.chooseMonths': 'Choose between 1 and {max} months.',
+  'bill.notOnSale': '{plan} is not on sale yet.',
+  'bill.notBuyableThisWay': '{plan} cannot be bought this way yet.',
+  'bill.notBuyableMonthly': '{plan} cannot be bought monthly yet.',
+  'bill.notBuyableYet': '{plan} cannot be bought yet.',
+  'bill.useChangePlanInstead':
+    'Moving down to {plan} costs nothing — use Change plan. It takes effect when the term you have paid for ends.',
+  'bill.tooFewDaysOne':
+    'Only 1 day is left this month, which is too small a charge to take on its own. Choose the option that covers this month and next.',
+  'bill.tooFewDaysMany':
+    'Only {days} days are left this month, which is too small a charge to take on its own. Choose the option that covers this month and next.',
+  'bill.checkoutSubmitCovers':
+    '{amount} today covers you to the end of {month}. {plan} then renews at {monthly} a month, on the 1st.',
+  'bill.alreadyOnPlan': 'This family is already on {plan}.',
+  'bill.startsOnNextBilling':
+    '{plan} starts on {on} — the next billing date. Nothing changes before then, and there is no refund for the days already paid for.',
+  'bill.effectOnceDifferencePaid':
+    '{plan} takes effect as soon as the extra amount is paid. Stripe is charging the difference for the rest of this period now.',
+  'bill.planStopsOn':
+    'The plan stops on {on}. Every page stays open until then, and every record is kept afterwards.',
+  'bill.startsOnNoRefund':
+    '{plan} starts on {on}. Nothing changes before then, and there is no refund for the term already paid for.',
+  'bill.activeNowCredit':
+    '{plan} is active now, paid through {through}. What was left of the old term — {credit} — is held as credit against your next invoice.',
+  'bill.activeNowExact':
+    '{plan} is active now, paid through {through}. The term you had already paid for covered it exactly.',
+  'bill.openingStripeToCollect': 'Opening Stripe to collect {amount}.',
+  'bill.priceMisconfigured':
+    '{plan} is not set up correctly for {way} on this deployment. Nothing has been charged. Please report this rather than retrying.',
+  'bill.wayMonthly': 'monthly payment',
+  'bill.wayInAdvance': 'payment in advance',
+  'tmpl.addStepTo': 'Add a step to {template}',
+  'tmpl.editStepQuoted': 'Edit “{step}”',
+  'tmpl.deleteStepConfirm':
+    'Delete the “{step}” step from {template}? Any task already created from it keeps its own wording, its assignee and its answer — only the template loses the step. This cannot be undone.',
+  'tmpl.editTemplateAria': 'Edit the {template} template',
+  'tmpl.unarchiveTitle': 'Put {template} back in the schedule-from list',
+  'tmpl.archiveTitle':
+    'Take {template} out of the schedule-from list, leaving every gathering as it is',
+  'tmpl.cannotDeleteUsedOne':
+    '{template} has been used to build 1 gathering, so it cannot be deleted. Archive it instead.',
+  'tmpl.cannotDeleteUsedMany':
+    '{template} has been used to build {n} gatherings, so it cannot be deleted. Archive it instead.',
+  'tmpl.deleteTemplateAria': 'Delete the {template} template',
+  'tmpl.editStepAria': 'Edit the “{step}” step',
+  'tmpl.moveStepEarlierIn': 'Move “{step}” earlier in {template}',
+  'tmpl.moveStepEarlier': 'Move “{step}” earlier',
+  'tmpl.moveStepLaterIn': 'Move “{step}” later in {template}',
+  'tmpl.moveStepLater': 'Move “{step}” later',
+  'tmpl.deleteStepAria': 'Delete the “{step}” step',
+  'plan.downgradeConfirmTitle': 'Downgrade this family to {plan}?',
+  'plan.whatYouGainOn': 'What you gain on {plan}',
+  'plan.whatYouHaveNowOn': 'What you have now on {plan}',
+  'plan.whatYouKeepOn': 'What you keep on {plan}',
+  'plan.whatYouGetTitle': '{plan} — what you get',
+  'plan.includedInYours':
+    'Included in {plan}, which your family is on. Everything here is switched on.',
+  'plan.yourFamilyIsOnWhatAdds':
+    'Your family is on {current}. Here is what {plan} would add, beside what you already have.',
+  'plan.rateSetUpInBilling': '{rate} It is set up in the Billing section of Settings.',
+  'plan.rateNoPaymentStep': '{rate} There is no payment step yet — nothing here is billed.',
+  'plan.whatPlanAdds': 'What {plan} adds',
+  'plan.whatPlanIncludes': 'What {plan} includes',
+  'plan.whatYouWouldGainOn': 'What you would gain on {plan}',
+  'plan.alsoIncludedFrom': 'Also included, from {plan}',
+  'perm.scope.none': '—',
+  'perm.scope.own': 'Own',
+  'perm.scope.any': 'All',
+  'perm.action.view': 'View',
+  'perm.action.create': 'Create',
+  'perm.action.edit': 'Edit',
+  'perm.action.delete': 'Delete',
+  'perm.verb.view': 'view',
+  'perm.verb.create': 'create',
+  'perm.verb.edit': 'edit',
+  'perm.verb.delete': 'delete',
+  'perm.grantedPair': '{action} {scope}',
+  'perm.whoMayAction': '{resource} — who may {verb}',
+  'perm.switchTitle': '{resource} · {verb} · {scope}',
+  'access.actionsFor': 'Actions for {name}',
+  'access.applyTemplateConfirm':
+    'Put {name} on “{template}”? Their access becomes exactly what that template grants.',
+  'access.applyTemplateConfirmReplacing':
+    'Put {name} on “{template}”? Their access becomes exactly what that template grants, replacing “{previous}”.',
+  'access.enableConfirm':
+    'Switch {name}’s access back on? They regain everything their template grants.',
+  'access.disableConfirm':
+    'Switch off {name}’s access? They keep their account and their profile, but can see nothing in this family until you switch it back on.',
+  'access.copyStartsFrom':
+    'The new template starts with exactly what {template} grants today. It is a copy, not a link — changing one afterwards leaves the other alone.',
+  'access.renameTemplateConfirm': 'Rename “{from}” to “{to}” and save its description?',
+  'access.saveTemplateConfirm': 'Save your changes to “{template}”?',
+  'access.templateStillHasOne':
+    '“{template}” still has 1 member. Move them to another template first.',
+  'access.templateStillHasMany':
+    '“{template}” still has {n} members. Move them to another template first.',
+  'access.deleteTemplateConfirm': 'Delete “{template}”? This cannot be undone.',
+  'access.setGrantConfirm': 'Set “{template}” to {action} {scope} on {resource}? {applies}',
+  'access.setGrantNotAllowed':
+    'Set “{template}” so {resource} is not allowed for {verb}? {applies}',
+  'access.appliesToOne': 'This applies to the 1 member on the template.',
+  'access.appliesToMany': 'This applies to all {n} members on the template.',
+  'elec.boardReadFailed': 'Could not read this family’s board positions. Try again.',
+  'elec.level.national': 'national',
+  'elec.level.regional': 'regional',
+  'elec.level.chapter': 'chapter',
+  'elec.wrongLevelOne':
+    '{titles} is not a {level} board position. A {level} election can only fill {level} offices — add or re-scope the position under Members › Organization first.',
+  'elec.wrongLevelMany':
+    '{titles} are not {level} board positions. A {level} election can only fill {level} offices — add or re-scope the positions under Members › Organization first.',
+  'elec.createdWithoutPositions': 'The election was created but its positions were not: {error}',
+  'elec.savedWithoutPositions': 'The election was saved but its positions were not: {error}',
+  'elec.announceWholeFamily': 'A new election, “{title}”, is open to the whole family.',
+  'elec.announceForArea': 'A new election, “{title}”, is for {where}.',
+  'elec.nominationsOpenOn': 'Nominations open {on}.',
+  'elec.cannotUnpublish':
+    'This election already has {nominations} nomination(s) and {votes} vote(s), so it cannot be taken back to draft. Let it run, or delete it — which removes every nomination and vote with it.',
+  'elec.nominationsNotOpenedYet': 'Nominations have not opened yet.',
+  'elec.notPublishedYet': 'This election has not been published yet.',
+  'elec.nominationsClosedOn': 'Nominations closed on {on}.',
+  'elec.nominationsClosed': 'Nominations are closed.',
+  'elec.votingClosedOn': 'Voting closed on {on}.',
+  'elec.votingOpensOn': 'Voting opens {on}.',
+  'elec.votingNotOpen': 'Voting is not open.',
+  'elec.thisPosition': 'this position',
+  'elec.standDownFrom': 'Stand down from {position}?',
+  'elec.retractOthersStayOne':
+    '{name} was also nominated by 1 other member, so they stay on the ballot for {position} — only your name comes off.',
+  'elec.retractOthersStayMany':
+    '{name} was also nominated by {n} other members, so they stay on the ballot for {position} — only your name comes off.',
+  'elec.retractOnlySupporter':
+    'You are the only person who nominated {name} for {position}, so they will come off the ballot.',
+  'elec.standingOne': '1 person nominated',
+  'elec.standingMany': '{n} people nominated',
+  'elec.toBeElected': '{n} to be elected',
+  'elec.nominateFor': 'Nominate for {position}',
+  'elec.onlyAreaMayBeNominated': 'Only {where} may be nominated in this election.',
+  'elec.nobodyInAreaYet': 'Nobody in {where} can be nominated yet.',
+  'elec.nominatedByYou': 'nominated by you',
+  'elec.nominatedByYouAndOne': 'nominated by you and 1 other',
+  'elec.nominatedByYouAndMany': 'nominated by you and {n} others',
+  'elec.onTheBallot': 'on the ballot',
+  'elec.nominatedByOne': 'nominated by 1 member',
+  'elec.nominatedByMany': 'nominated by {n} members',
+  'chk.payForPlan': 'Pay for {plan}',
+  'chk.shortMonthCombinedOne':
+    'Only 1 day is left this month, which is too small a charge to take on its own — so the first payment covers {through}. The next payment is then {next}.',
+  'chk.shortMonthCombinedMany':
+    'Only {days} days are left this month, which is too small a charge to take on its own — so the first payment covers {through}. The next payment is then {next}.',
+  'chk.throughDate': 'through {date}',
+  'chk.nextMonthToo': 'next month too',
+  'chk.onTheFirst': 'on the 1st',
+  'chk.everyPaymentOnFirst':
+    'Either way, every payment after the first is on the 1st — the next one {next}.',
+  'chk.isDate': 'is {date}',
+  'chk.isFirstOfNextMonth': 'is the 1st of next month',
+  'chk.upgradeToPlan': 'Upgrade to {plan}',
+  'chk.payNowAmount': 'Pay {amount} now',
+  'chk.throughEndOfThisMonth': '{plan} through the end of this month.',
+  'chk.coverNextTooAmount': 'Cover next month too — {amount}',
+  'chk.throughEndOfNextMonth': '{plan} through the end of next month.',
+  'chk.upgradeNothingToPay': 'Upgrade to {plan} — nothing to pay',
+  'chk.upgradePayAmount': 'Upgrade to {plan} — pay {amount}',
+  'dues.freq.annual': 'annual',
+  'dues.freq.semi-annual': 'semi-annual',
+  'dues.freq.quarterly': 'quarterly',
+  'dues.freq.monthly': 'monthly',
+  'dues.freq.one-time': 'one-time',
+  'dues.cad.weekly': 'Weekly',
+  'dues.cad.monthly': 'Monthly',
+  'dues.cad.quarterly': 'Quarterly',
+  'dues.cad.annual': 'Annual',
+  'dues.cad.one-time': 'One-time',
+  'dues.cadWord.weekly': 'weekly',
+  'dues.cadWord.monthly': 'monthly',
+  'dues.cadWord.quarterly': 'quarterly',
+  'dues.cadWord.annual': 'annual',
+  'dues.cadWord.one-time': 'one-time',
+  'agat.removeTemplateConfirm':
+    'Take “{template}” off this gathering? Its steps that nobody has been given yet are deleted. If any of them has been assigned or answered, nothing is removed and you will be told how many — reassign or approve those first.',
+  'agat.deleteConfirm':
+    'Delete “{title}”? Every task on it goes with it, and so does every answer and note anybody has written. If it is simply not happening, set its status to Cancelled instead — nothing is lost and it can be reopened. This cannot be undone.',
+  'agat.startedBy': 'started by {name}',
+  'agat.approvedOfTotal': '{approved} of {total} approved',
+  'agat.waitingForReview': '{n} waiting for review',
+  'agat.sentBackCount': '{n} sent back',
+  'agat.dayHappensOn': 'The day “{segment}” happens on',
+  'agat.whereHeld': 'Where “{segment}” is held',
+  'agat.removeSegment': 'Remove {segment} from this gathering',
+  'agat.approveConfirm':
+    'Approve “{task}” on {gathering}? Approving is final — it becomes the family’s record of it and the person who submitted it cannot change it afterwards. Send it back instead if anything still needs work.',
+  'agat.theHolder': 'the person holding it',
+  'agat.nobodyUnassigned': 'nobody, because it is unassigned',
+  'agat.notesBack': 'Notes back: {notes}',
+  'agat.whoeverHoldsIt': 'whoever holds it',
+  'agat.sentWithTaskRequired':
+    'Sent with the task to {name}. A task handed back with no notes leaves them nothing to act on, which is why this is required.',
+  'agat.approvedRecordNote':
+    'It is the family’s record of {task} and the person who submitted it cannot change it. Reopen it if it has to change — the answer and every submission stay exactly as they are, and it goes back to them to edit.',
+  'agat.sentWithTaskTo': 'Sent with the task to {name}.',
+  'agat.nobodyUnassignedTold': 'nobody — this task is unassigned, so nobody is told',
+  'plan.optOutOf': 'Opt out of {schedule}?',
+  'plan.optBackInTo': 'Opt back in to {schedule}?',
+  'plan.optBackInHint':
+    '{schedule} will count toward what you owe again, at {amount} per {cadence} installment.',
+  'plan.stopAutoHint':
+    'No further card payments will be taken for {schedule}. Everything you have already paid stays on your record.',
+  'plan.includesOverdueOne': 'Includes 1 installment due since {since}',
+  'plan.includesOverdueMany': 'Includes {n} installments due since {since}',
+  'plan.startsWhenYouTurn': 'Starts {date}, when you turn {age}',
+  'plan.termsProrated': '{now} this year · {full}/yr after · {frequency}',
+  'plan.termsPlain': '{amount}/yr · {frequency}',
+  'plan.optionsFor': 'Options for {schedule}',
+  'plan.changeCadenceHint':
+    'How often you pay {schedule}. The annual total does not change — the cadence divides it.',
+  'plan.thenEachTime': ', then {amount} each time',
+  'plan.enterAmountFor': 'Enter an amount for {schedule}, or zero to leave it out.',
+  'plan.mostThatCanBePaid': 'The most that can be paid on {schedule} is {amount}.',
+  'plan.coversEarlierOne': 'covers 1 earlier installment',
+  'plan.coversEarlierMany': 'covers {n} earlier installments',
+  'plan.payAmountByCard': 'Pay {amount} by card',
+  'plan.payCadenceFor': 'Pay cadence for {schedule}',
+  'plan.perInstallment': 'per installment',
+  'plan.nextPaymentCovering': 'Next payment {amount}, covering what has come due so far',
+  'plan.payAmountNext': 'Pay {amount} next',
+  'tree.openedElsewhere':
+    'You have no parents or children recorded yet, so this opens on your family rather than on an empty page.',
+  'tree.unattachedLede':
+    '{who} in the family but not connected to anybody, so they do not appear anywhere above. Click a name to centre the tree on them, then fill in the relatives around them.',
+  'tree.rosterLede':
+    'The tree above shows the four generations around one person. Click anybody here to centre it on them.',
+  'tree.moreInGeneration': '+ {n} more in this generation. Find them under',
+  'tree.removeLinkConfirm':
+    'Remove the link between {a} and {b}? This only removes the connection — nobody is removed from the family, and nothing they have recorded is deleted.',
+  'tree.showingBloodline':
+    'Showing the {n} people descended from this family’s line. Spouses, step and adopted relatives are hidden.',
+  'tree.showingEveryone': 'Everyone in the family — {total} people, {blood} of them by blood.',
+  'tree.addSomeonesFather': 'Add {who}’s father',
+  'tree.addSomeonesMother': 'Add {who}’s mother',
+  'tree.addAnother': 'Add another {relation}',
+  'tree.withPerson': 'With {name}',
+  'tree.noChildrenWith': 'No children recorded with {name}.',
+  'tree.someonesSiblings': '{name}’s brothers and sisters',
+  'tree.editRecordAria': 'Edit {name}’s record, or invite them',
+  'tree.removeConnectionAria': 'Remove the connection to {name}',
+  'gal.imagesReadyOne': '1 image ready',
+  'gal.imagesReadyMany': '{n} images ready',
+  'gal.notAnImageFormat': '{name} is not {formats} — it will be skipped.',
+  'gal.moreKeepTyping': '{n} more — keep typing to narrow it.',
+  'gal.deletePhotoNamedConfirm':
+    'Delete “{caption}”? It is removed for everyone, along with its tags, and the image file goes too. This cannot be undone.',
+  'gal.photographsAddedOne': '1 photograph added.',
+  'gal.photographsAddedMany': '{n} photographs added.',
+  'gal.addedSomeFailed': '{added} added. {failed} did not: {reasons}',
+  'gal.formatsAndSize': '{formats}, up to 10 MB each.',
+  'gal.uploadingCount': 'Uploading {n}…',
+  'gal.uploadOne': 'Upload photograph',
+  'gal.uploadMany': 'Upload {n} photographs',
+  'gal.removeTagForConfirm': 'Remove the tag for {name} from this photograph?',
+  'gal.addedByName': 'Added by {name}',
+  'gal.removeTagForAria': 'Remove the tag for {name}',
+  'staff.makeOwnerTitle': 'Make {name} an owner?',
+  'staff.takeOwnerTitle': 'Take owner access away from {name}?',
+  'staff.makeOwnerBody':
+    '{name} will be able to grant staff access, change what kind anybody has, and take it away — including yours. Nothing else about what they can see changes.',
+  'staff.takeOwnerBodyOne':
+    '{name} keeps the console and everything it reads, and loses this screen: they will not be able to grant staff access to anybody. That leaves 1 owner.',
+  'staff.takeOwnerBodyMany':
+    '{name} keeps the console and everything it reads, and loses this screen: they will not be able to grant staff access to anybody. That leaves {n} owners.',
+  'staff.changeToRole': 'Change to {role}',
+  'staff.removeAccessTitle': 'Remove staff access for {name}?',
+  'staff.removeAccessBody':
+    '{name} loses the whole console on their next request: every page in it answers 404 for them, exactly as it does for a customer. Nothing about their own account or their family memberships changes. The reason recorded for this grant goes with the row and is not kept anywhere, so if they need access again it is a new grant with a new reason.',
+  'dist.stopSendingTitle': 'Stop sending “{subject}”?',
+  'dist.stopSendingBody':
+    '{sent} of {total} relatives have already been emailed. Those messages have gone and cannot be recalled. The rest will not be sent.',
+  'dist.stopSending': 'Stop sending',
+  'dist.deleteRecordTitle': 'Delete the record of “{subject}”?',
+  'dist.relativesCount': '{n} relatives',
+  'dist.notInAudience': '{n} not in this audience',
+  'dist.noEmailOnFile': '{n} with no email address on file',
+  'dist.deleteRecordAria': 'Delete the record of {subject}',
+  'dist.willBeEmailedOne': '1 relative will be emailed',
+  'dist.willBeEmailedMany': '{n} relatives will be emailed',
+  'dist.unreachableMoreOne':
+    '. 1 more is on the family tree without an email address and cannot be emailed.',
+  'dist.unreachableMoreMany':
+    '. {n} more are on the family tree without an email address and cannot be emailed.',
+  'dist.preparing': 'Preparing…',
+  'dist.sendToCount': 'Send to {n}',
+  'dist.notInAudienceOne': '1 relative was not in this audience.',
+  'dist.notInAudienceMany': '{n} relatives were not in this audience.',
+  'ael.droppedOne': '{titles} is not a {level} office, so it has been cleared.',
+  'ael.droppedMany': '{titles} are not {level} offices, so they have been cleared.',
+  'ael.publishBody':
+    '“{title}” goes on the calendar for {where}. Nominations open {opens} and voting closes {closes}; both windows open and close on their own from then on.',
+  'ael.announcementWillBePosted': ' An announcement will be posted.',
+  'ael.returnToDraftBody':
+    'Take “{title}” off the family’s calendar and back to a draft? Nobody has been nominated and nothing has been voted on, so nothing is lost.',
+  'ael.deleteWithVotesBody':
+    'Delete “{title}”, its {nominations} nomination(s) and its {votes} vote(s)? This cannot be undone.',
+  'ael.deleteBody': 'Delete “{title}” and all of its positions? This cannot be undone.',
+  'ael.removePositionAria': 'Remove position {n}',
+  'ael.noOfficesAtLevel':
+    'No {level} offices recorded yet. Add them under Members › Organization first.',
+  'chk.monthlyBlurb':
+    '{amount} a month, taken on the 1st, until you stop it. Change or stop it whenever — what you have already paid for stays open.',
+  'chk.payRemainderOne': 'Pay {amount} for the 1 day left this month',
+  'chk.payRemainderMany': 'Pay {amount} for the {days} days left this month',
+  'chk.payRestAndNext': 'Pay {amount} for the rest of this month and next',
+  'chk.inAdvanceBlurb':
+    'One payment covering the rest of this month plus whole months after it, up to {max}. Nothing renews it, so nothing is charged again until you choose to.',
+  'chk.payNowSimple': 'Pay {amount} now',
+  'chk.prorationBreakdownOne':
+    '{proration} for the 1 day left this month, plus {months} for {n} whole month.',
+  'chk.prorationBreakdownMany':
+    '{proration} for the {days} days left this month, plus {months} for {n} whole months.',
+  'chk.yourTermUnused': 'Your {plan} term, unused',
+  'chk.paidThroughDate': 'Paid through {date}',
+  'chk.nextPaymentDate': 'Next payment {date}',
+  'agat.noBudgetFund': 'No budget · {fund}',
+  'agat.overBy': 'Over by {amount}',
+  'agat.overWithOthersBy': 'Over with the other gatherings on this fund by {amount}',
+  'agat.approveRowConfirm':
+    'Approve “{task}” on {gathering}? Approving is final — the answer is the family’s record of it and the person who submitted it cannot change it afterwards. Send it back instead if anything still needs work.',
+  'agat.whoeverHoldsThisTask': 'whoever holds this task',
+  'agat.sentToWithTask':
+    'Sent to {name} with the task. A task sent back with no notes leaves them nothing to act on, which is why this is required.',
+  'agat.chosenTemplatesOne':
+    '1 chosen · its steps become this gathering’s tasks, in the order shown',
+  'agat.chosenTemplatesMany':
+    '{n} chosen · their steps become this gathering’s tasks, in the order shown',
+  'agat.createdStepsFailed':
+    'Created, but the steps from {templates} could not be added. Add the template again from the gathering.',
+  'agat.templateArchived': '“{template}” has been archived and cannot start a new gathering',
+  'agat.cannotDeleteAnsweredOne':
+    '1 task on “{title}” has been answered, so it cannot be deleted. Set its status to Cancelled instead — nothing is lost and it can be reopened.',
+  'agat.cannotDeleteAnsweredMany':
+    '{n} tasks on “{title}” have been answered, so it cannot be deleted. Set its status to Cancelled instead — nothing is lost and it can be reopened.',
+  'agat.savedOutsideOneDay': 'Saved. That day is outside the gathering, which is on {on}.',
+  'agat.savedOutsideRange': 'Saved. That day is outside the gathering, which runs {from} to {to}.',
+  'agat.templateAlreadyPart': '“{template}” is already part of this gathering',
+  'agat.couldNotAddSteps':
+    'Could not add the steps from {templates}. Nothing was changed — try again.',
+  'agat.templateNotPart': '“{template}” is not part of this gathering',
+  'agat.cannotRemoveInFlightOne':
+    '1 task from this template has been assigned or answered, so it cannot be removed. Reassign or approve them first.',
+  'agat.cannotRemoveInFlightMany':
+    '{n} tasks from this template have been assigned or answered, so it cannot be removed. Reassign or approve them first.',
+  'budget.claimedByOthers': '{amount} of it is claimed by other gatherings',
+  'budget.theFund': 'the fund',
+  'budget.overFundSentence': '{budget} is {over} more than {fund} holds.',
+  'budget.overWithOthersSentence':
+    'Other live gatherings already claim {others} of the same fund, so {total} is committed against {fund} — {over} more than it holds.',
+  'budget.overAllocatedSentence':
+    'The task budgets add up to {lines}, which is {over} more than this gathering budgeted. Nothing has been spent — raise the budget or trim a task line.',
+  'fnd.routingGapUnder':
+    '{percent}% more to go — add it to any fund below, or spread it across several.',
+  'fnd.routingGapOver': 'That is {percent}% over. Take it off one of the funds below.',
+  'fnd.deleteNamedBody':
+    'Delete the fund “{name}”? Its balance of {balance} and its milestones go with it. This cannot be undone.',
+  'fnd.openNamedBody': 'Let members contribute to “{name}” directly?',
+  'fnd.closeNamedBody': 'Stop members from contributing to “{name}” directly?',
+  'fnd.deleteMilestoneNamedBody':
+    'Delete the milestone “{name}” ({amount})? This cannot be undone.',
+  'fnd.minimumBalanceFor': 'Minimum balance for {fund}',
+  'fnd.allocationPercentFor': 'Allocation percent for {fund}',
+  'proj.expectedThisYear': 'Expected this year',
+  'proj.collected': 'Collected',
+  'proj.waived': 'Waived',
+  'proj.stillToCollect': 'Still to collect',
+  'proj.oweSomethingOne': '1 of {total} members owes something',
+  'proj.oweSomethingMany': '{paying} of {total} members owe something',
+  'proj.percentOfBilled': '{percent}% of what was billed, waivers included',
+  'proj.nothingBilledYet': 'Nothing billed yet',
+  'proj.waivedCaption': 'Forgiven — settles the due, and is not income',
+  'proj.everybodyUpToDate': 'Everybody is up to date',
+  'proj.outstandingOne': '1 member has something outstanding',
+  'proj.outstandingMany': '{n} members have something outstanding',
+  'proj.pendingSettlement':
+    '{amount} is awaiting settlement — started and not yet confirmed. It is not counted as collected, and it has not been taken off what is still owed.',
+  'proj.bloodlineUnknownNote':
+    'Nobody owes this: your family has not said which ancestor its line descends from, so there is no bloodline to charge. Set {control} on the family tree.',
+  'proj.thatPartOfTheFamily': 'that part of the family',
+  'proj.scopeEmptyNote':
+    'Nobody owes this: no member of the family is in {where}. Members choose their chapter on their own profile, and anybody with no chapter is under National.',
+  'proj.fullYear': 'Full year',
+  'proj.leastSettledFirst': 'Least settled first. {shown} of {total} shown.',
+  'ann.deleteNamedBody':
+    'Delete “{title}”? Members will no longer see it, on the board or in their updates. This cannot be undone.',
+  'ann.unpinNamedBody':
+    'Unpin “{title}”? It stays on this board and stops riding at the top of everyone’s Recent Updates.',
+  'ann.pinNamedBody':
+    'Pin “{title}” to the top of every member’s Recent Updates? Each of them can dismiss it for themselves afterwards.',
+  'ann.unpin': 'Unpin',
+  'ann.pin': 'Pin',
+  'ann.hideFromMyUpdates': 'Hide “{title}” from the top of your own updates',
+  'ann.showInMyUpdates': 'Show “{title}” at the top of your own updates again',
+  'ann.unpinForEveryone': 'Unpin “{title}” for everyone',
+  'ann.pinForEveryone': 'Pin “{title}” for everyone',
+  'org.deleteRegionMovingOne':
+    'Delete the {name} region? Its chapter moves to National, and every member in them stays exactly where they are. This cannot be undone.',
+  'org.deleteRegionMovingMany':
+    'Delete the {name} region? Its {n} chapters move to National, and every member in them stays exactly where they are. This cannot be undone.',
+  'org.deleteRegionBody': 'Delete the {name} region? This cannot be undone.',
+  'org.deleteChapterBody': 'Delete the {name} chapter? This cannot be undone.',
+  'org.deleteRegionTitleAttr': 'Delete the {name} region',
+  'org.deleteChapterTitleAttr': 'Delete the {name} chapter',
+  'org.underNationalOne': '1 chapter is under National.',
+  'org.underNationalMany': '{n} chapters are under National.',
+  'org.memberPicksChapter': 'A member picks their chapter on their own profile.',
+  'inc.ageProrationHint':
+    'A member owes nothing until they turn {age}, then the months of that year after their birthday — and the full amount every year after. Anyone with no date of birth recorded owes it in full.',
+  'inc.beneficiaryHint':
+    'Anyone named here cannot see this drive anywhere in {app} — not the goal, not the progress, not a single gift to it. That holds for administrators too, so a collection can be kept from the person it is meant to surprise. Everyone else sees who it is for.',
+  'inc.descriptionPlaceholder': 'What this {noun} is for…',
+  'inc.applyEditsDonation': 'Apply your edits to “{label}” (goal {goal})?',
+  'inc.applyEditsDues': 'Apply your edits to “{label}” ({amount} {frequency})?',
+  'inc.deleteNamedBody':
+    'Delete the {noun} “{label}” ({amount} {frequency})? This cannot be undone.',
+  'inc.deleteThisBody': 'Delete this {noun}? This cannot be undone.',
+  'inc.deleteNoun': 'Delete {noun}',
+  'pos.holdersBlockOne': '1 person holds “{name}”. Take it away from them first.',
+  'pos.holdersBlockMany': '{n} people hold “{name}”. Take it away from them first.',
+  'pos.removeNamedLede': 'Remove “{name}” from the positions your family keeps? ',
+  'pos.renameAria': 'Rename the {name} position',
+  'pos.heldBlockTitleOne': '1 person holds this — take it away from them first',
+  'pos.heldBlockTitleMany': '{n} people hold this — take it away from them first',
+  'pos.cannotRemoveAriaOne': 'Cannot remove the {name} position: 1 person holds it',
+  'pos.cannotRemoveAriaMany': 'Cannot remove the {name} position: {n} people hold it',
+  'pos.removeAria': 'Remove the {name} position',
+  'inv.invitedNamed': '{name}, you have been invited to {family}',
+  'inv.invitedAnon': 'You have been invited to {family}',
+  'inv.sentToHasAccount':
+    'This invitation was sent to {email}, which already has a {app} account. Sign in and you will come straight back here and join — you will not need a family code, this invitation is your way in.',
+  'inv.sentToNoAccount':
+    'This invitation was sent to {email}. Create an account with that address to accept it — you will not need a family code, this invitation is your way in. Already have an account? Sign in and you will come straight back here.',
+  'inv.thisAccount': 'this account',
+  'inv.sentToOnlyThatAddress':
+    'It was sent to {email}, and only that address can accept it — that is what stops a forwarded link working for anyone else. You are signed in as {account}.',
+  'tasks.waitingOne': '1 task is waiting on you',
+  'tasks.waitingMany': '{n} tasks are waiting on you',
+  'tasks.needAnotherLookOne': '1 needs another look',
+  'tasks.needAnotherLookMany': '{n} need another look',
+  'tasks.wasDue': 'Was due {date}',
+  'tasks.due': 'Due {date}',
+  'tasks.sentBackHelpLabel': 'What happens when a task comes back',
+  'tasks.answerFinal': '{status} — this answer is final.',
+  'tasks.yourNote': 'Your note: {note}',
+  'tasks.yourAnswerFor': 'Your answer for {task}',
+  'gath.shapeContinuous': 'One continuous block',
+  'gath.shapeContinuousHint':
+    'A reunion running Friday evening to Sunday lunchtime. It draws as one bar across those days on the calendar.',
+  'gath.shapeSeparate': 'Separate days, same gathering',
+  'gath.shapeSeparateHint':
+    'A committee meeting on three Saturdays. Each day draws as its own entry, all carrying this gathering’s title.',
+  'gath.removeDayAria': 'Remove day {n}',
+  'gath.everyDayOwnEntry':
+    'Every day here is its own entry on the calendar, all named this gathering.',
+  'rel.bloodLinkNote': 'A blood relationship — the bloodline travels down this link.',
+  'rel.nonBloodLinkNote': 'Recorded as {kind}. The bloodline does not travel down this link.',
+  'rel.parentBloodlineNote':
+    ' {decidedBy} {control}, above the tree — a parent of yours is your blood relative without being part of your family’s line.',
+  'rel.shareParentsQuestion': 'Do they share {name}’s parents?',
+  'rel.whoElseIsParent': 'Who else is a parent of this {relation}?',
+  'rel.tickingRecordsParent':
+    'Ticking somebody records the parent link too, so this person appears on their card as well — not only beside {name}.',
+  'rel.whoIsWhose': 'Who is {name}’s {relation}?',
+  'rel.dateOfBirth': 'Date of birth',
+  'rel.dateOfBirthOptional': 'Date of birth (optional)',
+  'elec.vote': 'Vote',
+  'elec.thisNominee': 'this nominee',
+  'elec.voteConfirm': '{action} for {nominee} as {position}?',
+  'elec.nominationRespondConfirm':
+    '{action} the nomination for {position}? This cannot be changed.',
+  'elec.theyOpenOn': 'They open {date}.',
+  'elec.nominationsClosedOnPlain': 'Nominations closed on {date}.',
+  'elec.votingOpensOnPlain': 'Voting opens {date}.',
+  'elec.votingClosedOnPlain': 'Voting closed on {date}.',
+  'pay.maxItems': 'Up to {max} dues can be paid in one go. Pay some of them separately.',
+  'pay.nothingLeftOn': 'There is nothing left to pay on {schedule}.',
+  'pay.moreThanOwed':
+    'That is more than is owed. The most that can be paid on {schedule} is {amount}.',
+  'pay.driveClosed': '{drive} has closed. Nothing more can be given to it.',
+  'pay.maxCharge': 'A single card payment cannot be more than {amount}. Give it in two.',
+  'rep.elecOpenNow': '{n} open now · published only',
+  'rep.elecNominations': 'Nominations',
+  'rep.elecAcrossEvery': 'across every election',
+  'rep.elecEmptyMessage': 'No election has been published yet.',
+  'rep.elecEmptyHint':
+    'Once one is published, this reports its turnout, its nominations and any office nobody stood for.',
+  'rep.elecAcceptedOf': '{accepted} of {total} accepted',
+  'rep.elecNobodyStanding': '{n} with nobody standing',
+  'rep.elecUnopposedOne': '1 office unopposed',
+  'rep.elecUnopposedMany': '{n} offices unopposed',
+  'rep.elecNotApplicableNote': ' rather than 0% — nobody could have voted in it.',
+  'pms.noMembersYet': 'No members to choose from yet.',
+  'pms.searchMembers': 'Search {n} members…',
+  'pms.noMatch': 'No member matches “{query}”.',
+  'pms.totalOne': '1 member',
+  'pms.totalMany': '{n} members',
+  'pms.shownOfTotal': '{shown} of {total} shown',
+  'pms.moreKeepTyping': '{n} more — keep typing to narrow',
+  'meet.comingUp': 'Coming up',
+  'meet.held': 'Held',
+  'meet.topicsOne': '1 topic',
+  'meet.topicsMany': '{n} topics',
+  'meet.stepOf': 'Step {step} of {total} · {name}',
+  'meet.allAdultsInFamily': 'That is all {n} adults in the family.',
+  'meet.nobodyUnderEighteen': 'Nobody under eighteen is invited to a meeting.',
+  'meet.inTheRoomOne': '1 person in the room — see who',
+  'meet.inTheRoomMany': '{n} people in the room — see who',
+  'notes.deleteEntryNamedBody':
+    'Delete “{title}”? Every note under it goes too, for everybody who holds this office, now and later. This cannot be undone.',
+  'notes.chapterWord': 'chapter',
+  'notes.regionWord': 'region',
+  'notes.everyoneHoldingReads':
+    '{who} {office} reads this journal, whichever {area} they hold it for.',
+  'notes.thisOffice': 'this office',
+  'notes.nothingRecordedFor': 'Nothing recorded for {office} yet.',
+  'notes.newEntry': 'New entry',
+  'notes.newEntryForOffice': 'New entry — {office}',
+  'bday.noneMatchName': 'No birthday in the next {days} days matches that name.',
+  'bday.inDays': 'in {n} days',
+  'bday.shownOfTotal': '{shown} of {total} shown',
+  'bday.countOne': '1 birthday in the next {days} days',
+  'bday.countMany': '{n} birthdays in the next {days} days',
+  'bday.discreetNote': '{emoji} stands in for an age between {min} and {max}',
+  'pos.chooseWhichChapter': 'Choose which chapter',
+  'pos.chooseWhichRegion': 'Choose which region',
+  'pos.takeAwayNamedLede': 'Take “{position}” away from {name}? ',
+  'pos.somebodysPositions': '{name}’s positions',
+  'pos.takeAwayAria': 'Take {position} away from {name}',
+  'fnd.builtInCannotSwitchOff': '{name} is built in and cannot be switched off.',
+  'fnd.builtInCannotDelete':
+    '{name} is built in and cannot be deleted. Every donation the family receives is held here.',
+  'fnd.allocationsMustTotal': 'Allocations must total 100% (currently {percent}%)',
+  'fnd.couldNotReadBalance': 'Could not read the balance of {name}',
+  'fnd.holdsTransferLess': '{name} holds {amount}. Transfer that or less.',
+  'rep.meetings': 'Meetings',
+  'rep.meetRelativesAskedOne': '1 relative asked to one',
+  'rep.meetRelativesAskedMany': '{n} relatives asked to one',
+  'rep.minuted': 'Minuted',
+  'rep.meetReachedAVote': '{n} reached a vote',
+  'rep.meetOnePerTopic': 'one per topic answered',
+  'rep.meetEmptyMessage': 'The family has not held a meeting yet.',
+  'rep.meetEmptyHint':
+    'Once one is scheduled, this reports who was in the room, what was taken up, and how the votes went.',
+  'rep.meetVotedOn': '{n} voted on',
+  'safety.deleteNamedBody':
+    '“{title}” and the record of who answered will be removed. Nobody will be able to see who was asked, who said they were safe, or who was never reached.',
+  'safety.raisedBy': 'raised by {name}',
+  'safety.askRemaining': 'Ask the remaining {n}',
+  'safety.unreachableOne':
+    '1 relative has no email address on file. Somebody will need to telephone them.',
+  'safety.unreachableMany':
+    '{n} relatives have no email address on file. Somebody will need to telephone them.',
+  'slice.descriptionOne': '{chart} · 1 member · {percent}% of the family',
+  'slice.descriptionMany': '{chart} · {n} members · {percent}% of the family',
+  'slice.invitedNotEmailed': '{name} was invited, but the email could not be sent. ',
+  'slice.invited': '{name} has been invited.',
+  'slice.birthdayRecorded': '{name}’s date of birth recorded.',
+  'pend.waitingOnFamilies':
+    'You are waiting on {n} families. Each one is reviewed by its own administrators, so they may not answer at the same time.',
+  'pend.sentTo': 'Sent to {family}',
+  'pend.askToLookAgain': 'Ask {family} to look again',
+  'pend.meantimeFillIn': 'In the meantime you can fill in',
+  'gal.deleteAlbumWithPhotosOne':
+    'This deletes the album AND the 1 photograph in it, for everybody. The image file is removed as well. This cannot be undone.',
+  'gal.deleteAlbumWithPhotosMany':
+    'This deletes the album AND all {n} photographs in it, for everybody. The image files are removed as well. This cannot be undone.',
+  'gal.deleteAlbumAndOne': 'Delete album and 1 photo',
+  'gal.deleteAlbumAndMany': 'Delete album and {n} photos',
+  'gal.albumIsASet':
+    'An album is a set of photographs the family keeps together — a reunion, a wedding, a year.',
+  'gal.deleteNamedAlbumAria': 'Delete the album “{name}”',
+  'rec.howRelated': 'How {name} is related',
+  'rec.formerMarriageNote':
+    'A former marriage stays on the tree beside {name} — it is usually where half the children came from. A marriage never carries blood.',
+  'rec.recordedAs': 'Recorded as {name}’s {kind}.',
+  'rec.bloodCarries': ' Blood links carry the bloodline.',
+  'rec.noBloodThroughLink': ' {name} does not reach the bloodline through this link.',
+  'rem.nobodyCanOpen':
+    'Nobody can open it, join it or accept an invitation to it. {nothingDeleted} — every payment, photograph, event and person is exactly where it was. Only {app} support can bring it back; write to them and ask.',
+  'set.codeSentTo':
+    'We sent a six-digit code to {email}. It lasts {minutes} minutes and can be used once.',
+  'set.codeFailedTo':
+    '{note} No code has reached {email}, so there is nothing to type yet. Try again in a moment.',
+  'gath.notUsableAnswer': 'That is not a usable answer for “{task}”. {hint}',
+  'gath.onlyOrganizerCanSchedule': 'Only an organizer can schedule from “{template}”',
+  'gath.scheduledStepsFailed':
+    'Scheduled, but the steps from {templates} could not be added. An organizer can add them from the gathering.',
+  'org.theNamedRegion': 'The {name} region',
+  'org.theNamedChapter': 'The {name} chapter',
+  'pos.nameTooLong': 'A position name is at most {max} characters',
+  'err.regionNeedsName': 'A region needs a name',
+  'err.regionNotFound': 'Region not found',
+  'err.chapterNeedsName': 'A chapter needs a name',
+  'err.chapterNotFound': 'Chapter not found',
+  'err.positionNeedsName': 'A position needs a name',
+  'err.chooseCategory': 'Choose a category',
+  'err.chooseScope': 'Choose a scope',
+  'err.positionNotFound': 'Position not found',
+  'err.memberNotFound': 'Member not found',
+  'err.memberNotApproved': 'That member has not been approved yet',
+  'err.chooseChapterForPosition': 'Choose the chapter this position is for',
+  'err.chooseRegionForPosition': 'Choose the region this position is for',
+  'err.alreadyHoldsPosition': 'They already hold that position',
+  'err.assignmentGone': 'That assignment no longer exists',
+  'err.notAuthenticated': 'Not authenticated',
+  'err.noFamilyOnAccount': 'No family associated with account',
+  'err.noSignInAddress': 'That member has no sign-in address on record.',
+  'err.placeholderEmailNoReset':
+    'This record has a placeholder email address, so a reset link has nowhere to go.',
+  'err.cannotRemoveSelfFromGroup': 'Cannot remove yourself from the group',
+  'err.conversationNotFound': 'Conversation not found',
+  'err.familyRoomFailed': 'Could not find or create the family room',
+  'err.groupNameRequired': 'Group name is required',
+  'err.groupNotFound': 'Group not found',
+  'err.invalidMessage': 'Invalid message',
+  'err.noFamily': 'No family',
+  'err.noFamilyCodeOnAccount': 'No family code found on your account',
+  'err.onlyCreatorCanAdd': 'Only the group creator can add members',
+  'err.onlyCreatorCanRemove': 'Only the group creator can remove members',
+  'err.notInYourFamily': 'That member is not in your family',
+  'err.userNotInFamily': 'User not found in your family',
+  'err.nationalReservedName': '"National" is a reserved name',
+  'err.noAccountAttachPosition':
+    'That relative has no account yet, so there is nothing to attach a position to. Invite them from the family tree first.',
+  'err.noAccountResetPassword':
+    'This relative has no account yet, so there is no password to reset. Invite them from the family tree instead.',
+  'reg.alreadyRegistered':
+    '{email} is already registered with {app}, so there is nothing to create. Sign in and you will come straight back to your invitation to',
+  'acct.closedDrivesOne': '1 closed drive is not shown here —',
+  'acct.closedDrivesMany': '{n} closed drives are not shown here —',
+  'acct.seeDonationsForFull': 'for the full record.',
+  'err.errorReference': 'Error reference: {digest}',
+  'cal.withheldOne':
+    'This calendar does not include {list}, so what you see below is not the whole month: that screen has either not been shared with you, or could not be read just now.',
+  'cal.withheldMany':
+    'This calendar does not include {list}, so what you see below is not the whole month: those screens have either not been shared with you, or could not be read just now.',
+  'hlp.membershipUndecided':
+    'Your membership of {family} has not been decided yet, so most of the product is not open to you.',
+  'hlp.chapterExplainsNext':
+    'is the chapter that explains what happens next. Everything else is here to read in the meantime.',
+  'lib.whyNotesStayHelp': 'Why notes stay with the office',
+  'lib.officesRecordedUnder': 'Offices are recorded under',
+  'prof.requestDeclined':
+    '{lede}{family} was declined. You can still keep your profile up to date.',
+  'prof.waitingForApproval':
+    '{lede}{family} is waiting for approval. Filling this in helps them recognise you —',
+  'prof.checkTheStatus': 'check the status',
+  'rep.offices': 'Offices',
+  'rep.heldInTotalOne': '1 held in total',
+  'rep.heldInTotalMany': '{n} held in total',
+  'rep.filled': 'Filled',
+  'rep.boardEmptyHint':
+    'Add them on Members → Organization, and this reports who holds each and which are empty.',
+  'rep.gathStillToCome': '{n} still to come · cancelled excluded',
+  'rep.gathWaitingDecision': '{n} waiting on a decision',
+  'rep.gathEmptyHint':
+    'Once the family schedules a gathering, this reports on how its tasks are going.',
+  'stf.familiesTitle': 'Families',
+  'stf.familiesBlurb':
+    'Every family, its plan, how many members it has, and whether it has been removed. Restoring one is here.',
+  'stf.familyOne': 'family',
+  'stf.familyMany': 'families',
+  'stf.active': 'active',
+  'stf.accountsBlurb':
+    'Every sign-in account, whether its address is confirmed, whether it has ever been used, and which families it belongs to.',
+  'set.familyNameTooLong': 'That family name is too long ({max} characters maximum).',
+  'set.paidPlanUseBilling':
+    '{plan} is a paid plan. Set it up in the Billing section of Settings — nothing here can move a family onto it.',
+  'tmpl.nameExists': 'A template called “{name}” already exists',
+  'tmpl.usedCannotDeleteOne':
+    '“{name}” has been used to build 1 gathering, so it cannot be deleted — the record of where those tasks came from would go with it. Archive it instead, which takes it out of the schedule-from list and leaves every gathering exactly as it is.',
+  'tmpl.usedCannotDeleteMany':
+    '“{name}” has been used to build {n} gatherings, so it cannot be deleted — the record of where those tasks came from would go with it. Archive it instead, which takes it out of the schedule-from list and leaves every gathering exactly as it is.',
+  'access.membersOnTemplateOne': '1 member is on this template. Move them to another one first.',
+  'access.membersOnTemplateMany':
+    '{n} members are on this template. Move them to another one first.',
+  'access.lockoutSubject.manageAccess': 'manage access',
+  'access.lockoutSubject.changeTemplates': 'change permission templates',
+  'access.onlyTemplateThatCan':
+    'This is the only template that can {subject}. Grant it to another template first.',
+  'access.noOtherTemplateHasMembers':
+    'No other template that can {subject} has any members. Put someone on one first.',
+  'proc.disconnectedStoppedOne':
+    'Disconnected, and 1 recurring payment stopped. Every payment already recorded is kept.',
+  'proc.disconnectedStoppedMany':
+    'Disconnected, and {n} recurring payments stopped. Every payment already recorded is kept.',
+  'usr.chaptersReadFailed': 'Could not read this family’s chapters: {error}',
+  'usr.chapterSavedMovedOne': 'Chapter saved. 1 relative without an account moved with them.',
+  'usr.chapterSavedMovedMany': 'Chapter saved. {n} relatives without an account moved with them.',
+  'cht.loadRoomFailed': 'Failed to load room: {error}',
+  'cht.createRoomFailed': 'Failed to create room: {error}',
+  'cht.enrollFailed': 'Failed to enroll members: {error}',
+  'dues.driveVisibleToEveryone':
+    'The drive was created, but it is VISIBLE TO EVERYONE — {reason} Open it and set who it is for.',
+  'dues.requiredCannotOptOut': '{schedule} is a required due, so it cannot be opted out of.',
+  'gal.fileTooLarge': '{name} is larger than 10 MB.',
+  'gal.albumGoneFilesLeftOne':
+    'The album is gone, but 1 of its image files could not be removed from storage. It is no longer listed anywhere; tell an administrator so it can be swept.',
+  'gal.albumGoneFilesLeftMany':
+    'The album is gone, but {n} of its image files could not be removed from storage. They are no longer listed anywhere; tell an administrator so they can be swept.',
+  'jrn.firstNoteNotSaved': 'the first note was not saved',
+  'jrn.entryCreatedPartial': 'The entry was created, but {what}. Open it and add what is missing.',
+  'meet.secretaryUnderEighteen': '{name} is under eighteen. Minutes have to be taken by an adult.',
+  'meet.guestUnderEighteenOne':
+    '{name} is under eighteen. Only adults can be added to a meeting by name.',
+  'meet.guestUnderEighteenMany':
+    '{names} are under eighteen. Only adults can be added to a meeting by name.',
+  'fam.alreadyBelongTo': 'You already belong to {family}.',
+  'fam.requestStillAwaiting': 'Your request to join {family} is still awaiting approval.',
+  'reg.invitationSentToAddress':
+    'This invitation was sent to {email}. Register with that address.',
+  'safety.requeuedOne': '1 relative will be asked again',
+  'safety.requeuedMany': '{n} relatives will be asked again',
+  'sms.confirmationBody':
+    'Your {app} confirmation code is {code}. It expires in {minutes} minutes.',
+  'sms.codeSentToEnding': 'Code sent to the number ending {last4}.',
+  'stf.noAccountUses':
+    'No account uses {email}. They have to register before they can be granted access.',
+  'stf.reasonTooLong': 'Keep the reason under {max} characters',
+  'stf.alreadyHasAccess':
+    '{email} already has staff access. Change their access on their row instead.',
+  'drives.pastTheGoal': '{amount} past the goal',
+  'drives.fromYou': '{amount} from you',
+  'drives.raisedAmount': '{amount} raised',
+  'plan.nextDuePrefix': 'Next due',
+  'fnd.shareOfDues': '{percent} of dues',
+  'fnd.ofMinimum': 'of {amount} minimum',
+  'fnd.minimumBalanceIs': ' Minimum balance {amount}.',
+  'fnd.shareOfDuesPrefix': 'Share of dues',
+  'fnd.paidFromPrefix': 'Paid from',
+  'drives.giveTo': 'Give to {label}',
+  'drives.wouldMeetGoal': '{amount} would meet the goal — give what you like.',
+  'plan.paymentsRecordedOne': '1 payment recorded',
+  'plan.paymentsRecordedMany': '{n} payments recorded',
+  'access.runMigrations':
+    '{lede} Run the migrations in supabase/migrations. Until then access falls back to the old is_admin flag and nothing changed here takes effect.',
+  'access.regionsChaptersNational': 'Regions, chapters and National',
+  'appr.invitedBy': 'Invited by {name}',
+  'appr.expiresOn': 'expires {date}',
+  'agat.reopenConfirm':
+    'Reopen “{task}” on {gathering}? It goes back to {who}, who can then change the answer and submit it again. Nothing is erased — their answer stays on the task as a starting point and every submission stays in the record.',
+  'tmpl.noneYet': 'No gathering templates yet.',
+  'agat.noneYet': 'No gatherings yet.',
+  'bill.cardFailingSince':
+    'A card payment has been failing since {date}. Nothing has changed about what this family can reach. Update the card under {where} and Stripe will try again.',
+  'elec.waitingToBeAnswered': '{n} waiting to be answered',
+  'elec.votingClosedRange': 'Voting closed {range}.',
+  'elec.snapshotWhileOpen':
+    'A snapshot while the poll is open — nothing here is final until voting closes.',
+  'pos.noPositionYet': 'No position yet.',
+  'mpe.saveConfirm': 'Save your changes to {name}’s profile? They are not notified.',
+  'mpe.chapterNotSaved': 'The profile was saved, but the chapter was not: {reason}',
+  'mpe.chapterCouldNotBeSet': 'that chapter could not be set.',
+  'mpe.emailResetLede': 'Email {name} a link to choose a new password? ',
+  'login.stillNothing': 'Still nothing?',
+  'reg.startsOnFreeNote':
+    '{lede} Free. Nothing has been charged — sign in and {app} will ask you to set up {plan}.',
+  'reg.nothingChargedNow':
+    'Nothing is charged now. Once your family exists you will be asked to set up payment for {plan}, and you can stay on Free instead.',
+  'law.addedBy': '· added by {name}',
+  'law.notADocumentFormat': 'That is not {formats}. Choose another file.',
+  'cal.nothingInMonth': 'Nothing is on the calendar in {month}.',
+  'cal.whatIsOnCaption': 'What is on in {month}, one column per weekday.',
+  'chat.deleteConversationConfirm':
+    'Delete your conversation with {name}? The messages are removed and cannot be recovered.',
+  'chat.selectedOne': '1 member selected',
+  'chat.selectedMany': '{n} members selected',
+  'chat.addToGroupConfirm': 'Add {name} to “{group}”? They will be able to read the conversation.',
+  'chat.removeFromGroupConfirm':
+    'Remove {name} from “{group}”? They lose access to the conversation.',
+  'chat.deleteConversationAria': 'Delete conversation with {name}',
+  'cns.onlyOwnAccount':
+    '{lede} Only your own account details are used, and only to match this visit to an advertisement.',
+  'dash.chapter.theSelected': 'the selected chapter',
+  'dash.chapter.confirm':
+    'Set your chapter to {chapter}? Any sons or daughters under 18 who have no account of their own move with you.',
+  'drives.moreOpenOne': '1 more drive is open.',
+  'drives.moreOpenMany': '{n} more drives are open.',
+  'dash.link.confirm':
+    'Link {name}’s record to your account? Their history becomes yours, and this cannot be undone.',
+  'dash.finishPayingFor': 'Finish paying for {plan}',
+  'dash.tasksApprovedOne': '{approved} of 1 task approved',
+  'dash.tasksApprovedMany': '{approved} of {total} tasks approved',
+  'dash.raisedBy': 'Raised by {name}',
+  'dist.noDraftToComeBack':
+    'This goes out by email straight away. There is no draft to come back to.',
+  'docs.deleteNamedBody':
+    'Delete “{name}”? The file is removed for everyone. This cannot be undone.',
+  'proj.yearFromPrefix': 'Year from',
+  'proj.payingCount': '{n} paying',
+  'proj.helpWhoCounted': 'Help: who is counted in these figures',
+  'tree.otherChildren': 'Other children',
+  'tree.otherChildrenEmpty': 'Children whose other parent is not recorded appear here.',
+  'upg.partOfPlan': 'Part of {plan}',
+  'upg.everythingOnComesWith': 'Everything on {plan} comes with it.',
+  'upg.noAnnualNoContract': '. No annual plan, no contract.',
+  'upg.notOnSaleYet': ' Not on sale yet; nothing is billed today.',
+  'gath.answerInDollars': '{label}, in dollars',
+  'gath.answerOnePerLine': '{label}, one item per line',
+  'gath.needAnotherLook': '{n} need another look',
+  'gath.noTaskMatchesOne':
+    'No task matches what you are looking for. 1 task is on this gathering.',
+  'gath.noTaskMatchesMany':
+    'No task matches what you are looking for. {n} tasks are on this gathering.',
+  'gath.dateWithNoTasks': 'This will be a date on the family calendar with no tasks.',
+  'gath.allApprovedOne': 'The 1 task is approved',
+  'gath.allApprovedMany': 'All {n} tasks approved',
+  'hlp.tierBadgeBody':
+    'This is included in the {plan} plan, and your family is on a lower one. Everything below is accurate — the screen simply offers an upgrade instead of opening.',
+  'hlp.permissionBadgeBody':
+    'Your permission template does not include this screen, so opening it will say the page cannot be found. An administrator of your family can change that from Members.',
+  'inv.joinOnceApproved': 'They will join {family} once an administrator approves them.',
+  'account.menuFor': 'Account menu for {name}',
+  'switcher.viewingClickToSwitch': 'Viewing {family} — click to switch family',
+  'hlp.comingSoonBadgeBody':
+    'This part of the product has not shipped yet. The chapter describes what it will do; opening the screen today shows a Coming Soon notice.',
+  'dash.profile.body':
+    'Your relatives find you in the Member Directory, and there is not much there yet. Add {missing}.',
+  'idle.warningBody': 'You have been inactive for a while, so we are about to sign you out.',
+  'idle.signingOutIn': 'Signing out in',
+  'notify.waitingApprovalOne': '1 person is waiting for approval',
+  'notify.waitingApprovalMany': '{n} people are waiting for approval',
+  'notes.aFormerOfficer': 'a former officer',
+  'notes.startedByOn': 'Started by {name} · {date}',
+  'meet.ofInTheRoom': 'of {n} in the room',
+  'meet.voteFinalBody':
+    'Your vote on “{topic}” is recorded against your name and cannot be changed or withdrawn by anybody.',
+  'meet.voteChoice': 'Vote {choice}',
+  'dir.shownOfTotalOne': '{shown} of 1 member',
+  'dir.shownOfTotalMany': '{shown} of {total} members',
+  'rem.familyRemovedHeading': '{family} has been removed',
+  'rem.switchWithMenu': 'Switch with the family menu at the top of the page, or from',
+  'rem.stillOpenToYou': 'is still open to you, and so is the',
+  'rem.manual': 'manual',
+  'pend.welcomeBack': 'Welcome back, {name}!',
+  'fam.adminMustApprove':
+    'An administrator of {family} has to approve you before you can see anything in it. Your profile details are shared across every family you belong to.',
+  'fam.yesJoin': 'Yes, join {family}',
+  'fam.openByDefault': 'Open {family} by default when you log in?',
+  'profile.photo.replaceConfirm':
+    'Replace your profile photo with “{name}”? Your current photo is removed.',
+  'profile.photo.setConfirm': 'Use “{name}” as your profile photo?',
+  'profile.selectedChapter': 'selected',
+  'profile.confirm.chapterBody':
+    'Save your changes and move to the {chapter} chapter? Any sons or daughters under 18 who have no account of their own move with you.',
+  'sec.codeSentExpires': 'We sent an 8-digit code to {email}. It expires in an hour.',
+  'rep.nothingToShowAria': '{label}: nothing to show yet',
+  'rep.everyUnitCount':
+    'Every {unit} count in this breakdown, including any the chart folds together. ',
+  'safety.relativeOne': '1 relative',
+  'safety.relativesMany': '{n} relatives',
+  'safety.withNoEmail': ', {n} with no email',
+  'safety.willBeAskedOne': '1 relative will be asked.',
+  'safety.willBeAskedMany': '{n} relatives will be asked.',
+  'safety.noEmailPhoneOne':
+    '1 of them has no email address on file, so somebody will need to telephone them.',
+  'safety.noEmailPhoneMany':
+    '{n} of them have no email address on file, so somebody will need to telephone them.',
+  'staff.accessForAria': 'Access for {name}',
+  'staff.revokeAccessAria': 'Revoke staff access for {name}',
+  'staff.neverRegistered':
+    '{lede} Nobody has ever registered it. If they were invited, the invitation is below.',
+  'staff.noAddressMatches': 'No address on this page contains “{query}”.',
+  'staff.never': 'never',
+  'staff.restoreBody':
+    '{code} becomes reachable again immediately: its members can sign in to it, its family code works, and its invitations resolve. Nothing was deleted when it was removed, so every record it holds comes back with it.',
+  'staff.noFamilyMatches': 'No family matches “{query}”.',
+  'cf.confirmWithPassword': 'Confirm with your password',
+  'cf.sixDigitsEmailed':
+    'The six digits we emailed to {email}. It can be used once, and five wrong tries cancel it.',
+  'pp.nobodyElseYet': 'Nobody else in the family yet.',
+  'pp.moreMatchKeepTyping': '{n} more match — keep typing',
+  'time.yourTime': '{time} your time',
+  'upd.announcementsNotIncluded':
+    'This list is what has been sent to you. Family announcements are not included, because your family has not given you the board — see',
+  'upd.showOlder': 'Show {n} older',
+  'act.relativeHasDied':
+    'That relative has died, so there is no birthday to greet.',
+  'gath.daysFromOne': '1 day from {date}',
+  'gath.daysFromMany': '{n} days from {date}',
+  'access.membersOnCardOne': '1 member',
+  'access.membersOnCardMany': '{n} members',
+  'chat.participantsOne': '1 member',
+  'chat.participantsMany': '{n} members',
+  'dues.schedulesOne': '1 schedule',
+  'dues.schedulesMany': '{n} schedules',
+  'gath.seriesTwo': '{first}, {second}',
+  'gath.seriesOneAndMore': '{first} and {n} more',
+  'gath.seriesTwoAndMore': '{first}, {second} and {n} more',
+  'dues.requiredWord': 'required',
+  'dues.optionalWord': 'optional',
+  'fnd.balanceWord': 'balance',
+  'col.schedule': 'Schedule',
+  'col.member': 'Member',
+  'col.status': 'Status',
+  'col.date': 'Date',
+  'col.actions': 'Actions',
+  'field.chapterLabel': 'Chapter',
+  'cal.todaySrOnly': ' — today',
+  'cal.goToMonth': 'Go to {month}',
+  'bill.monthsSuffix': ' · {n} months',
+  'hlp.planBadge': '{plan} plan',
+  'hlp.badgeComingSoon': 'Coming soon',
+  'hlp.badgeNotInAccess': 'Not in your access',
   // ── TIME ZONES ─────────────────────────────────────────────────────────────
   // Keyed on the IANA name, which is what `people.time_zone` stores — see
   // `timezoneLabel` in lib/date-utils.ts. The bracketed abbreviations are the ones
@@ -301,6 +1314,39 @@ export const en: Catalogue = {
   'tz.Australia/Sydney': 'Sydney (AEST/AEDT)',
   'tz.Pacific/Auckland': 'New Zealand (NZST/NZDT)',
 
+  // ── DOCUMENT TITLES, 2026-08-31 ────────────────────────────────────────────
+  // The browser TAB, which is not always the <h1>: a tab has no rail above it to say
+  // where it is, so thirteen of these disambiguate against a sibling route. Every other
+  // screen's tab reuses its own `page.<route>.title` and so cannot drift from its
+  // heading — see `lib/i18n/page-metadata.ts` for why that is one key and not two, and
+  // for the measurement that retired the note below.
+  'doc./admin/accounting.title': 'Accounting — Admin',
+  'doc./admin/elections.title': 'Elections — Admin',
+  'doc./admin/elections/[id].title': 'Election',
+  'doc./admin/gatherings.title': 'Gatherings — Admin',
+  'doc./admin/gatherings/[id].title': 'Gathering — Admin',
+  'doc./community/elections/[id].title': 'Election',
+  'doc./community/gallery/[id].title': 'Album',
+  'doc./gatherings/[id].title': 'Gathering',
+  'doc./library/meeting-minutes/[id].title': 'Meeting',
+  'doc./reporting/board.title': 'Board & Offices Report',
+  'doc./reporting/elections.title': 'Elections Report',
+  'doc./reporting/gatherings.title': 'Gatherings Report',
+  'doc./reporting/meetings.title': 'Meetings Report',
+  'doc./community/distributions.title': 'Distributions',
+  'doc./community/gallery.title': 'Gallery',
+  'doc./community/safety-check-ins.title': 'Safety Check-Ins',
+  'doc./library/bylaws.title': 'Bylaws',
+  'doc./library/meeting-minutes.title': 'Meeting Minutes',
+  'doc./dashboard.title': 'Dashboard',
+  'doc./update-password.title': 'Choose a New Password',
+  'doc./invite.title': 'Invitation',
+  // ── THE STAFF CONSOLE'S HEADINGS, 2026-08-31 ───────────────────────────────
+  // Four of these were bare JSX literals, which the prose gate cannot see.
+  'page./staff.title': '{app} staff console',
+  'page./staff/access.title': 'Access',
+  'page./staff/accounts.title': 'Accounts',
+  'page./staff/families.title': 'Families',
   // ── PAGE HEADINGS ────────────────────────────────────────────────────────────────
   // The `<h1>` at the top of each screen, keyed on its ROUTE — which §1 makes the same string
   // as its permission key, so `page.<key>.title` needs no lookup table.
@@ -313,12 +1359,19 @@ export const en: Catalogue = {
   // `/admin/members` is "Members" in both but "Members & Access" in the manual, and
   // `/library/officer-notes` had drifted outright (see below).
   //
-  // THE DOCUMENT TITLE IS NOT HERE YET, deliberately. `export const metadata` is static, so
-  // translating a tab title means `generateMetadata`, which has no `user` and would have to make
-  // its own GoTrue `getUser()` call — doubling the auth round trips on every page load to
-  // translate a browser tab. Deferred as a decision rather than an omission; the alternative
-  // (falling back to `Accept-Language` there) would print a Spanish tab over an English page for
-  // anybody whose browser and stored choice disagree, which is worse than English.
+  // THE DOCUMENT TITLE IS HERE NOW, AND THE COST IT WAS DEFERRED OVER DID NOT EXIST. This note
+  // used to say translating a tab title meant `generateMetadata`, "which has no `user` and would
+  // have to make its own GoTrue `getUser()` call — doubling the auth round trips on every page
+  // load to translate a browser tab". Measured 2026-08-31: `currentUser()` and `callerI18n()`
+  // are both `cache()`d, Next scopes that cache to one REQUEST, and `generateMetadata` runs
+  // inside the page's own request — so it is a map lookup, and it resolves the same
+  // `people.locale` the page's `t` came from rather than falling back to `Accept-Language`.
+  // `lib/i18n/page-metadata.ts` carries the measurement and the negative control.
+  //
+  // Most tabs reuse the heading key below, so the two cannot drift. `/library/officer-notes` is
+  // why that matters: its heading key had been corrected to "Officer Notes" when the section was
+  // renamed and its static tab title still read "Officer". Thirteen tabs genuinely differ, and
+  // those carry `doc.<route>.title` — see the block above.
   'page./accounting/dues-and-donations.title': 'Dues & Donations',
   'page./accounting/summary.title': 'Summary',
   'page./accounting/transactions.title': 'Transactions',

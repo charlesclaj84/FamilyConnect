@@ -3,8 +3,11 @@ import { listStaffTeam } from '@/app/actions/staff/access'
 import { StaffAccessClient } from '@/components/staff/StaffAccessClient'
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Access' }
+export async function generateMetadata() {
+  return docTitle('page./staff/access.title')
+}
 
 /**
  * Who can open this console, and the screen that changes it.
@@ -76,7 +79,7 @@ export default async function StaffAccessPage() {
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Access</h1>
+        <h1 className="mb-1 text-3xl font-bold">{t('page./staff/access.title')}</h1>
         <p className="max-w-3xl text-muted-foreground">{t('stf.everybodyWhoCanOpen')}<code className="rounded bg-muted px-1 py-0.5 text-xs">supabase/scripts/grant_staff.sql</code>,
           because there has to be somebody able to open this screen before it can grant
           anything.

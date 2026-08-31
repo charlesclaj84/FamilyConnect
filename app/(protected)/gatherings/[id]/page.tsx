@@ -15,8 +15,11 @@ import { GatheringDetailClient } from '@/components/gatherings/GatheringDetailCl
 import { PlanningUpsell } from '@/components/gatherings/PlanningUpsell'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Gathering' }
+export async function generateMetadata() {
+  return docTitle('doc./gatherings/[id].title')
+}
 
 /**
  * One gathering: what it is, when and where, what it costs, and every job in it.
@@ -94,8 +97,8 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
         isContinuous: gathering.isContinuous,
         occurrences: gathering.occurrences,
         timeZone: gathering.timeZone,
-      })
-    : formatWhenBrief(gathering)
+      }, intl, t)
+    : formatWhenBrief(gathering, intl, t)
 
   return (
     <PageShell className="space-y-8">
@@ -145,6 +148,7 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
               <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               <StatedTime
                 intl={intl}
+                t={t}
                 day={gathering.startsOn}
                 time={gathering.startTime}
                 endTime={gathering.endTime}

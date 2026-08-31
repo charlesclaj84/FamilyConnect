@@ -1,10 +1,24 @@
 import { describe, expect, it } from 'vitest'
 
+import { tFor } from '@/lib/i18n/catalogues'
 import {
   formatWhen, normaliseDate, normaliseTime, normaliseWhen, timeLabelFor,
   whenEnvelope, whenProblems, whenToCalendarSpans,
   type GatheringOccurrence, type GatheringWhen,
 } from './gathering-when'
+
+/**
+ * `formatWhen` takes the reader's `Intl` tag and a translator as of 2026-08-31 — see the note on
+ * the function for why: without them `formatDate` fell through to its English default and every
+ * gathering's dates rendered in English for every reader, which no static gate could see.
+ *
+ * These assertions are about the ENGLISH shape of the output, so the wrapper pins `'en-US'` and
+ * resolves the REAL English catalogue. A stub `t` returning the key would make the series
+ * assertion read `gath.andMore` and prove nothing about the sentence.
+ */
+const EN = 'en-US'
+const tEn = tFor('en')
+const whenText = (w: GatheringWhen) => formatWhen(w, EN, tEn)
 
 /**
  * ── MUTATION-CHECKED, per AGENTS.md §7b: "a green run is not evidence until you have seen it
@@ -250,39 +264,39 @@ describe('timeLabelFor', () => {
 
 describe('formatWhen', () => {
   it('is a plain date for one day with no time', () => {
-    expect(formatWhen(when(true, occ('2026-07-04')))).toBe('July 4, 2026')
+    expect(whenText(when(true, occ('2026-07-04')))).toBe('July 4, 2026')
   })
 
   it('appends the time where there is one', () => {
-    expect(formatWhen(when(true, occ('2026-07-04', '11:00', null, '16:00'))))
+    expect(whenText(when(true, occ('2026-07-04', '11:00', null, '16:00'))))
       .toBe('July 4, 2026 · 11:00 AM – 4:00 PM CDT')
   })
 
   it('is a range for a continuous span', () => {
-    expect(formatWhen(when(true, occ('2026-07-03', null, '2026-07-05'))))
+    expect(whenText(when(true, occ('2026-07-03', null, '2026-07-05'))))
       .toBe('July 3\u2009\u2013\u20095, 2026')
   })
 
   it('NAMES the occasions for a series rather than ranging over them', () => {
     // "July 4th – July 18th, 2026" would claim a fortnight the family is not gathering for,
     // which is the exact misreading this whole feature exists to fix.
-    expect(formatWhen(when(false, occ('2026-07-04'), occ('2026-07-11'), occ('2026-07-18'))))
+    expect(whenText(when(false, occ('2026-07-04'), occ('2026-07-11'), occ('2026-07-18'))))
       .toBe('July 4, July 11 and 1 more')
   })
 
   it('names two and counts the rest', () => {
-    expect(formatWhen(when(false,
+    expect(whenText(when(false,
       occ('2026-07-04'), occ('2026-07-11'), occ('2026-07-18'), occ('2026-07-25'))))
       .toBe('July 4, July 11 and 2 more')
   })
 
   it('summarises a series CHRONOLOGICALLY whatever order it was entered in', () => {
-    expect(formatWhen(when(false, occ('2026-07-18'), occ('2026-07-04'))))
+    expect(whenText(when(false, occ('2026-07-18'), occ('2026-07-04'))))
       .toBe('July 4, July 18')
   })
 
   it('is null with nothing to say', () => {
-    expect(formatWhen(when(true))).toBeNull()
+    expect(whenText(when(true))).toBeNull()
   })
 })
 
@@ -342,7 +356,7 @@ describe('formatWhen names the stated zone', () => {
   it('appends the abbreviation beside a time', () => {
     // The PRIMARY half of the display rule: what the family said, with the zone that makes it
     // unambiguous. July, so Central is on daylight time and reads CDT.
-    expect(formatWhen(when(true, occ('2026-07-04', '11:00'))))
+    expect(whenText(when(true, occ('2026-07-04', '11:00'))))
       .toBe('July 4, 2026 · from 11:00 AM CDT')
   })
 
@@ -350,18 +364,18 @@ describe('formatWhen names the stated zone', () => {
     // A January gathering reads CST whenever the page is loaded. Reading the clock instead
     // would print CDT on a winter reunion opened in summer — the kind of detail a reader checks
     // and the reason `withZone` takes the occasion's own date.
-    expect(formatWhen(when(true, occ('2026-01-10', '11:00'))))
+    expect(whenText(when(true, occ('2026-01-10', '11:00'))))
       .toBe('January 10, 2026 · from 11:00 AM CST')
   })
 
   it('says nothing where there is no zone', () => {
     // A row written before 20260826000003 may legitimately have none. Guessing Central or
     // printing "undefined" would both be worse than silence.
-    expect(formatWhen(whenNoZone(true, occ('2026-07-04', '11:00'))))
+    expect(whenText(whenNoZone(true, occ('2026-07-04', '11:00'))))
       .toBe('July 4, 2026 · from 11:00 AM')
   })
 
   it('adds no suffix to a date with no time', () => {
-    expect(formatWhen(when(true, occ('2026-07-04')))).toBe('July 4, 2026')
+    expect(whenText(when(true, occ('2026-07-04')))).toBe('July 4, 2026')
   })
 })

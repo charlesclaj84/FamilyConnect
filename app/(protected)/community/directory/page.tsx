@@ -7,6 +7,7 @@ import { MemberDirectoryClient } from '@/components/members/MemberDirectoryClien
 import { PageShell } from '@/components/layout/PageShell'
 import { Button } from '@/components/ui/button'
 import { callerI18n } from '@/lib/i18n/server'
+import { docTitle } from '@/lib/i18n/page-metadata'
 import { currentUser } from '@/lib/auth/current-user'
 
 // "Directory", not "Member Directory". It sits under a Community heading in the rail,
@@ -14,7 +15,9 @@ import { currentUser } from '@/lib/auth/current-user'
 // family — so the qualifier was restating its own section. The ROUTE and the RESOURCE
 // KEY both stay `members`: that string is the permission key in permission_resources,
 // permission_table_map and every grant already issued.
-export const metadata = { title: 'Directory' }
+export async function generateMetadata() {
+  return docTitle('page./community/directory.title')
+}
 
 export default async function MembersPage() {
   const { user } = await currentUser()

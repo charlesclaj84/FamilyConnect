@@ -145,8 +145,7 @@ export function UpdatesArchiveClient({
 
       {!announcementsIncluded && (
         <p className="rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-          This list is what has been sent to you. Family announcements are not included, because
-          your family has not given you the board — see{' '}
+          {t('upd.announcementsNotIncluded')}{' '}
           <Link href="/help/who-can-do-what#missing">{t('ui.whoCanDoWhat')}</Link>.
         </p>
       )}
@@ -211,7 +210,9 @@ export function UpdatesArchiveClient({
             </p>
             {hasMore && !atCeiling && (
               <Button variant="outline" disabled={pending} onClick={() => go({ pages: pages + 1 })}>
-                {pending ? t('action.loading') : `Show ${UPDATES_PAGE_SIZE} older`}
+                {pending
+                  ? t('action.loading')
+                  : t('upd.showOlder', { n: String(UPDATES_PAGE_SIZE) })}
               </Button>
             )}
             {/* THE CEILING IS SAID OUT LOUD. A list that stops while looking complete is how

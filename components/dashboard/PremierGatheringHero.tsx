@@ -167,7 +167,9 @@ export function PremierGatheringHero({ gathering, t }: {
                 has not got one. */}
             {total > 0 && (
               <p className="tabular-nums">
-                {approved} of {total} {total === 1 ? 'task' : 'tasks'} approved
+                {t(total === 1 ? 'dash.tasksApprovedOne' : 'dash.tasksApprovedMany', {
+                  approved: String(approved), total: String(total),
+                })}
               </p>
             )}
           </div>

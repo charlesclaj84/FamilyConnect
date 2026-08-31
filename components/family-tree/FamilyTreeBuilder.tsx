@@ -393,10 +393,10 @@ export function FamilyTreeBuilder({
   async function detach(edge: TreeEdge, personName: string) {
     const ok = await confirm({
       title: t('tree.removeConnection'),
-      description:
-        `Remove the link between ${nameOf.get(focus!.id) ?? 'this person'} and ${personName}? `
-        + 'This only removes the connection — nobody is removed from the family, and '
-        + 'nothing they have recorded is deleted.',
+      description: t('tree.removeLinkConfirm', {
+        a: nameOf.get(focus!.id) ?? t('tree.thisPerson'),
+        b: personName,
+      }),
       confirmLabel: t('tree.removeConnectionAction'),
       destructive: true,
     })
@@ -569,8 +569,11 @@ export function FamilyTreeBuilder({
           </div>
           <p className="text-xs text-muted-foreground">
             {showingBlood
-              ? `Showing the ${bloodline!.size} people descended from this family's line. Spouses, step and adopted relatives are hidden.`
-              : `Everyone in the family — ${tree.people.length} people, ${bloodline!.size} of them by blood.`}
+              ? t('tree.showingBloodline', { n: String(bloodline!.size) })
+              : t('tree.showingEveryone', {
+                  total: String(tree.people.length),
+                  blood: String(bloodline!.size),
+                })}
           </p>
           {/* THE TOGGLE IS THE MOST MISREAD CONTROL ON THIS PAGE, which is why it gets one
               of the seven placed help links in the app. The sentence beside it says what is
@@ -720,8 +723,7 @@ export function FamilyTreeBuilder({
           one that starts empty, so it says so and offers the way back. */}
       {openedElsewhere && (
         <p className="text-xs text-muted-foreground">
-          You have no parents or children recorded yet, so this opens on your family rather
-          than on an empty page.{' '}
+          {t('tree.openedElsewhere')}{' '}
           <button
             type="button"
             onClick={() => setFocusId(tree.myPersonId!)}
@@ -786,8 +788,10 @@ export function FamilyTreeBuilder({
                   const who = parent.firstName || displayName(parent)
                   return (
                     <Fragment key={parent.id}>
-                      {!hasDad && addButton(parent, t('tree.father'), `Add ${who}'s father`)}
-                      {!hasMum && addButton(parent, t('tree.mother'), `Add ${who}'s mother`)}
+                      {!hasDad && addButton(parent, t('tree.father'),
+                        t('tree.addSomeonesFather', { who }))}
+                      {!hasMum && addButton(parent, t('tree.mother'),
+                        t('tree.addSomeonesMother', { who }))}
                     </Fragment>
                   )
                 })}
@@ -838,7 +842,9 @@ export function FamilyTreeBuilder({
                 building a tree. */}
             <div className="flex flex-wrap gap-2">
               {TREE_RELATIONSHIPS.filter(r => r.relation === 'spouse' && !r.type.startsWith('Ex-'))
-                .map(r => addButton(focus, r.type, spouses.length > 0 ? `Add another ${r.label.toLowerCase()}` : undefined))}
+                .map(r => addButton(focus, r.type, spouses.length > 0
+                  ? t('tree.addAnother', { relation: r.label.toLowerCase() })
+                  : undefined))}
             </div>
           </Generation>
 
@@ -865,8 +871,10 @@ export function FamilyTreeBuilder({
                 {marriages.map(({ spouse, children: theirs }) => (
                   <MarriageGroup
                     key={spouse.id}
-                    caption={`With ${displayName(spouse)}`}
-                    empty={`No children recorded with ${spouse.firstName || displayName(spouse)}.`}
+                    caption={t('tree.withPerson', { name: displayName(spouse) })}
+                    empty={t('tree.noChildrenWith', {
+                      name: spouse.firstName || displayName(spouse),
+                    })}
                     hasChildren={theirs.length > 0}
                     canAct={canAct}
                   >
@@ -885,8 +893,8 @@ export function FamilyTreeBuilder({
                     definition of this group is a child the tree cannot attribute. */}
                 {(unattributedChildren.length > 0 || canAct) && (
                   <MarriageGroup
-                    caption="Other children"
-                    empty="Children whose other parent is not recorded appear here."
+                    caption={t('tree.otherChildren')}
+                    empty={t('tree.otherChildrenEmpty')}
                     hasChildren={unattributedChildren.length > 0}
                     canAct={canAct}
                   >
@@ -945,7 +953,9 @@ export function FamilyTreeBuilder({
       {(siblings.length > 0 || canAct) && (
         <section className="rounded-2xl border bg-card p-5 shadow-[var(--shadow-card)]">
           <h2 className="mb-1 text-lg">
-            {focus.firstName ? `${focus.firstName}'s brothers and sisters` : t('tree.siblings')}
+            {focus.firstName
+              ? t('tree.someonesSiblings', { name: focus.firstName })
+              : t('tree.siblings')}
           </h2>
           <p className="mb-4 text-sm text-muted-foreground">{t('ui.siblingsSharePersonS')}</p>
           <div className="flex flex-wrap gap-3">
@@ -983,9 +993,11 @@ export function FamilyTreeBuilder({
             </span>
           </h2>
           <p className="mb-4 text-sm text-muted-foreground">
-            {leaves.length === 1 ? t('tree.thisPersonIs') : t('tree.thesePeopleAre')} in the family but
-            not connected to anybody, so they do not appear anywhere above. Click a name to
-            centre the tree on them, then fill in the relatives around them.
+            {t('tree.unattachedLede', {
+              who: leaves.length === 1
+                ? t('tree.thisPersonIs')
+                : t('tree.thesePeopleAre'),
+            })}
           </p>
           <div className="flex flex-wrap gap-3">
             {/* No `edge`, so no detach control — there is nothing to detach, which is the
@@ -1017,8 +1029,7 @@ export function FamilyTreeBuilder({
           </span>
         </h2>
         <p className="mb-4 text-sm text-muted-foreground">
-          The tree above shows the four generations around one person. Click anybody here to
-          centre it on them.
+          {t('tree.rosterLede')}
           {showingBlood && ' This list follows the Bloodline filter too.'}
         </p>
         <div className="flex flex-wrap gap-2">
@@ -1217,7 +1228,7 @@ function GenerationCards({ people, render }: {
       {shown.map(render)}
       {hidden > 0 && (
         <p className="max-w-[10rem] self-center text-center text-xs text-muted-foreground">
-          + {hidden} more in this generation. Find them under{' '}
+          {t('tree.moreInGeneration', { n: String(hidden) })}{' '}
           <span className="font-medium">{t('tree.everyone')}</span> below.
         </p>
       )}
@@ -1350,7 +1361,7 @@ function PersonCard({ person, name, caption, highlight, inBloodline, onFocus, on
           onClick={onManage}
           disabled={busy}
           title={t('tree.editOrInvite')}
-          aria-label={`Edit ${name}'s record, or invite them`}
+          aria-label={t('tree.editRecordAria', { name })}
           className="absolute -left-1.5 -top-1.5 rounded-full border bg-card p-1 text-muted-foreground shadow-sm transition-colors hover:text-brand-accent disabled:opacity-50"
         >
           <Pencil className="h-3 w-3" aria-hidden="true" />
@@ -1363,7 +1374,7 @@ function PersonCard({ person, name, caption, highlight, inBloodline, onFocus, on
           onClick={onDetach}
           disabled={busy}
           title={t('tree.removeConnection')}
-          aria-label={`Remove the connection to ${name}`}
+          aria-label={t('tree.removeConnectionAria', { name })}
           className="absolute -right-1.5 -top-1.5 rounded-full border bg-card p-1 text-muted-foreground shadow-sm transition-colors hover:text-destructive disabled:opacity-50"
         >
           <Unlink className="h-3 w-3" aria-hidden="true" />

@@ -1,5 +1,6 @@
 'use client'
 
+import type { T } from '@/lib/i18n/t'
 import { useMemo, useState, useTransition } from 'react'
 import { CheckCircle, Clock, Plus, UserPlus, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -114,14 +115,23 @@ export function NominationBoard({
       // WHAT IT SAYS DEPENDS ON WHETHER ANYBODY ELSE NOMINATED THEM, because the two cases
       // have different consequences and a member pressing this has to know which one they
       // are in. With others behind it the candidate stays on the ballot; alone, they come off.
+      // The office name is the family's own word; `elec.thisPosition` is the fallback for a
+      // nomination whose position row has not loaded, and it is a KEY rather than an inline
+      // string because it lands mid-sentence in three languages.
       description: isMe
-        ? `Stand down from ${position?.title ?? 'this position'}?`
+        ? t('elec.standDownFrom', { position: position?.title ?? t('elec.thisPosition') })
         : others > 0
-          ? `${nomination.nominee_name} was also nominated by ${others} other `
-            + `${others === 1 ? 'member' : 'members'}, so they stay on the ballot for `
-            + `${position?.title ?? 'this position'} — only your name comes off.`
-          : `You are the only person who nominated ${nomination.nominee_name} for `
-            + `${position?.title ?? 'this position'}, so they will come off the ballot.`,
+          ? t(others === 1
+              ? 'elec.retractOthersStayOne'
+              : 'elec.retractOthersStayMany', {
+              name: nomination.nominee_name,
+              n: String(others),
+              position: position?.title ?? t('elec.thisPosition'),
+            })
+          : t('elec.retractOnlySupporter', {
+              name: nomination.nominee_name,
+              position: position?.title ?? t('elec.thisPosition'),
+            }),
       confirmLabel: isMe ? t('elec.withdraw') : t('elec.takeMyNameOff'),
       destructive: true,
     })
@@ -168,8 +178,10 @@ export function NominationBoard({
                     <p className="text-xs text-muted-foreground mt-0.5">
                       {standing.length === 0
                         ? t('elec.nobodyNominated')
-                        : `${standing.length} ${standing.length === 1 ? 'person' : 'people'} nominated`}
-                      {position.max_winners > 1 && ` · ${position.max_winners} to be elected`}
+                        : t(standing.length === 1 ? 'elec.standingOne' : 'elec.standingMany',
+                            { n: String(standing.length) })}
+                      {position.max_winners > 1
+                        && ` · ${t('elec.toBeElected', { n: String(position.max_winners) })}`}
                     </p>
                   </div>
                   <Button size="sm" variant="affirm" disabled={isPending}
@@ -202,7 +214,7 @@ export function NominationBoard({
                           <p className="text-xs text-muted-foreground mt-0.5">
                             {nomination.accepted === true ? t('elec.accepted') : t('elec.waitingAnswer')}
                             {' · '}
-                            {nominatedByLabel(nomination)}
+                            {nominatedByLabel(nomination, t)}
                           </p>
                         </div>
                         {nomination.retractable && (
@@ -227,10 +239,12 @@ export function NominationBoard({
       <Dialog
         open={openFor !== null}
         onClose={() => setOpenFor(null)}
-        title={openFor ? `Nominate for ${openFor.title}` : t('elec.nominate')}
+        title={openFor
+          ? t('elec.nominateFor', { position: openFor.title })
+          : t('elec.nominate')}
         description={election.scope === 'national'
           ? t('elec.anybodyMayBe')
-          : `Only ${election.scope_label} may be nominated in this election.`}
+          : t('elec.onlyAreaMayBeNominated', { where: election.scope_label })}
       >
         {openFor && (
           <div className="space-y-4">
@@ -266,7 +280,7 @@ export function NominationBoard({
               value={nomineeId}
               onChange={setNomineeId}
               label={t('elec.whoNominating')}
-              emptyMessage={`Nobody in ${election.scope_label} can be nominated yet.`}
+              emptyMessage={t('elec.nobodyInAreaYet', { where: election.scope_label })}
             />
 
             <FormError message={dialogError} />
@@ -294,13 +308,19 @@ export function NominationBoard({
  * what the withdraw control on the same row is about, and a row that offers "take my name
  * off" without saying your name is on it is asking somebody to take it on trust.
  */
-function nominatedByLabel(n: ElectionNomination): string {
+function nominatedByLabel(n: ElectionNomination, t: T): string {
   const others = n.nominator_count - (n.i_nominated ? 1 : 0)
-  if (n.i_nominated && others === 0) return 'nominated by you'
-  if (n.i_nominated) return `nominated by you and ${others} ${others === 1 ? 'other' : 'others'}`
+  if (n.i_nominated && others === 0) return t('elec.nominatedByYou')
+  if (n.i_nominated) {
+    return others === 1
+      ? t('elec.nominatedByYouAndOne')
+      : t('elec.nominatedByYouAndMany', { n: String(others) })
+  }
   // A candidacy with no supporter rows is possible and legitimate — `nominated_by` is
   // nullable, so an organizer-authored nomination has nobody behind it — and "nominated by 0
   // members" is not a sentence.
-  if (n.nominator_count === 0) return 'on the ballot'
-  return `nominated by ${n.nominator_count} ${n.nominator_count === 1 ? 'member' : 'members'}`
+  if (n.nominator_count === 0) return t('elec.onTheBallot')
+  return n.nominator_count === 1
+    ? t('elec.nominatedByOne')
+    : t('elec.nominatedByMany', { n: String(n.nominator_count) })
 }

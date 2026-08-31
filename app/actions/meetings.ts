@@ -639,7 +639,7 @@ export async function scheduleMeeting(input: {
 }): Promise<{ success: boolean; id?: string; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  const { t } = g
+  const { t, intl } = g
   if (!(await canAny(g.userId, 'library/meeting-minutes', 'create'))) {
     return { success: false, message: t('act.notAuthorized') }
   }
@@ -699,7 +699,7 @@ export async function scheduleMeeting(input: {
   if (minorSecretary) {
     return {
       success: false,
-      message: `${minorSecretary} is under eighteen. Minutes have to be taken by an adult.`,
+      message: t('meet.secretaryUnderEighteen', { name: minorSecretary }),
     }
   }
   const minorGuests = additionalIds
@@ -709,8 +709,11 @@ export async function scheduleMeeting(input: {
     return {
       success: false,
       message: minorGuests.length === 1
-        ? `${minorGuests[0]} is under eighteen. Only adults can be added to a meeting by name.`
-        : `${minorGuests.join(', ')} are under eighteen. Only adults can be added to a meeting by name.`,
+        ? t('meet.guestUnderEighteenOne', { name: minorGuests[0] })
+        : t('meet.guestUnderEighteenMany', {
+            names: new Intl.ListFormat(intl, { style: 'long', type: 'conjunction' })
+              .format(minorGuests),
+          }),
     }
   }
 

@@ -100,7 +100,6 @@ const SERVER_ONLY_MODULES = [
  */
 const KNOWN_PRE_EXISTING = [
   'lib/supabase/admin.ts → SUPABASE_SERVICE_ROLE_KEY',
-  'lib/auth/permissions.ts → @/lib/supabase/admin',
   'lib/auth/tier.ts → @/lib/supabase/admin',
   'lib/auth/family.ts → @/lib/supabase/admin',
 ]

@@ -3,8 +3,11 @@ import { listStaffAccounts } from '@/app/actions/staff/accounts'
 import { StaffAccountsClient } from '@/components/staff/StaffAccountsClient'
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Accounts' }
+export async function generateMetadata() {
+  return docTitle('page./staff/accounts.title')
+}
 
 /**
  * Every sign-in account on the platform, and what is stopping any one of them signing in.
@@ -34,18 +37,21 @@ export const metadata = { title: 'Accounts' }
  */
 export default async function StaffAccountsPage() {
   const { t } = await callerI18n(null)
-  await requireStaff()
+  // THE ROLE, not just staffness — it decides whether the permanent account-delete
+  // control is rendered. Resolved here because `genorra_staff` has RLS with no
+  // policies and the browser cannot answer it.
+  const staff = await requireStaff()
 
   const initial = await listStaffAccounts({ page: 1 })
 
   return (
     <PageShell className="space-y-6">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">Accounts</h1>
+        <h1 className="mb-1 text-3xl font-bold">{t('page./staff/accounts.title')}</h1>
         <p className="max-w-3xl text-muted-foreground">{t('stf.everyAccountCanSign')}</p>
       </div>
 
-      <StaffAccountsClient initial={initial} />
+      <StaffAccountsClient initial={initial} isOwner={staff.role === 'owner'} />
     </PageShell>
   )
 }

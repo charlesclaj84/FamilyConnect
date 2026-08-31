@@ -11,8 +11,11 @@ import { PAGE_MEASURE } from '@/components/layout/PageShell'
 import { cn } from '@/lib/utils'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Chat' }
+export async function generateMetadata() {
+  return docTitle('page./community/chat.title')
+}
 
 /**
  * THE PAGE OWNS THE HEIGHT, and the shell now fills what is left of it.

@@ -141,15 +141,25 @@ function DonationRow({ donation: d, chargesReady, intl, t }: {
           <p className="text-xs text-muted-foreground">
             <span className="font-medium text-foreground">{formatCurrency(raisedCents, intl)}</span>
             {' raised of '}{formatCurrency(goalCents, intl)} · {progressPercent}%
-            {raisedCents > goalCents && ` — ${formatCurrency(raisedCents - goalCents, intl)} past the goal`}
-            {myGivenCents > 0 && ` · ${formatCurrency(myGivenCents, intl)} from you`}
+            {raisedCents > goalCents
+              && ` — ${t('drives.pastTheGoal', {
+                amount: formatCurrency(raisedCents - goalCents, intl),
+              })}`}
+            {myGivenCents > 0
+              && ` · ${t('drives.fromYou', {
+                amount: formatCurrency(myGivenCents, intl),
+              })}`}
           </p>
         </>
       ) : (
         // No goal set: there is nothing to draw a bar against, so just the total.
         <p className="text-xs text-muted-foreground">
           {raisedCents > 0
-            ? <><span className="font-medium text-foreground">{formatCurrency(raisedCents, intl)}</span> raised{myGivenCents > 0 && ` · ${formatCurrency(myGivenCents, intl)} from you`}</>
+            ? <>{t('drives.raisedAmount', {
+                amount: formatCurrency(raisedCents, intl),
+              })}{myGivenCents > 0 && ` · ${t('drives.fromYou', {
+                amount: formatCurrency(myGivenCents, intl),
+              })}`}</>
             : t('drives.noGoal')}
         </p>
       )}

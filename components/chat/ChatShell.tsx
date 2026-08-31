@@ -76,7 +76,7 @@ export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMem
       : 'this family member'
     const ok = await confirm({
       title: t('chat.deleteConversation'),
-      description: `Delete your conversation with ${withWhom}? The messages are removed and cannot be recovered.`,
+      description: t('chat.deleteConversationConfirm', { name: withWhom }),
       confirmLabel: t('chat.deleteConversation'),
       destructive: true,
     })

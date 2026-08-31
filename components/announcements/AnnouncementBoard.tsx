@@ -106,7 +106,7 @@ export function AnnouncementBoard({
   async function handleDelete(a: Announcement) {
     const ok = await confirm({
       title: t('ann.deleteTitle'),
-      description: `Delete “${a.title}”? Members will no longer see it, on the board or in their updates. This cannot be undone.`,
+      description: t('ann.deleteNamedBody', { title: a.title }),
       confirmLabel: t('action.delete'),
       destructive: true,
     })
@@ -124,9 +124,9 @@ export function AnnouncementBoard({
     const ok = await confirm({
       title: a.pinned ? t('ann.unpinAll') : t('ann.pinAll'),
       description: a.pinned
-        ? `Unpin “${a.title}”? It stays on this board and stops riding at the top of everyone’s Recent Updates.`
-        : `Pin “${a.title}” to the top of every member’s Recent Updates? Each of them can dismiss it for themselves afterwards.`,
-      confirmLabel: a.pinned ? 'Unpin' : 'Pin',
+        ? t('ann.unpinNamedBody', { title: a.title })
+        : t('ann.pinNamedBody', { title: a.title }),
+      confirmLabel: t(a.pinned ? 'ann.unpin' : 'ann.pin'),
     })
     if (!ok) return
     setError('')
@@ -205,9 +205,9 @@ export function AnnouncementBoard({
                         size="sm" variant="ghost" className="h-7 w-7 p-0"
                         disabled={isPending}
                         onClick={() => handlePinForMe(a)}
-                        aria-label={a.pinnedForMe
-                          ? `Hide “${a.title}” from the top of your own updates`
-                          : `Show “${a.title}” at the top of your own updates again`}
+                        aria-label={t(a.pinnedForMe
+                          ? 'ann.hideFromMyUpdates'
+                          : 'ann.showInMyUpdates', { title: a.title })}
                         title={a.pinnedForMe
                           ? t('dash.updates.unpin')
                           : t('dash.updates.pin')}
@@ -226,7 +226,9 @@ export function AnnouncementBoard({
                         size="sm" variant="ghost" className="h-7 w-7 p-0"
                         disabled={isPending}
                         onClick={() => handleTogglePin(a)}
-                        aria-label={a.pinned ? `Unpin “${a.title}” for everyone` : `Pin “${a.title}” for everyone`}
+                        aria-label={t(a.pinned
+                          ? 'ann.unpinForEveryone'
+                          : 'ann.pinForEveryone', { title: a.title })}
                         title={a.pinned ? t('ann.unpinAll') : t('ann.pinAll')}
                       >
                         {a.pinned

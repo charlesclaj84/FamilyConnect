@@ -83,7 +83,7 @@ export function FamilySwitcher({ families }: {
         //
         // --brand-soft / --brand-on-soft is a checked pair (7.31) in both themes.
         className="flex max-w-[8rem] items-center gap-1.5 rounded-full bg-brand-soft px-2.5 py-1.5 text-sm font-medium text-brand-on-soft shadow-sm transition-opacity hover:opacity-90 disabled:opacity-60 sm:max-w-[14rem] sm:px-3"
-        title={`Viewing ${active.familyName} — click to switch family`}
+        title={t('switcher.viewingClickToSwitch', { family: active.familyName })}
       >
         <Home className="h-4 w-4 shrink-0" />
         <span className="min-w-0 flex-1 truncate text-left font-medium">

@@ -148,9 +148,7 @@ export function JoinFamilyDialog() {
             </div>
 
             <p className="text-sm text-muted-foreground">
-              An administrator of {step.familyName} has to approve you before you can see
-              anything in it. Your profile details are shared across every family you
-              belong to.
+              {t('fam.adminMustApprove', { family: step.familyName })}
             </p>
 
             <FormError message={error} />
@@ -170,7 +168,9 @@ export function JoinFamilyDialog() {
                 onClick={commit}
                 className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
               >
-                {isPending ? t('fam.joining') : `Yes, join ${step.familyName}`}
+                {isPending
+                  ? t('fam.joining')
+                  : t('fam.yesJoin', { family: step.familyName })}
               </button>
             </div>
           </div>

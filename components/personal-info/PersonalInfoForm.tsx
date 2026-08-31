@@ -130,8 +130,8 @@ function AvatarUpload({ initials, existingUrl, allowed }: {
     const ok = await confirm({
       title: existingUrl ? t('profile.photo.replaceLong') : t('profile.photo.setLong'),
       description: existingUrl
-        ? `Replace your profile photo with "${file.name}"? Your current photo is removed.`
-        : `Use "${file.name}" as your profile photo?`,
+        ? t('profile.photo.replaceConfirm', { name: file.name })
+        : t('profile.photo.setConfirm', { name: file.name }),
       confirmLabel: existingUrl ? t('profile.photo.replace') : t('profile.photo.set'),
     })
     if (!ok) { if (fileRef.current) fileRef.current.value = ''; return }
@@ -429,7 +429,10 @@ function GeneralSection({
         // SAYS WHAT MOVES. There is no household here (AGENTS.md §4b: one kind of `people`
         // row), and what follows a member is narrower than one: a son or daughter under
         // eighteen with no account of their own.
-        ? `Save your changes and move to the ${chapters.find(c => c.id === chapterId)?.name ?? 'selected'} chapter? Any sons or daughters under 18 who have no account of their own move with you.`
+        ? t('profile.confirm.chapterBody', {
+            chapter: chapters.find(c => c.id === chapterId)?.name
+              ?? t('profile.selectedChapter'),
+          })
         : t('profile.confirm.generalBody'),
       confirmLabel: t('action.saveChanges'),
     })
@@ -483,7 +486,9 @@ function GeneralSection({
             <Field label={t('field.gender')}         value={genderLabel(existing?.gender)} />
           </div>
           <ChapterBlock familyName={familyName} chapters={chapters}>
-            <p className="text-xs text-muted-foreground">Chapter</p>
+            <p className="text-xs text-muted-foreground">
+              {t('field.chapterLabel')}
+            </p>
             <p className="text-sm">
               {currentChapter?.name ?? <span className="text-muted-foreground">{t('action.notSet')}</span>}
             </p>

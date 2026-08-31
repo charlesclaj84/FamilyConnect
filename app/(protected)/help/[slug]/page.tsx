@@ -96,7 +96,7 @@ export default async function HelpChapterPage({ params }: Props) {
         <p className="text-muted-foreground">{chapter.summary}</p>
       </div>
 
-      <HelpAvailabilityNote availability={availability} />
+      <HelpAvailabilityNote availability={availability} t={t} />
 
       {showContents && (
         <nav aria-label={t('hlp.page')} className="rounded-xl border bg-card px-4 py-3">

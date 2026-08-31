@@ -144,7 +144,7 @@ export function CollectionView({
     const ok = await confirm({
       title: t('gal.deletePhoto'),
       description: photo.caption
-        ? `Delete “${photo.caption}”? It is removed for everyone, along with its tags, and the image file goes too. This cannot be undone.`
+        ? t('gal.deletePhotoNamedConfirm', { caption: photo.caption })
         : t('gal.deletePhotoBody'),
       confirmLabel: t('gal.deletePhoto'),
       destructive: true,
@@ -369,8 +369,13 @@ export function CollectionView({
             setUploadOpen(false)
             setNotice(
               failures.length === 0
-                ? `${count} photograph${count === 1 ? '' : 's'} added.`
-                : `${count} added. ${failures.length} did not: ${failures.join(' ')}`,
+                ? t(count === 1 ? 'gal.photographsAddedOne' : 'gal.photographsAddedMany',
+                    { n: String(count) })
+                : t('gal.addedSomeFailed', {
+                    added: String(count),
+                    failed: String(failures.length),
+                    reasons: failures.join(' '),
+                  }),
             )
             router.refresh()
           }}
@@ -434,7 +439,7 @@ function UploadDialog({ collectionId, onClose, onDone }: {
 
   return (
     <Dialog open onClose={busy ? () => {} : onClose} title={t('gal.addPhotos')}
-      description={`${formatList(IMAGE_FORMATS)}, up to 10 MB each.`}>
+      description={t('gal.formatsAndSize', { formats: formatList(IMAGE_FORMATS) })}>
       <div className="space-y-3">
         <input
           ref={inputRef}
@@ -451,14 +456,19 @@ function UploadDialog({ collectionId, onClose, onDone }: {
         {files.length > 0 && (
           <div className="rounded-lg border bg-muted/30 p-2.5 text-xs">
             <p className="font-medium">
-              {accepted.length} image{accepted.length === 1 ? '' : 's'} ready
+              {t(accepted.length === 1 ? 'gal.imagesReadyOne' : 'gal.imagesReadyMany',
+                { n: String(accepted.length) })}
             </p>
             {/* THE REFUSALS ARE LISTED BY NAME, never as a count. "3 files were skipped" makes
                 somebody open the picker again to work out which. */}
             {rejected.length > 0 && (
               <ul className="mt-1.5 space-y-0.5 text-brand-withheld">
                 {rejected.map(f => (
-                  <li key={f.name}>{f.name} is not {formatList(IMAGE_FORMATS)} — it will be skipped.</li>
+                  <li key={f.name}>
+                    {t('gal.notAnImageFormat', {
+                      name: f.name, formats: formatList(IMAGE_FORMATS),
+                    })}
+                  </li>
                 ))}
               </ul>
             )}
@@ -480,8 +490,10 @@ function UploadDialog({ collectionId, onClose, onDone }: {
           <Button size="sm" variant="affirm" onClick={submit} disabled={busy || accepted.length === 0}>
             {busy && <Loader2 className="animate-spin" />}
             {busy
-              ? `Uploading ${accepted.length}…`
-              : `Upload ${accepted.length || ''} photograph${accepted.length === 1 ? '' : 's'}`}
+              ? t('gal.uploadingCount', { n: String(accepted.length) })
+              : accepted.length === 1
+                ? t('gal.uploadOne')
+                : t('gal.uploadMany', { n: String(accepted.length) })}
           </Button>
           <Button size="sm" variant="ghost" onClick={onClose} disabled={busy}>{t('action.cancel')}</Button>
         </div>
@@ -539,7 +551,7 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
   async function removeTag(personId: string, name: string) {
     const ok = await confirm({
       title: t('gal.removeTag'),
-      description: `Remove the tag for ${name} from this photograph?`,
+      description: t('gal.removeTagForConfirm', { name }),
       confirmLabel: t('gal.removeTag'),
       destructive: true,
     })
@@ -589,17 +601,21 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
         )}
 
         <p className="text-xs text-muted-foreground">
-          {photo.uploader_name ? `Added by ${photo.uploader_name}` : t('gal.addedByGone')}
+          {photo.uploader_name
+            ? t('gal.addedByName', { name: photo.uploader_name })
+            : t('gal.addedByGone')}
         </p>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          {photo.tags.map(t => (
-            <span key={t.person_id}
+          {/* `tag`, not `t` — the translator is `t` in every file in this tree, and a map
+              callback called `t` shadows it. See AGENTS.md's i18n section. */}
+          {photo.tags.map(tag => (
+            <span key={tag.person_id}
               className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-xs text-brand-on-soft">
-              {t.person_name}
+              {tag.person_name}
               {mayEdit && (
-                <button type="button" onClick={() => removeTag(t.person_id, t.person_name)}
-                  aria-label={`Remove the tag for ${t.person_name}`}
+                <button type="button" onClick={() => removeTag(tag.person_id, tag.person_name)}
+                  aria-label={t('gal.removeTagForAria', { name: tag.person_name })}
                   disabled={isPending || busy}
                   className="hover:text-destructive">
                   <X className="h-3 w-3" />
@@ -638,7 +654,7 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
             </ul>
             {untagged.length > 40 && (
               <p className="px-2 text-xs text-muted-foreground">
-                {untagged.length - 40} more — keep typing to narrow it.
+                {t('gal.moreKeepTyping', { n: String(untagged.length - 40) })}
               </p>
             )}
             <button type="button" onClick={() => setTagging(false)}

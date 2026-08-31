@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { APP_NAME } from '@/lib/brand'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
 /**
  * `noindex`, on top of the `Disallow: /invite/` already in robots.txt.
@@ -22,9 +23,8 @@ import { callerI18n } from '@/lib/i18n/server'
  * Neither is the real protection, which is expiry plus single-use redemption.
  * These are the cheap outer layers.
  */
-export const metadata = {
-  title: 'Invitation',
-  robots: { index: false, follow: false, nocache: true },
+export async function generateMetadata() {
+  return docTitle('doc./invite.title', { extra: { robots: { index: false, follow: false, nocache: true } } })
 }
 
 /**
@@ -135,20 +135,18 @@ export default async function InvitePage({
               carry no name and get the plain heading. */}
           <CardTitle className="text-lg">
             {invitation.firstName
-              ? `${invitation.firstName}, you have been invited to ${invitation.familyName}`
-              : `You have been invited to ${invitation.familyName}`}
+              ? t('inv.invitedNamed', {
+                  name: invitation.firstName, family: invitation.familyName,
+                })
+              : t('inv.invitedAnon', { family: invitation.familyName })}
           </CardTitle>
           <CardDescription>
-            {invitation.hasAccount
-              ? <>This invitation was sent to{' '}
-                  <span className="font-medium">{invitation.email}</span>, which already has
-                  a {APP_NAME} account. Sign in and you will come straight back here and
-                  join — you will not need a family code, this invitation is your way in.</>
-              : <>This invitation was sent to{' '}
-                  <span className="font-medium">{invitation.email}</span>. Create an account
-                  with that address to accept it — you will not need a family code, this
-                  invitation is your way in. Already have an account? Sign in and you will
-                  come straight back here.</>}
+            {/* ONE KEY EACH, with the address interpolated. It was two JSX fragments with a
+                `<span>` in the middle of the sentence, so no translation could put the
+                address where its own grammar wants it. */}
+            {t(invitation.hasAccount ? 'inv.sentToHasAccount' : 'inv.sentToNoAccount', {
+              email: invitation.email, app: APP_NAME,
+            })}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -198,15 +196,14 @@ export default async function InvitePage({
           <CardTitle className="flex items-center gap-2 text-lg">
             <AtSign className="h-4 w-4" />{t('inv.invitationDifferentAddress')}</CardTitle>
           <CardDescription>
-            It was sent to{' '}
-            <span className="font-medium text-foreground">{invitation.email}</span>, and only
-            that address can accept it — that is what stops a forwarded link working for
-            anyone else. You are signed in as{' '}
             {/* user.email is optional on the Supabase user type: a phone-only or OAuth
                 account can have none, and the database refuses those callers for the same
-                reason (NULL IS DISTINCT FROM anything). "this account" beats "signed in
+                reason (NULL IS DISTINCT FROM anything). `inv.thisAccount` beats "signed in
                 as ." on the one screen whose whole job is naming both sides. */}
-            <span className="font-medium text-foreground">{user.email ?? 'this account'}</span>.
+            {t('inv.sentToOnlyThatAddress', {
+              email: invitation.email,
+              account: user.email ?? t('inv.thisAccount'),
+            })}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">

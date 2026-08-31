@@ -507,52 +507,229 @@ Recorded 2026-08-23.
 
 ## The product is not finished being translated, and now there is a way to measure it
 
-**Action:** work `npm run i18n:onscreen` down to zero, then decide whether it becomes a gate.
+**Action:** work `npm run i18n:onscreen` down, and decide whether the render diff becomes a gate.
 
 `npm run i18n:check` and `npm run i18n:literals` were both CLEAN, with the literal gate's
 ceiling at zero, while **399 runs of text were still identical in English and Spanish across
 43 routes**. Neither could see it, and the reason is structural rather than a bug in either:
 the first asks only about keys that exist, and the second can only recognise the SHAPES it was
 taught. `scripts/i18n-onscreen.mjs` asks the product instead — it renders every route as a
-Spanish-reading member and again as an English one and diffs the visible text — and its header
-lists the seven shapes the source sweep misses.
+Spanish-reading member and again as an English one and diffs the visible text.
 
-**399 → 113 occurrences on 2026-08-29** (142 → 92 distinct). What was closed, and each of these
-is a class rather than a string:
+### RUN IT LIKE THIS, or it measures nothing
+
+The probe forges a session cookie named for the Supabase project the APP is pointed at, and
+`.env.local` points at HOSTED. So a dev server started the ordinary way authenticates none of
+the probe's requests, every protected route renders the signed-out shell, and the run reports a
+tidy 38 findings that are all `<title>` tags — a clean-looking answer to a question it never
+asked. That cost an hour on 2026-08-31 and is the reason this block exists:
+
+```bash
+npx supabase start && npm run test:rls        # seeds the fixture the probe signs in as
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 \
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<local anon> \
+SUPABASE_SERVICE_ROLE_KEY=<local service> \
+  npm run dev                                 # the APP must point at LOCAL
+APP_URL=http://localhost:3000 NEXT_PUBLIC_SUPABASE_ANON_KEY=<local anon> \
+SUPABASE_SERVICE_ROLE_KEY=<local service> node scripts/i18n-onscreen.mjs
+```
+
+**The tell that it is authenticated** is real screen content in the output — fund names, a
+member's chapter, "Online payments are not set up yet." If every finding is a page title plus
+`Menu` / `Loading…` / the brand motto on 39 routes, the session is not working and the run is
+worthless. Worth teaching the script to refuse rather than report: one authenticated fetch of
+`/dashboard` and a check for something only a member sees.
+
+### 2026-08-31: 413 STATIC FINDINGS CLOSED, AND THE GATE LEARNED THREE SHAPES
+
+`i18n:literals` read 0 and was measuring four shapes out of seven. Three more went in, and
+between them they found **413 strings the first four could not see** — every one keyed since:
+
+| shape | found | what it is |
+|---|---|---|
+| 5, a template literal | 279 | `aria-label={`Actions for ${x}`}`, confirm dialogs, `message:` with a count in it |
+| 6, a MIXED JSX text node | 134 | prose with `{amount}` in the middle — shape 1's regex forbids `{` in the run |
+| 2, the caption PROPS | 30 | `<Figure label="Expected this year">`, `hint=`, `prefix=` |
+| 3, `error:` beside `message:` | 62 | half of `app/actions/admin/**` answers with `error` |
+
+Two of those were not merely untranslated. `{n} member{n === 1 ? '' : 's'}` rendered
+**"14 member s"** — JSX keeps the space and the `'s'` arrives as its own child — and
+`lib/gathering-when.ts` formatted every gathering's dates with no `intl`, so
+"September 30 – October 2, 2026" was English for every reader. Both fixed.
+
+The lesson for the next shape somebody thinks of is in the script's header: the four original
+shapes were chosen because each is unambiguous, which is the right test — but "unambiguous" was
+doing double duty as "complete", and it is not. Every one of these four had been looked at once
+and judged too noisy to check.
+
+### WHAT IS LEFT: 37 runs, 51 occurrences, and about a third are correct
+
+`npm run i18n:onscreen`, 2026-08-31, authenticated. **Twelve are right as they are** and the
+list should not be worked blindly:
+
+* fixture and database content — the family's name, a fund a family named (`Donations`, `Dues`,
+  `Planning`), a permission template's name (`General`, `Administrators`), the seeded
+  Family Donations description, and the birthday announcement the RLS control posts
+* `Chat`, which is the same word in all three languages, and `India (IST)`, which is the same
+  in Spanish
+
+**The ~14 real ones, and each is a class rather than a string:**
 
 | | |
 |---|---|
-| the 22 time zones | `TIMEZONE_LABELS` was a `Record<string,string>` of English phrases read into six `<option>` lists. Now `timezoneLabel(t, zone)` |
-| every calendar heading | `buildCalendarMonth` called `monthLabel(month)` with no locale, so "August 2026" was English for everybody — `monthLabel`'s own comment says it must follow the reader |
-| `(required)` | read aloud beside the asterisk on EVERY required field in the product |
-| the whole Transactions ledger | 68 keys. It carried a comment saying it was "not translated yet — on Phase 5's admin pass" |
-| the rail's motto | read straight out of `lib/brand.ts`, so the one piece of writing on every screen was English |
-| the Dashboard's tiles, the Gatherings sections, the chapter picker, the bloodline explanation | |
+| column headings | `Total`, `Member`, `Schedule`, `Date`, `Status`, `Amount`, `Actions`, `Reverse`, `View`, `Edit`, `Plan`, `Funds`, `Members`, `optional`. One instance of each was keyed; they appear on several screens and the rest are still bare. `col.*` is the namespace now. **`i18n:literals` will never find these** — a single capitalised word fails its prose test, deliberately, or every `id` in the tree would be a finding. |
+| three notification titles | `A new member is waiting for approval` and its two siblings are STORED in `notifications` at write time, so they are in the SENDER's language for ever. That is a decision to make (store a key and interpolate at read time?) rather than a string to fix — the same shape as the auth-email locale problem, and the reason `lib/email/auth-mail.ts` exists. |
+| `in Free` / `in Standard` / `in Plus` / `in Premium` | the plan words around a tier name, on `/admin/settings`. |
+| `stripeUnavailableReason()` | `lib/stripe/client.ts` returns the English sentence. The key exists (`act.onlinePaymentsNotSetUp2`); the module is pure, so it should return a KEY and let the caller translate it — the `LOCKOUT_SUBJECT` pattern. |
+| a raw `annual` | one `dues_schedules.frequency` still rendered straight out of the column. `dues.freq.*` is the namespace. |
+| one date site | `September 30 – October 2, 2026` on a screen `formatWhen`/`formatWhenBrief` do not reach. |
+| `China (CST)` | French should be `Chine (CST)`; Spanish is correctly identical. |
 
-### WHAT IS LEFT, and the two shapes that are not merely untranslated
+Recorded 2026-08-29, rewritten 2026-08-31.
 
-**~35 of the 92 are PAGE TITLES.** `export const metadata = { title: 'Dashboard' }` is static,
-so the browser tab and the bookmark are English on every screen. The convention to adopt already
-exists — `page./<route>.title` keys hold the visible `<h1>` — so each page becomes an
-`async generateMetadata()` resolving `callerI18n`. 46 files, mechanical, and the one thing to
-check is the ~12 pages that already have a `generateMetadata` to extend rather than replace.
+## BUILD: collect dues in the family's own currency, not in dollars
 
-**AN ENGLISH PLURAL BUILT BY APPENDING A LETTER IS NOT TRANSLATABLE AT ALL**, and there are
-about thirty: `{n} member{n === 1 ? '' : 's'}`. No catalogue can hold a third of a word, and
-Spanish and French do not pluralise that way. It renders as *"14 member s"* on screen today,
-which is how the probe found it — so it is a visible BUG in English as well. The convention to
-follow is the one `attachedCaption` already uses: two keys, `…One` and `…Many`.
+**Action:** decide the currency per family, store it, and thread it through every figure.
+Blocked on nothing but the decision. Recorded 2026-08-31, out of the Connect country picker.
 
-**A DATE FORMATTED WITHOUT THE READER'S TAG** is the same kind of thing: `lib/gathering-when.ts`
-builds "September 28 – 30, 2026 · 11:00 AM – 4:00 PM" with no `intl`, so a French reader gets US
-month order and a 12-hour clock. It is a pure module, so it takes the tag as a parameter (§7b).
+**The picker landed and this did not.** `/admin/settings` now asks which country a family's
+connected account is created in — US, Canada or Mexico today, with the rest of Stripe's
+cross-border set one flag away (`CONNECT_COUNTRIES` in `lib/stripe/connect-countries.ts`).
+So a Mexican family can onboard, complete Stripe's Mexican paperwork, and be paid out in
+MXN. **Every figure in the product is still USD**, and that is now a visible mismatch rather
+than a theoretical one:
 
-The rest are ordinary: three notification titles (which are STORED, so they are written in the
-sender's language at write time — the same shape as the auth-email locale problem, and worth
-deciding rather than patching), the plan words around a tier name (`in Free`, `Plus · 12 months`),
-`stripeUnavailableReason()`, and a handful of section captions.
+* `currency: 'usd'` is a literal on every Checkout Session and every `price_data`.
+* `formatCurrency` formats cents with the reader's `Intl` tag and **no currency argument**,
+  so it prints the reader's *conventions* around a dollar figure — `1 234,56 $` for a French
+  reader looking at US dollars, which is the worst of both.
+* `dues_schedules.amount_cents`, `platform_payments.currency` and every fund balance are
+  integers with no currency beside them except `'usd'`.
 
-Recorded 2026-08-29.
+**A direct charge in USD into a CAD account is allowed and settles with conversion**, so
+nothing is broken. What is wrong is that a Canadian family sets a $40 due, a member is
+charged 40 USD, and the family receives about 54 CAD less Stripe's conversion — three
+different numbers, none of them the one anybody typed.
+
+### THE DECISION, AND IT IS ONE DECISION MADE THREE TIMES
+
+1. **What currency is a DUE in?** The family's, chosen once, immutable after the first
+   payment. That last clause is the load-bearing half: `dues_payments` is append-only
+   (`20260806000002`), so a family that switched currency mid-year would have a ledger whose
+   sum means nothing. It wants the same guard shape as `families_guard_family_code` — refuse
+   the `authenticated` role outright, and refuse any change at all once a payment exists.
+2. **What currency is the PLATFORM charged in?** GENORRA's own plan pricing is a separate
+   question with a separate answer, and conflating them is the trap: `TIER_PRICE` is our
+   revenue and `dues_schedules.amount_cents` is the family's. A Mexican family may well pay
+   us in USD while collecting from relatives in MXN. Keep `platform_payments` and
+   `dues_payments` as far apart here as "MONEY HAS TWO DIRECTIONS" already keeps them.
+3. **What does an existing family get?** USD, written down explicitly rather than left NULL.
+   A nullable currency column is a column that means "dollars, probably", which is how this
+   whole item started.
+
+### WHAT IT COSTS, IN THE ORDER IT HAS TO BE DONE
+
+| | |
+|---|---|
+| `families.currency` | `CHAR(3) NOT NULL DEFAULT 'usd'`, CHECK against the enabled set, guarded like `family_code`. Backfilled explicitly, not defaulted-and-forgotten |
+| `formatCurrency` | takes a currency, and **stops being optional**. An optional argument here is one every new call site omits — the same argument `NextInstallmentsCard`'s `intl` prop makes |
+| every `currency: 'usd'` | reads the family's. `app/actions/pay-dues.ts` and `app/actions/dues.ts` are the two files |
+| the minimum charge | `MINIMUM_FIRST_CHARGE_CENTS` is $5 in cents and means nothing in MXN. Stripe's own minimum is per-currency and has to be looked up, not converted |
+| `lib/dues-utils.ts` | pure and already tested; it needs no currency, because arithmetic on cents is currency-blind. **Check that stays true** before assuming it |
+| the ledger's history | nothing. Rows already written stay USD, which is why the column is immutable once a payment exists |
+
+**AND `formatCurrency` IS THE ONE TO GET RIGHT FIRST**, because it is the only change that
+is wrong in BOTH directions today: it already takes the reader's `Intl` tag, so it is
+half-localized in a way that reads as finished.
+
+Recorded 2026-08-31.
+
+## WHERE THIS GOES NEXT: fifteen languages and fifteen countries, in priority order
+
+**Action:** none yet. This is the target list the next two localization passes are measured
+against, so that "add a language" stops being a decision made per pull request. Recorded
+2026-08-31 at the same time as the Connect country picker, because the two lists constrain
+each other and neither is useful alone.
+
+**Read this with `npm run i18n:onscreen` beside it.** Three languages are shipped and the
+product is not finished being read in the two that are not English — a fourth language added
+before that number reaches zero multiplies the backlog rather than the reach.
+
+### THE FIFTEEN LANGUAGES
+
+Ordered by the audience this product actually has: a diaspora family whose relatives are
+spread across countries. That is a different ranking from raw speaker counts — Mandarin has
+more speakers than Portuguese and fewer extended families organizing a reunion across three
+countries in it.
+
+| # | Language | Why it is at this position |
+|---|---|---|
+| 1 | **Spanish** — shipped | The US's second language and Mexico's first. Already the strongest case in the product |
+| 2 | **French** — shipped | Canada, Haiti, West Africa. Three diasporas, one language, and Canada is in the Connect set |
+| 3 | **Portuguese (Brazil)** | Large families, strong reunion culture, and Brazil is in Stripe's cross-border set |
+| 4 | **Haitian Creole** | The single strongest fit for this product's actual early users, and almost never offered. Not French: a Kreyòl speaker handed French is being told their language does not count |
+| 5 | **Tagalog / Filipino** | Enormous US and Gulf diaspora, and family associations with dues are already a norm |
+| 6 | **Vietnamese** | Same shape, same reason |
+| 7 | **Arabic** | First **right-to-left** language, so it is where `dir="rtl"` stops being hypothetical — see the cost note below |
+| 8 | **Korean** | Strong US diaspora and organized family associations |
+| 9 | **Simplified Chinese** | Largest single addition by speakers; clan associations are the closest existing analogue to this product anywhere |
+| 10 | **Traditional Chinese** | Taiwan and Hong Kong. A separate catalogue, not a conversion — the two are not interchangeable copy |
+| 11 | **Hindi** | India is in the Connect set; English is widely read in the same audience, which is why it is not higher |
+| 12 | **Yoruba** | Nigeria. Extended-family associations with dues are the norm and the language is under-served by software |
+| 13 | **Igbo** | Same, and the two together cover most of the Nigerian diaspora's preference |
+| 14 | **Swahili** | East Africa, and one language across several countries |
+| 15 | **German** | Not diaspora — it is the strongest European market for a paid family product |
+
+**THE FIRST RTL LANGUAGE IS NOT A CATALOGUE, IT IS A LAYOUT PASS.** Arabic at #7 is where
+that bill arrives, and it is worth naming now: `dir` on `<html>` beside `lang`, every
+`ml-`/`mr-`/`left-`/`right-` utility becomes a logical property, `MainRail`'s active marker
+and `header-panel.ts`'s `right-0` anchoring both flip, and the calendar's Sunday-first week
+becomes a question. Nothing about it is hard and none of it is free. **Do not let Arabic be
+the language somebody adds on a Friday.**
+
+### THE FIFTEEN COUNTRIES
+
+Ordered by whether a family there can actually be SERVED — a country is only worth adding
+when its families can collect dues, and that is Stripe's list rather than ours. Every one
+below is in Stripe's cross-border set, so each is a one-flag change in
+`lib/stripe/connect-countries.ts` plus the currency work above.
+
+| # | Country | Currency | Language it needs |
+|---|---|---|---|
+| 1 | **United States** — live | USD | English, Spanish |
+| 2 | **Canada** — live | CAD | English, French |
+| 3 | **Mexico** — live | MXN | Spanish |
+| 4 | **United Kingdom** | GBP | English |
+| 5 | **Nigeria** | NGN | English, Yoruba, Igbo |
+| 6 | **Brazil** | BRL | Portuguese |
+| 7 | **Philippines** | PHP | English, Tagalog |
+| 8 | **India** | INR | English, Hindi |
+| 9 | **Australia** | AUD | English |
+| 10 | **Germany** | EUR | German |
+| 11 | **France** | EUR | French |
+| 12 | **Spain** | EUR | Spanish |
+| 13 | **South Africa** | ZAR | English |
+| 14 | **Kenya** | KES | English, Swahili |
+| 15 | **United Arab Emirates** | AED | Arabic, English |
+
+**FOUR THINGS THE TABLE HIDES, AND EACH IS A REAL BLOCKER RATHER THAN A TASK:**
+
+* **NIGERIA AND KENYA ARE NOT SIMPLY "in the set".** Stripe's availability there is narrower
+  than in the EU and changes; confirm per country against Stripe rather than against this
+  table, which will go stale. They are high on the list because the AUDIENCE is strong, not
+  because the plumbing is easy.
+* **`lib/regions.ts` ADMITS THREE COUNTRIES.** A member's address picker is US, Canada and
+  Mexico, so adding a country to Connect without adding it there gives a family a merchant
+  account and nowhere to put an address. The two lists have to move together.
+* **PHONE NUMBERS ASSUME +1.** `lib/phone-format.ts`'s `DEFAULT_COUNTRY_CODE` and `toE164`
+  are written around North America, and `toE164` REFUSES what it cannot parse — which is the
+  right behaviour and means a Nigerian mobile is silently unreachable for SMS rather than
+  wrongly reachable.
+* **A SECOND CURRENCY IS THE PREREQUISITE FOR ALL TWELVE.** Nothing below the third row is
+  worth shipping until "collect dues in the family's own currency" is done, because the
+  alternative is a family in Lagos setting a due in dollars.
+
+Recorded 2026-08-31.
 
 ## BUILD: the delinquency ladder — decided 2026-08-23, and it needs the scheduler first
 
@@ -747,40 +924,6 @@ synchronous extension, with an explicit timeout so a hanging endpoint cannot wed
 
 Recorded 2026-08-23.
 
-## Every connected account is created as American, and the country cannot be changed
-
-**Action:** decide whether a non-US family is in scope. If it is, ask for the country in the
-Connect panel and pass it through; if it is not, say so on that panel rather than deciding it
-silently. Recorded 2026-08-25.
-
-`CONNECT_ACCOUNT_COUNTRY` in `lib/stripe/config.ts` is the constant `'us'`, sent as
-`identity.country` on every `v2.core.accounts.create`. It exists because Stripe refuses the
-account without it (`identity_country_required` for anything requesting the merchant
-configuration) and because there is nothing in the schema to derive it from: `families` has no
-country column, and `people.country` is free text describing where one relative lives.
-
-**Why it is a real gap rather than a theoretical one.** `lib/regions.ts` admits **United
-States, Canada and Mexico** for a member's address, so a Canadian family is a thing this
-product already supports everywhere except here — and here it would be created as an American
-merchant. `identity.country` decides the payout currency, which identity documents Stripe
-demands and which regulations apply, and **it cannot be changed after creation**. The failure
-is not an error message: onboarding would run, ask for US paperwork, and the family would be
-stuck with an account they cannot complete.
-
-**The fix is a question, not a better default.** One `<select>` on the Connect panel, defaulting
-to the US, its value passed to `ensureConnectedAccount`. Two things to get right when it is
-built: the value is written into `family_stripe_accounts.country` at creation (it already is,
-from the create response), so a family created before the picker is distinguishable from one
-that chose; and `cross_border_connected_account_creation_not_allowed` is a real refusal — the
-PLATFORM's country has to support the connected account's, so offering Canada is a claim about
-GENORRA's Stripe account and not only about the family's.
-
-**The rest of the product would need a second look in the same commit.** Every price is USD
-(`formatCurrency`, and `currency: 'usd'` on every session) and phone numbers assume +1, so a
-Canadian family collecting dues today would be charged in USD into a CAD account. That is
-allowed on a direct charge and settles with conversion; it is not obviously what anybody
-intended.
-
 ## GO LIVE: the Send Email hook is ON. What is left is proving it and retiring the fallback
 
 **BUILT 2026-08-27, and TURNED ON — reported 2026-08-29.** The hook is configured on the
@@ -958,39 +1101,6 @@ action-shaped case, which is currently only exercised as a pure function.
 
 Recorded 2026-08-23.
 
-## A `permission_resources` row grants Administrators an action the resource does not declare
-
-**Action:** decide whether it matters, then either narrow the seed's Administrators insert or
-write this down as intended. Ten minutes either way.
-
-Observed 2026-08-23 while checking a new key's grants. `seed_family_permission_templates()` gives
-the Administrators template `'any'` on every action in `pr.actions` — correct — but the fixture
-shows an `edit` row for two keys that declare only `view`, `create` and `delete`:
-
-```
-community/distributions    | Administrators | edit | any
-community/safety-check-ins | Administrators | edit | any
-```
-
-**It is harmless today and the reason is worth stating**, because it is what makes this a note
-rather than a bug: Members & Access renders switches from `resource.actions` through `scopesFor()`,
-so the cell is never drawn; and nothing anywhere calls `auth_permission(key, 'edit')` for a key
-with no edit action, so the row is read by nothing. AGENTS.md's rule — *"a switch nothing consults
-reads as a control being honoured"* — is not violated, because no switch is rendered.
-
-What makes it worth an entry is that it is a row asserting a grant that does not exist, sitting in
-the table three resolvers agree about. If a future key gains an `edit` action, that key's
-Administrators template already grants it retroactively — which is probably the desired answer and
-is definitely not a decided one.
-
-**Both keys were added after the seed was written**, which is the likely cause: an earlier
-`ON CONFLICT DO UPDATE` on `permission_resources.actions` narrowing a key from four actions to
-three would leave the template row behind. If that is it, the repair is a sweep deleting
-`template_permissions` rows whose action is not in their resource's `actions` — and that sweep is
-worth a `verify.yml`-shaped assertion more than it is worth the delete.
-
-Recorded 2026-08-23.
-
 ## Meta: `Lead` has no surface, the validation table is owed, and nothing reports on it
 
 **Action:** walk the validation table on a preview deployment, decide what a `Lead` is here, and
@@ -1113,42 +1223,6 @@ Re-checked 2026-08-29:
 4. Then the `alternates` block, exactly as every other page there has it.
 
 Recorded 2026-08-23; the i18n cost added 2026-08-29.
-
-## `resource-groups.ts` pulls the admin client into the browser's module graph
-
-**Action:** move `PERMISSION_ACTIONS` into a pure module. Three lines, and it removes a
-chain that only luck is keeping harmless.
-
-Found 2026-08-23 by `lib/meta/no-client-secrets.test.ts` on its first run, and it predates
-the Meta integration entirely:
-
-```
-components/admin/resource-groups.ts   (plain module, imported by client components)
-  → @/lib/auth/permissions            (for the PERMISSION_ACTIONS value)
-    → @/lib/supabase/admin            (which reads SUPABASE_SERVICE_ROLE_KEY)
-```
-
-**It is not a leak today**, and the reason is worth being uncomfortable about: the key has no
-`NEXT_PUBLIC_` prefix, so Next does not inline it and the reference compiles to `undefined`.
-The protection is a build-time convention, not a boundary anybody drew — and the repair for
-a symptom of this shape is exactly the wrong instinct, because adding the prefix to "make it
-work" would ship the service-role key to every browser.
-
-**The fix is the shape this codebase already uses twice.** `lib/gathering-panes.ts` and
-`components/admin/account-sections.ts` both exist because a Server Component importing a
-runtime VALUE from a client module gets a client reference rather than the value — same
-boundary, opposite direction. `PERMISSION_ACTIONS` is a frozen array of four strings and
-wants the same treatment: a pure module under `lib/`, imported by both sides.
-
-`lib/auth/tier.ts` and `lib/auth/family.ts` are reachable the same way and are on the same
-list. All four are recorded as stated verdicts in `KNOWN_PRE_EXISTING` in that test file —
-an EXACT match on `path → name`, so a new occurrence in the same file fails rather than
-being tolerated. **Delete each entry as it is fixed**; the list is a backlog, not a
-suppression. Two assertions in that file are absolute and admit no entry at all: nothing may
-name `META_CONVERSIONS_API_ACCESS_TOKEN`, and nothing may import a `@/lib/meta/` server
-module.
-
-Recorded 2026-08-23.
 
 ## Sorting is on two tables of sixteen
 
@@ -1320,16 +1394,24 @@ What five migrations closed: `function_search_path_mutable` (5), `multiple_permi
   delete seq-scans the child table once per row. **The review this deserves is after there are
   families**, against `pg_stat_user_indexes` on hosted, and it is a review rather than a fix.
 
-## Function grants: what the 2026-08-06 lockdown left behind
+## Function grants: `anon` is exercised by one case, and deserves more
 
 `20260806000015` and `20260806000016` closed the anon-callable-function hole and the
-reasoning is now AGENTS.md §2b. Two loose ends survive it:
+reasoning is now AGENTS.md §2b. **The first of its two loose ends is closed**:
+`get_my_family_code()` is dropped (`20260831000000`), after asking the database rather than
+the repo — no policy, no function body, no view and no app code referenced it, and that
+migration's verify block re-asks all three before it drops, so a hosted database that has
+drifted into using it fails the deploy instead of losing the function underneath a live
+policy. `auth_family_code()` is the one resolver now.
 
-* `get_my_family_code()` is granted on hosted only if a hosted policy references it,
-  because the lockdown derives policy-helper grants from `pg_policies` per database.
-  Confirm nothing depends on it, then drop it from both.
-* The suite still exercises `anon` through exactly one case. That is one more than
-  before, and fewer than the role deserves.
+**What survives is the test gap.** `tests/rls` exercises `anon` through exactly ONE case.
+That is one more than before and fewer than the role deserves — it is the role the browser
+bundle's key speaks as, and §2b's whole argument is that a function in `public` is an
+unauthenticated HTTP endpoint. The three worth adding first, because each is granted to
+`anon` deliberately and so cannot be covered by asserting a blanket refusal:
+`peek_family_invitation`, `validate_family_code` and `join_family_by_code` — the three
+doors a stranger can knock on, and the three that must answer the same message for a
+family that does not exist as for one that was removed.
 
 ## `setTemplatePermission` takes a scope from the client and validates it against nothing
 

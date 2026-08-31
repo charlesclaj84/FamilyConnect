@@ -178,7 +178,9 @@ export function BylawsClient({ initialBylaws, rights }: {
                   )}
                   <p className="mt-1.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     <IndexBadge state={b.indexedState} />
-                    {b.uploadedByName && <span>· added by {b.uploadedByName}</span>}
+                    {b.uploadedByName && (
+                      <span>{t('law.addedBy', { name: b.uploadedByName })}</span>
+                    )}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1">
@@ -307,7 +309,7 @@ function AddDialog({ onClose, onAdded }: { onClose: () => void; onAdded: () => v
           </div>
           {rejected && (
             <p className="text-xs text-brand-withheld">
-              That is not {formatList(DOCUMENT_FORMATS)}. Choose another file.
+              {t('law.notADocumentFormat', { formats: formatList(DOCUMENT_FORMATS) })}
             </p>
           )}
         </div>

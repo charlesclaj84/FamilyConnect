@@ -24,6 +24,10 @@ import { APP_NAME } from '@/lib/brand'
 import { esc, renderEmailFrom } from '@/lib/email/layout'
 import { emailT } from '@/lib/email/strings'
 import { BASE_LOCALE } from '@/lib/i18n/locales'
+// The lifetime, imported rather than passed, so this email and the row it describes cannot
+// disagree about it — the other two challenge emails take it as a parameter from their
+// action, which is one more place for the two to drift.
+import { CHALLENGE_CODE_MINUTES } from '@/lib/action-challenge'
 
 export interface ComposedEmail {
   subject: string
@@ -254,6 +258,61 @@ export function familyRemovalCodeEmail(o: {
       ],
       fine: t('email.removal.fine', { minutes: o.expiresInMinutes }),
       footnote: t('email.removal.footnote'),
+    }),
+  }
+}
+
+/**
+ * The six-digit code that confirms PERMANENTLY DELETING a family, from the staff console.
+ *
+ * ── IT GOES TO A GENORRA OWNER, NOT TO THE FAMILY, AND THAT IS THE DIFFERENCE ──────
+ * The other two challenge emails go to the administrator who asked, because it is their
+ * family and they are consenting to something about it. This one goes to the staff owner
+ * acting, because the family is not the party consenting — and nothing is sent to the family
+ * at all. `app/actions/staff/destroy.ts` argues why: a "your data is about to be destroyed"
+ * notice from the console answering a deletion REQUEST tells somebody what they already
+ * asked for, on the one occasion they cannot act on it.
+ *
+ * ── SO THE FAMILY IS NAMED TWICE, BY NAME AND BY CODE ─────────────────────────────
+ * The removal email names the family because its reader knows exactly one. This reader may
+ * have a queue of them, and a family name is not unique across the platform while the code
+ * is — so both are here, and the code is what the console asks to be typed back. A message
+ * that named only "The Allen Family" would be a code for whichever of them the reader
+ * happened to have open.
+ *
+ * NO BUTTON, for `processorDisconnectCodeEmail`'s reason: the code is a factor in a
+ * confirmation already open in another window, and a one-click destruction reachable from a
+ * forwarded inbox would defeat the whole gate.
+ */
+export function staffDeleteCodeEmail(o: {
+  origin: string
+  /** The family's own name, for recognition. */
+  familyName: string
+  /** The code the console asks to be typed back. Unique across the platform; the name is not. */
+  familyCode: string
+  /** The digits. Never logged, never put in the subject, never stored in plaintext. */
+  code: string
+  /** The acting owner's language. */
+  locale?: string
+}): ComposedEmail {
+  const t = emailT(o.locale ?? BASE_LOCALE)
+  return {
+    subject: t('email.staffDelete.subject', { code: o.familyCode }),
+    tag: 'staff-family-delete-code',
+    html: renderEmailFrom(o.origin, {
+      t,
+      preheader: t('email.staffDelete.preheader', { minutes: CHALLENGE_CODE_MINUTES }),
+      heading: t('email.staffDelete.heading'),
+      paragraphs: [
+        t('email.staffDelete.p1', {
+          family: esc(o.familyName),
+          code: esc(o.familyCode),
+        }),
+        codeBlock(esc(o.code)),
+        t('email.staffDelete.p2'),
+      ],
+      fine: t('email.staffDelete.fine', { minutes: CHALLENGE_CODE_MINUTES }),
+      footnote: t('email.staffDelete.footnote'),
     }),
   }
 }

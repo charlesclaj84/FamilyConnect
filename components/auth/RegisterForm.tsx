@@ -271,9 +271,11 @@ export function RegisterForm({
               family is on Free until Stripe says otherwise. */}
           {recordedPlan && (
             <p className="text-center text-sm text-brand-on-soft">
-              {t('reg.startsOn')} <span className="font-medium">Free</span>. Nothing has
-              been charged — sign in and {APP_NAME} will ask you to set up{' '}
-              <span className="font-medium">{TIER_LABEL[recordedPlan]}</span>.
+              {t('reg.startsOnFreeNote', {
+                lede: t('reg.startsOn'),
+                app: APP_NAME,
+                plan: TIER_LABEL[recordedPlan],
+              })}
             </p>
           )}
         </CardContent>
@@ -497,7 +499,7 @@ export function RegisterForm({
               </div>
               <p className="text-xs text-muted-foreground">
                 {chosenPlan
-                  ? `Nothing is charged now. Once your family exists you will be asked to set up payment for ${TIER_LABEL[chosenPlan]}, and you can stay on Free instead.`
+                  ? t('reg.nothingChargedNow', { plan: TIER_LABEL[chosenPlan] })
                   : t('reg.canMove')}
               </p>
             </fieldset>

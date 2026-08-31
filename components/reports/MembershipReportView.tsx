@@ -63,7 +63,7 @@ function BreakdownCard({
         <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-start">
           <DonutChart
             slices={drawn} palette={palette} label={title}
-            centerValue={total} centerLabel={unit}
+            centerValue={total} centerLabel={unit} t={t}
           />
           <div className="w-full min-w-0">
             <MembershipBreakdownLegend

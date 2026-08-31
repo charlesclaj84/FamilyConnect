@@ -83,7 +83,7 @@ export function ElectionSummary({ summary, t }: {
           </span>
           <span className="flex items-center gap-1.5">
             <Clock className="h-3.5 w-3.5 text-brand-accent" />
-            {nominations.pending} waiting to be answered
+            {t('elec.waitingToBeAnswered', { n: String(nominations.pending) })}
           </span>
           <span className="flex items-center gap-1.5">
             <XCircle className="h-3.5 w-3.5 text-muted-foreground" />
@@ -107,8 +107,10 @@ export function ElectionSummary({ summary, t }: {
           </h2>
           <p className="text-xs text-muted-foreground">
             {closed
-              ? `Voting closed ${formatDateRange(election.voting_open_on, election.voting_close_on)}.`
-              : 'A snapshot while the poll is open — nothing here is final until voting closes.'}
+              ? t('elec.votingClosedRange', {
+                  range: formatDateRange(election.voting_open_on, election.voting_close_on) ?? '',
+                })
+              : t('elec.snapshotWhileOpen')}
           </p>
         </div>
 
@@ -121,7 +123,8 @@ export function ElectionSummary({ summary, t }: {
                 <span>{pos.title}</span>
                 <span className="text-xs font-normal text-muted-foreground">
                   {pos.votes_cast} vote{pos.votes_cast === 1 ? '' : 's'} cast
-                  {pos.max_winners > 1 && ` · ${pos.max_winners} to be elected`}
+                  {pos.max_winners > 1
+                    && ` · ${t('elec.toBeElected', { n: String(pos.max_winners) })}`}
                 </span>
               </CardTitle>
             </CardHeader>

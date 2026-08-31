@@ -47,10 +47,23 @@ import { tierMeets } from '@/lib/tiers'
  * family. 'create' treats own and any alike.
  */
 
-export type PermissionAction = 'view' | 'create' | 'edit' | 'delete'
-export type PermissionScope = 'none' | 'own' | 'any'
-
-export const PERMISSION_ACTIONS: readonly PermissionAction[] = ['view', 'create', 'edit', 'delete']
+// ── THE VOCABULARY LIVES IN A PURE MODULE, AND IS RE-EXPORTED HERE ─────────────────
+// `lib/permission-actions.ts` holds the two types and the array, with no imports of its
+// own, because THIS module imports `@/lib/supabase/admin` — so anything a browser could
+// reach that wanted `PERMISSION_ACTIONS` pulled the service-role client into the client
+// module graph. `components/admin/resource-groups.ts` was doing exactly that.
+//
+// Re-exported rather than moved-and-forgotten so every existing import of these three
+// names from `@/lib/auth/permissions` keeps working: this is where a reader looks for the
+// permission model, and sending them somewhere else to find its four actions would be a
+// worse file. A NEW consumer that only needs the vocabulary should import the pure module
+// directly — that is the whole point of it existing.
+export {
+  PERMISSION_ACTIONS,
+  type PermissionAction,
+  type PermissionScope,
+} from '@/lib/permission-actions'
+import type { PermissionAction, PermissionScope } from '@/lib/permission-actions'
 
 export interface PermissionSet {
   /** people.id in the active family, or '' when the caller has no membership. */

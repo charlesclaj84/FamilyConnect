@@ -1052,6 +1052,11 @@ async function positionsAtLevel(
   titles: string[],
   scope: ElectionScope,
   familyCode: string,
+  /** The caller's language. The refusal below names an office an organizer has to go and
+      fix, so it is read on screen rather than in a log. */
+  t: T,
+  /** And their `Intl` tag, for the office list's conjunction. */
+  intlTag: string,
 ): Promise<string | null> {
   if (!titles.length) return null
 
@@ -1059,7 +1064,7 @@ async function positionsAtLevel(
     .from('family_roles').select('name, scope').eq('family_code', familyCode)
   if (error) {
     console.error(`[elections] roster read failed for ${familyCode}: ${error.message}`)
-    return 'Could not read this family’s board positions. Try again.'
+    return t('elec.boardReadFailed')
   }
 
   const allowed = new Set(
@@ -1069,10 +1074,17 @@ async function positionsAtLevel(
   const wrong = titles.filter(t => !allowed.has(t))
   if (!wrong.length) return null
 
-  const LEVEL = { national: 'national', regional: 'regional', chapter: 'chapter' } as const
-  return `${wrong.join(', ')} ${wrong.length === 1 ? 'is not a' : 'are not'} `
-    + `${LEVEL[scope]} board position. A ${LEVEL[scope]} election can only fill `
-    + `${LEVEL[scope]} offices — add or re-scope the position under Members › Organization first.`
+  // ONE OR MANY, AS WHOLE SENTENCES. The English version glued `is not a` / `are not` into
+  // the middle of a sentence, which is exactly the shape that cannot be translated: Spanish
+  // and French both move the article and the adjective's number with it.
+  const level = t(`elec.level.${scope}`)
+  return t(wrong.length === 1 ? 'elec.wrongLevelOne' : 'elec.wrongLevelMany', {
+    // The office names are the family's own words and are listed in the reader's
+    // conventions — `Intl.ListFormat`, never a hard-coded comma (AGENTS.md).
+    titles: new Intl.ListFormat(intlTag, { style: 'long', type: 'conjunction' })
+      .format(wrong),
+    level,
+  })
 }
 
 export interface ElectionInput extends WindowInput {
@@ -1107,7 +1119,7 @@ export async function createElection(
 ): Promise<{ success: boolean; id?: string; message?: string }> {
   const g = await requireScope('admin/elections', 'create')
   if (!g.ok) return { success: false, message: g.message }
-  const { t } = g
+  const { t, intl } = g
 
   const title = input.title?.trim() ?? ''
   if (!title) return { success: false, message: t('act.giveElectionTitle') }
@@ -1123,7 +1135,9 @@ export async function createElection(
   const positions = (input.positions ?? [])
     .map(p => ({ title: (p.title ?? '').trim(), max_winners: normalizeWinners(p.max_winners) }))
     .filter(p => p.title)
-  const badLevel = await positionsAtLevel(positions.map(p => p.title), scope.scope, g.familyCode)
+  const badLevel = await positionsAtLevel(
+    positions.map(p => p.title), scope.scope, g.familyCode, t, intl,
+  )
   if (badLevel) return { success: false, message: badLevel }
 
   const admin = createAdminClient()
@@ -1152,7 +1166,7 @@ export async function createElection(
     if (posError) {
       return {
         success: false, id: election.id,
-        message: `The election was created but its positions were not: ${posError.message}`,
+        message: t('elec.createdWithoutPositions', { error: posError.message }),
       }
     }
   }
@@ -1195,7 +1209,7 @@ export async function updateElection(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireScope('admin/elections', 'edit')
   if (!g.ok) return { success: false, message: g.message }
-  const { t } = g
+  const { t, intl } = g
 
   const admin = createAdminClient()
   const { data: existing } = await admin.from('elections')
@@ -1223,7 +1237,9 @@ export async function updateElection(
   const positions = (input.positions ?? [])
     .map(p => ({ title: (p.title ?? '').trim(), max_winners: normalizeWinners(p.max_winners) }))
     .filter(p => p.title)
-  const badLevel = await positionsAtLevel(positions.map(p => p.title), scope.scope, g.familyCode)
+  const badLevel = await positionsAtLevel(
+    positions.map(p => p.title), scope.scope, g.familyCode, t, intl,
+  )
   if (badLevel) return { success: false, message: badLevel }
 
   const outcome = await confirmWrite(() => admin.from('elections').update({
@@ -1256,7 +1272,7 @@ export async function updateElection(
     if (posError) {
       return {
         success: false,
-        message: `The election was saved but its positions were not: ${posError.message}`,
+        message: t('elec.savedWithoutPositions', { error: posError.message }),
       }
     }
   }
@@ -1350,6 +1366,10 @@ export async function publishElection(
  * (§8) and logged, and publishing has already succeeded by the time this runs.
  */
 async function announceElection(g: GuardOk, election: RawElection, intl: string) {
+  // `t` off the GUARD, not a second `callerI18n` — the guard resolved it in the same
+  // `Promise.all` it already awaited, so this costs nothing (AGENTS.md: `GuardOk` carries
+  // `t` and `intl`).
+  const { t } = g
   const scope = electionScope(election)
   const opensOn = formatDate(election.nominations_open_on, intl)
   const places = await familyPlaces(g.familyCode)
@@ -1360,10 +1380,10 @@ async function announceElection(g: GuardOk, election: RawElection, intl: string)
 
   const parts = [
     scope === 'national'
-      ? `A new election, "${election.title}", is open to the whole family.`
-      : `A new election, "${election.title}", is for ${where}.`,
+      ? t('elec.announceWholeFamily', { title: election.title })
+      : t('elec.announceForArea', { title: election.title, where }),
     election.description || null,
-    opensOn ? `Nominations open ${opensOn}.` : null,
+    opensOn ? t('elec.nominationsOpenOn', { on: opensOn }) : null,
   ].filter(Boolean)
 
   const { error } = await createAdminClient().from('announcements').insert({
@@ -1427,9 +1447,9 @@ export async function unpublishElection(
   if ((noms.count ?? 0) > 0 || (votes.count ?? 0) > 0) {
     return {
       success: false,
-      message: `This election already has ${noms.count ?? 0} nomination(s) and `
-        + `${votes.count ?? 0} vote(s), so it cannot be taken back to draft. Let it run, or `
-        + 'delete it — which removes every nomination and vote with it.',
+      message: t('elec.cannotUnpublish', {
+        nominations: String(noms.count ?? 0), votes: String(votes.count ?? 0),
+      }),
     }
   }
 
@@ -1505,7 +1525,7 @@ export async function submitNomination(
     todayIn(election.time_zone ?? DEFAULT_ZONE),
   )
   if (phase !== 'nominations') {
-    return { success: false, message: nominationsClosedMessage(election, phase, intl) }
+    return { success: false, message: nominationsClosedMessage(election, phase, intl, t) }
   }
 
   // The position has to be ON this election. `positionId` is a client parameter and
@@ -1721,14 +1741,19 @@ function nominationsClosedMessage(
   election: RawElection,
   phase: ElectionPhase,
   intl: string,
+  t: T,
 ): string {
   if (phase === 'scheduled') {
     const opens = formatDate(election.nominations_open_on, intl)
-    return opens ? `Nominations open ${opens}.` : 'Nominations have not opened yet.'
+    return opens
+      ? t('elec.nominationsOpenOn', { on: opens })
+      : t('elec.nominationsNotOpenedYet')
   }
-  if (phase === 'draft') return 'This election has not been published yet.'
+  if (phase === 'draft') return t('elec.notPublishedYet')
   const closed = formatDate(election.nominations_close_on, intl)
-  return closed ? `Nominations closed on ${closed}.` : 'Nominations are closed.'
+  return closed
+    ? t('elec.nominationsClosedOn', { on: closed })
+    : t('elec.nominationsClosed')
 }
 
 export async function respondToNomination(
@@ -1806,9 +1831,11 @@ export async function castVote(
     const closed = formatDate(election.voting_close_on, intl)
     return {
       success: false,
-      message: phase === 'closed' && closed ? `Voting closed on ${closed}.`
-        : opens ? `Voting opens ${opens}.`
-          : 'Voting is not open.',
+      message: phase === 'closed' && closed
+        ? t('elec.votingClosedOn', { on: closed })
+        : opens
+          ? t('elec.votingOpensOn', { on: opens })
+          : t('elec.votingNotOpen'),
     }
   }
 

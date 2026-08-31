@@ -204,10 +204,15 @@ export function DuesPlanSection({ summary, online }: {
    */
   async function changeOptOut(row: DuesSummary, optOut: boolean) {
     const ok = await confirm({
-      title: optOut ? `Opt out of ${row.schedule.label}?` : `Opt back in to ${row.schedule.label}?`,
+      title: t(optOut ? 'plan.optOutOf' : 'plan.optBackInTo',
+        { schedule: row.schedule.label }),
       description: optOut
         ? t('plan.optionalHint')
-        : `${row.schedule.label} will count toward what you owe again, at ${formatCurrency(row.installmentCents, intl)} per ${row.cadence} installment.`,
+        : t('plan.optBackInHint', {
+            schedule: row.schedule.label,
+            amount: formatCurrency(row.installmentCents, intl),
+            cadence: t(`dues.cadWord.${row.cadence}`),
+          }),
       confirmLabel: optOut ? t('plan.optOut') : t('plan.optBackIn'),
     })
     if (!ok) return
@@ -237,7 +242,7 @@ export function DuesPlanSection({ summary, online }: {
   async function stopAutopay(row: DuesSummary) {
     const ok = await confirm({
       title: t('plan.stopAutoConfirm'),
-      description: `No further card payments will be taken for ${row.schedule.label}. Everything you have already paid stays on your record.`,
+      description: t('plan.stopAutoHint', { schedule: row.schedule.label }),
       confirmLabel: t('plan.stopPayments'),
     })
     if (!ok) return
@@ -544,7 +549,12 @@ function DuesRow({
     <span
       className="inline-block whitespace-nowrap rounded-full bg-brand-withheld/15 px-2 py-0.5 text-[11px] font-medium text-brand-withheld"
       title={row.overdueSinceDate
-        ? `Includes ${row.periodsElapsed} installment${row.periodsElapsed === 1 ? '' : 's'} due since ${fmtDate(row.overdueSinceDate, intl)}`
+        ? t(row.periodsElapsed === 1
+            ? 'plan.includesOverdueOne'
+            : 'plan.includesOverdueMany', {
+            n: String(row.periodsElapsed),
+            since: fmtDate(row.overdueSinceDate, intl) ?? '',
+          })
         : undefined}
     >
       {t('money.pastDue')}
@@ -575,10 +585,20 @@ function DuesRow({
    * stated in the one place they will read it.
    */
   const termsLine = notYetOwed && row.ageProration
-    ? `Starts ${fmtDate(row.ageProration.responsibleFrom, intl)}, when you turn ${row.ageProration.startAge}`
+    ? t('plan.startsWhenYouTurn', {
+        date: fmtDate(row.ageProration.responsibleFrom, intl) ?? '',
+        age: String(row.ageProration.startAge),
+      })
     : row.ageProration
-      ? `${formatCurrency(row.annualTotalCents, intl)} this year · ${formatCurrency(row.ageProration.fullAnnualCents, intl)}/yr after · ${row.schedule.frequency}`
-      : `${formatCurrency(row.annualTotalCents, intl)}/yr · ${row.schedule.frequency}`
+      ? t('plan.termsProrated', {
+          now: formatCurrency(row.annualTotalCents, intl),
+          full: formatCurrency(row.ageProration.fullAnnualCents, intl),
+          frequency: t(`dues.freq.${row.schedule.frequency}`),
+        })
+      : t('plan.termsPlain', {
+          amount: formatCurrency(row.annualTotalCents, intl),
+          frequency: t(`dues.freq.${row.schedule.frequency}`),
+        })
 
   return (
     <tr className={cn(
@@ -621,7 +641,8 @@ function DuesRow({
             Labelled, unlike most folded values: a bare date and a bare amount next to
             the payment figure are three numbers with no captions. */}
         <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground sm:hidden">
-          <MetaIf value={row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate, intl) : null} prefix="Next due" />
+          <MetaIf value={row.nextInstallmentDate ? fmtDate(row.nextInstallmentDate, intl) : null}
+            prefix={t('plan.nextDuePrefix')} />
           {!quiet && (
             <>
               {row.nextInstallmentDate && <MetaDot />}
@@ -700,7 +721,7 @@ function DuesRow({
             </Button>
           )}
 
-          <RowMenu label={`Options for ${row.schedule.label}`} disabled={isPending}>
+          <RowMenu label={t('plan.optionsFor', { schedule: row.schedule.label })} disabled={isPending}>
             {close => (
               <>
                 {notYetOwed ? (
@@ -825,7 +846,9 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
               <dt className="min-w-0 text-muted-foreground">
                 <span className="text-foreground">{r.schedule.label}</span>
                 {!r.required && (
-                  <span className="ml-1.5 text-xs text-muted-foreground">optional</span>
+                  <span className="ml-1.5 text-xs text-muted-foreground">
+                    {t('dues.optionalWord')}
+                  </span>
                 )}
                 {/* THE CATCH-UP, NAMED ON ITS OWN LINE. A member reading "$450" beside a due
                     whose installment is $50 has to be told why here as well as in the table,
@@ -833,7 +856,9 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
                     on a receipt is the one somebody abandons the checkout over. */}
                 {!r.onSchedule && r.periodsElapsed > 0 && (
                   <span className="block text-xs text-brand-withheld">
-                    covers {r.periodsElapsed} earlier installment{r.periodsElapsed === 1 ? '' : 's'}
+                    {t(r.periodsElapsed === 1
+                      ? 'plan.coversEarlierOne'
+                      : 'plan.coversEarlierMany', { n: String(r.periodsElapsed) })}
                   </span>
                 )}
               </dt>
@@ -863,7 +888,7 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
             <p className="max-w-md text-xs text-muted-foreground">{t('ui.onePaymentItemizedDue')}</p>
             <Button variant="affirm" disabled={isPending} onClick={onPayAll} className="ml-auto">
               <CreditCard className="h-4 w-4" />
-              Pay {formatCurrency(totalCents, intl)} by card
+              {t('plan.payAmountByCard', { amount: formatCurrency(totalCents, intl) })}
             </Button>
           </div>
         ) : (
@@ -913,11 +938,13 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
       open
       onClose={onClose}
       title={t('plan.changeCadence')}
-      description={`How often you pay ${row.schedule.label}. The annual total does not change — the cadence divides it.`}
+      description={t('plan.changeCadenceHint', { schedule: row.schedule.label })}
     >
       <div className="space-y-4">
         <fieldset className="space-y-1">
-          <legend className="sr-only">Pay cadence for {row.schedule.label}</legend>
+          <legend className="sr-only">
+            {t('plan.payCadenceFor', { schedule: row.schedule.label })}
+          </legend>
           {PAY_CADENCES.map(c => {
             const p = planFor(row, c)
             return (
@@ -938,10 +965,15 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
                 />
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
-                    <span className="font-medium capitalize">{c}</span>
+                    {/* THE CADENCE IS A KEYED WORD, not the enum with `capitalize` on it.
+                        `PayCadence` is a CHECK-constrained id whose values happen to be
+                        English, and `capitalize` is an English rule besides. */}
+                    <span className="font-medium">{t(`dues.cad.${c}`)}</span>
                     <span className="text-sm font-semibold whitespace-nowrap">
                       {formatCurrency(p.installmentCents, intl)}
-                      <span className="font-normal text-muted-foreground"> per installment</span>
+                      <span className="font-normal text-muted-foreground">
+                        {' '}{t('plan.perInstallment')}
+                      </span>
                     </span>
                   </span>
                   {/* THE CATCH-UP, NAMED PER OPTION. Switching to monthly in August does not
@@ -950,9 +982,13 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
                       figure would be pricing a plan the member cannot actually be on. */}
                   {!p.onSchedule && (
                     <span className="mt-0.5 block text-xs text-brand-withheld">
-                      Next payment {formatCurrency(p.nextInstallmentCents, intl)}, covering what has come due so far
+                      {t('plan.nextPaymentCovering', {
+                        amount: formatCurrency(p.nextInstallmentCents, intl),
+                      })}
                       {p.followingInstallmentDate
-                        ? `, then ${formatCurrency(p.followingInstallmentCents, intl)} each time`
+                        ? t('plan.thenEachTime', {
+                            amount: formatCurrency(p.followingInstallmentCents, intl),
+                          })
                         : ''}
                     </span>
                   )}
@@ -976,7 +1012,9 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
           >
             {/* Names the consequence rather than saying "Save", because the figure it
                 commits to is the one thing that changed. */}
-            Pay {formatCurrency(preview.nextInstallmentCents, intl)} next
+            {t('plan.payAmountNext', {
+              amount: formatCurrency(preview.nextInstallmentCents, intl),
+            })}
           </Button>
         </div>
       </div>
@@ -1027,11 +1065,14 @@ function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void
     // typed something impossible finds out before a redirect rather than after.
     for (const p of parsed) {
       if (!Number.isFinite(p.cents)) {
-        setFieldError(`Enter an amount for ${p.row.schedule.label}, or zero to leave it out.`)
+        setFieldError(t('plan.enterAmountFor', { schedule: p.row.schedule.label }))
         return
       }
       if (p.cents > p.row.remainingBalanceCents) {
-        setFieldError(`The most that can be paid on ${p.row.schedule.label} is ${formatCurrency(p.row.remainingBalanceCents, intl)}.`)
+        setFieldError(t('plan.mostThatCanBePaid', {
+          schedule: p.row.schedule.label,
+          amount: formatCurrency(p.row.remainingBalanceCents, intl),
+        }))
         return
       }
     }

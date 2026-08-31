@@ -12,8 +12,11 @@ import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Gatherings Report' }
+export async function generateMetadata() {
+  return docTitle('doc./reporting/gatherings.title')
+}
 
 /**
  * Is the work getting done, and is it inside the budget.
@@ -68,12 +71,14 @@ export default async function GatheringsReportPage() {
         {
           label: 'Gatherings',
           value: totals.gatherings,
-          hint: `${totals.upcoming} still to come · cancelled excluded`,
+          hint: t('rep.gathStillToCome', { n: String(totals.upcoming) }),
         },
         {
           label: t('rep.tasksApproved'),
           value: `${totals.tasks.approved} / ${totals.tasks.total}`,
-          hint: `${totals.tasks.submitted} waiting on a decision`,
+          hint: t('rep.gathWaitingDecision', {
+            n: String(totals.tasks.submitted),
+          }),
           tone: 'affirm',
         },
         {
@@ -94,7 +99,7 @@ export default async function GatheringsReportPage() {
         <ReportEmpty
           icon={PartyPopper}
           message="Nothing has been scheduled yet."
-          hint="Once the family schedules a gathering, this reports on how its tasks are going."
+          hint={t('rep.gathEmptyHint')}
         />
       ) : (
         <div className="overflow-hidden rounded-xl border">
@@ -104,7 +109,9 @@ export default async function GatheringsReportPage() {
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <th scope="col" className="px-3 py-2">Gathering</th>
                 <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Starts</th>
-                <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Status</th>
+                <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>
+                  {t('col.status')}
+                </th>
                 <th scope="col" className="px-3 py-2 text-right">Tasks</th>
                 <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>Overdue</th>
                 {showMoney && (

@@ -9,8 +9,11 @@ import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Elections Report' }
+export async function generateMetadata() {
+  return docTitle('doc./reporting/elections.title')
+}
 
 /**
  * Did anybody stand, and did anybody vote.
@@ -55,9 +58,13 @@ export default async function ElectionsReportPage() {
         {
           label: 'Elections',
           value: totals.elections,
-          hint: `${totals.open} open now · published only`,
+          hint: t('rep.elecOpenNow', { n: String(totals.open) }),
         },
-        { label: 'Nominations', value: totals.nominations, hint: 'across every election' },
+        {
+          label: t('rep.elecNominations'),
+          value: totals.nominations,
+          hint: t('rep.elecAcrossEvery'),
+        },
         {
           label: t('rep.officesNobodyStood'),
           value: uncontested,
@@ -75,8 +82,8 @@ export default async function ElectionsReportPage() {
       {rows.length === 0 ? (
         <ReportEmpty
           icon={Vote}
-          message="No election has been published yet."
-          hint="Once one is published, this reports its turnout, its nominations and any office nobody stood for."
+          message={t('rep.elecEmptyMessage')}
+          hint={t('rep.elecEmptyHint')}
         />
       ) : (
         <div className="overflow-hidden rounded-xl border">
@@ -106,12 +113,19 @@ export default async function ElectionsReportPage() {
                       <MetaDot />
                       <span>{row.phase}</span>
                       <MetaDot />
-                      <span>{row.accepted} of {row.nominations} accepted</span>
+                      <span>
+                        {t('rep.elecAcceptedOf', {
+                          accepted: String(row.accepted),
+                          total: String(row.nominations),
+                        })}
+                      </span>
                       {row.uncontested > 0 && (
                         <>
                           <MetaDot />
                           <span className="text-brand-withheld">
-                            {row.uncontested} with nobody standing
+                            {t('rep.elecNobodyStanding', {
+                              n: String(row.uncontested),
+                            })}
                           </span>
                         </>
                       )}
@@ -123,7 +137,9 @@ export default async function ElectionsReportPage() {
                     {row.accepted} / {row.nominations}
                     {row.uncontested > 0 && (
                       <span className="block text-xs text-brand-withheld">
-                        {row.uncontested} office{row.uncontested === 1 ? '' : 's'} unopposed
+                        {t(row.uncontested === 1
+                          ? 'rep.elecUnopposedOne'
+                          : 'rep.elecUnopposedMany', { n: String(row.uncontested) })}
                       </span>
                     )}
                   </td>
@@ -149,8 +165,9 @@ export default async function ElectionsReportPage() {
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">{t('rep.turnoutCountsPeopleNot')}<strong>n/a</strong>
-        {' '}rather than 0% — nobody could have voted in it.
+      <p className="text-xs text-muted-foreground">
+        {t('rep.turnoutCountsPeopleNot')}<strong>n/a</strong>
+        {t('rep.elecNotApplicableNote')}
       </p>
     </PageShell>
   )

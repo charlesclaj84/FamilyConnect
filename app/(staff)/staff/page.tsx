@@ -7,8 +7,11 @@ import { PageShell } from '@/components/layout/PageShell'
 import { APP_NAME } from '@/lib/brand'
 import { cn } from '@/lib/utils'
 import { callerI18n } from '@/lib/i18n/server'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Overview' }
+export async function generateMetadata() {
+  return docTitle('page./staff.title', { vars: { app: APP_NAME } })
+}
 
 /**
  * What the console can do, with the two numbers that say whether anything needs doing.
@@ -49,7 +52,7 @@ export default async function StaffOverviewPage() {
   return (
     <PageShell className="space-y-8">
       <div>
-        <h1 className="mb-1 text-3xl font-bold">{APP_NAME} staff console</h1>
+        <h1 className="mb-1 text-3xl font-bold">{t('page./staff.title', { app: APP_NAME })}</h1>
         <p className="max-w-2xl text-muted-foreground">{t('stf.crossFamilyToolsAnswering')}</p>
       </div>
 
@@ -57,11 +60,12 @@ export default async function StaffOverviewPage() {
         <ConsoleCard
           href="/staff/families"
           icon={Building2}
-          title="Families"
-          blurb="Every family, its plan, how many members it has, and whether it has been removed. Restoring one is here."
+          title={t('stf.familiesTitle')}
+          blurb={t('stf.familiesBlurb')}
         >
-          <Figure value={families.total} label={families.total === 1 ? 'family' : 'families'} />
-          <Figure value={families.active} label="active" />
+          <Figure value={families.total}
+            label={t(families.total === 1 ? 'stf.familyOne' : 'stf.familyMany')} />
+          <Figure value={families.active} label={t('stf.active')} />
           {/* `--brand-withheld`, NEVER `--destructive`. A removed family has lost no rows
               — removal is a status column and the way back is one click on the next
               screen — so the alarm hue would be describing a deletion that did not
@@ -79,7 +83,7 @@ export default async function StaffOverviewPage() {
           href="/staff/accounts"
           icon={UserSearch}
           title="Accounts"
-          blurb="Every sign-in account, whether its address is confirmed, whether it has ever been used, and which families it belongs to."
+          blurb={t('stf.accountsBlurb')}
         >
           {/* MEMBERSHIPS, and the label says memberships. There is no cheap honest count
               of ACCOUNTS: counting DISTINCT user_id is not expressible in PostgREST and

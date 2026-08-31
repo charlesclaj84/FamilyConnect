@@ -15,6 +15,7 @@ import {
   type StaffAccountLookup, type StaffAccountPage, type StaffMembership,
 } from '@/app/actions/staff/accounts'
 import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import { StaffDeleteAccountDialog } from '@/components/staff/StaffDeleteAccountDialog'
 
 /**
  * The screen support opens when somebody says they cannot sign in.
@@ -42,11 +43,24 @@ import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
  * is precisely the reversible-withholding role, and `--destructive` in this file belongs
  * to `FormError` alone, which reports a refused operation.
  */
-export function StaffAccountsClient({ initial }: { initial: StaffAccountPage }) {
+export function StaffAccountsClient({ initial, isOwner = false }: {
+  initial: StaffAccountPage
+  /**
+   * Is the caller a GENORRA staff OWNER?
+   *
+   * Resolved on the server and handed down, for `AccountMenu`'s `isStaff` reason:
+   * `genorra_staff` has RLS with no policies, so the browser cannot read its own row. It
+   * decides whether a CONTROL is rendered and nothing else — `deleteStaffAccount` opens with
+   * `requireStaffOwner()` and `staff_delete_account` re-asks in SQL, so a forged prop is
+   * refused twice more (AGENTS.md §2). Defaults to false, so a caller that has not thought
+   * about it withholds the control.
+   */
+  isOwner?: boolean
+}) {
   return (
     <div className="space-y-8">
       <LookupPanel />
-      <AccountTable initial={initial} />
+      <AccountTable initial={initial} isOwner={isOwner} />
     </div>
   )
 }
@@ -120,8 +134,7 @@ function LookupResult({ result }: { result: StaffAccountLookup }) {
         <p className="text-muted-foreground">{t('stf.authenticationServiceDidNot')}</p>
       ) : !state.exists ? (
         <p className="text-muted-foreground">
-          <span className="font-medium text-foreground">{t('staff.noAccount')}</span>{' '}
-          Nobody has ever registered it. If they were invited, the invitation is below.
+          {t('staff.neverRegistered', { lede: t('staff.noAccount') })}
         </p>
       ) : (
         <ul className="space-y-1.5 text-muted-foreground">
@@ -156,7 +169,11 @@ function LookupResult({ result }: { result: StaffAccountLookup }) {
 }
 
 /** The browsable list: one row per account, memberships beside it. */
-function AccountTable({ initial }: { initial: StaffAccountPage }) {
+function AccountTable({ initial, isOwner }: {
+  initial: StaffAccountPage
+  /** See `StaffAccountsClient`. Decides a control, never an access. */
+  isOwner: boolean
+}) {
   const intl = useIntlTag()
   const t = useT()
   const [query, setQuery] = useState('')
@@ -177,17 +194,34 @@ function AccountTable({ initial }: { initial: StaffAccountPage }) {
     return () => clearTimeout(t)
   }, [query])
 
-  useEffect(() => {
-    if (first.current) {
-      first.current = false
-      return
-    }
+  /**
+   * Re-read the current page.
+   *
+   * NAMED rather than left inline in the effect, because a deletion has to be able to call
+   * it: patching the deleted row out of local state would leave this screen's page COUNT and
+   * its total describing a platform that has changed underneath them — on the one screen
+   * whose job is saying what is true. `StaffFamiliesClient` makes the same call for the same
+   * reason.
+   */
+  const load = () => {
     const id = ++reqId.current
     startTransition(async () => {
       const result = await listStaffAccounts({ page, query: debounced })
       // Ignore a response a newer request has already superseded.
       if (id === reqId.current) setData(result)
     })
+  }
+
+  useEffect(() => {
+    if (first.current) {
+      first.current = false
+      return
+    }
+    load()
+    // `load` is recreated every render and listing it would refetch forever. The two values
+    // it closes over are the two in this list — the same exemption `StaffFamiliesClient`
+    // carries with the same comment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounced, page])
 
   return (
@@ -206,7 +240,7 @@ function AccountTable({ initial }: { initial: StaffAccountPage }) {
       ) : data.rows.length === 0 ? (
         <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
           {debounced
-            ? `No address on this page contains “${debounced}”.`
+            ? t('staff.noAddressMatches', { query: debounced })
             : t('staff.noAccounts')}
         </p>
       ) : (
@@ -226,6 +260,16 @@ function AccountTable({ initial }: { initial: StaffAccountPage }) {
                 <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.families')}</th>
                 <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.lastSignIn')}</th>
                 <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.created')}</th>
+                {/* AN `sr-only` HEADING, not an empty `<th>`. A screen reader announces the
+                    column when it reads the cell, and a column with no heading to give still
+                    needs one — AGENTS.md, "A table is a table". Rendered only when the
+                    column is, so the grid does not hold a phantom sixth column open for
+                    everybody else. */}
+                {isOwner && (
+                  <th scope="col" className="px-3 py-2 font-semibold">
+                    <span className="sr-only">{t('staff.actions')}</span>
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -243,7 +287,9 @@ function AccountTable({ initial }: { initial: StaffAccountPage }) {
                         {/* PREFIXED. Two bare dates under an address are a coin toss once
                             the headings that distinguished them are folded away. */}
                         <span>
-                          Last sign-in {formatDate(row.lastSignInAt, intl) ?? 'never'}
+                          {t('staff.lastSignIn', {
+                            date: formatDate(row.lastSignInAt, intl) ?? t('staff.never'),
+                          })}
                         </span>
                         <MetaDot />
                         <span>Created {formatDate(row.createdAt, intl) ?? '—'}</span>
@@ -273,6 +319,31 @@ function AccountTable({ initial }: { initial: StaffAccountPage }) {
                   <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
                     {formatDate(row.createdAt, intl) ?? '—'}
                   </td>
+                  {/* ── AND THE ONE CONTROL WITH NO UNDO, FOR AN OWNER ──────────────────
+                      Rendered for nobody else, not disabled for them: a control a `support`
+                      staffer can see and not use teaches them the console has buttons that
+                      do not work. Same call `AccountMenu` makes about the staff link itself.
+
+                      NOT COLLAPSING. Every other column here folds on a phone; the action
+                      does not, because a row you cannot act on is a row you have to widen
+                      the window to act on. */}
+                  {isOwner && (
+                    <td className="px-3 py-2.5 text-right">
+                      {row.email ? (
+                        <StaffDeleteAccountDialog
+                          email={row.email}
+                          familyCount={row.memberships.length}
+                          onDeleted={load}
+                        />
+                      ) : (
+                        // An account with no address cannot be deleted by this path: the
+                        // function resolves the row BY address. Rare and real — GoTrue
+                        // permits a phone-only account — so it says so rather than
+                        // rendering a button that would refuse.
+                        <span className="text-xs text-muted-foreground">{t('staff.noAddress')}</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

@@ -63,8 +63,7 @@ export function MembershipBreakdownLegend({
     <>
       <table className="w-full text-sm">
         <caption className="sr-only">
-          {`Every ${unit} count in this breakdown, including any the chart folds together. `
-            + t('rep.pressRow')}
+          {t('rep.everyUnitCount', { unit }) + t('rep.pressRow')}
         </caption>
         <thead className="sr-only">
           <tr>

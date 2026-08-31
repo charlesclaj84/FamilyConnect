@@ -10,8 +10,11 @@ import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Meetings Report' }
+export async function generateMetadata() {
+  return docTitle('doc./reporting/meetings.title')
+}
 
 /**
  * How often the family meets, how big the room is, and how much of it votes.
@@ -48,9 +51,15 @@ export default async function MeetingsReportPage() {
       </div>
 
       <ReportStats stats={[
-        { label: 'Meetings', value: totals.meetings, hint: `${totals.people} relatives asked to one` },
         {
-          label: 'Minuted',
+          label: t('rep.meetings'),
+          value: totals.meetings,
+          hint: t(totals.people === 1
+            ? 'rep.meetRelativesAskedOne'
+            : 'rep.meetRelativesAskedMany', { n: String(totals.people) }),
+        },
+        {
+          label: t('rep.minuted'),
           value: `${totals.minuted} / ${totals.meetings}`,
           hint: 'closed, so the record is final',
           tone: 'affirm',
@@ -58,16 +67,20 @@ export default async function MeetingsReportPage() {
         {
           label: 'Topics',
           value: totals.topics,
-          hint: `${totals.votedTopics} reached a vote`,
+          hint: t('rep.meetReachedAVote', { n: String(totals.votedTopics) }),
         },
-        { label: t('rep.votesCast'), value: totals.ballots, hint: 'one per topic answered' },
+        {
+          label: t('rep.votesCast'),
+          value: totals.ballots,
+          hint: t('rep.meetOnePerTopic'),
+        },
       ]} />
 
       {rows.length === 0 ? (
         <ReportEmpty
           icon={Gavel}
-          message="The family has not held a meeting yet."
-          hint="Once one is scheduled, this reports who was in the room, what was taken up, and how the votes went."
+          message={t('rep.meetEmptyMessage')}
+          hint={t('rep.meetEmptyHint')}
         />
       ) : (
         <>
@@ -79,7 +92,9 @@ export default async function MeetingsReportPage() {
                 <thead>
                   <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <th scope="col" className="px-3 py-2">Meeting</th>
-                    <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Date</th>
+                    <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>
+                      {t('col.date')}
+                    </th>
                     <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>{t('rep.minutes')}</th>
                     <th scope="col" className="px-3 py-2 text-right">{t('rep.room')}</th>
                     <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>
@@ -108,7 +123,7 @@ export default async function MeetingsReportPage() {
                           {row.secretaryName && (
                             <>
                               <MetaDot />
-                              <span>Minutes by {row.secretaryName}</span>
+                              <span>{t('meet.minutesBy', { name: row.secretaryName })}</span>
                             </>
                           )}
                           <MetaDot />
@@ -128,7 +143,7 @@ export default async function MeetingsReportPage() {
                         {row.topics}
                         {row.voted > 0 && (
                           <span className="block text-xs text-muted-foreground">
-                            {row.voted} voted on
+                            {t('rep.meetVotedOn', { n: String(row.voted) })}
                           </span>
                         )}
                       </td>

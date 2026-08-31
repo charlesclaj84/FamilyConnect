@@ -164,7 +164,7 @@ function progressCaption(counts: TaskProgress, t: T): string {
   // participle agreement in the source; Spanish and French both inflect the participle.
   const parts = [t('agat.progress', { done: counts.approved, total: counts.total })]
   if (counts.submitted > 0) parts.push(t('agat.waiting', { n: counts.submitted }))
-  if (counts.denied > 0) parts.push(`${counts.denied} sent back`)
+  if (counts.denied > 0) parts.push(t('agat.sentBackCount', { n: String(counts.denied) }))
   return parts.join(' · ')
 }
 
@@ -174,6 +174,7 @@ export function AdminGatheringsClient({
   mayViewConsole, mayViewTemplates, libraryTemplates,
   mayCreateTemplates, mayEditTemplates, mayDeleteTemplates,
 }: Props) {
+  const intl = useIntlTag()
   const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
@@ -197,10 +198,7 @@ export function AdminGatheringsClient({
   async function handleDelete(row: AdminGatheringRow) {
     const ok = await confirm({
       title: t('agat.delete'),
-      description: `Delete “${row.title}”? Every task on it goes with it, and so does every `
-        + 'answer and note anybody has already written. If it is simply not happening, set its '
-        + 'status to Cancelled instead — nothing is lost and it can be reopened. This cannot '
-        + 'be undone.',
+      description: t('agat.deleteConfirm', { title: row.title }),
       confirmLabel: t('agat.delete'),
       destructive: true,
     })
@@ -268,7 +266,7 @@ export function AdminGatheringsClient({
             <FormError message={listError} />
             {gatherings.length === 0 ? (
               <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-                No gatherings yet.{' '}
+                {t('agat.noneYet')}{' '}
                 {mayCreate
                   ? t('agat.pressNew')
                   : t('agat.somebodySchedule')}
@@ -307,7 +305,7 @@ export function AdminGatheringsClient({
                           )}
                           <RowMeta className="gap-x-2">
                             {/* The whole answer, never a range over the envelope — see `formatWhenBrief`. */}
-                            <MetaIf value={formatWhenBrief(row)} />
+                            <MetaIf value={formatWhenBrief(row, intl, t)} />
                             <MetaDot />
                             <MetaIf value={progressCaption(row.taskCounts, t)} />
                             {mayManageBudget && row.budget && (
@@ -328,7 +326,7 @@ export function AdminGatheringsClient({
                           </RowMeta>
                         </td>
                         <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
-                          {formatWhenBrief(row) ?? '—'}
+                          {formatWhenBrief(row, intl, t) ?? '—'}
                         </td>
                         <td className="px-3 py-2.5">
                           <GatheringStatusPill status={row.status} />
@@ -456,7 +454,9 @@ function MoneyCell({ budget }: { budget: GatheringBudgetView }) {
   if (math.budgetCents == null) {
     return (
       <span className="text-muted-foreground">
-        {budget.fundName ? `No budget · ${budget.fundName}` : t('agat.noBudget')}
+        {budget.fundName
+          ? t('agat.noBudgetFund', { fund: budget.fundName })
+          : t('agat.noBudget')}
       </span>
     )
   }
@@ -472,12 +472,14 @@ function MoneyCell({ budget }: { budget: GatheringBudgetView }) {
       </p>
       {math.overFund && (
         <p className="text-xs text-destructive">
-          Over by {formatCurrency(math.overFundByCents, intl)}
+          {t('agat.overBy', { amount: formatCurrency(math.overFundByCents, intl) })}
         </p>
       )}
       {!math.overFund && math.overFundWithOthers && (
         <p className="text-xs text-destructive">
-          Over with the other gatherings on this fund by {formatCurrency(math.overFundWithOthersByCents, intl)}
+          {t('agat.overWithOthersBy', {
+            amount: formatCurrency(math.overFundWithOthersByCents, intl),
+          })}
         </p>
       )}
     </div>
@@ -554,9 +556,9 @@ function ReviewCard({
   async function handleApprove() {
     const ok = await confirm({
       title: t('agat.approveThis'),
-      description: `Approve “${row.label}” on ${row.gatheringTitle}? Approving is final — `
-        + 'the answer is the family’s record of it and the person who submitted it cannot '
-        + 'change it afterwards. Send it back instead if anything still needs work.',
+      description: t('agat.approveRowConfirm', {
+        task: row.label, gathering: row.gatheringTitle,
+      }),
       confirmLabel: t('agat.approve'),
     })
     if (!ok) return
@@ -644,9 +646,11 @@ function ReviewCard({
                 onChange={e => { setNotes(e.target.value); setNotesError('') }}
               />
               <p className="text-xs text-muted-foreground">
-                Sent to {row.assignee ? row.assignee.name : 'whoever holds this task'} with the
-                task. A task sent back with no notes leaves them nothing to act on, which is why
-                this is required.
+                {t('agat.sentToWithTask', {
+                  name: row.assignee
+                    ? row.assignee.name
+                    : t('agat.whoeverHoldsThisTask'),
+                })}
               </p>
               <FieldError message={notesError} />
             </div>
@@ -842,7 +846,10 @@ function NewGatheringDialog({
               <p className="text-xs text-muted-foreground">
                 {templateIds.length === 0
                   ? t('agat.everyStep')
-                  : `${templateIds.length} chosen · their steps become this gathering’s tasks, in the order shown`}
+                  : t(templateIds.length === 1
+                      ? 'agat.chosenTemplatesOne'
+                      : 'agat.chosenTemplatesMany',
+                    { n: String(templateIds.length) })}
               </p>
             </>
           )}

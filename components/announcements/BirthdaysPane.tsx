@@ -12,6 +12,9 @@ import {
   DISCREET_AGE_EMOJI, DISCREET_AGE_LABEL, DISCREET_AGE_MIN, DISCREET_AGE_MAX,
   type UpcomingBirthday,
 } from '@/lib/birthdays'
+import { useRouter } from 'next/navigation'
+import { BirthdayComposer } from '@/components/announcements/BirthdayComposer'
+import type { BirthdayPromptPage } from '@/app/actions/birthdays'
 import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
@@ -90,9 +93,26 @@ import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
  * the page"). The one piece of state is the filter string, which is the genuinely UI-local
  * kind that section explicitly exempts — the same standing as which nav section is expanded.
  */
-export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) {
+export function BirthdaysPane({ birthdays, prompts }: {
+  birthdays: UpcomingBirthday[]
+  /**
+   * The two-week prompt, or null when the caller may not compose and the pane is a list only.
+   *
+   * ── ABOVE THE LIST RATHER THAN INSIDE IT, AND THEY ARE DIFFERENT THINGS ─────────
+   * The list is sixty days of birthdays an organizer browses. The prompt is the handful
+   * inside two weeks that nobody has said anything about yet — a call to act, with a
+   * composer in it. Merging them would either turn the list into a wall of open forms or
+   * bury the prompt sixty rows deep.
+   *
+   * NULL rather than an empty array when the read was not made, so the pane can tell "no
+   * prompts" from "not fetched" — the distinction §5 turns on, since a caller without
+   * `community/announcements:view` never has this read run at all.
+   */
+  prompts: BirthdayPromptPage | null
+}) {
   const intl = useIntlTag()
   const t = useT()
+  const router = useRouter()
   const [query, setQuery] = useState('')
 
   const filtered = birthdays.filter(b => matchesPersonQuery(
@@ -128,6 +148,16 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
 
   return (
     <div className="space-y-4">
+      {/* THE PROMPT, ABOVE THE LIST. Renders nothing when there is nothing inside
+          two weeks, so the pane is unchanged for most of the year — see the prop. */}
+      {prompts && (
+        <BirthdayComposer
+          prompts={prompts.prompts}
+          canCompose={prompts.canCompose}
+          failed={prompts.failed}
+          onDone={() => router.refresh()}
+        />
+      )}
       <div className="relative sm:max-w-xs">
         <Search className="pointer-events-none absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
         {/* `aria-label` rather than a visible label: the placeholder says what it is, and a
@@ -144,7 +174,7 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
 
       {filtered.length === 0 ? (
         <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-          No birthday in the next {BIRTHDAY_HORIZON_DAYS} days matches that name.
+          {t('bday.noneMatchName', { days: String(BIRTHDAY_HORIZON_DAYS) })}
         </p>
       ) : (
         // `overflow-visible`, with no `overflow-x-auto` and no `min-w-*` floor: the table
@@ -220,7 +250,9 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
                         </span>
                       ) : (
                         <span className="text-muted-foreground">
-                          {b.daysAway === 1 ? t('common.tomorrow') : `in ${b.daysAway} days`}
+                          {b.daysAway === 1
+                            ? t('common.tomorrow')
+                            : t('bday.inDays', { n: String(b.daysAway) })}
                         </span>
                       )}
                     </td>
@@ -264,8 +296,13 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
           the only thing that ever hides one is the search box above. */}
       <p className="text-xs text-muted-foreground">
         {query
-          ? `${filtered.length} of ${birthdays.length} shown`
-          : `${birthdays.length} birthday${birthdays.length === 1 ? '' : 's'} in the next ${BIRTHDAY_HORIZON_DAYS} days`}
+          ? t('bday.shownOfTotal', {
+              shown: String(filtered.length), total: String(birthdays.length),
+            })
+          : t(birthdays.length === 1 ? 'bday.countOne' : 'bday.countMany', {
+              n: String(birthdays.length),
+              days: String(BIRTHDAY_HORIZON_DAYS),
+            })}
         {/* TWO SENTENCES FOR TWO REASONS, each printed only when that reason actually
             occurred in the list. The untrusted one asks somebody to fix a profile; the
             discreet one explains a deliberate choice and must not read as a fault. The bounds
@@ -273,7 +310,11 @@ export function BirthdaysPane({ birthdays }: { birthdays: UpcomingBirthday[] }) 
             hand-written "30 and 60" here is a sentence that outlives the rule it describes. */}
         {someAgeUntrusted && ' · an age is left out where the year on file cannot be trusted'}
         {someAgeDiscreet
-          && ` · ${DISCREET_AGE_EMOJI} stands in for an age between ${DISCREET_AGE_MIN} and ${DISCREET_AGE_MAX}`}
+          && ` · ${t('bday.discreetNote', {
+            emoji: DISCREET_AGE_EMOJI,
+            min: String(DISCREET_AGE_MIN),
+            max: String(DISCREET_AGE_MAX),
+          })}`}
       </p>
     </div>
   )

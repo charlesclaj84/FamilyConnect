@@ -338,11 +338,11 @@ export function MonthCalendar({ month, className, t, intl }: MonthCalendarProps)
         <div className="flex items-center gap-1">
           <Link
             href={`/gatherings/calendar?month=${month.prevMonth}`}
-            aria-label={`Go to ${monthLabel(month.prevMonth)}`}
+            aria-label={t('cal.goToMonth', { month: monthLabel(month.prevMonth, intl) })}
             className="inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-sm text-foreground hover:bg-muted"
           >
             <ChevronLeft aria-hidden="true" className="h-4 w-4" />
-            <span className="hidden sm:inline">{monthLabel(month.prevMonth)}</span>
+            <span className="hidden sm:inline">{monthLabel(month.prevMonth, intl)}</span>
           </Link>
           {/* No `month` at all, so the page falls back to the current month. That is one
               fewer place that has to agree about what today is. */}
@@ -354,10 +354,10 @@ export function MonthCalendar({ month, className, t, intl }: MonthCalendarProps)
           </Link>
           <Link
             href={`/gatherings/calendar?month=${month.nextMonth}`}
-            aria-label={`Go to ${monthLabel(month.nextMonth)}`}
+            aria-label={t('cal.goToMonth', { month: monthLabel(month.nextMonth, intl) })}
             className="inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-sm text-foreground hover:bg-muted"
           >
-            <span className="hidden sm:inline">{monthLabel(month.nextMonth)}</span>
+            <span className="hidden sm:inline">{monthLabel(month.nextMonth, intl)}</span>
             <ChevronRight aria-hidden="true" className="h-4 w-4" />
           </Link>
         </div>
@@ -365,7 +365,7 @@ export function MonthCalendar({ month, className, t, intl }: MonthCalendarProps)
 
       {!hasEntries && (
         <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-          Nothing is on the calendar in {month.label}.
+          {t('cal.nothingInMonth', { month: month.label })}
         </p>
       )}
 
@@ -373,7 +373,7 @@ export function MonthCalendar({ month, className, t, intl }: MonthCalendarProps)
       <div className="hidden overflow-hidden rounded-xl border sm:block">
         <table className="w-full table-fixed border-collapse text-sm">
           <caption className="sr-only">
-            {`What is on in ${month.label}, one column per weekday.`}
+            {t('cal.whatIsOnCaption', { month: month.label })}
           </caption>
           <thead>
             <tr className="border-b bg-muted/40 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -423,7 +423,7 @@ export function MonthCalendar({ month, className, t, intl }: MonthCalendarProps)
                         {day.isToday ? (
                           <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-brand-primary text-xs font-semibold text-brand-on-primary">
                             {day.dayOfMonth}
-                            <span className="sr-only"> — today</span>
+                            <span className="sr-only">{t('cal.todaySrOnly')}</span>
                           </span>
                         ) : (
                           <span className={cn(
@@ -492,7 +492,7 @@ export function MonthCalendar({ month, className, t, intl }: MonthCalendarProps)
                       <p className="mt-0.5">
                         <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-brand-primary text-sm font-semibold text-brand-on-primary">
                           {day.dayOfMonth}
-                          <span className="sr-only"> — today</span>
+                          <span className="sr-only">{t('cal.todaySrOnly')}</span>
                         </span>
                       </p>
                     ) : (

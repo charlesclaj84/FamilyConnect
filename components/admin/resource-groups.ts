@@ -1,5 +1,8 @@
 import type { ResourceSummary } from '@/app/actions/admin/permissions'
-import { PERMISSION_ACTIONS, type PermissionAction, type PermissionScope } from '@/lib/auth/permissions'
+// THE PURE MODULE, not `@/lib/auth/permissions`. This file is imported by client
+// components, and that one imports the admin client — see `lib/permission-actions.ts`
+// for the chain and why `undefined` was the only thing protecting it.
+import { PERMISSION_ACTIONS, type PermissionAction, type PermissionScope } from '@/lib/permission-actions'
 import type { T } from '@/lib/i18n/t'
 
 /**
@@ -31,7 +34,36 @@ export const SCOPES_FOR: Record<PermissionAction, PermissionScope[]> = {
   delete: ['none', 'own', 'any'],
 }
 
-export const SCOPE_LABEL: Record<PermissionScope, string> = { none: '—', own: 'Own', any: 'All' }
+/**
+ * The word on a scope chip, in the reader's language.
+ *
+ * A FUNCTION OF `t` RATHER THAN A MAP, which is the pattern AGENTS.md's i18n section sets for
+ * a module-level registry: *"the ids are the contract; the words are looked up"*. It was
+ * `{ none: '—', own: 'Own', any: 'All' }` and rendered English on the one screen where
+ * picking the wrong row hands somebody authority they should not have.
+ *
+ * `none` is an em dash in every language on purpose — it is a mark, not a word.
+ */
+export function scopeLabel(t: T, scope: PermissionScope): string {
+  return t(`perm.scope.${scope}`)
+}
+
+/**
+ * An action's name as a LABEL — capitalised, for a chip or a column heading.
+ *
+ * `actionVerb` below is the same action inside a sentence, and the two are separate keys
+ * rather than one plus `toUpperCase()`: English capitalises a label and not a verb in running
+ * text, and Spanish and French capitalise neither, so deriving one from the other is wrong in
+ * two of the three languages this product speaks.
+ */
+export function actionLabel(t: T, action: PermissionAction): string {
+  return t(`perm.action.${action}`)
+}
+
+/** An action's name inside a sentence — lower-case in English. See `actionLabel`. */
+export function actionVerb(t: T, action: PermissionAction): string {
+  return t(`perm.verb.${action}`)
+}
 
 // Own and All must be told apart at a glance on the one screen where picking the wrong
 // row hands somebody authority they should not have. Gold against olive is a bigger

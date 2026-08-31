@@ -1184,7 +1184,8 @@ export async function retryCheckInAsks(checkInId: string): Promise<ActionResult 
       // is not a refusal — there was simply nothing to retry — and saying so is what stops
       // somebody pressing it repeatedly waiting for something to happen.
       ? 'There was nothing left to try again'
-      : requeued === 1 ? '1 relative will be asked again' : `${requeued} relatives will be asked again`,
+      : t(requeued === 1 ? 'safety.requeuedOne' : 'safety.requeuedMany',
+          { n: String(requeued) }),
   }
 }
 

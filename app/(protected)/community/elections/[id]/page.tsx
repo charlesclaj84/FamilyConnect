@@ -15,8 +15,11 @@ import { ELECTION_PHASE_LABEL } from '@/lib/election-phase'
 import { PageShell } from '@/components/layout/PageShell'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Election' }
+export async function generateMetadata() {
+  return docTitle('doc./community/elections/[id].title')
+}
 
 /**
  * One election.

@@ -207,7 +207,7 @@ export async function startDuesCheckout(input: {
   if (items.length > MAX_PAY_ITEMS) {
     return {
       success: false,
-      message: `Up to ${MAX_PAY_ITEMS} dues can be paid in one go. Pay some of them separately.`,
+      message: t('pay.maxItems', { max: String(MAX_PAY_ITEMS) }),
     }
   }
   // A repeated schedule would post two rows against one due, and the second would collide on
@@ -243,7 +243,10 @@ export async function startDuesCheckout(input: {
 
     const owed = row.remainingBalanceCents
     if (owed <= 0) {
-      return { success: false, message: `There is nothing left to pay on ${row.schedule.label}.` }
+      return {
+        success: false,
+        message: t('pay.nothingLeftOn', { schedule: row.schedule.label }),
+      }
     }
 
     const amount = Math.round(item.amountCents)
@@ -258,7 +261,9 @@ export async function startDuesCheckout(input: {
       // without saying which line was wrong is a refusal nobody can act on.
       return {
         success: false,
-        message: `That is more than is owed. The most that can be paid on ${row.schedule.label} is ${formatCurrency(owed, intl)}.`,
+        message: t('pay.moreThanOwed', {
+          schedule: row.schedule.label, amount: formatCurrency(owed, intl),
+        }),
       }
     }
 
@@ -579,7 +584,10 @@ export async function startDonationCheckout(input: {
   const drive = (await getDonationProgress()).find(d => d.schedule.id === input?.scheduleId)
   if (!drive) return { success: false, message: t('act.driveNotOneYourFamily') }
   if (drive.closed) {
-    return { success: false, message: `${drive.schedule.label} has closed. Nothing more can be given to it.` }
+    return {
+      success: false,
+      message: t('pay.driveClosed', { drive: drive.schedule.label }),
+    }
   }
 
   const amount = Math.round(input.amountCents)
@@ -592,7 +600,9 @@ export async function startDonationCheckout(input: {
   if (amount > MAX_CHARGE_CENTS) {
     return {
       success: false,
-      message: `A single card payment cannot be more than ${formatCurrency(MAX_CHARGE_CENTS, intl)}. Give it in two.`,
+      message: t('pay.maxCharge', {
+        amount: formatCurrency(MAX_CHARGE_CENTS, intl),
+      }),
     }
   }
 

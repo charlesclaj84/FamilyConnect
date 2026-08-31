@@ -198,7 +198,7 @@ export function AnswerInput({
             // ", in dollars" rather than describing the `$` by `aria-describedby`: a name is
             // announced on focus and a description is not always, and this is the same shape
             // `AdminGatheringTemplatesClient` already uses for its suggested-budget box.
-            aria-label={`${ariaLabel}, in dollars`}
+            aria-label={t('gath.answerInDollars', { label: ariaLabel })}
             value={value}
             disabled={disabled}
             onChange={e => onChange(e.target.value)}
@@ -248,7 +248,7 @@ export function AnswerInput({
           rows={2}
           // The list's shape is part of what this field IS, so it is in the name as well as in
           // the placeholder — a placeholder is not an accessible name and disappears on typing.
-          aria-label={`${ariaLabel}, one item per line`}
+          aria-label={t('gath.answerOnePerLine', { label: ariaLabel })}
           // Said in the placeholder because the shape of the answer is the whole instruction
           // here, and `GATHERING_STEP_KIND_HINT` is written for the person AUTHORING the
           // template rather than for the assignee.

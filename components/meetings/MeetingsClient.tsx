@@ -103,10 +103,10 @@ export function MeetingsClient({ initialMeetings, attendeeOptions, maySchedule, 
       ) : (
         <>
           {upcoming.length > 0 && (
-            <MeetingGroup heading="Coming up" meetings={upcoming} />
+            <MeetingGroup heading={t('meet.comingUp')} meetings={upcoming} />
           )}
           {past.length > 0 && (
-            <MeetingGroup heading="Held" meetings={past} />
+            <MeetingGroup heading={t('meet.held')} meetings={past} />
           )}
         </>
       )}
@@ -145,8 +145,13 @@ function MeetingGroup({ heading, meetings }: { heading: string; meetings: Meetin
                   <span className="inline-flex items-center gap-1">
                     <Users className="h-3 w-3" /> {m.attendees.length} attending
                   </span>
-                  {m.secretaryName && <span>Minutes by {m.secretaryName}</span>}
-                  <span>{m.topicCount} topic{m.topicCount === 1 ? '' : 's'}</span>
+                  {m.secretaryName && (
+                    <span>{t('meet.minutesBy', { name: m.secretaryName })}</span>
+                  )}
+                  <span>
+                    {t(m.topicCount === 1 ? 'meet.topicsOne' : 'meet.topicsMany',
+                      { n: String(m.topicCount) })}
+                  </span>
                 </span>
               </span>
               {/* CLOSED IS THE STATE WORTH A PILL, and open is not: a meeting that has not been
@@ -421,7 +426,11 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
             duplicating them into the accessibility tree would only be noise. */}
         <div className="space-y-1.5">
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            Step {step + 1} of {steps(t).length} · {steps(t)[step]}
+            {t('meet.stepOf', {
+              step: String(step + 1),
+              total: String(steps(t).length),
+              name: steps(t)[step],
+            })}
           </p>
           <div aria-hidden="true" className="flex gap-1">
             {steps(t).map((name, i) => (
@@ -586,8 +595,10 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
               <p className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
                 {options.everyoneIds.length === 1
                   ? t('meet.oneAdult')
-                  : `That is all ${options.everyoneIds.length} adults in the family.`}{' '}
-                Nobody under eighteen is invited to a meeting.
+                  : t('meet.allAdultsInFamily', {
+                      n: String(options.everyoneIds.length),
+                    })}{' '}
+                {t('meet.nobodyUnderEighteen')}
               </p>
             )}
             {audience === 'named' && (
@@ -622,7 +633,8 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
               ) : (
                 <details>
                   <summary className="cursor-pointer text-xs text-muted-foreground">
-                    {room.length} {room.length === 1 ? 'person' : 'people'} in the room — see who
+                    {t(room.length === 1 ? 'meet.inTheRoomOne' : 'meet.inTheRoomMany',
+                      { n: String(room.length) })}
                   </summary>
                   <ul className="mt-2 flex flex-wrap gap-1.5">
                     {room.map(person => (

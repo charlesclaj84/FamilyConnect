@@ -9,8 +9,11 @@ import { PageShell } from '@/components/layout/PageShell'
 import { MonthCalendar } from '@/components/calendar/MonthCalendar'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Calendar' }
+export async function generateMetadata() {
+  return docTitle('page./gatherings/calendar.title')
+}
 
 /**
  * `/gatherings/calendar` — one month, with the family's gatherings on the days they fall.
@@ -109,7 +112,8 @@ export default async function CalendarPage({
 
       {withheld.length > 0 && (
         <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          {`This calendar does not include ${withheldList}, so what you see below is not the whole month: ${withheld.length === 1 ? 'that screen has' : 'those screens have'} either not been shared with you, or could not be read just now.`}
+          {t(withheld.length === 1 ? 'cal.withheldOne' : 'cal.withheldMany',
+            { list: withheldList })}
         </div>
       )}
 

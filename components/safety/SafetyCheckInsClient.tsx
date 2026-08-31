@@ -186,8 +186,7 @@ export function SafetyCheckInsClient({
     startTransition(async () => {
       const ok = await confirm({
         title: t('safety.deleteConfirm'),
-        description: `“${row.title}” and the record of who answered will be removed. Nobody will `
-          + 'be able to see who was asked, who said they were safe, or who was never reached.',
+        description: t('safety.deleteNamedBody', { title: row.title }),
         confirmLabel: t('action.delete'),
         destructive: true,
       })
@@ -374,7 +373,9 @@ function CheckInCard({
             {row.scope === 'family' ? t('safety.everyone')
               : row.scope === 'named' ? t('safety.handPicked')
                 : row.areaName ?? t('safety.oneArea')}
-            {row.raisedByName ? ` · raised by ${row.raisedByName}` : ''}
+            {row.raisedByName
+              ? ` · ${t('safety.raisedBy', { name: row.raisedByName })}`
+              : ''}
             {now ? ` · ${openedAgo(row.createdAt, now)}` : ''}
           </p>
           {row.detail && <p className="mt-2 text-sm">{row.detail}</p>}
@@ -428,7 +429,9 @@ function CheckInCard({
         )}
         {row.status === 'open' && rights.raise && tally.queued > 0 && onAskRest && (
           <Button variant="outline" size="sm" onClick={onAskRest} disabled={busy}>
-            {sending ? t('safety.asking') : `Ask the remaining ${tally.queued}`}
+            {sending
+              ? t('safety.asking')
+              : t('safety.askRemaining', { n: String(tally.queued) })}
           </Button>
         )}
         {/*
@@ -461,8 +464,8 @@ function CheckInCard({
         // works through and "everybody is safe" gets read over them.
         <p className="mt-3 text-sm text-brand-withheld">
           {tally.unreachable === 1
-            ? '1 relative has no email address on file. Somebody will need to telephone them.'
-            : `${tally.unreachable} relatives have no email address on file. Somebody will need to telephone them.`}
+            ? t('safety.unreachableOne')
+            : t('safety.unreachableMany', { n: String(tally.unreachable) })}
         </p>
       )}
 

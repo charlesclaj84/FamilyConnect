@@ -421,16 +421,17 @@ function TeamRow({ row, ownerTotal, onError }: {
     if (crossesOwner) {
       const remaining = ownerTotal - 1
       const ok = await confirm({
-        title: next === 'owner'
-          ? `Make ${label} an owner?`
-          : `Take owner access away from ${label}?`,
+        title: t(next === 'owner' ? 'staff.makeOwnerTitle' : 'staff.takeOwnerTitle',
+          { name: label }),
         description: next === 'owner'
-          ? `${label} will be able to grant staff access, change what kind anybody has, and `
-            + 'take it away — including yours. Nothing else about what they can see changes.'
-          : `${label} keeps the console and everything it reads, and loses this screen: they `
-            + `will not be able to grant staff access to anybody. That leaves `
-            + `${remaining} owner${remaining === 1 ? '' : 's'}.`,
-        confirmLabel: next === 'owner' ? t('staff.makeOwner') : `Change to ${roleLabel(t)[next]}`,
+          ? t('staff.makeOwnerBody', { name: label })
+          : t(remaining === 1
+              ? 'staff.takeOwnerBodyOne'
+              : 'staff.takeOwnerBodyMany',
+            { name: label, n: String(remaining) }),
+        confirmLabel: next === 'owner'
+          ? t('staff.makeOwner')
+          : t('staff.changeToRole', { role: roleLabel(t)[next] }),
       })
       if (!ok) {
         setRole(row.role)
@@ -455,13 +456,8 @@ function TeamRow({ row, ownerTotal, onError }: {
     // there is no soft form of it — see its header on why a "disabled" grant would be one
     // more expression between an attacker and every family on the platform.
     const ok = await confirm({
-      title: `Remove staff access for ${label}?`,
-      description:
-        `${label} loses the whole console on their next request: every page in it answers `
-        + '404 for them, exactly as it does for a customer. Nothing about their own account '
-        + 'or their family memberships changes. The reason recorded for this grant goes with '
-        + 'the row and is not kept anywhere, so if they need access again it is a new grant '
-        + 'with a new reason.',
+      title: t('staff.removeAccessTitle', { name: label }),
+      description: t('staff.removeAccessBody', { name: label }),
       confirmLabel: t('staff.removeAccess'),
       destructive: true,
     })
@@ -528,7 +524,7 @@ function TeamRow({ row, ownerTotal, onError }: {
             row is not enough to tell an owner which person they are about to change, and
             the name is the whole of what distinguishes them. */}
         <Select
-          aria-label={`Access for ${label}`}
+          aria-label={t('staff.accessForAria', { name: label })}
           aria-describedby={lock ? lockId : undefined}
           className="sm:w-44"
           value={role}
@@ -555,7 +551,7 @@ function TeamRow({ row, ownerTotal, onError }: {
           type="button"
           size="sm"
           variant="destructive"
-          aria-label={`Revoke staff access for ${label}`}
+          aria-label={t('staff.revokeAccessAria', { name: label })}
           aria-describedby={lock ? lockId : undefined}
           disabled={frozen}
           onClick={() => { void handleRevoke() }}

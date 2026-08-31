@@ -380,7 +380,7 @@ export async function addJournalEntry(
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, message: g.message }
-  const { t } = g
+  const { t, intl } = g
   if (!g.personId) return { success: false, message: t('act.profileNotFound') }
 
   const title = (input?.title ?? '').trim()
@@ -423,15 +423,19 @@ export async function addJournalEntry(
       body: firstNote,
       author_id: g.personId,
     })
-    if (noteError) partial.push('the first note was not saved')
+    if (noteError) partial.push(t('jrn.firstNoteNotSaved'))
   }
 
   revalidatePath('/library/officer-notes')
   if (partial.length) {
     return {
       success: false,
-      message: `The entry was created, but ${partial.join(' and ')}. `
-        + 'Open it and add what is missing.',
+      // `Intl.ListFormat`, never a hard-coded " and " — AGENTS.md's rule about a
+      // conjunction being copy too. One clause today, and the shape has to survive two.
+      message: t('jrn.entryCreatedPartial', {
+        what: new Intl.ListFormat(intl, { style: 'long', type: 'conjunction' })
+          .format(partial),
+      }),
     }
   }
   return { success: true }

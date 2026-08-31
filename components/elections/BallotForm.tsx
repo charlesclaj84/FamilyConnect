@@ -79,7 +79,11 @@ export function BallotForm({
     const alreadyVoted = !!votes[positionId]
     const ok = await confirm({
       title: alreadyVoted ? t('elec.changeYourVote') : t('elec.castYourVoteAction'),
-      description: `${alreadyVoted ? t('elec.changeYourVote') : 'Vote'} for ${nominee?.nominee_name ?? 'this nominee'} as ${position?.title ?? 'this position'}?`,
+      description: t('elec.voteConfirm', {
+        action: alreadyVoted ? t('elec.changeYourVote') : t('elec.vote'),
+        nominee: nominee?.nominee_name ?? t('elec.thisNominee'),
+        position: position?.title ?? t('elec.thisPosition'),
+      }),
       confirmLabel: alreadyVoted ? t('elec.changeVote') : t('elec.castVote'),
     })
     if (!ok) return
@@ -106,7 +110,10 @@ export function BallotForm({
     const position = positions.find(p => p.id === nomination?.position_id)
     const ok = await confirm({
       title: accepted ? t('elec.acceptNomination') : t('elec.declineNomination'),
-      description: `${accepted ? t('elec.accept') : t('elec.decline')} the nomination for ${position?.title ?? 'this position'}? This cannot be changed.`,
+      description: t('elec.nominationRespondConfirm', {
+        action: accepted ? t('elec.accept') : t('elec.decline'),
+        position: position?.title ?? t('elec.thisPosition'),
+      }),
       confirmLabel: accepted ? t('elec.accept') : t('elec.decline'),
       destructive: !accepted,
     })
@@ -201,7 +208,9 @@ export function BallotForm({
         <div className="rounded-xl border bg-muted/30 p-4 text-center">
           <p className="text-sm text-muted-foreground">{t('elec.nominationsNotOpen')}</p>
           <p className="text-xs text-muted-foreground mt-1">
-            They open {formatDate(election.nominations_open_on, intl)}.
+            {t('elec.theyOpenOn', {
+              date: formatDate(election.nominations_open_on, intl) ?? '',
+            })}
           </p>
         </div>
       )}
@@ -209,10 +218,14 @@ export function BallotForm({
       {election.phase === 'between' && (
         <div className="rounded-xl border bg-muted/30 p-4 text-center">
           <p className="text-sm text-muted-foreground">
-            Nominations closed on {formatDate(election.nominations_close_on, intl)}.
+            {t('elec.nominationsClosedOnPlain', {
+              date: formatDate(election.nominations_close_on, intl) ?? '',
+            })}
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            Voting opens {formatDate(election.voting_open_on, intl)}.
+            {t('elec.votingOpensOnPlain', {
+              date: formatDate(election.voting_open_on, intl) ?? '',
+            })}
           </p>
         </div>
       )}
@@ -220,7 +233,9 @@ export function BallotForm({
       {election.phase === 'closed' && (
         <div className="rounded-xl border bg-muted/30 p-4 text-center">
           <p className="text-sm text-muted-foreground">
-            Voting closed on {formatDate(election.voting_close_on, intl)}.
+            {t('elec.votingClosedOnPlain', {
+              date: formatDate(election.voting_close_on, intl) ?? '',
+            })}
           </p>
         </div>
       )}

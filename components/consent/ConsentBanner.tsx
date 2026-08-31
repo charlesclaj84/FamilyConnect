@@ -75,9 +75,7 @@ export function ConsentBanner() {
         <p className="text-sm text-muted-foreground">
           {APP_NAME} can measure which advertisements bring families here, using Meta&apos;s
           advertising tools.{' '}
-          <span className="text-foreground">{t('ui.familySRecordsNever')}</span>{' '}
-          Only your own account details are used, and only to match this visit to an
-          advertisement.
+          {t('cns.onlyOwnAccount', { lede: t('ui.familySRecordsNever') })}
         </p>
         <div className="flex shrink-0 gap-2">
           {/* Declining is listed first on a narrow screen for the same reason it is an

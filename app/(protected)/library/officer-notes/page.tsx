@@ -9,8 +9,11 @@ import { HelpLink } from '@/components/help/HelpLink'
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Officer' }
+export async function generateMetadata() {
+  return docTitle('page./library/officer-notes.title')
+}
 
 /**
  * Library > Officer Notes: an office's notebook, read and written by whoever holds it.
@@ -113,7 +116,7 @@ export default async function JournalPage() {
             variant="inline"
             slug="journal"
             section="what-it-is"
-            label="Why notes stay with the office"
+            label={t('lib.whyNotesStayHelp')}
           />
         )}
       </div>
@@ -127,7 +130,7 @@ export default async function JournalPage() {
           <p className="text-sm text-muted-foreground">{t('lib.officerSJournalMembers')}</p>
           <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">{t('lib.everyOfficeFamilyNotebook')}</p>
           <p className="mt-3 text-xs text-muted-foreground">
-            Offices are recorded under{' '}
+            {t('lib.officesRecordedUnder')}{' '}
             <Link href="/admin/members/board-positions" className="underline underline-offset-4">{t('lib.membersAccessBoardPositions')}</Link>
             .
           </p>

@@ -133,9 +133,9 @@ export function AdminFundsClient({
     totalPct === 0
       ? t('fnd.routingOff')
       : routingGap > 0
-        ? `${routingGap.toFixed(2)}% more to go — add it to any fund below, or spread it across several.`
+        ? t('fnd.routingGapUnder', { percent: routingGap.toFixed(2) })
         : routingGap < 0
-          ? `That is ${Math.abs(routingGap).toFixed(2)}% over. Take it off one of the funds below.`
+          ? t('fnd.routingGapOver', { percent: Math.abs(routingGap).toFixed(2) })
           : null
 
   function startEditRouting() { setRoutingSnapshot(alloc); setEditingRouting(true); setRoutingMsg(''); setError('') }
@@ -255,7 +255,9 @@ export function AdminFundsClient({
     const ok = await confirm({
       title: t('fnd.delete'),
       description: fund
-        ? `Delete the fund "${fund.name}"? Its balance of ${fmt(fund.balance_cents)} and its milestones go with it. This cannot be undone.`
+        ? t('fnd.deleteNamedBody', {
+            name: fund.name, balance: fmt(fund.balance_cents),
+          })
         : t('fnd.deleteBody'),
       confirmLabel: t('fnd.delete'),
       destructive: true,
@@ -272,8 +274,8 @@ export function AdminFundsClient({
     const ok = await confirm({
       title: next ? t('fnd.openToContrib') : t('fnd.closeToContrib'),
       description: next
-        ? `Let members contribute to "${fund.name}" directly?`
-        : `Stop members from contributing to "${fund.name}" directly?`,
+        ? t('fnd.openNamedBody', { name: fund.name })
+        : t('fnd.closeNamedBody', { name: fund.name }),
       confirmLabel: next ? t('fnd.openFund') : t('fnd.closeFund'),
       destructive: !next,
     })
@@ -314,7 +316,9 @@ export function AdminFundsClient({
     const ok = await confirm({
       title: t('fnd.deleteMilestone'),
       description: milestone
-        ? `Delete the milestone "${milestone.name}" (${fmt(milestone.amount_cents)})? This cannot be undone.`
+        ? t('fnd.deleteMilestoneNamedBody', {
+            name: milestone.name, amount: fmt(milestone.amount_cents),
+          })
         : t('fnd.deleteMilestoneBody'),
       confirmLabel: t('fnd.deleteMilestone'),
       destructive: true,
@@ -452,7 +456,7 @@ export function AdminFundsClient({
                           <MetaDot />
                           <MetaIf
                             value={`${(f.allocation_bps / 100).toFixed(f.allocation_bps % 100 === 0 ? 0 : 2)}%`}
-                            prefix="Share of dues"
+                            prefix={t('fnd.shareOfDuesPrefix')}
                           />
                           {f.minimum_cents > 0 && (
                             <>
@@ -593,7 +597,7 @@ export function AdminFundsClient({
                           <span className="font-medium">{m.name}</span>
                           {m.description && <p className="text-xs text-muted-foreground">{m.description}</p>}
                           <RowMeta>
-                            <MetaIf value={fund?.name} prefix="Paid from" />
+                            <MetaIf value={fund?.name} prefix={t('fnd.paidFromPrefix')} />
                           </RowMeta>
                         </td>
                         <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{fund?.name ?? '—'}</td>
@@ -692,7 +696,7 @@ export function AdminFundsClient({
                         const minimumInput = (
                           <Input type="number" min="0" step="0.01" value={a.minimum}
                             onChange={e => setAllocField(a.fund_id, 'minimum', e.target.value)}
-                            aria-label={`Minimum balance for ${a.fund_name}`}
+                            aria-label={t('fnd.minimumBalanceFor', { fund: a.fund_name })}
                             className="h-8 w-28" />
                         )
                         return (
@@ -730,7 +734,7 @@ export function AdminFundsClient({
                           <td className="py-2 pr-3">
                             <Input type="number" min="0" max="100" step="0.01" value={a.percent}
                               onChange={e => setAllocField(a.fund_id, 'percent', e.target.value)}
-                              aria-label={`Allocation percent for ${a.fund_name}`}
+                              aria-label={t('fnd.allocationPercentFor', { fund: a.fund_name })}
                               className="h-8 w-24" />
                           </td>
                           <td className={cn('py-2', COLLAPSING_CELL)}>

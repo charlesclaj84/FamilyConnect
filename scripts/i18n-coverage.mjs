@@ -249,6 +249,11 @@ const KNOWN_DYNAMIC = [
   ['nav.item.', 'The rail maps its own registry: t(`nav.item.${item.href}`) in Sidebar.tsx.'],
   ['nav.section.', 'Likewise for section headings, keyed on the section id.'],
   ['theme.', 'ThemeToggle maps its three modes: t(`theme.${mode}`).'],
+  ['stf.subMode.', 'The staff subscriptions table maps platform_billing_accounts.mode: '
+    + 't(`stf.subMode.${row.mode}`). The column value is the contract; the word is copy.'],
+  ['country.', 'The Connect country picker maps an ISO alpha-2 code: t(`country.${c.code}`) '
+    + 'in ProcessingPanel. Only the ENABLED countries are defined — see '
+    + 'lib/stripe/connect-countries.ts, which is the list a new one is enabled in.'],
   ['tx.source.', 'sourceLabel() maps a fund_contributions.source: t(`tx.source.${source}`) in '
     + 'TransactionsClient. The column value is the contract; the word is copy.'],
   ['tz.', 'timezoneLabel() maps an IANA zone: t(`tz.${zone}`) in lib/date-utils.ts. The id '
@@ -271,6 +276,29 @@ const KNOWN_DYNAMIC = [
     + 't(`org.attached.${stem}One`) and `…Many`.'],
   ['acct.section.', 'sectionLabel() maps an AccountSection id.'],
   ['rg.', 'categoryLabel() maps a permission_resources.category value.'],
+  ['access.lockoutSubject.', 'LOCKOUT_SUBJECT maps a resource key to the phrase that lands '
+    + 'mid-sentence in the two lockout refusals — t(LOCKOUT_SUBJECT[resourceKey]) in '
+    + 'app/actions/admin/permissions.ts. The key is the contract; the phrase is copy.'],
+  ['perm.scope.', 'scopeLabel() maps a PermissionScope: t(`perm.scope.${scope}`) in '
+    + 'components/admin/resource-groups.ts. The three ids are the contract the grid and the '
+    + 'policies share; the chip word is copy. `none` is an em dash in every language.'],
+  ['perm.action.', 'actionLabel() maps a PermissionAction to a CAPITALISED chip or column '
+    + 'heading: t(`perm.action.${action}`). Paired with perm.verb below.'],
+  ['perm.verb.', 'actionVerb() maps the same action to the LOWER-CASE form that sits inside a '
+    + 'sentence. Two keys rather than one plus toUpperCase(), because English capitalises a '
+    + 'label and not a verb in running text and Spanish and French capitalise neither — so '
+    + 'deriving one from the other is wrong in two of the three languages.'],
+  ['dues.freq.', 'The dues_schedules.frequency CHECK values, whose members happen to be '
+    + 'English words: t(`dues.freq.${row.schedule.frequency}`) in DuesPlanSection. The column '
+    + 'value is the contract; the word is copy. Was rendered raw until 2026-08-31.'],
+  ['dues.cad.', 'PayCadence as a CAPITALISED option label in the cadence picker: '
+    + 't(`dues.cad.${c}`). Replaced `{c}` with a `capitalize` class on it, which is an English '
+    + 'rule applied to an enum id.'],
+  ['dues.cadWord.', 'The same cadence inside a sentence — "at $50 per monthly installment". '
+    + 'Same argument as perm.verb: a label and a mid-sentence word are two keys.'],
+  ['elec.level.', 'positionsAtLevel() names an ElectionScope in its refusal: '
+    + 't(`elec.level.${scope}`) in app/actions/elections.ts. Was a Record whose values were '
+    + 'its own keys, printed straight into the message.'],
   ['pos.cat.', 'positionCategoryLabel() maps a family_roles.category.'],
   ['pos.scope.', 'positionScopeLabel() maps a user_roles.scope.'],
   ['set.pane.', 'settingsPaneLabel() maps a SettingsPane id.'],
@@ -400,7 +428,23 @@ function argsAt(src, open) {
   return src.slice(open + 1)
 }
 
-/** Every `t('key')` / `t("key")` literal in the tree, with where it was found. */
+/** Helpers whose FIRST argument is a catalogue key written as a literal. See `usedKeys`. */
+const KEY_CALLEES = ['t', 'docTitle']
+
+/**
+ * Every key literal in the tree, with where it was found.
+ *
+ * ── THE CALLEE NAMES ARE A LIST, AND ADDING ONE IS PART OF ADDING A WRAPPER ────────
+ * `t('key')` is nearly all of them. `docTitle('key')` is the second, and it exists because a
+ * page's `generateMetadata` resolves its own translator (`lib/i18n/page-metadata.ts`) — so the
+ * key is an argument to that helper rather than to a `t`.
+ *
+ * A wrapper this gate does not know about reports every key it reads as DEFINED-NOT-USED, which
+ * is a finding somebody will be tempted to silence with an `UNUSED_OK` prefix — 21 real keys
+ * hidden behind one exemption, and the exemption then covering whatever is added under that
+ * prefix later. So the rule is: **a new helper that takes a key as a literal argument is added
+ * HERE, in the same commit.** Cheap, and it keeps the UNUSED finding meaning what it says.
+ */
 function usedKeys() {
   const used = new Map()
   for (const dir of SCAN) {
@@ -411,11 +455,33 @@ function usedKeys() {
       // is a `t('…')` example inside `Sidebar.tsx`' own doc comment explaining the key scheme.
       // `scripts/strip-code.mjs` carries the argument for why there is one stripper.
       const src = stripComments(readFileSync(file, 'utf8'))
-      for (const m of src.matchAll(/\bt\(\s*'([^']+)'/g)) {
-        if (!used.has(m[1])) used.set(m[1], rel)
-      }
-      for (const m of src.matchAll(/\bt\(\s*"([^"]+)"/g)) {
-        if (!used.has(m[1])) used.set(m[1], rel)
+      // EVERY KEY LITERAL ANYWHERE IN THE ARGUMENT LIST, not only the one right after the `(`.
+      //
+      // `t('a.b')` is nearly all of them and a regex anchored on the paren handles it. What it
+      // cannot see is the shape a ONE/MANY pair forces:
+      //
+      //     t(n === 1 ? 'plan.coversEarlierOne' : 'plan.coversEarlierMany', { n })
+      //
+      // — which is the RIGHT way to write it, because the alternative duplicates the variables
+      // at both branches. Anchored on the paren, both keys report DEFINED-NOT-USED, and the
+      // temptation is then to silence a real finding with a `KNOWN_DYNAMIC` prefix.
+      //
+      // Slicing the balanced argument list and taking the quoted strings inside it is precise
+      // rather than permissive: it is still only looking inside a `t(…)`/`docTitle(…)` call, so a
+      // key named in an unrelated string is not counted, and the UNUSED finding keeps its
+      // meaning. Comments are already blanked above, so an example in a doc comment cannot count.
+      for (const callee of KEY_CALLEES) {
+        const opens = new RegExp(String.raw`\b${callee}\(`, 'g')
+        for (const m of src.matchAll(opens)) {
+          const args = argsAt(src, m.index + m[0].length - 1)
+          for (const lit of args.matchAll(/'([^'\n]+)'|"([^"\n]+)"/g)) {
+            const key = lit[1] ?? lit[2]
+            // A key has a dot in it. That is what tells `'plan.optOutOf'` from a variant name
+            // or a class string that happens to sit in the same argument list.
+            if (!key.includes('.')) continue
+            if (!used.has(key)) used.set(key, rel)
+          }
+        }
       }
     }
   }

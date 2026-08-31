@@ -560,7 +560,10 @@ export async function updateFund(
     const { data: existing } = await admin
       .from('funds').select('name, system_key').eq('id', id).eq('family_code', familyCode).maybeSingle()
     if (existing?.system_key) {
-      return { success: false, message: `${existing.name} is built in and cannot be switched off.` }
+      return {
+        success: false,
+        message: t('fnd.builtInCannotSwitchOff', { name: existing.name }),
+      }
     }
   }
 
@@ -588,7 +591,7 @@ export async function deleteFund(id: string): Promise<{ success: boolean; messag
   if (existing.system_key) {
     return {
       success: false,
-      message: `${existing.name} is built in and cannot be deleted. Every donation the family receives is held here.`,
+      message: t('fnd.builtInCannotDelete', { name: existing.name }),
     }
   }
 
@@ -885,7 +888,12 @@ export async function saveFundAllocations(
   // Allocations must total exactly 100% (or all zero to disable routing).
   const totalBps = rows.reduce((s, r) => s + Math.round(r.basis_points), 0)
   if (totalBps !== 0 && totalBps !== 10000) {
-    return { success: false, message: `Allocations must total 100% (currently ${(totalBps / 100).toFixed(2)}%)` }
+    return {
+      success: false,
+      message: t('fnd.allocationsMustTotal', {
+        percent: (totalBps / 100).toFixed(2),
+      }),
+    }
   }
 
   // Every fund_id is checked against this family BEFORE anything is written. The
@@ -1103,13 +1111,15 @@ export async function transferBetweenFunds(input: {
   const { data: balance, error: balanceError } = await admin
     .rpc('fund_balance_cents', { p_fund_id: input.from_fund_id })
   if (balanceError) {
-    return { success: false, message: `Could not read the balance of ${from.name}` }
+    return { success: false, message: t('fnd.couldNotReadBalance', { name: from.name }) }
   }
   const available = typeof balance === 'number' ? balance : 0
   if (amount > available) {
     return {
       success: false,
-      message: `${from.name} holds ${formatCurrency(available, intl)}. Transfer that or less.`,
+      message: t('fnd.holdsTransferLess', {
+        name: from.name, amount: formatCurrency(available, intl),
+      }),
     }
   }
 

@@ -10,8 +10,11 @@ import { HelpAvailabilityBadge } from '@/components/help/HelpAvailabilityBadge'
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Help' }
+export async function generateMetadata() {
+  return docTitle('page./help.title')
+}
 
 /**
  * The contents page of the how-to manual.
@@ -69,12 +72,11 @@ export default async function HelpIndexPage() {
       {gate.pending && (
         <div className="max-w-3xl rounded-xl border bg-muted/40 px-4 py-3">
           <p className="text-sm text-muted-foreground">
-            Your membership of{' '}
-            <span className="font-medium">{gate.membership.familyName}</span>{' '}
-            has not been decided yet, so most of the product is not open to you.{' '}
+            {t('hlp.membershipUndecided', {
+              family: gate.membership.familyName,
+            })}{' '}
             <Link href="/help/joining-a-family">{t('hlp.creatingJoiningFamily')}</Link>{' '}
-            is the chapter that explains what happens next. Everything else is here to read
-            in the meantime.
+            {t('hlp.chapterExplainsNext')}
           </p>
         </div>
       )}
@@ -111,7 +113,7 @@ export default async function HelpIndexPage() {
                     {chapter.title}
                   </span>
                   <span className="flex shrink-0 items-center gap-2">
-                    <HelpAvailabilityBadge availability={availability?.get(chapter.slug)} />
+                    <HelpAvailabilityBadge availability={availability?.get(chapter.slug)} t={t} />
                     <ChevronRight
                       className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
                       aria-hidden="true"

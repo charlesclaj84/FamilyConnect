@@ -118,8 +118,8 @@ export async function validateFamilyCode(code: string): Promise<ValidateCodeResu
     return {
       success: false,
       message: existing.status === 'approved'
-        ? `You already belong to ${existing.familyName}.`
-        : `Your request to join ${existing.familyName} is still awaiting approval.`,
+        ? t('fam.alreadyBelongTo', { family: existing.familyName })
+        : t('fam.requestStillAwaiting', { family: existing.familyName }),
     }
   }
 

@@ -119,7 +119,7 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
       : 'this family member'
     const ok = await confirm({
       title: t('chat.addToGroup'),
-      description: `Add ${name} to "${threadTitle}"? They will be able to read the conversation.`,
+      description: t('chat.addToGroupConfirm', { name, group: threadTitle }),
       confirmLabel: t('chat.addToGroup'),
     })
     if (!ok) return
@@ -143,7 +143,7 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
       : 'this family member'
     const ok = await confirm({
       title: t('chat.removeFromGroup'),
-      description: `Remove ${name} from "${threadTitle}"? They lose access to the conversation.`,
+      description: t('chat.removeFromGroupConfirm', { name, group: threadTitle }),
       confirmLabel: t('action.remove'),
       destructive: true,
     })
@@ -182,7 +182,9 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
 
         {room.kind === 'family' && (
           <span className="text-xs text-muted-foreground shrink-0">
-            {room.participants.length} member{room.participants.length !== 1 ? 's' : ''}
+            {t(room.participants.length === 1
+              ? 'chat.participantsOne'
+              : 'chat.participantsMany', { n: String(room.participants.length) })}
           </span>
         )}
 

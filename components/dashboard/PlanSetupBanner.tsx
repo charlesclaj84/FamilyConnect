@@ -135,7 +135,7 @@ export function PlanSetupBanner({ tier }: { tier: FamilyTier }) {
       <div className="min-w-0 flex-1 space-y-3">
         <div>
           <p className="text-sm font-medium text-brand-on-soft">
-            Finish paying for {TIER_LABEL[tier]}
+            {t('dash.finishPayingFor', { plan: TIER_LABEL[tier] })}
           </p>
           <p className="mt-0.5 text-xs text-brand-on-soft/80">
             You chose {TIER_LABEL[tier]} when you created this family, and nothing has been

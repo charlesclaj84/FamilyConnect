@@ -98,7 +98,8 @@ export function UpgradeScreen({
       </div>
 
       <div className="mb-4 inline-flex items-center gap-1.5 rounded-full bg-brand-legacy px-3 py-1 text-xs font-medium text-brand-on-legacy">
-        <Crown className="h-3.5 w-3.5" /> Part of {TIER_LABEL[required]}
+        <Crown className="h-3.5 w-3.5" />{' '}
+        {t('upg.partOfPlan', { plan: TIER_LABEL[required] })}
       </div>
 
       <h1 className="mb-2 text-xl font-semibold sm:text-2xl">{label}</h1>
@@ -163,7 +164,7 @@ export function UpgradeScreen({
           ))}
         </ul>
         <p className="mt-3 border-t pt-3 text-xs text-muted-foreground">
-          Everything on {TIER_LABEL[currentTier]} comes with it.
+          {t('upg.everythingOnComesWith', { plan: TIER_LABEL[currentTier] })}
         </p>
 
         {/* THE PRICE, LAST — after what the plan does, never before it. Somebody who
@@ -181,8 +182,8 @@ export function UpgradeScreen({
             <span className="font-medium text-foreground">
               {t('bill.perMonth', { amount: formatPlanPrice(price.monthlyCents, intl) })}
             </span>
-            . No annual plan, no contract.
-            {!TIER_IS_SOLD[required] && ' Not on sale yet; nothing is billed today.'}
+            {t('upg.noAnnualNoContract')}
+            {!TIER_IS_SOLD[required] && t('upg.notOnSaleYet')}
           </p>
         )}
       </div>

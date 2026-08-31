@@ -169,8 +169,11 @@ export function AdminRegionsChaptersClient({
       // The chapters moving to National is the whole of what deleting a region does to
       // anything else, so the number is in the sentence rather than in a note beside it.
       description: moving
-        ? `Delete the ${region.name} region? Its ${moving === 1 ? 'chapter moves' : `${moving} chapters move`} to National, and every member in them stays exactly where they are. This cannot be undone.`
-        : `Delete the ${region.name} region? This cannot be undone.`,
+        ? t(moving === 1
+            ? 'org.deleteRegionMovingOne'
+            : 'org.deleteRegionMovingMany',
+          { name: region.name, n: String(moving) })
+        : t('org.deleteRegionBody', { name: region.name }),
       confirmLabel: t('org.deleteRegion'),
       destructive: true,
     })
@@ -210,7 +213,7 @@ export function AdminRegionsChaptersClient({
   async function handleDeleteChapter(chapter: Chapter) {
     const ok = await confirm({
       title: t('org.deleteChapter'),
-      description: `Delete the ${chapter.name} chapter? This cannot be undone.`,
+      description: t('org.deleteChapterBody', { name: chapter.name }),
       confirmLabel: t('org.deleteChapter'),
       destructive: true,
     })
@@ -313,7 +316,7 @@ export function AdminRegionsChaptersClient({
                                  courtesy rather than the gate. */
                               title={attached.any
                                 ? t('org.stillAttached', { name: region.name, what: attachedCaption(attached, t) ?? '' })
-                                : `Delete the ${region.name} region`}
+                                : t('org.deleteRegionTitleAttr', { name: region.name })}
                               aria-label={t('org.deleteRegionAria', { name: region.name })}
                               onClick={() => handleDeleteRegion(region)}
                             >
@@ -339,8 +342,10 @@ export function AdminRegionsChaptersClient({
             <p className="text-sm text-muted-foreground">
               Where a member actually belongs. {nationalCount === 0
                 ? t('org.nothingNational')
-                : `${nationalCount} ${nationalCount === 1 ? 'chapter is' : 'chapters are'} under National.`}{' '}
-              A member picks their chapter on their own profile.
+                : t(nationalCount === 1
+                    ? 'org.underNationalOne'
+                    : 'org.underNationalMany', { n: String(nationalCount) })}{' '}
+              {t('org.memberPicksChapter')}
             </p>
           </div>
           {mayCreate && (
@@ -419,7 +424,7 @@ export function AdminRegionsChaptersClient({
                               disabled={isPending || attached.any}
                               title={attached.any
                                 ? t('org.stillAttached', { name: chapter.name, what: attachedCaption(attached, t) ?? '' })
-                                : `Delete the ${chapter.name} chapter`}
+                                : t('org.deleteChapterTitleAttr', { name: chapter.name })}
                               aria-label={t('org.deleteChapterAria', { name: chapter.name })}
                               onClick={() => handleDeleteChapter(chapter)}
                             >

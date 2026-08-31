@@ -128,7 +128,7 @@ export function AdminApprovalsClient({
 
   async function onReadmit(applicant: Applicant) {
     const ok = await confirm({
-      title: `Admit ${name(applicant)} after all?`,
+      title: t('appr.admitAfterAll', { name: name(applicant) }),
       description:
         t('appr.wasDeclinedBefore'),
       confirmLabel: 'Admit',
@@ -302,8 +302,14 @@ export function AdminApprovalsClient({
                     </p>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
                       {(invitation.firstName || invitation.lastName) ? `${invitation.email} · ` : ''}
-                      {invitation.invitedBy ? `Invited by ${invitation.invitedBy}` : t('appr.invited')}
-                      {invitation.expiresAt ? ` · expires ${formatDate(invitation.expiresAt, intl)}` : ''}
+                      {invitation.invitedBy
+                        ? t('appr.invitedBy', { name: invitation.invitedBy })
+                        : t('appr.invited')}
+                      {invitation.expiresAt
+                        ? ` · ${t('appr.expiresOn', {
+                          date: formatDate(invitation.expiresAt, intl) ?? '',
+                        })}`
+                        : ''}
                     </p>
                   </div>
                   {canDecide && (

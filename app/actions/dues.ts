@@ -877,7 +877,7 @@ export async function createDuesSchedule(
     if (!synced.ok) {
       return {
         success: false,
-        message: `The drive was created, but it is VISIBLE TO EVERYONE — ${synced.message} Open it and set who it is for.`,
+        message: t('dues.driveVisibleToEveryone', { reason: synced.message }),
       }
     }
   }
@@ -1514,7 +1514,7 @@ export async function setMyDuesOptOut(
   if (optedOut && schedule.required !== false) {
     return {
       success: false,
-      message: `${schedule.label} is a required due, so it cannot be opted out of.`,
+      message: t('dues.requiredCannotOptOut', { schedule: schedule.label }),
     }
   }
 

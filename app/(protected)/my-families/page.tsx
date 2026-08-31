@@ -5,8 +5,11 @@ import { MyFamiliesSection } from '@/components/my-families/MyFamiliesSection'
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'My Families' }
+export async function generateMetadata() {
+  return docTitle('page./my-families.title')
+}
 
 /**
  * Every family this account belongs to. Split out of My Profile, where it sat as a

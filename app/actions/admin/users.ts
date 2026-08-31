@@ -110,7 +110,8 @@ export async function updateUserProfile(
   data: Partial<PersonalInfoData>
 ): Promise<{ success: boolean; error?: string }> {
   const { user } = await currentUser()
-  if (!user) return { success: false, error: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, error: t('err.notAuthenticated') }
   // THE KEY WAS `admin/boardpositions:edit` UNTIL 2026-08-19, through a helper shared with
   // the role-assignment actions above — so a family that let somebody curate its board
   // positions thereby let them rewrite any member's profile. Two mistakes in one line: the
@@ -134,7 +135,7 @@ export async function updateUserProfile(
   //      somebody without going through Member Approvals, which is the surface that
   //      exists to make that decision reviewable.
   const familyCode = await getMyFamilyCode(user.id)
-  if (!familyCode) return { success: false, error: 'No family associated with account' }
+  if (!familyCode) return { success: false, error: t('err.noFamilyOnAccount') }
 
   const fields = pickProfileColumns(data)
   //   4. AND NEVER THE ADDRESS, which `pickProfileColumns` does allow — this is the same
@@ -164,7 +165,7 @@ export async function updateUserProfile(
   if (fields.chapter_id != null && fields.chapter_id !== '') {
     if (typeof fields.chapter_id !== 'string'
       || !(await belongsToFamily('chapters', fields.chapter_id, familyCode))) {
-      return { success: false, error: 'Chapter not found' }
+      return { success: false, error: t('err.chapterNotFound') }
     }
   }
 
@@ -243,7 +244,8 @@ export async function getMemberProfileForEdit(
   peopleId: string
 ): Promise<{ success: boolean; error?: string; profile?: MemberProfileForEdit }> {
   const { user } = await currentUser()
-  if (!user) return { success: false, error: 'Not authenticated' }
+  const { t } = await callerI18n(user?.id ?? null)
+  if (!user) return { success: false, error: t('err.notAuthenticated') }
 
   // The SAME gate as the write it feeds — `admin/members:edit` at `canAny`, because the row is
   // somebody else's and scope 'own' on `people` means the caller's own row, which is
@@ -252,7 +254,7 @@ export async function getMemberProfileForEdit(
   if (!(await canAny(user.id, 'admin/members', 'edit'))) return { success: false, error: 'Not authorized' }
 
   const familyCode = await getMyFamilyCode(user.id)
-  if (!familyCode) return { success: false, error: 'No family associated with account' }
+  if (!familyCode) return { success: false, error: t('err.noFamilyOnAccount') }
 
   // Admin client with the family conjunct written by hand (AGENTS.md §3). It has to be the
   // admin client: the `people` SELECT policy is keyed on `community/directory`, so a family
@@ -286,13 +288,16 @@ export async function getMemberProfileForEdit(
   // §8 — the error is READ rather than discarded, or a refused query is indistinguishable
   // from a member who is not in this family, and the dialog would report the wrong thing.
   if (error) return { success: false, error: error.message }
-  if (!data) return { success: false, error: 'Member not found' }
+  if (!data) return { success: false, error: t('err.memberNotFound') }
 
   // §8 on the chapter list too, and the failure mode is worth naming: an empty picker and a
   // refused read look identical, and the second would let an administrator save "no chapter"
   // over a member who has one, believing the family had none.
   if (chaptersRes.error) {
-    return { success: false, error: `Could not read this family’s chapters: ${chaptersRes.error.message}` }
+    return {
+      success: false,
+      error: t('usr.chaptersReadFailed', { error: chaptersRes.error.message }),
+    }
   }
 
   // RENAMED FROM `t` ON 2026-08-27. It is a string coercer for a `Record<string, unknown>`
@@ -368,20 +373,20 @@ export async function setMemberChapter(
 ): Promise<{ success: boolean; error?: string; message?: string }> {
   const { user } = await currentUser()
   const { t } = await callerI18n(user?.id ?? null)
-  if (!user) return { success: false, error: 'Not authenticated' }
+  if (!user) return { success: false, error: t('err.notAuthenticated') }
   if (!(await canAny(user.id, 'admin/members', 'edit'))) {
     return { success: false, error: 'Not authorized' }
   }
 
   const familyCode = await getMyFamilyCode(user.id)
-  if (!familyCode) return { success: false, error: 'No family associated with account' }
+  if (!familyCode) return { success: false, error: t('err.noFamilyOnAccount') }
 
   // '' from a `<select>` with nothing chosen is "no chapter", which is a legitimate value and
   // not a missing one. Normalised before the reference check so the check is not asked about
   // the empty string.
   const target = chapterId && chapterId.trim() ? chapterId.trim() : null
   if (target && !(await belongsToFamily('chapters', target, familyCode))) {
-    return { success: false, error: 'Chapter not found' }
+    return { success: false, error: t('err.chapterNotFound') }
   }
 
   const admin = createAdminClient()
@@ -396,7 +401,7 @@ export async function setMemberChapter(
     .eq('family_code', familyCode)
     .select('id')
   if (error) return { success: false, error: error.message }
-  if (!(updated ?? []).length) return { success: false, error: 'Member not found' }
+  if (!(updated ?? []).length) return { success: false, error: t('err.memberNotFound') }
 
   const propagation = await propagateChapterToChildren(peopleId, familyCode, target)
 
@@ -415,8 +420,9 @@ export async function setMemberChapter(
   if (propagation.moved > 0) {
     return {
       success: true,
-      message: `Chapter saved. ${propagation.moved} relative`
-        + `${propagation.moved === 1 ? '' : 's'} without an account moved with them.`,
+      message: t(propagation.moved === 1
+        ? 'usr.chapterSavedMovedOne'
+        : 'usr.chapterSavedMovedMany', { n: String(propagation.moved) }),
     }
   }
   return { success: true }
@@ -458,12 +464,12 @@ export async function sendMemberPasswordReset(
   const supabase = await createClient()
   const { user } = await currentUser()
   const { t } = await callerI18n(user?.id ?? null)
-  if (!user) return { success: false, error: 'Not authenticated' }
+  if (!user) return { success: false, error: t('err.notAuthenticated') }
 
   if (!(await canAny(user.id, 'admin/members', 'edit'))) return { success: false, error: 'Not authorized' }
 
   const familyCode = await getMyFamilyCode(user.id)
-  if (!familyCode) return { success: false, error: 'No family associated with account' }
+  if (!familyCode) return { success: false, error: t('err.noFamilyOnAccount') }
 
   const admin = createAdminClient()
   const { data, error } = await admin
@@ -474,19 +480,18 @@ export async function sendMemberPasswordReset(
     .maybeSingle()
 
   if (error) return { success: false, error: error.message }
-  if (!data) return { success: false, error: 'Member not found' }
+  if (!data) return { success: false, error: t('err.memberNotFound') }
 
   if (data.user_id == null) {
     return {
       success: false,
-      error: 'This relative has no account yet, so there is no password to reset. '
-        + 'Invite them from the family tree instead.',
+      error: t('err.noAccountResetPassword'),
     }
   }
   if (data.email_is_placeholder || !data.primary_email) {
     return {
       success: false,
-      error: 'This record has a placeholder email address, so a reset link has nowhere to go.',
+      error: t('err.placeholderEmailNoReset'),
     }
   }
 
@@ -496,7 +501,7 @@ export async function sendMemberPasswordReset(
   // as a success. Reading it back is also the last check that the account still exists.
   const { data: account, error: accountError } = await admin.auth.admin.getUserById(data.user_id as string)
   if (accountError || !account?.user?.email) {
-    return { success: false, error: 'That member has no sign-in address on record.' }
+    return { success: false, error: t('err.noSignInAddress') }
   }
 
   // The ORIGIN comes from configuration, never a request header: `Host` and

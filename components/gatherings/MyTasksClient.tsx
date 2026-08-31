@@ -121,10 +121,13 @@ export function MyTasksClient({ initialTasks, today }: MyTasksClientProps) {
       <p className="text-sm text-muted-foreground">
         {waiting === 0
           ? t('tasks.allIn')
-          : `${waiting} ${waiting === 1 ? 'task is' : 'tasks are'} waiting on you`}
+          : t(waiting === 1 ? 'tasks.waitingOne' : 'tasks.waitingMany',
+              { n: String(waiting) })}
         {returned > 0 && (
           <span className="text-brand-withheld">
-            {` · ${returned} ${returned === 1 ? 'needs' : 'need'} another look`}
+            {` · ${t(returned === 1
+              ? 'tasks.needAnotherLookOne'
+              : 'tasks.needAnotherLookMany', { n: String(returned) })}`}
           </span>
         )}
       </p>
@@ -242,7 +245,7 @@ function TaskCard({ task, today, onSubmitted }: {
         <p className="text-xs text-muted-foreground">
           {dueDate && (
             <span className={cn(overdue && 'font-medium text-brand-withheld')}>
-              {overdue ? `Was due ${dueDate}` : `Due ${dueDate}`}
+              {t(overdue ? 'tasks.wasDue' : 'tasks.due', { date: dueDate })}
             </span>
           )}
           {dueDate && hasBudgetLine && <> · </>}
@@ -285,7 +288,7 @@ function TaskCard({ task, today, onSubmitted }: {
             variant="inline"
             slug="gathering-tasks"
             section="sent-back"
-            label="What happens when a task comes back"
+            label={t('tasks.sentBackHelpLabel')}
           />
         </div>
       )}
@@ -293,7 +296,7 @@ function TaskCard({ task, today, onSubmitted }: {
       {approved ? (
         <div className="space-y-1 rounded-lg border border-brand-affirm/40 bg-brand-affirm/10 p-3">
           <p className="text-xs font-medium text-brand-affirm">
-            {GATHERING_TASK_STATUS_LABEL.approved} — this answer is final.
+            {t('tasks.answerFinal', { status: GATHERING_TASK_STATUS_LABEL.approved })}
           </p>
           <div className="text-sm">
             <AnswerText kind={kind} answer={task.answer} />
@@ -319,7 +322,7 @@ function TaskCard({ task, today, onSubmitted }: {
               </div>
               {task.latest.note && (
                 <p className="mt-1 text-xs whitespace-pre-wrap text-muted-foreground">
-                  Your note: {task.latest.note}
+                  {t('tasks.yourNote', { note: task.latest.note })}
                 </p>
               )}
             </div>
@@ -337,7 +340,7 @@ function TaskCard({ task, today, onSubmitted }: {
               disabled={isPending}
               fieldId={fieldId}
               groupName={`${uid}-choice`}
-              ariaLabel={`Your answer for ${task.label}`}
+              ariaLabel={t('tasks.yourAnswerFor', { task: task.label })}
             />
             <FieldError message={fieldError} />
           </div>

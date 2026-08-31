@@ -77,7 +77,7 @@ export function GiveButton({ scheduleId, label, toGoalCents }: {
         <Dialog
           open
           onClose={() => setOpen(false)}
-          title={`Give to ${label}`}
+          title={t('drives.giveTo', { label })}
           description={t('drives.giveHint')}
         >
           <div className="space-y-4">
@@ -97,7 +97,9 @@ export function GiveButton({ scheduleId, label, toGoalCents }: {
               />
               <p className="mt-1.5 text-xs text-muted-foreground">
                 {toGoalCents != null
-                  ? `${formatCurrency(toGoalCents, intl)} would meet the goal — give what you like.`
+                  ? t('drives.wouldMeetGoal', {
+                      amount: formatCurrency(toGoalCents, intl),
+                    })
                   : t('drives.giveAnything')}
               </p>
             </div>

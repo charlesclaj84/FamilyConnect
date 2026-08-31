@@ -11,7 +11,6 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import {
   scopeAttachedTo, scopeAttachmentsFor, scopeAttachedMessage, type ScopeAttached,
 } from '@/lib/scope-attached'
-import { callerI18n } from '@/lib/i18n/server'
 
 /**
  * Regions and chapters — how a large family divides itself up, and who leads each part.
@@ -197,11 +196,13 @@ export async function createRegion(
   if (!g.ok) return { success: false, error: g.message }
 
   const trimmed = name.trim()
-  if (!trimmed) return { success: false, error: 'A region needs a name' }
+  if (!trimmed) return { success: false, error: g.t('err.regionNeedsName') }
   // NATIONAL IS THE ABSENCE OF A REGION, not a row — see 20260817000008's header. A region
   // called "National" would sit beside the built-in National group as a second thing with
   // the same name, and a due scoped to it would bill only the chapters inside it.
-  if (trimmed.toLowerCase() === 'national') return { success: false, error: '"National" is a reserved name' }
+  if (trimmed.toLowerCase() === 'national') {
+    return { success: false, error: g.t('err.nationalReservedName') }
+  }
 
   const { data, error } = await createAdminClient()
     .from('regions')
@@ -236,11 +237,14 @@ export async function deleteRegion(id: string): Promise<{ success: boolean; erro
   const admin = createAdminClient()
   const { data: existing } = await admin
     .from('regions').select('name').eq('id', id).eq('family_code', g.familyCode).maybeSingle()
-  if (!existing) return { success: false, error: 'Region not found' }
+  if (!existing) return { success: false, error: g.t('err.regionNotFound') }
 
   const attached = await scopeAttachedTo('region', id, g.familyCode)
   if (attached.any) {
-    return { success: false, error: scopeAttachedMessage(`The ${existing.name} region`, attached) }
+    return {
+      success: false,
+      error: scopeAttachedMessage(g.t('org.theNamedRegion', { name: existing.name }), attached),
+    }
   }
 
   const { error } = await admin.from('regions').delete()
@@ -314,13 +318,13 @@ export async function createChapter(
   if (!g.ok) return { success: false, error: g.message }
 
   const trimmed = name.trim()
-  if (!trimmed) return { success: false, error: 'A chapter needs a name' }
+  if (!trimmed) return { success: false, error: g.t('err.chapterNeedsName') }
 
   // §4. The row being inserted carries the caller's own family_code and so satisfies every
   // policy on `chapters`; the region it names could be anybody's. Checked BEFORE it is
   // written, not validated afterwards.
   if (regionId && !(await belongsToFamily('regions', regionId, g.familyCode))) {
-    return { success: false, error: 'Region not found' }
+    return { success: false, error: g.t('err.regionNotFound') }
   }
 
   const { data, error } = await createAdminClient()
@@ -364,10 +368,10 @@ export async function setChapterRegion(
   if (!g.ok) return { success: false, error: g.message }
 
   if (!(await belongsToFamily('chapters', chapterId, g.familyCode))) {
-    return { success: false, error: 'Chapter not found' }
+    return { success: false, error: g.t('err.chapterNotFound') }
   }
   if (regionId && !(await belongsToFamily('regions', regionId, g.familyCode))) {
-    return { success: false, error: 'Region not found' }
+    return { success: false, error: g.t('err.regionNotFound') }
   }
 
   const { error } = await createAdminClient()
@@ -402,11 +406,14 @@ export async function deleteChapter(id: string): Promise<{ success: boolean; err
   const admin = createAdminClient()
   const { data: existing } = await admin
     .from('chapters').select('name').eq('id', id).eq('family_code', g.familyCode).maybeSingle()
-  if (!existing) return { success: false, error: 'Chapter not found' }
+  if (!existing) return { success: false, error: g.t('err.chapterNotFound') }
 
   const attached = await scopeAttachedTo('chapter', id, g.familyCode)
   if (attached.any) {
-    return { success: false, error: scopeAttachedMessage(`The ${existing.name} chapter`, attached) }
+    return {
+      success: false,
+      error: scopeAttachedMessage(g.t('org.theNamedChapter', { name: existing.name }), attached),
+    }
   }
 
   const { error } = await admin.from('chapters').delete()
@@ -578,18 +585,23 @@ export async function createBoardPosition(input: {
 }): Promise<{ success: boolean; error?: string }> {
   const g = await requireScope('admin/members/board-positions', 'create')
   if (!g.ok) return { success: false, error: g.message }
-  const { t } = await callerI18n(g.userId)
+  // `t` OFF THE GUARD. `requireScope` resolved it in the `Promise.all` it already awaited,
+  // so this is free where a second `callerI18n` was a third read of the same row.
+  const { t } = g
 
   const name = input.name.trim()
-  if (!name) return { success: false, error: 'A position needs a name' }
+  if (!name) return { success: false, error: g.t('err.positionNeedsName') }
   if (name.length > POSITION_NAME_MAX) {
-    return { success: false, error: `A position name is at most ${POSITION_NAME_MAX} characters` }
+    return {
+      success: false,
+      error: t('pos.nameTooLong', { max: String(POSITION_NAME_MAX) }),
+    }
   }
   if (!POSITION_CATEGORIES.includes(input.category)) {
-    return { success: false, error: 'Choose a category' }
+    return { success: false, error: g.t('err.chooseCategory') }
   }
   if (!POSITION_SCOPES.includes(input.scope)) {
-    return { success: false, error: 'Choose a scope' }
+    return { success: false, error: g.t('err.chooseScope') }
   }
 
   const admin = createAdminClient()
@@ -679,12 +691,17 @@ export async function renameBoardPosition(
 ): Promise<{ success: boolean; error?: string }> {
   const g = await requireScope('admin/members/board-positions', 'edit')
   if (!g.ok) return { success: false, error: g.message }
-  const { t } = await callerI18n(g.userId)
+  // `t` OFF THE GUARD. `requireScope` resolved it in the `Promise.all` it already awaited,
+  // so this is free where a second `callerI18n` was a third read of the same row.
+  const { t } = g
 
   const next = name.trim()
-  if (!next) return { success: false, error: 'A position needs a name' }
+  if (!next) return { success: false, error: g.t('err.positionNeedsName') }
   if (next.length > POSITION_NAME_MAX) {
-    return { success: false, error: `A position name is at most ${POSITION_NAME_MAX} characters` }
+    return {
+      success: false,
+      error: t('pos.nameTooLong', { max: String(POSITION_NAME_MAX) }),
+    }
   }
 
   const admin = createAdminClient()
@@ -693,7 +710,7 @@ export async function renameBoardPosition(
   // unhappy path to say a sentence, and this one is already being made.
   const { data: existing } = await admin.from('family_roles')
     .select('name, scope').eq('id', id).eq('family_code', g.familyCode).maybeSingle()
-  if (!existing) return { success: false, error: 'Position not found' }
+  if (!existing) return { success: false, error: g.t('err.positionNotFound') }
   // Nothing to do rather than a no-op UPDATE. Worth its own branch because the screen leaves
   // the field editable and Save is the obvious thing to press after changing one's mind.
   if (existing.name === next) return { success: true }
@@ -758,7 +775,7 @@ export async function deleteBoardPosition(id: string): Promise<{ success: boolea
   // unhappy path to say a sentence, and this one is already being made.
   const { data: existing } = await admin.from('family_roles')
     .select('name, scope').eq('id', id).eq('family_code', g.familyCode).maybeSingle()
-  if (!existing) return { success: false, error: 'Position not found' }
+  if (!existing) return { success: false, error: g.t('err.positionNotFound') }
 
   const { count, error: countError } = await admin.from('user_roles')
     .select('id', { count: 'exact', head: true })
@@ -907,15 +924,14 @@ export async function assignBoardPosition(input: {
     .eq('id', input.personId)
     .eq('family_code', g.familyCode)
     .maybeSingle()
-  if (!person) return { success: false, error: 'Member not found' }
+  if (!person) return { success: false, error: g.t('err.memberNotFound') }
   if (person.membership_status !== 'approved') {
-    return { success: false, error: 'That member has not been approved yet' }
+    return { success: false, error: g.t('err.memberNotApproved') }
   }
   if (!person.user_id) {
     return {
       success: false,
-      error: 'That relative has no account yet, so there is nothing to attach a position to. '
-        + 'Invite them from the family tree first.',
+      error: g.t('err.noAccountAttachPosition'),
     }
   }
 
@@ -924,23 +940,23 @@ export async function assignBoardPosition(input: {
     .eq('id', input.positionId)
     .eq('family_code', g.familyCode)
     .maybeSingle()
-  if (!position) return { success: false, error: 'Position not found' }
+  if (!position) return { success: false, error: g.t('err.positionNotFound') }
 
   const scope = position.scope as PositionScope
   let chapterId: string | null = null
   let regionId:  string | null = null
 
   if (scope === 'chapter') {
-    if (!input.chapterId) return { success: false, error: 'Choose the chapter this position is for' }
+    if (!input.chapterId) return { success: false, error: g.t('err.chooseChapterForPosition') }
     if (!(await belongsToFamily('chapters', input.chapterId, g.familyCode))) {
-      return { success: false, error: 'Chapter not found' }
+      return { success: false, error: g.t('err.chapterNotFound') }
     }
     chapterId = input.chapterId
   }
   if (scope === 'regional') {
-    if (!input.regionId) return { success: false, error: 'Choose the region this position is for' }
+    if (!input.regionId) return { success: false, error: g.t('err.chooseRegionForPosition') }
     if (!(await belongsToFamily('regions', input.regionId, g.familyCode))) {
-      return { success: false, error: 'Region not found' }
+      return { success: false, error: g.t('err.regionNotFound') }
     }
     regionId = input.regionId
   }
@@ -958,7 +974,7 @@ export async function assignBoardPosition(input: {
   if (error) {
     // `user_roles_user_id_family_code_role_id_key` — one person, one family, one position.
     if (error.code === '23505') {
-      return { success: false, error: 'They already hold that position' }
+      return { success: false, error: g.t('err.alreadyHoldsPosition') }
     }
     return { success: false, error: error.message }
   }
@@ -983,7 +999,7 @@ export async function revokeBoardPosition(
   const admin = createAdminClient()
   const { data: existing } = await admin.from('user_roles')
     .select('id').eq('id', assignmentId).eq('family_code', g.familyCode).maybeSingle()
-  if (!existing) return { success: false, error: 'That assignment no longer exists' }
+  if (!existing) return { success: false, error: g.t('err.assignmentGone') }
 
   const { error } = await admin.from('user_roles').delete()
     .eq('id', assignmentId).eq('family_code', g.familyCode)

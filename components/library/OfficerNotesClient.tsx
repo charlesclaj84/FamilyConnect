@@ -176,8 +176,7 @@ export function OfficerNotesClient({
   async function removeEntry(entry: JournalEntry) {
     const ok = await confirm({
       title: t('notes.deleteEntryTitle'),
-      description: `Delete “${entry.title}”? Every note under it goes too, for everybody who `
-        + 'holds this office, now and later. This cannot be undone.',
+      description: t('notes.deleteEntryNamedBody', { title: entry.title }),
       confirmLabel: t('notes.deleteEntry'),
       destructive: true,
     })
@@ -294,9 +293,13 @@ export function OfficerNotesClient({
           succession, which is the other half and is true of all of them. */}
       {activeOffice && activeOffice.scope !== 'national' && (
         <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-          {t('notes.everyoneHolding')} <span className="font-medium text-foreground">{activeOffice.name}</span>{' '}
-          reads this journal, whichever{' '}
-          {activeOffice.scope === 'chapter' ? 'chapter' : 'region'} they hold it for.
+          {t('notes.everyoneHoldingReads', {
+            who: t('notes.everyoneHolding'),
+            office: activeOffice.name,
+            area: t(activeOffice.scope === 'chapter'
+              ? 'notes.chapterWord'
+              : 'notes.regionWord'),
+          })}
         </p>
       )}
 
@@ -306,7 +309,9 @@ export function OfficerNotesClient({
         <div className="rounded-xl border bg-card px-4 py-10 text-center">
           <BookText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">
-            Nothing recorded for {activeOffice?.title ?? 'this office'} yet.
+            {t('notes.nothingRecordedFor', {
+              office: activeOffice?.title ?? t('notes.thisOffice'),
+            })}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {t('notes.staysWithOffice')}
@@ -336,7 +341,9 @@ export function OfficerNotesClient({
         onClose={() => setEntryDraft(null)}
         title={entryDraft?.entry
           ? t('notes.renameEntry')
-          : `New entry${activeOffice ? ` — ${activeOffice.title}` : ''}`}
+          : activeOffice
+            ? t('notes.newEntryForOffice', { office: activeOffice.title })
+            : t('notes.newEntry')}
         description={entryDraft?.entry
           ? t('notes.onlyYouRecorded')
           : t('notes.staysWithOfficeShort')}
@@ -508,7 +515,10 @@ function EntryCard({
                 the office keeps the record when its author leaves the family, and "Unknown"
                 would make that read like data loss rather than like a record outliving the
                 person who wrote it. */}
-            Started by {entry.author_name ?? 'a former officer'} · {formatInstantDate(entry.created_at, zone)}
+            {t('notes.startedByOn', {
+              name: entry.author_name ?? t('notes.aFormerOfficer'),
+              date: formatInstantDate(entry.created_at, zone) ?? '',
+            })}
           </p>
         </div>
 

@@ -106,8 +106,8 @@ export function RecentUpdates({
                     : t('dash.updates.pin')}
                   aria-label={
                     item.pinnedForMe
-                      ? `Hide “${item.title}” from the top of your own updates`
-                      : `Show “${item.title}” at the top of your own updates again`
+                      ? t('ann.hideFromMyUpdates', { title: item.title })
+                      : t('ann.showInMyUpdates', { title: item.title })
                   }
                   className="mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground disabled:opacity-50"
                 >

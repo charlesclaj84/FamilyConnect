@@ -434,7 +434,7 @@ function ScheduleFields({
           <p className="text-xs text-muted-foreground">
             {form.startAge.trim() === ''
               ? t('inc.blankAge')
-              : `A member owes nothing until they turn ${form.startAge.trim()}, then the months of that year after their birthday — and the full amount every year after. Anyone with no date of birth recorded owes it in full.`}
+              : t('inc.ageProrationHint', { age: form.startAge.trim() })}
           </p>
         </div>
       )}
@@ -544,17 +544,14 @@ function ScheduleFields({
           // does something no other control in Accounting does — takes a page away from
           // someone holding every grant the family can confer — and the switch that
           // would normally undo that, on Members & Access, has no power over this one.
-          hint={`Anyone named here cannot see this drive anywhere in ${APP_NAME} — not the `
-            + 'goal, not the progress, not a single gift to it. That holds for '
-            + 'administrators too, so a collection can be kept from the person it is '
-            + 'meant to surprise. Everyone else sees who it is for.'}
+          hint={t('inc.beneficiaryHint', { app: APP_NAME })}
         />
       )}
 
       <div className="space-y-1.5">
         <Label>{t('field.descriptionOptional')}</Label>
         <Input value={form.description} onChange={e => onChange({ description: e.target.value })}
-          placeholder={`What this ${copy.noun} is for…`} />
+          placeholder={t('inc.descriptionPlaceholder', { noun: copy.noun })} />
       </div>
     </>
   )
@@ -738,8 +735,14 @@ export function AdminIncomeClient({
     const ok = await confirm({
       title: `Save ${kindCopy(t)[editKind].noun}`,
       description: isDonation
-        ? `Apply your edits to "${editForm.label}" (goal ${formatDollars(goalCents ?? 0)})?`
-        : `Apply your edits to "${editForm.label}" (${formatDollars(amountCents)} ${editForm.frequency})?`,
+        ? t('inc.applyEditsDonation', {
+            label: editForm.label, goal: formatDollars(goalCents ?? 0),
+          })
+        : t('inc.applyEditsDues', {
+            label: editForm.label,
+            amount: formatDollars(amountCents),
+            frequency: t(`dues.freq.${editForm.frequency}`),
+          }),
       confirmLabel: t('action.saveChanges'),
     })
     if (!ok) return
@@ -861,9 +864,14 @@ export function AdminIncomeClient({
     const ok = await confirm({
       title: `Delete ${noun}`,
       description: schedule
-        ? `Delete the ${noun} "${schedule.label}" (${formatDollars(schedule.amount_cents)} ${schedule.frequency})? This cannot be undone.`
-        : `Delete this ${noun}? This cannot be undone.`,
-      confirmLabel: `Delete ${noun}`,
+        ? t('inc.deleteNamedBody', {
+            noun,
+            label: schedule.label,
+            amount: formatDollars(schedule.amount_cents),
+            frequency: t(`dues.freq.${schedule.frequency}`),
+          })
+        : t('inc.deleteThisBody', { noun }),
+      confirmLabel: t('inc.deleteNoun', { noun }),
       destructive: true,
     })
     if (!ok) return

@@ -400,9 +400,7 @@ export function AdminGatheringDetailClient({
   async function handleRemoveTemplate(template: { id: string; name: string }) {
     const ok = await confirm({
       title: t('agat.removeTemplate'),
-      description: `Take “${template.name}” off this gathering? Its steps that nobody has been `
-        + 'given yet are deleted. If any of them has been assigned or answered, nothing is '
-        + 'removed and you will be told how many — reassign or approve those first.',
+      description: t('agat.removeTemplateConfirm', { template: template.name }),
       confirmLabel: t('agat.removeTemplate'),
       destructive: true,
     })
@@ -426,10 +424,7 @@ export function AdminGatheringDetailClient({
   async function handleDelete() {
     const ok = await confirm({
       title: t('agat.delete'),
-      description: `Delete “${gathering.title}”? Every task on it goes with it, and so does `
-        + 'every answer and note anybody has written. If it is simply not happening, set its '
-        + 'status to Cancelled instead — nothing is lost and it can be reopened. This cannot '
-        + 'be undone.',
+      description: t('agat.deleteConfirm', { title: gathering.title }),
       confirmLabel: t('agat.delete'),
       destructive: true,
     })
@@ -495,10 +490,11 @@ export function AdminGatheringDetailClient({
                   isContinuous: gathering.isContinuous,
                   occurrences: gathering.occurrences,
                   timeZone: gathering.timeZone,
-                })
-                : formatWhenBrief(gathering)) ?? t('agat.noDates')}
+                }, intl, t)
+                : formatWhenBrief(gathering, intl, t)) ?? t('agat.noDates')}
               {gathering.location && ` · ${gathering.location}`}
-              {gathering.createdBy && ` · started by ${nameOf(gathering.createdBy)}`}
+              {gathering.createdBy
+                && ` · ${t('agat.startedBy', { name: nameOf(gathering.createdBy) ?? '' })}`}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -877,9 +873,16 @@ export function AdminGatheringDetailClient({
           <p className="text-sm text-muted-foreground">
             {gathering.taskCounts.total === 0
               ? t('agat.noTasksAddTemplate')
-              : `${gathering.taskCounts.approved} of ${gathering.taskCounts.total} approved`
-                + (gathering.taskCounts.submitted > 0 ? ` · ${gathering.taskCounts.submitted} waiting for review` : '')
-                + (gathering.taskCounts.denied > 0 ? ` · ${gathering.taskCounts.denied} sent back` : '')}
+              : t('agat.approvedOfTotal', {
+                  approved: String(gathering.taskCounts.approved),
+                  total: String(gathering.taskCounts.total),
+                })
+                + (gathering.taskCounts.submitted > 0
+                  ? ` · ${t('agat.waitingForReview', { n: String(gathering.taskCounts.submitted) })}`
+                  : '')
+                + (gathering.taskCounts.denied > 0
+                  ? ` · ${t('agat.sentBackCount', { n: String(gathering.taskCounts.denied) })}`
+                  : '')}
           </p>
         </div>
 
@@ -1083,7 +1086,7 @@ function SegmentRow({
       className="h-7 w-full sm:w-40"
       value={day}
       disabled={isPending}
-      aria-label={`The day “${segment.name}” happens on`}
+      aria-label={t('agat.dayHappensOn', { segment: segment.name })}
       onChange={e => { setDay(e.target.value); setError(''); setWarning('') }}
     />
   ) : (
@@ -1098,7 +1101,7 @@ function SegmentRow({
       value={place}
       disabled={isPending}
       placeholder={t('agat.notStated')}
-      aria-label={`Where “${segment.name}” is held`}
+      aria-label={t('agat.whereHeld', { segment: segment.name })}
       onChange={e => { setPlace(e.target.value); setError('') }}
     />
   ) : (
@@ -1156,8 +1159,8 @@ function SegmentRow({
               type="button"
               disabled={isPending}
               className="rounded-full p-1 text-destructive hover:bg-destructive/10 disabled:opacity-50"
-              title={`Remove ${segment.name} from this gathering`}
-              aria-label={`Remove ${segment.name} from this gathering`}
+              title={t('agat.removeSegment', { segment: segment.name })}
+              aria-label={t('agat.removeSegment', { segment: segment.name })}
               onClick={onRemove}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -1377,9 +1380,9 @@ function TaskDialog({
   async function handleApprove() {
     const ok = await confirm({
       title: t('agat.approveThis'),
-      description: `Approve “${task.label}” on ${gatheringTitle}? Approving is final — it `
-        + 'becomes the family’s record of it and the person who submitted it cannot change it '
-        + 'afterwards. Send it back instead if anything still needs work.',
+      description: t('agat.approveConfirm', {
+        task: task.label, gathering: gatheringTitle,
+      }),
       confirmLabel: t('agat.approve'),
     })
     if (!ok) return
@@ -1429,10 +1432,13 @@ function TaskDialog({
     const trimmed = reason.trim()
     const ok = await confirm({
       title: t('agat.reopenThis'),
-      description: `Reopen “${task.label}” on ${gatheringTitle}? It goes back to `
-        + `${task.assignee ? nameFor(task.assignee.id) ?? 'the person holding it' : 'nobody, because it is unassigned'}`
-        + ', who can then change the answer and submit it again. Nothing is erased — their answer '
-        + 'stays on the task as a starting point and every submission stays in the record.',
+      description: t('agat.reopenConfirm', {
+        task: task.label,
+        gathering: gatheringTitle,
+        who: task.assignee
+          ? nameFor(task.assignee.id) ?? t('agat.theHolder')
+          : t('agat.nobodyUnassigned'),
+      }),
       confirmLabel: t('agat.reopen'),
     })
     if (!ok) return
@@ -1480,7 +1486,7 @@ function TaskDialog({
             <AnswerText kind={task.kind} answer={task.answer} />
             {latest?.note && (
               <p className="whitespace-pre-wrap text-xs text-muted-foreground">
-                Their note: {latest.note}
+                {t('agat.theirNote', { note: latest.note })}
               </p>
             )}
             {task.decidedAt && (
@@ -1509,7 +1515,7 @@ function TaskDialog({
                   <AnswerText kind={task.kind} answer={submission.answer} />
                   {submission.reviewNotes && (
                     <p className="whitespace-pre-wrap text-xs text-brand-withheld">
-                      Notes back: {submission.reviewNotes}
+                      {t('agat.notesBack', { notes: submission.reviewNotes })}
                     </p>
                   )}
                 </li>
@@ -1596,9 +1602,9 @@ function TaskDialog({
                       onChange={e => { setNotes(e.target.value); setNotesError('') }}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Sent with the task to {nameFor(assigneeId) ?? 'whoever holds it'}. A task
-                      handed back with no notes leaves them nothing to act on, which is why this
-                      is required.
+                      {t('agat.sentWithTaskRequired', {
+                        name: nameFor(assigneeId) ?? t('agat.whoeverHoldsIt'),
+                      })}
                     </p>
                     <FieldError message={notesError} />
                   </div>
@@ -1640,9 +1646,7 @@ function TaskDialog({
               <div className="space-y-3 border-t pt-4">
                 <h3 className="text-sm font-semibold">{t('agat.approvedAnswer')}</h3>
                 <p className="text-xs text-muted-foreground">
-                  It is the family’s record of {task.label.toLowerCase()} and the person who
-                  submitted it cannot change it. Reopen it if it has to change — the answer and
-                  every submission stay exactly as they are, and it goes back to them to edit.
+                  {t('agat.approvedRecordNote', { task: task.label.toLowerCase() })}
                 </p>
                 {reopening && (
                   <div className="space-y-1.5">
@@ -1656,7 +1660,11 @@ function TaskDialog({
                       onChange={e => setReason(e.target.value)}
                     />
                     <p className="text-xs text-muted-foreground">
-                      Sent with the task to {task.assignee ? nameFor(task.assignee.id) ?? 'whoever holds it' : 'nobody — this task is unassigned, so nobody is told'}.
+                      {t('agat.sentWithTaskTo', {
+                        name: task.assignee
+                          ? nameFor(task.assignee.id) ?? t('agat.whoeverHoldsIt')
+                          : t('agat.nobodyUnassignedTold'),
+                      })}
                     </p>
                   </div>
                 )}

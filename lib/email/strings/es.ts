@@ -241,4 +241,14 @@ export const emailEs: Catalogue = {
   'email.auth.changeNew.footnote':
     'Si no esperaba esto, puede ignorarlo: la cuenta conserva la dirección que tiene hasta que '
     + 'se confirmen ambas mitades.',
+  // ── THE STAFF FAMILY-DELETION CODE, 2026-08-31 ───────────────────────────
+  // The one challenge email whose reader is a GENORRA owner rather than a family's
+  // administrator, and the one where nothing is sent to the family at all.
+  'email.staffDelete.subject': 'Su código para eliminar {code} de forma permanente',
+  'email.staffDelete.preheader': 'Seis dígitos, válidos {minutes} minutos.',
+  'email.staffDelete.heading': 'Confirme una eliminación permanente',
+  'email.staffDelete.p1': 'Alguien con sesión en la consola de personal de GENORRA pidió eliminar de forma permanente <strong>{family}</strong> (<strong>{code}</strong>). Escriba este código en la confirmación que sigue abierta en esa ventana.',
+  'email.staffDelete.p2': 'Esto destruye todos los registros de esa familia y no hay forma de restaurarlos. Si usted no lo pidió, no use el código, y considere que su sesión en la consola está comprometida.',
+  'email.staffDelete.fine': 'El código dura {minutes} minutos, funciona una vez y permite cinco intentos.',
+  'email.staffDelete.footnote': 'Se envía porque una sesión de la consola de personal lo pidió. Nadie de la familia recibe este mensaje.',
 }

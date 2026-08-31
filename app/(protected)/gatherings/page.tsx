@@ -16,8 +16,11 @@ import {
 } from '@/lib/gathering-panes'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Gatherings' }
+export async function generateMetadata() {
+  return docTitle('page./gatherings.title')
+}
 
 interface Props {
   searchParams: Promise<{ pane?: string | string[] }>

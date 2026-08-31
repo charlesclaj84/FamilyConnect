@@ -178,16 +178,16 @@ export function WhenFields({ value, onChange, idPrefix = 'when', disabled }: {
             checked={value.isContinuous}
             disabled={disabled}
             onSelect={() => setContinuous(true)}
-            label="One continuous block"
-            hint="A reunion running Friday evening to Sunday lunchtime. It draws as one bar across those days on the calendar."
+            label={t('gath.shapeContinuous')}
+            hint={t('gath.shapeContinuousHint')}
           />
           <ShapeChoice
             name={`${idPrefix}-shape`}
             checked={!value.isContinuous}
             disabled={disabled}
             onSelect={() => setContinuous(false)}
-            label="Separate days, same gathering"
-            hint="A committee meeting on three Saturdays. Each day draws as its own entry, all carrying this gathering's title."
+            label={t('gath.shapeSeparate')}
+            hint={t('gath.shapeSeparateHint')}
           />
         </div>
       )}
@@ -316,7 +316,7 @@ export function WhenFields({ value, onChange, idPrefix = 'when', disabled }: {
                     variant="ghost"
                     size="icon"
                     disabled={disabled}
-                    aria-label={`Remove day ${index + 1}`}
+                    aria-label={t('gath.removeDayAria', { n: String(index + 1) })}
                     onClick={() => removeOccurrence(index)}
                     className="text-muted-foreground hover:text-destructive"
                   >
@@ -333,8 +333,7 @@ export function WhenFields({ value, onChange, idPrefix = 'when', disabled }: {
           <Button variant="outline" size="sm" disabled={disabled} onClick={addOccurrence}>
             <Plus className="h-3.5 w-3.5" />{t('gath.addAnotherDay')}</Button>
           <p className="text-xs text-muted-foreground">
-            Every day here is its own entry on the calendar, all named{' '}
-            <span className="italic">this</span> gathering.
+            {t('gath.everyDayOwnEntry')}
           </p>
         </div>
       )}

@@ -25,7 +25,7 @@ import {
 } from '@/app/actions/admin/permissions'
 import { usePagedMembers, MemberSearchBox, Pager } from '@/components/admin/MemberSearch'
 import {
-  ACTIONS, SCOPE_LABEL, SCOPE_STYLE, scopesFor, groupResources,
+  ACTIONS, scopeLabel, actionLabel, actionVerb, SCOPE_STYLE, scopesFor, groupResources,
 } from '@/components/admin/resource-groups'
 import { formatBoardTitle } from '@/lib/board-positions'
 import { MemberProfileEditDialog } from '@/components/admin/MemberProfileEditDialog'
@@ -308,9 +308,7 @@ export function AdminAccessClient({
     <div className="space-y-5">
       {legacy && (
         <div className="rounded-xl border border-brand-legacy/50 bg-brand-soft px-4 py-3 text-sm text-brand-on-soft">
-          <span className="font-medium">{t('access.noTables')}</span> Run the migrations in
-          {' '}<code>supabase/migrations</code>. Until then access falls back to the old
-          {' '}<code>is_admin</code> flag and nothing changed here takes effect.
+          {t('access.runMigrations', { lede: t('access.noTables') })}
         </div>
       )}
 
@@ -442,7 +440,7 @@ export function AdminAccessClient({
                 <HelpLink
                   slug="regions-and-chapters"
                   section="what-it-is"
-                  label="Regions, chapters and National"
+                  label={t('access.regionsChaptersNational')}
                   variant="inline"
                 />
               </div>
@@ -929,7 +927,7 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
         </span>
       </td>
       <td className="w-10 px-3 py-2.5 text-right">
-      <RowMenu label={`Actions for ${member.name}`} disabled={!rights.edit || busy}>
+      <RowMenu label={t('access.actionsFor', { name: member.name })} disabled={!rights.edit || busy}>
         {close => (
           <>
             {/* ── TWO LABELLED SECTIONS SINCE 2026-08-20: PERMISSIONS, THEN POSITION ────
@@ -960,9 +958,14 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
                     if (current) return
                     run({
                       title: t('access.applyTemplate'),
-                      description:
-                        `Put ${member.name} on "${tpl.name}"? Their access becomes exactly what that ` +
-                        `template grants${member.templateName ? `, replacing "${member.templateName}"` : ''}.`,
+                      description: member.templateName
+                        ? t('access.applyTemplateConfirmReplacing', {
+                            name: member.name, template: tpl.name,
+                            previous: member.templateName,
+                          })
+                        : t('access.applyTemplateConfirm', {
+                            name: member.name, template: tpl.name,
+                          }),
                       confirmLabel: t('access.applyTemplateAction'),
                       destructive: !tpl.grantsAdmin && Boolean(member.templateId),
                     }, () => applyTemplate(member.personId, tpl.id))
@@ -1049,13 +1052,11 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
                   close()
                   run(disabled ? {
                     title: t('access.enableMember'),
-                    description: `Switch ${member.name}'s access back on? They regain everything their template grants.`,
+                    description: t('access.enableConfirm', { name: member.name }),
                     confirmLabel: t('access.enable'),
                   } : {
                     title: t('access.disableMember'),
-                    description:
-                      `Switch off ${member.name}'s access? They keep their account and their profile, ` +
-                      'but can see nothing in this family until you switch it back on.',
+                    description: t('access.disableConfirm', { name: member.name }),
                     confirmLabel: t('access.disable'),
                     destructive: true,
                   }, () => setMemberEnabled(member.personId, disabled))
@@ -1106,7 +1107,9 @@ function grantSummary(resource: ResourceSummary, policy: PolicyMap, t: T): strin
     // own/any distinction (`SCOPES_FOR`), so its granted state reads "Create All", which is the
     // same word the switch itself carries: two vocabularies for one control would be worse.
     .map(({ action, scope }) =>
-      `${action[0].toUpperCase()}${action.slice(1)} ${SCOPE_LABEL[scope]}`)
+      t('perm.grantedPair', {
+        action: actionLabel(t, action), scope: scopeLabel(t, scope),
+      }))
     .join(' · ')
 }
 
@@ -1324,7 +1327,7 @@ function TemplatesTab({
 
             <p className="text-xs text-muted-foreground">
               {copySource
-                ? `The new template starts with exactly what ${copySource.name} grants today. It is a copy, not a link — changing one afterwards leaves the other alone.`
+                ? t('access.copyStartsFrom', { template: copySource.name })
                 : 'A new template starts with nothing allowed. Set what it grants, then apply it to members.'}
             </p>
             <div className="flex gap-2">
@@ -1350,8 +1353,10 @@ function TemplatesTab({
                       onClick={() => run({
                         title: t('access.saveTemplate'),
                         description: editName.trim() && editName.trim() !== tpl.name
-                          ? `Rename "${tpl.name}" to "${editName.trim()}" and save its description?`
-                          : `Save your changes to "${tpl.name}"?`,
+                          ? t('access.renameTemplateConfirm', {
+                              from: tpl.name, to: editName.trim(),
+                            })
+                          : t('access.saveTemplateConfirm', { template: tpl.name }),
                         confirmLabel: t('action.saveChanges'),
                       }, () => renameTemplate(tpl.id, editName, editDesc), () => setEditingId(null))}>
                       {t('action.save')}
@@ -1372,7 +1377,9 @@ function TemplatesTab({
                       <span className="truncate">{tpl.name}</span>
                     </span>
                     <span className={cn('text-xs', tpl.id === selectedTemplateId ? 'opacity-70' : 'text-muted-foreground')}>
-                      {tpl.memberCount} member{tpl.memberCount === 1 ? '' : 's'}
+                      {t(tpl.memberCount === 1
+                        ? 'access.membersOnCardOne'
+                        : 'access.membersOnCardMany', { n: String(tpl.memberCount) })}
                     </span>
                   </button>
                   {rights.edit && (
@@ -1386,8 +1393,11 @@ function TemplatesTab({
                           className="rounded p-1 hover:bg-foreground/10" onClick={() => run({
                             title: t('access.deleteTemplate'),
                             description: tpl.memberCount > 0
-                              ? `"${tpl.name}" still has ${tpl.memberCount} member${tpl.memberCount === 1 ? '' : 's'}. Move them to another template first.`
-                              : `Delete "${tpl.name}"? This cannot be undone.`,
+                              ? t(tpl.memberCount === 1
+                                  ? 'access.templateStillHasOne'
+                                  : 'access.templateStillHasMany',
+                                { template: tpl.name, n: String(tpl.memberCount) })
+                              : t('access.deleteTemplateConfirm', { template: tpl.name }),
                             confirmLabel: t('access.deleteTemplate'),
                             destructive: true,
                           }, () => deleteTemplate(tpl.id))}>
@@ -1621,7 +1631,9 @@ function TemplatesTab({
                                       </span>
                                       <div
                                         role="group"
-                                        aria-label={`${r.label} — who may ${action}`}
+                                        aria-label={t('perm.whoMayAction', {
+                                          resource: r.label, verb: actionVerb(t, action),
+                                        })}
                                         className="flex gap-0.5"
                                       >
                                         {scopes.map(scope => (
@@ -1635,21 +1647,41 @@ function TemplatesTab({
                                             disabled={!rights.edit || isPending}
                                             onClick={() => run({
                                               title: t('access.changeGrants'),
-                                              description:
-                                                `Set "${selected.name}" to ${action} ${SCOPE_LABEL[scope]}` +
-                                                `${scope === 'none' ? ' (not allowed)' : ''} on ${r.label}? ` +
-                                                `This applies to all ${selected.memberCount} member` +
-                                                `${selected.memberCount === 1 ? '' : 's'} on the template.`,
+                                              // TWO WHOLE SENTENCES, joined — never a
+                                              // fragment glued to a fragment. The second is
+                                              // its own key so the count agrees with its
+                                              // verb in all three languages.
+                                              description: t(
+                                                scope === 'none'
+                                                  ? 'access.setGrantNotAllowed'
+                                                  : 'access.setGrantConfirm',
+                                                {
+                                                  template: selected.name,
+                                                  action: actionLabel(t, action),
+                                                  verb: actionVerb(t, action),
+                                                  scope: scopeLabel(t, scope),
+                                                  resource: r.label,
+                                                  applies: selected.memberCount === 1
+                                                    ? t('access.appliesToOne')
+                                                    : t('access.appliesToMany', {
+                                                        n: String(selected.memberCount),
+                                                      }),
+                                                },
+                                              ),
                                               confirmLabel: t('action.change'),
                                               destructive: scope === 'none',
                                             }, () => setTemplatePermission(selected.id, r.key, action, scope))}
-                                            title={`${r.label} · ${action} · ${SCOPE_LABEL[scope]}`}
+                                            title={t('perm.switchTitle', {
+                                              resource: r.label,
+                                              verb: actionVerb(t, action),
+                                              scope: scopeLabel(t, scope),
+                                            })}
                                             className={cn(
                                               'rounded px-1.5 py-0.5 text-[11px] font-medium transition-colors disabled:opacity-60',
                                               current === scope ? SCOPE_STYLE[scope] : 'text-muted-foreground hover:bg-muted',
                                             )}
                                           >
-                                            {SCOPE_LABEL[scope]}
+                                            {scopeLabel(t, scope)}
                                           </button>
                                         ))}
                                       </div>

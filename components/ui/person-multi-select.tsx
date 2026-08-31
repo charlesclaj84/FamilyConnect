@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
 import { disambiguatedName } from '@/lib/name-utils'
 import { matchesPersonQuery } from '@/lib/person-search'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * THE control for choosing several members of a family.
@@ -84,7 +85,7 @@ export function PersonMultiSelect({
   onChange,
   label,
   hint,
-  emptyMessage = 'No members to choose from yet.',
+  emptyMessage,
   disabled = false,
 }: {
   people: SelectablePerson[]
@@ -100,6 +101,7 @@ export function PersonMultiSelect({
   const [query, setQuery] = useState('')
   // useId, not a hand-rolled counter: two of these on one page would otherwise share
   // checkbox ids, and clicking a label in the second would toggle a box in the first.
+  const t = useT()
   const fieldId = useId()
   const chosen = useMemo(() => new Set(selected), [selected])
 
@@ -136,7 +138,7 @@ export function PersonMultiSelect({
 
       {people.length === 0 ? (
         <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
-          {emptyMessage}
+          {emptyMessage ?? t('pms.noMembersYet')}
         </p>
       ) : (
         <>
@@ -192,14 +194,14 @@ export function PersonMultiSelect({
               value={query}
               onChange={e => setQuery(e.target.value)}
               disabled={disabled}
-              placeholder={`Search ${people.length} members…`}
+              placeholder={t('pms.searchMembers', { n: String(people.length) })}
               className="h-9 pl-8 text-sm"
             />
           </div>
 
           {matches.length === 0 ? (
             <p className="rounded-lg border border-dashed px-3 py-3 text-center text-xs text-muted-foreground">
-              No member matches “{query}”.
+              {t('pms.noMatch', { query })}
             </p>
           ) : (
             // role="group" and not "listbox": these are real checkboxes and a listbox
@@ -247,11 +249,15 @@ export function PersonMultiSelect({
             )}
             {selected.length > 0 && ' · '}
             {matches.length === people.length
-              ? `${people.length} member${people.length === 1 ? '' : 's'}`
-              : `${matches.length} of ${people.length} shown`}
+              ? t(people.length === 1 ? 'pms.totalOne' : 'pms.totalMany',
+                  { n: String(people.length) })
+              : t('pms.shownOfTotal', {
+                  shown: String(matches.length), total: String(people.length),
+                })}
             {/* Never truncate quietly. A list that has stopped at 60 while looking
                 complete is how somebody concludes a person is not in the family. */}
-            {hiddenByLimit > 0 && ` · ${hiddenByLimit} more — keep typing to narrow`}
+            {hiddenByLimit > 0
+              && ` · ${t('pms.moreKeepTyping', { n: String(hiddenByLimit) })}`}
           </p>
         </>
       )}

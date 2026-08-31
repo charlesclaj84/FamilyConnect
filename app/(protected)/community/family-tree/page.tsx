@@ -5,8 +5,11 @@ import { PageShell } from '@/components/layout/PageShell'
 import { FamilyTreeBuilder, TreeLegend } from '@/components/family-tree/FamilyTreeBuilder'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Family Tree' }
+export async function generateMetadata() {
+  return docTitle('page./community/family-tree.title')
+}
 
 /**
  * The family-wide tree — Community > Family Tree, and the only tree in the product.

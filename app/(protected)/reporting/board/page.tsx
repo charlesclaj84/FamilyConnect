@@ -9,8 +9,11 @@ import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Board & Offices Report' }
+export async function generateMetadata() {
+  return docTitle('doc./reporting/board.title')
+}
 
 /**
  * Who holds which office, and — the question nothing else in the product answers — which
@@ -52,9 +55,15 @@ export default async function BoardReportPage() {
       </div>
 
       <ReportStats stats={[
-        { label: 'Offices', value: totals.positions, hint: `${totals.assignments} held in total` },
         {
-          label: 'Filled',
+          label: t('rep.offices'),
+          value: totals.positions,
+          hint: t(totals.assignments === 1
+            ? 'rep.heldInTotalOne'
+            : 'rep.heldInTotalMany', { n: String(totals.assignments) }),
+        },
+        {
+          label: t('rep.filled'),
           value: totals.filled,
           hint: `${totals.officers} relative${totals.officers === 1 ? '' : 's'} in office`,
           tone: 'affirm',
@@ -77,7 +86,7 @@ export default async function BoardReportPage() {
         <ReportEmpty
           icon={ShieldCheck}
           message="This family has not set up any board positions."
-          hint="Add them on Members → Organization, and this reports who holds each and which are empty."
+          hint={t('rep.boardEmptyHint')}
         />
       ) : (
         <>

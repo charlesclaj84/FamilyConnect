@@ -128,11 +128,11 @@ export function DistributionsClient({ initialDistributions, audiences, rights }:
 
   async function stop(row: DistributionSummary) {
     const ok = await confirm({
-      title: `Stop sending “${row.subject}”?`,
-      description:
-        `${row.counts.sent} of ${row.progress.mailable} relatives have already been emailed. `
-        + 'Those messages have gone and cannot be recalled. The rest will not be sent.',
-      confirmLabel: 'Stop sending',
+      title: t('dist.stopSendingTitle', { subject: row.subject }),
+      description: t('dist.stopSendingBody', {
+        sent: String(row.counts.sent), total: String(row.progress.mailable),
+      }),
+      confirmLabel: t('dist.stopSending'),
       destructive: true,
     })
     if (!ok) return
@@ -160,7 +160,7 @@ export function DistributionsClient({ initialDistributions, audiences, rights }:
 
   async function remove(row: DistributionSummary) {
     const ok = await confirm({
-      title: `Delete the record of “${row.subject}”?`,
+      title: t('dist.deleteRecordTitle', { subject: row.subject }),
       description:
         t('dist.emailsSentBeenSent'),
       confirmLabel: 'Delete the record',
@@ -282,7 +282,9 @@ function DistributionTable({ rows, rights, busy, onOpen, onStop, onRetry, onRemo
             <th scope="col" className={cn('px-3 py-2 font-medium', COLLAPSING_CELL)}>{t('dist.sent2')}</th>
             <th scope="col" className="px-3 py-2 font-medium">Delivery</th>
             {/* A column with no heading to give still needs one. */}
-            <th scope="col" className="px-3 py-2"><span className="sr-only">Actions</span></th>
+            <th scope="col" className="px-3 py-2">
+              <span className="sr-only">{t('col.actions')}</span>
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -311,8 +313,9 @@ function DistributionTable({ rows, rights, busy, onOpen, onStop, onRetry, onRemo
                 <div className="text-xs text-muted-foreground">
                   {row.progress.addressed === 1
                     ? '1 relative'
-                    : `${row.progress.addressed} relatives`}
-                  {row.notAddressed > 0 && ` · ${row.notAddressed} not in this audience`}
+                    : t('dist.relativesCount', { n: String(row.progress.addressed) })}
+                  {row.notAddressed > 0
+                    && ` · ${t('dist.notInAudience', { n: String(row.notAddressed) })}`}
                 </div>
               </td>
               <td className={cn('px-3 py-2', COLLAPSING_CELL)}>
@@ -325,7 +328,7 @@ function DistributionTable({ rows, rights, busy, onOpen, onStop, onRetry, onRemo
                   * and the delivered count disagree with nothing to explain the gap. */}
                 {row.counts.unreachable > 0 && (
                   <div className="text-xs text-muted-foreground">
-                    {row.counts.unreachable} with no email address on file
+                    {t('dist.noEmailOnFile', { n: String(row.counts.unreachable) })}
                   </div>
                 )}
                 {row.counts.duplicate > 0 && (
@@ -355,7 +358,7 @@ function DistributionTable({ rows, rights, busy, onOpen, onStop, onRetry, onRemo
                   {rights.remove && !row.progress.sending && (
                     <Button size="sm" variant="ghost" disabled={busy}
                       onClick={() => onRemove(row)}
-                      aria-label={`Delete the record of ${row.subject}`}>
+                      aria-label={t('dist.deleteRecordAria', { subject: row.subject })}>
                       <Trash2 className="h-3.5 w-3.5 text-destructive" aria-hidden="true" />
                     </Button>
                   )}
@@ -425,7 +428,7 @@ function ComposeDialog({ audiences, onClose, onSent }: {
       open
       onClose={onClose}
       title={t('dist.newDistribution')}
-      description="This goes out by email straight away. There is no draft to come back to."
+      description={t('dist.noDraftToComeBack')}
     >
       <div className="space-y-4 px-6 pb-2">
         <div className="space-y-1.5">
@@ -444,13 +447,16 @@ function ComposeDialog({ audiences, onClose, onSent }: {
           </select>
           {selected && (
             <p className="text-xs text-muted-foreground">
-              {mailable === 1 ? '1 relative will be emailed' : `${mailable} relatives will be emailed`}
+              {t(mailable === 1 ? 'dist.willBeEmailedOne' : 'dist.willBeEmailedMany',
+                { n: String(mailable) })}
               {/* SAID IN ADVANCE, DELIBERATELY. The same figure discovered in the roster
                 * afterwards reads as a delivery problem; said here it is a fact about the
                 * family, and one somebody can go and fix. */}
               {selected.unreachable > 0
-                && `. ${selected.unreachable} more are on the family tree without an email address `
-                  + 'and cannot be emailed.'}
+                && t(selected.unreachable === 1
+                    ? 'dist.unreachableMoreOne'
+                    : 'dist.unreachableMoreMany',
+                  { n: String(selected.unreachable) })}
             </p>
           )}
         </div>
@@ -494,7 +500,9 @@ function ComposeDialog({ audiences, onClose, onSent }: {
           className="bg-brand-affirm text-brand-on-affirm hover:bg-brand-affirm/90"
         >
           <Mail className="mr-2 h-4 w-4" aria-hidden="true" />
-          {isPending ? 'Preparing…' : `Send to ${mailable}`}
+          {isPending
+            ? t('dist.preparing')
+            : t('dist.sendToCount', { n: String(mailable) })}
         </Button>
       </div>
     </Dialog>
@@ -562,8 +570,9 @@ function DetailDialog({ detail, onClose }: {
               <Users className="h-4 w-4" aria-hidden="true" />{t('dist.whoWent')}</h3>
             {detail.notAddressed > 0 && (
               <p className="text-xs text-muted-foreground">
-                {detail.notAddressed} {detail.notAddressed === 1 ? 'relative was' : 'relatives were'}
-                {' '}not in this audience.
+                {t(detail.notAddressed === 1
+                  ? 'dist.notInAudienceOne'
+                  : 'dist.notInAudienceMany', { n: String(detail.notAddressed) })}
               </p>
             )}
             <div className="max-h-72 overflow-y-auto rounded-lg border">

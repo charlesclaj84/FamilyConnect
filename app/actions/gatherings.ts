@@ -1443,7 +1443,9 @@ export async function submitGatheringTask(input: {
   if (!answer) {
     return {
       success: false,
-      message: `That is not a usable answer for “${task.label}”. ${GATHERING_STEP_KIND_HINT[task.kind]}`,
+      message: t('gath.notUsableAnswer', {
+        task: task.label, hint: GATHERING_STEP_KIND_HINT[task.kind],
+      }),
     }
   }
   const note = typeof input.note === 'string' ? input.note.trim() || null : null
@@ -1646,10 +1648,16 @@ export async function scheduleGathering(input: {
   const allowed = asOrganizer ? new Set(['family', 'admin']) : new Set(['family'])
   for (const row of rows) {
     if (row.is_archived) {
-      return { success: false, message: `“${row.name}” has been archived and cannot start a new gathering` }
+      return {
+        success: false,
+        message: t('agat.templateArchived', { template: row.name }),
+      }
     }
     if (!allowed.has(row.who_may_schedule)) {
-      return { success: false, message: `Only an organizer can schedule from “${row.name}”` }
+      return {
+        success: false,
+        message: t('gath.onlyOrganizerCanSchedule', { template: row.name }),
+      }
     }
   }
 
@@ -1742,7 +1750,7 @@ export async function scheduleGathering(input: {
     return {
       success: true,
       gatheringId,
-      message: `Scheduled, but the steps from ${failures.join(', ')} could not be added. An organizer can add them from the gathering.`,
+      message: t('gath.scheduledStepsFailed', { templates: failures.join(', ') }),
     }
   }
   return { success: true, gatheringId }

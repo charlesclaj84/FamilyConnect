@@ -16,6 +16,7 @@ import {
   type StaffFamilyPage, type StaffFamilyRow,
 } from '@/app/actions/staff/families'
 import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import { StaffDeleteFamilyDialog } from '@/components/staff/StaffDeleteFamilyDialog'
 
 /**
  * Every family on the platform, filtered and paged, with one action: put a removed one
@@ -50,7 +51,24 @@ import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
  * one place"). `--destructive` in this file belongs to `FormError` alone, which is what
  * reports a refused operation.
  */
-export function StaffFamiliesClient({ initial }: { initial: StaffFamilyPage }) {
+export function StaffFamiliesClient({ initial, isOwner = false }: {
+  initial: StaffFamilyPage
+  /**
+   * Is the caller a GENORRA staff OWNER?
+   *
+   * ── RESOLVED ON THE SERVER AND HANDED DOWN, LIKE `isStaff` ON `AccountMenu` ──────
+   * `genorra_staff` has RLS with no policies, so the browser cannot read its own row and
+   * there is nothing here to work it out from. It decides whether a CONTROL is rendered and
+   * nothing else: `requestFamilyDeleteCode` and `deleteFamilyPermanently` both open with
+   * `requireStaffOwner()`, and the SQL underneath re-asks through
+   * `is_genorra_staff_owner()` — so a `support` staffer who forged this prop would be
+   * refused twice more (AGENTS.md §2).
+   *
+   * DEFAULTS TO FALSE, so a caller that has not thought about it withholds the control
+   * rather than publishing it.
+   */
+  isOwner?: boolean
+}) {
   const intl = useIntlTag()
   const t = useT()
   const confirm = useConfirm()
@@ -108,9 +126,7 @@ export function StaffFamiliesClient({ initial }: { initial: StaffFamilyPage }) {
     const ok = await confirm({
       title: `Restore ${row.familyName}?`,
       description:
-        `${row.familyCode} becomes reachable again immediately: its members can sign in `
-        + 'to it, its family code works, and its invitations resolve. Nothing was deleted '
-        + 'when it was removed, so every record it holds comes back with it.',
+        t('staff.restoreBody', { code: row.familyCode }),
       confirmLabel: t('staff.restoreFamily'),
     })
     if (!ok) return
@@ -148,7 +164,7 @@ export function StaffFamiliesClient({ initial }: { initial: StaffFamilyPage }) {
       ) : data.rows.length === 0 ? (
         <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">
           {debounced
-            ? `No family matches “${debounced}”.`
+            ? t('staff.noFamilyMatches', { query: debounced })
             : t('staff.noFamilies')}
         </p>
       ) : (
@@ -243,7 +259,30 @@ export function StaffFamiliesClient({ initial }: { initial: StaffFamilyPage }) {
                           <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
                           {t('staff.restore')}
                         </Button>
-                      ) : (
+                      ) : null}
+                      {/* ── AND THE ONE CONTROL WITH NO UNDO, FOR AN OWNER ────────────
+                          Beside Restore rather than instead of it: a REMOVED family is the
+                          usual thing to delete (somebody asked, it was disabled, the
+                          retention window passed) and it is also the usual thing to
+                          restore, so both belong on that row. An active family can be
+                          deleted too — a support engineer answering a deletion request
+                          should not have to remove it first as ceremony.
+
+                          Rendered for nobody else, not disabled for them: a control a
+                          `support` staffer can see and not use teaches them the console has
+                          a button that does not work. Same call `AccountMenu` makes about
+                          the staff link itself. */}
+                      {isOwner && (
+                        <span className="ml-2 inline-block">
+                          <StaffDeleteFamilyDialog
+                            familyCode={row.familyCode}
+                            familyName={row.familyName}
+                            memberCount={row.memberCount}
+                            onDeleted={load}
+                          />
+                        </span>
+                      )}
+                      {!removed && !isOwner && (
                         // An em-dash rather than nothing: the cell has to hold the grid
                         // open, and an empty box beside a row that has a button reads as
                         // a button that failed to render.

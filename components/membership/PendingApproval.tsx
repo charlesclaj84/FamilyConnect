@@ -56,7 +56,7 @@ export async function PendingApproval({ membership }: { membership: FamilyMember
       <div className="flex items-center gap-5">
         <Avatar initials={initials} size="lg" />
         <h1 className="text-2xl font-bold leading-tight sm:text-3xl">
-          Welcome back, {firstName}!
+          {t('pend.welcomeBack', { name: firstName })}
         </h1>
       </div>
 

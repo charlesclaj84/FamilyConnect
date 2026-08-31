@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils'
 import { TIER_LABEL } from '@/lib/tiers'
 import type { HelpAvailability } from '@/lib/help/availability'
+import type { T } from '@/lib/i18n/t'
 
 /**
  * The one-word answer to "can I actually open this?", on a chapter card and at the top of
@@ -23,18 +24,24 @@ import type { HelpAvailability } from '@/lib/help/availability'
 export function HelpAvailabilityBadge({
   availability,
   className,
+  t,
 }: {
   availability: HelpAvailability | undefined
   className?: string
+  /** The reader's language. A PROP, not `useT()` — this file has no directive and its one
+      caller is a Server Component, the same as `HelpAvailabilityNote` below. */
+  t: T
 }) {
   if (!availability || availability.state === 'open' || availability.state === 'general') return null
 
   const [label, tone] =
     availability.state === 'coming-soon'
-      ? ['Coming soon', 'bg-muted text-muted-foreground'] as const
+      ? [t('hlp.badgeComingSoon'), 'bg-muted text-muted-foreground'] as const
       : availability.state === 'needs-plan'
-        ? [`${TIER_LABEL[availability.tier]} plan`, 'bg-brand-soft text-brand-on-soft'] as const
-        : ['Not in your access', 'bg-brand-withheld/10 text-brand-withheld'] as const
+        ? [t('hlp.planBadge', { plan: TIER_LABEL[availability.tier] }),
+            'bg-brand-soft text-brand-on-soft'] as const
+        : [t('hlp.badgeNotInAccess'),
+            'bg-brand-withheld/10 text-brand-withheld'] as const
 
   return (
     <span
@@ -57,19 +64,24 @@ export function HelpAvailabilityBadge({
  * asked for a manual and got one. See components/ui/form-message.tsx, which owns the other
  * case and must not be borrowed for this one.
  */
-export function HelpAvailabilityNote({ availability }: { availability: HelpAvailability | undefined }) {
+export function HelpAvailabilityNote({ availability, t }: {
+  availability: HelpAvailability | undefined
+  /** The reader's language. A PROP, not `useT()`: this file has no directive and both of its
+      callers are Server Components, so a hook here throws at render. */
+  t: T
+}) {
   if (!availability || availability.state === 'open' || availability.state === 'general') return null
 
   const text =
     availability.state === 'coming-soon'
-      ? 'This part of the product has not shipped yet. The chapter describes what it will do; opening the screen today shows a Coming Soon notice.'
+      ? t('hlp.comingSoonBadgeBody')
       : availability.state === 'needs-plan'
-        ? `This is included in the ${TIER_LABEL[availability.tier]} plan, and your family is on a lower one. Everything below is accurate — the screen simply offers an upgrade instead of opening.`
-        : 'Your permission template does not include this screen, so opening it will say the page cannot be found. An administrator of your family can change that from Members.'
+        ? t('hlp.tierBadgeBody', { plan: TIER_LABEL[availability.tier] })
+        : t('hlp.permissionBadgeBody')
 
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-muted/40 px-4 py-3">
-      <HelpAvailabilityBadge availability={availability} />
+      <HelpAvailabilityBadge availability={availability} t={t} />
       <p className="text-sm text-muted-foreground">{text}</p>
     </div>
   )

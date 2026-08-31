@@ -93,7 +93,9 @@ export function MemberPositionDialog({
   async function handleAssign() {
     if (!chosen) { setError(t('pos.choose')); return }
     if (needsPlace && !placeId) {
-      setError(`Choose which ${chosen.scope === 'chapter' ? 'chapter' : 'region'}`)
+      setError(t(chosen.scope === 'chapter'
+        ? 'pos.chooseWhichChapter'
+        : 'pos.chooseWhichRegion'))
       return
     }
     setBusy(true)
@@ -116,8 +118,9 @@ export function MemberPositionDialog({
     setError('')
     const ok = await confirm({
       title: t('pos.takeAway'),
-      description: `Take "${holder.position_name}" away from ${personName}? `
-        + t('pos.takeAwayBody'),
+      description: t('pos.takeAwayNamedLede', {
+        position: holder.position_name, name: personName,
+      }) + t('pos.takeAwayBody'),
       confirmLabel: t('pos.takeItAway'),
       destructive: true,
     })
@@ -133,7 +136,7 @@ export function MemberPositionDialog({
     <Dialog
       open
       onClose={onClose}
-      title={`${personName}’s positions`}
+      title={t('pos.somebodysPositions', { name: personName })}
       description={t('pos.oneOrMore')}
       className="max-w-lg"
     >
@@ -143,7 +146,7 @@ export function MemberPositionDialog({
           <h3 className="text-sm font-semibold">{t('pos.holdsNow')}</h3>
           {holders.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No position yet.{' '}
+              {t('pos.noPositionYet')}{' '}
               {mayAssign ? t('pos.giveOneBelow') : t('pos.somebodyElse')}
             </p>
           ) : (
@@ -169,7 +172,9 @@ export function MemberPositionDialog({
                       type="button"
                       disabled={busy}
                       onClick={() => handleRevoke(h)}
-                      aria-label={`Take ${h.position_name} away from ${personName}`}
+                      aria-label={t('pos.takeAwayAria', {
+                        position: h.position_name, name: personName,
+                      })}
                       className="-my-1 shrink-0 p-1 text-destructive transition-colors hover:text-destructive/80 disabled:opacity-50"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

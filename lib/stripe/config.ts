@@ -229,13 +229,18 @@ export function connectConfigured(): boolean {
  * `lib/regions.ts` carries US states in full. A family somewhere else is not supported by the
  * rest of the product either, so this constant is not the thing narrowing them.
  *
- * ── WHAT IT COSTS, STATED RATHER THAN DISCOVERED ───────────────────────────────────
- * `identity.country` is what Stripe validates the whole account against — payout currency,
- * which identity documents are demanded, which regulations apply — and it cannot be changed
- * afterwards. `lib/regions.ts` already admits Canada and Mexico for a MEMBER's address, so a
- * Canadian family can exist in this product today and would be created here as American. That
- * is a real gap and TODO.md carries it; the fix is a country picked in the Connect panel and
- * passed through, not a cleverer default.
+ * ── IT IS NOT A CONSTANT ANY MORE, AS OF 2026-08-31. THE FAMILY IS ASKED ───────────
+ * Everything above described why `'us'` was the honest default, and all of it was true except
+ * the conclusion: `lib/regions.ts` admits Canada and Mexico for a MEMBER's address, so a
+ * Canadian family could exist in this product and would be created here as an AMERICAN
+ * merchant — and `identity.country` cannot be changed afterwards. The failure was not an error
+ * message. Onboarding ran, asked for US paperwork, and left the family with an account they
+ * could never complete.
+ *
+ * `lib/stripe/connect-countries.ts` is the registry now: every country Stripe permits a US
+ * platform to create an account in, with an `enabled` flag per country, three of them true.
+ * `DEFAULT_CONNECT_COUNTRY` is what the picker preselects and what every account created
+ * before the picker existed already holds.
  *
  * ── AND `entity_type` IS DELIBERATELY NOT SET ──────────────────────────────────────
  * Optional, and Stripe collects it during hosted onboarding. Whether a family association is
@@ -243,7 +248,7 @@ export function connectConfigured(): boolean {
  * the reference warns the value decides which identity fields apply and how the account is
  * validated — so guessing it would misvalidate the account rather than save anybody a step.
  */
-export const CONNECT_ACCOUNT_COUNTRY = 'us'
+export { DEFAULT_CONNECT_COUNTRY as CONNECT_ACCOUNT_COUNTRY } from '@/lib/stripe/connect-countries'
 
 export function platformWebhookSecret(): string | null {
   return process.env.STRIPE_PLATFORM_WEBHOOK_SECRET?.trim() || null

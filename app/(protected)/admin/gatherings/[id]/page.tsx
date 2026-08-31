@@ -9,8 +9,11 @@ import { getSchedulableTemplates } from '@/app/actions/gatherings'
 import { AdminGatheringDetailClient } from '@/components/admin/AdminGatheringDetailClient'
 import { PageShell } from '@/components/layout/PageShell'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Gathering — Admin' }
+export async function generateMetadata() {
+  return docTitle('doc./admin/gatherings/[id].title')
+}
 
 /**
  * ONE GATHERING, from the organizer's side: its details and status, the fund it draws on and

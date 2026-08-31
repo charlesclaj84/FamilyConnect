@@ -99,7 +99,8 @@ export function DonationDrivesCard({ donations, t, intl }: {
 
       {hidden > 0 && (
         <p className="mt-3 text-xs text-muted-foreground">
-          {hidden} more {hidden === 1 ? 'drive is' : 'drives are'} open.
+          {t(hidden === 1 ? 'drives.moreOpenOne' : 'drives.moreOpenMany',
+            { n: String(hidden) })}
         </p>
       )}
 
@@ -157,7 +158,10 @@ function DriveRow({ donation: d, t, intl }: {
         {goalCents != null && goalCents > 0
           ? ` of ${formatCurrency(goalCents, intl)} · ${progressPercent}%`
           : ' raised'}
-        {myGivenCents > 0 && ` · ${formatCurrency(myGivenCents, intl)} from you`}
+        {myGivenCents > 0
+          && ` · ${t('drives.fromYou', {
+            amount: formatCurrency(myGivenCents, intl),
+          })}`}
       </p>
 
       {/* THE DEADLINE, and only when there is one. It is the fact that makes this urgent

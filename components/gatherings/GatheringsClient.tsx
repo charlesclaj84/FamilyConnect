@@ -19,7 +19,7 @@ import {
 } from '@/lib/gathering-when'
 import { cn } from '@/lib/utils'
 import { scheduleGathering, type GatheringSummary } from '@/app/actions/gatherings'
-import { useT } from '@/components/layout/LocaleProvider'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The Gatherings list, and the one dialog that starts a new one.
@@ -328,7 +328,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
               a 404. */}
           {templates.length === 0 && mayAuthorTemplates && (
             <p className="rounded-xl border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-              This will be a date on the family calendar with no tasks.{' '}
+              {t('gath.dateWithNoTasks')}{' '}
               <Link href="/admin/gatherings/templates" className="font-medium underline">
                 {t('gath.authorTemplate')}
               </Link>
@@ -473,6 +473,7 @@ function Section({ heading, rows, empty }: {
  * out terracotta (gold, in dark mode).
  */
 function GatheringCard({ row }: { row: GatheringRow }) {
+  const intl = useIntlTag()
   const t = useT()
   // ── THE WHOLE ANSWER, NOT A RANGE OVER THE ENVELOPE ─────────────────────────────
   // A series of three Saturdays has an envelope of a fortnight, and `formatDateRange` over it
@@ -480,7 +481,7 @@ function GatheringCard({ row }: { row: GatheringRow }) {
   // feature exists to fix, so no list may reintroduce it. `formatWhenBrief` reads the four
   // materialised envelope fields plus the occurrence count and says "3 days from July 4th"
   // instead, and appends the times where there are any.
-  const dates = formatWhenBrief(row)
+  const dates = formatWhenBrief(row, intl, t)
   const { total, approved } = row.taskCounts
 
   return (
@@ -538,8 +539,11 @@ function GatheringCard({ row }: { row: GatheringRow }) {
           {total === 0
             ? t('gath.noTasks')
             : row.taskCounts.complete
-              ? `All ${total} ${total === 1 ? 'task' : 'tasks'} approved`
-              : `${approved} of ${total} tasks approved`}
+              ? t(total === 1 ? 'gath.allApprovedOne' : 'gath.allApprovedMany',
+                  { n: String(total) })
+              : t('dash.tasksApprovedMany', {
+                  approved: String(approved), total: String(total),
+                })}
         </span>
       </div>
     </Link>

@@ -765,7 +765,9 @@ export async function deleteTemplate(templateId: string): Promise<AdminResult> {
   if ((count ?? 0) > 0) {
     return {
       success: false,
-      message: `${count} member${count === 1 ? ' is' : 's are'} on this template. Move them to another one first.`,
+      message: t(count === 1
+        ? 'access.membersOnTemplateOne'
+        : 'access.membersOnTemplateMany', { n: String(count) }),
     }
   }
 
@@ -810,7 +812,7 @@ export async function setTemplatePermission(
   // Neither is recoverable from the UI, so neither is allowed to reach zero.
   if ((resourceKey === RESOURCE || resourceKey === TEMPLATE_RESOURCE)
       && action === 'edit' && scope === 'none') {
-    const lockout = await wouldLoseLastAdmin(resourceKey, templateId, auth.familyCode)
+    const lockout = await wouldLoseLastAdmin(resourceKey, templateId, auth.familyCode, t)
     if (lockout) return { success: false, message: lockout }
   }
 
@@ -832,9 +834,17 @@ export async function setTemplatePermission(
 }
 
 /** How each of the two lockouts reads to the person about to cause it. */
+/**
+ * What a template would stop being able to do — the phrase that lands mid-sentence in the
+ * two lockout refusals below.
+ *
+ * KEYS, NOT WORDS. It was a `Record<string, string>` of English phrases interpolated into a
+ * message, which is the registry shape AGENTS.md's i18n section rules on: the resource key
+ * is the contract and the phrase is copy.
+ */
 const LOCKOUT_SUBJECT: Record<string, string> = {
-  [RESOURCE]: 'manage access',
-  [TEMPLATE_RESOURCE]: 'change permission templates',
+  [RESOURCE]: 'access.lockoutSubject.manageAccess',
+  [TEMPLATE_RESOURCE]: 'access.lockoutSubject.changeTemplates',
 }
 
 /**
@@ -854,9 +864,13 @@ async function wouldLoseLastAdmin(
   resourceKey: string,
   templateId: string,
   familyCode: string,
+  /** The caller's language. This refusal is the whole explanation of why a switch would
+      not move, so it is read on screen rather than in a log. */
+  t: T,
 ): Promise<string | null> {
   const admin = createAdminClient()
-  const subject = LOCKOUT_SUBJECT[resourceKey] ?? 'manage access'
+  const subject = t(LOCKOUT_SUBJECT[resourceKey]
+    ?? 'access.lockoutSubject.manageAccess')
 
   const { data: capable } = await admin
     .from('template_permissions')
@@ -874,7 +888,7 @@ async function wouldLoseLastAdmin(
     .filter(id => id !== templateId)
 
   if (otherIds.length === 0) {
-    return `This is the only template that can ${subject}. Grant it to another template first.`
+    return t('access.onlyTemplateThatCan', { subject })
   }
 
   // A template nobody is on is not a way back in. Only APPROVED members count — a
@@ -889,7 +903,7 @@ async function wouldLoseLastAdmin(
     .in('permission_template_id', otherIds)
 
   return (count ?? 0) === 0
-    ? `No other template that can ${subject} has any members. Put someone on one first.`
+    ? t('access.noOtherTemplateHasMembers', { subject })
     : null
 }
 

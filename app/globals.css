@@ -628,8 +628,45 @@
 .gn-rise-4 { animation-delay: 330ms; }
 .gn-rise-5 { animation-delay: 420ms; }
 
+/* ── Confetti, for a birthday and for nothing else ────────────────
+   Thirty spans falling once, on the band `BirthdayHero` draws on somebody's own
+   dashboard on their birthday. CSS rather than a package for `MarketingHeader`'s
+   reason: a confetti library is a dependency, a canvas and a render loop bought
+   for one band that appears one day a year, in a chunk every member downloads.
+
+   TWO KEYFRAMES, NOT ONE, and they differ only in the spin. A single animation
+   applied to thirty elements reads as thirty identical things falling in step;
+   alternating the rotation is the whole difference between confetti and rain.
+
+   `forwards` and iteration count 1 — it runs for about three seconds and STOPS.
+   A permanent animation on the screen a member lands on is what WCAG 2.2.2 is
+   about, and it is irritating by the fourth page load besides.
+
+   The `opacity: 0` lives inside the keyframe rather than on the class, for the
+   reason `.gn-rise` states above: killing the animation must leave the element
+   at its normal styles, not strand it invisible. Here the reduced-motion rule
+   HIDES the container instead (`motion-reduce:hidden` on the span), which is the
+   right answer for decoration that carries no information — somebody who asked
+   for no motion asked for no motion, not for thirty static dots. */
+@keyframes gn-confetti-a {
+  from { opacity: 0; transform: translateY(-12%) rotate(0deg); }
+  10%  { opacity: 0.9; }
+  to   { opacity: 0; transform: translateY(520%) rotate(420deg); }
+}
+@keyframes gn-confetti-b {
+  from { opacity: 0; transform: translateY(-12%) rotate(0deg); }
+  10%  { opacity: 0.9; }
+  to   { opacity: 0; transform: translateY(520%) rotate(-380deg); }
+}
+.gn-confetti-a { animation: gn-confetti-a 3s cubic-bezier(0.4, 0, 0.7, 1) 1 forwards; }
+.gn-confetti-b { animation: gn-confetti-b 3.4s cubic-bezier(0.4, 0, 0.7, 1) 1 forwards; }
+
 @media (prefers-reduced-motion: reduce) {
   .gn-float, .gn-float-slow, .gn-shimmer, .gn-rise, .gn-sheen { animation: none; }
+  /* NOT `animation: none` for these two: that would leave thirty dots sitting on the
+     band. The container carries `motion-reduce:hidden`, so this is belt-and-braces for
+     a caller that forgets it. */
+  .gn-confetti-a, .gn-confetti-b { animation: none; display: none; }
 }
 
 /* ── Pricing: the plan ladder ─────────────────────────────────────

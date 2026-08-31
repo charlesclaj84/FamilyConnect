@@ -132,6 +132,7 @@ export function MeetingDetailClient({ meeting: initialMeeting, zone }: {
                   <Clock className="h-3.5 w-3.5 shrink-0" />
                   <StatedTime
                     intl={intl}
+                    t={t}
                     day={meeting.meetsOn}
                     time={meeting.startTime}
                     endTime={meeting.endTime}
@@ -475,7 +476,9 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
                   <span><span className="font-semibold">{tally.against}</span> against</span>
                   <span><span className="font-semibold">{tally.abstain}</span> abstained</span>
                   <span className="text-muted-foreground">
-                    of {meeting.attendees.length} in the room
+                    {t('meet.ofInTheRoom', {
+                      n: String(meeting.attendees.length),
+                    })}
                   </span>
                 </p>
 
@@ -506,9 +509,10 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
                           onClick={async () => {
                             const ok = await confirm({
                               title: `Vote ${c.label.toLowerCase()}?`,
-                              description: `Your vote on “${topic.title}” is recorded against your name `
-                                + 'and cannot be changed or withdrawn by anybody.',
-                              confirmLabel: `Vote ${c.label.toLowerCase()}`,
+                              description: t('meet.voteFinalBody', { topic: topic.title }),
+                              confirmLabel: t('meet.voteChoice', {
+                                choice: c.label.toLowerCase(),
+                              }),
                             })
                             if (!ok) return
                             onRun(() => castMeetingVote(topic.id, c.value))

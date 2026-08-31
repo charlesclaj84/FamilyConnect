@@ -233,7 +233,7 @@ export function PersonRecordDialog({
         {connections.length > 0 && (
           <div className="space-y-4">
             <div>
-              <Label>How {name} is related</Label>
+              <Label>{t('rec.howRelated', { name })}</Label>
               <p className="mt-1 text-xs text-muted-foreground">{t('ui.onlyBloodLinksCarry')}</p>
             </div>
 
@@ -283,11 +283,16 @@ export function PersonRecordDialog({
 
                   <p className="text-xs text-muted-foreground">
                     {isMarriage
-                      ? `A former marriage stays on the tree beside ${name} — it is usually where half the children came from. A marriage never carries blood.`
-                      : `Recorded as ${name}'s ${linkKindLabel(kind, connection.label).toLowerCase()}.`
+                      ? t('rec.formerMarriageNote', { name })
+                      : t('rec.recordedAs', {
+                          name,
+                          kind: linkKindLabel(kind, connection.label).toLowerCase(),
+                        })
                         + (kind === 'blood'
-                          ? ' Blood links carry the bloodline.'
-                          : ` ${connection.otherName} does not reach the bloodline through this link.`)}
+                          ? t('rec.bloodCarries')
+                          : t('rec.noBloodThroughLink', {
+                              name: connection.otherName,
+                            }))}
                     {saved && <span className="ml-1 font-medium text-brand-affirm">{t('rec.saved')}</span>}
                   </p>
                 </div>

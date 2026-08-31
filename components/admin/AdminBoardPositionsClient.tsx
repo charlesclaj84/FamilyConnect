@@ -210,14 +210,14 @@ export function AdminBoardPositionsClient({
     // happen. The server check is not weakened by it and is what a caller past this screen hits.
     if (position.holders > 0) {
       setListError(
-        `${position.holders} ${position.holders === 1 ? 'person holds' : 'people hold'} `
-        + `"${position.name}". Take it away from them first.`,
+        t(position.holders === 1 ? 'pos.holdersBlockOne' : 'pos.holdersBlockMany',
+          { n: String(position.holders), name: position.name }),
       )
       return
     }
     const ok = await confirm({
       title: t('pos.remove'),
-      description: `Remove "${position.name}" from the positions your family keeps? `
+      description: t('pos.removeNamedLede', { name: position.name })
         + t('pos.removeBody'),
       confirmLabel: t('pos.remove'),
       destructive: true,
@@ -289,7 +289,7 @@ export function AdminBoardPositionsClient({
                           {editing ? (
                             <div className="space-y-1.5">
                               <Input
-                                aria-label={`Rename the ${p.name} position`}
+                                aria-label={t('pos.renameAria', { name: p.name })}
                                 value={editingName}
                                 maxLength={POSITION_NAME_MAX}
                                 autoFocus
@@ -343,7 +343,7 @@ export function AdminBoardPositionsClient({
                                     <button
                                       type="button"
                                       onClick={() => startRename(p)}
-                                      aria-label={`Rename the ${p.name} position`}
+                                      aria-label={t('pos.renameAria', { name: p.name })}
                                       className="p-1 text-muted-foreground transition-colors hover:text-foreground"
                                     >
                                       <Pencil className="h-3.5 w-3.5" />
@@ -362,11 +362,17 @@ export function AdminBoardPositionsClient({
                                       disabled={p.holders > 0 || busyId !== null}
                                       onClick={() => handleDelete(p)}
                                       title={p.holders > 0
-                                        ? `${p.holders} ${p.holders === 1 ? 'person holds' : 'people hold'} this — take it away from them first`
+                                        ? t(p.holders === 1
+                                            ? 'pos.heldBlockTitleOne'
+                                            : 'pos.heldBlockTitleMany',
+                                          { n: String(p.holders) })
                                         : undefined}
                                       aria-label={p.holders > 0
-                                        ? `Cannot remove the ${p.name} position: ${p.holders} ${p.holders === 1 ? 'person holds' : 'people hold'} it`
-                                        : `Remove the ${p.name} position`}
+                                        ? t(p.holders === 1
+                                            ? 'pos.cannotRemoveAriaOne'
+                                            : 'pos.cannotRemoveAriaMany',
+                                          { name: p.name, n: String(p.holders) })
+                                        : t('pos.removeAria', { name: p.name })}
                                       className="p-1 text-destructive transition-colors hover:text-destructive/80 disabled:cursor-not-allowed disabled:text-muted-foreground disabled:opacity-60"
                                     >
                                       <Trash2 className="h-3.5 w-3.5" />

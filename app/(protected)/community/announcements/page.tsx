@@ -5,6 +5,7 @@ import {
 } from '@/lib/auth/permissions'
 import { getMyPersonId } from '@/lib/auth/family'
 import { getAnnouncements, getChapters, getUpcomingBirthdays } from '@/app/actions/announcements'
+import { getBirthdayPrompts } from '@/app/actions/birthdays'
 import { getUpdatesArchive } from '@/app/actions/updates'
 import { AnnouncementsShell } from '@/components/announcements/AnnouncementsShell'
 import {
@@ -13,8 +14,11 @@ import {
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Announcements' }
+export async function generateMetadata() {
+  return docTitle('page./community/announcements.title')
+}
 
 /**
  * BOTH SEARCH PARAMS THE ARCHIVE READS ARE `string | string[]`, because Next hands back an
@@ -151,7 +155,7 @@ export default async function AnnouncementsPage({ searchParams }: Props) {
   // its data rather than being resolved unconditionally: they are only meaningful to a caller
   // who is shown the board, and resolving them for one who is not would be three permission
   // reads to decide the state of buttons nobody is going to see.
-  const [board, archive, birthdays] = await Promise.all([
+  const [board, archive, birthdays, birthdayPrompts] = await Promise.all([
     mayViewBoard
       ? Promise.all([
         can(user.id, 'community/announcements', 'create'),
@@ -177,6 +181,12 @@ export default async function AnnouncementsPage({ searchParams }: Props) {
       ? getUpdatesArchive({ q: first(params.q), pages: Number(first(params.pages)) })
       : Promise.resolve(null),
     mayViewBirthdays ? getUpcomingBirthdays() : Promise.resolve([]),
+    // ── THE TWO-WEEK PROMPT, GATED ON THE BOARD RATHER THAN ON THE BIRTHDAYS KEY ────
+    // Deliberately `mayViewBoard` and not `mayViewBirthdays`: the prompt's whole purpose is
+    // to post an announcement, so a caller who can read the birthday roster and not the
+    // board would be offered a composer for a screen they cannot see. `getBirthdayPrompts`
+    // resolves both grants itself (§2) — this line is about not ASKING, which is §5.
+    mayViewBoard ? getBirthdayPrompts() : Promise.resolve(null),
   ])
 
   const [canPost, canPin, deleteScope, myPersonId, announcements, chapters] =
@@ -225,6 +235,7 @@ export default async function AnnouncementsPage({ searchParams }: Props) {
         myPersonId={myPersonId}
         archive={archive}
         birthdays={birthdays}
+        birthdayPrompts={birthdayPrompts}
       />
     </PageShell>
   )

@@ -48,7 +48,10 @@ export function ChapterReminderBanner({ chapters }: Props) {
       // member is their own person — and `propagateChapterToChildren` moves exactly one other
       // kind of row: a son or daughter under eighteen with no account of their own. "Everyone
       // in your household" said both more than is true and less than is clear.
-      description: `Set your chapter to ${chapters.find(c => c.id === chapterId)?.name ?? 'the selected chapter'}? Any sons or daughters under 18 who have no account of their own move with you.`,
+      description: t('dash.chapter.confirm', {
+        chapter: chapters.find(c => c.id === chapterId)?.name
+          ?? t('dash.chapter.theSelected'),
+      }),
       confirmLabel: t('dash.chapter.action'),
     })
     if (!ok) return

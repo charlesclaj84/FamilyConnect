@@ -514,7 +514,25 @@ BEGIN
            -- reset and derives its TRUNCATE from everything not on its own keep-list. The two
            -- scripts disagreeing here is correct rather than an inconsistency: one empties a
            -- family, the other empties everything.
-           'stripe_webhook_events')
+           'stripe_webhook_events',
+           -- AND THE PLATFORM'S RECORD OF WHAT STAFF HAVE DESTROYED.
+           -- `genorra_staff_deletions` (20260831000001) is what survives
+           -- `staff_delete_family` — the audit row naming the family, the counts and the
+           -- owner who pressed the button. It CARRIES a `family_code`, which is why it needs
+           -- naming here at all: every "is this family data?" test asks whether the table has
+           -- that column, and this one does while not being family data — the same trap
+           -- `family_roles` was, twenty lines up.
+           --
+           -- A FAMILY RESET IS NOT A PLATFORM RESET, so it is kept for
+           -- `stripe_webhook_events`' reason. And `staff_delete_family`'s own derived sweep
+           -- excludes it BY NAME for a sharper version of the same point: a row scoped to the
+           -- family would otherwise be deleted by the very statement that wrote it.
+           'genorra_staff_deletions',
+           -- AND THE STAFF CONSOLE'S OWN CHALLENGE CODES. It carries a `family_code` for the
+           -- same reason and is not family data for the same reason: the code authorises
+           -- destroying a family and outlives it by seconds. Rows expire on their own; there
+           -- is nothing for a family reset to clean up.
+           'genorra_staff_challenges')
      AND (xpath('/row/c/text()', query_to_xml(
             format('select count(*) as c from public.%I', t.table_name),
             false, true, '')))[1]::text::bigint > 0;

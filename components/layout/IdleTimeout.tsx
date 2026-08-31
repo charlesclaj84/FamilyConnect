@@ -316,13 +316,13 @@ export function IdleTimeout({ sessionStartedAt }: {
       open={secondsLeft !== null}
       onClose={staySignedIn}
       title={t('shell.stillThere')}
-      description="You have been inactive for a while, so we are about to sign you out."
+      description={t('idle.warningBody')}
     >
       <div className="space-y-4">
         <div className="flex items-center gap-3 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
           <Clock className="h-4 w-4 shrink-0 text-brand-accent" aria-hidden="true" />
           <p>
-            Signing out in{' '}
+            {t('idle.signingOutIn')}{' '}
             <span className="font-semibold tabular-nums">{secondsLeft ?? 0}</span>
             {secondsLeft === 1 ? ' second' : ' seconds'}.
           </p>

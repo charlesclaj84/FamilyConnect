@@ -3,6 +3,7 @@
 import { createHash, randomInt } from 'node:crypto'
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { APP_NAME } from '@/lib/brand'
 import { requireMember } from '@/lib/auth/guard'
 import { sendSms, smsConfigured } from '@/lib/sms/send'
 import {
@@ -345,7 +346,9 @@ async function issueCode(
 
   const result = await sendSms({
     to: phoneE164,
-    body: `Your GENORRA confirmation code is ${code}. It expires in ${CODE_TTL_MINUTES} minutes.`,
+    body: t('sms.confirmationBody', {
+      app: APP_NAME, code, minutes: String(CODE_TTL_MINUTES),
+    }),
     tag: 'phone-verification',
   })
 
@@ -362,7 +365,10 @@ async function issueCode(
     }
   }
 
-  return { success: true, message: `Code sent to the number ending ${lastFour(phoneE164)}.` }
+  return {
+    success: true,
+    message: t('sms.codeSentToEnding', { last4: lastFour(phoneE164) ?? '' }),
+  }
 }
 
 /**

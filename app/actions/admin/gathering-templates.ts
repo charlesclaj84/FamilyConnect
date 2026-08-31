@@ -378,7 +378,7 @@ export async function createGatheringTemplate(input: {
     // UNIQUE (family_code, name). The author typed a name that is already in the library,
     // which is an ordinary mistake and deserves a sentence rather than a constraint name.
     if (error.code === '23505') {
-      return { success: false, message: `A template called “${name}” already exists` }
+      return { success: false, message: t('tmpl.nameExists', { name }) }
     }
     return { success: false, message: error.message }
   }
@@ -461,7 +461,7 @@ export async function updateGatheringTemplate(input: {
       return {
         success: false,
         message: nextName
-          ? `A template called “${nextName}” already exists`
+          ? t('tmpl.nameExists', { name: nextName })
           : 'Another template already has that name',
       }
     }
@@ -530,13 +530,13 @@ export async function deleteGatheringTemplate(templateId: string): Promise<Actio
 
   const used = count ?? 0
   if (used > 0) {
-    const gatherings = `${used} ${used === 1 ? 'gathering' : 'gatherings'}`
     return {
       success: false,
-      message: `“${existing.name}” has been used to build ${gatherings}, so it cannot be `
-        + 'deleted — the record of where those tasks came from would go with it. Archive it '
-        + 'instead, which takes it out of the schedule-from list and leaves every gathering '
-        + 'exactly as it is.',
+      message: t(used === 1
+        ? 'tmpl.usedCannotDeleteOne'
+        : 'tmpl.usedCannotDeleteMany', {
+        name: existing.name, n: String(used),
+      }),
     }
   }
 

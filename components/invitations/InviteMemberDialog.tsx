@@ -174,7 +174,7 @@ export function InviteMemberDialog({
             : preApproved
               ? t('inv.noSecondApproval')
               : familyName
-                ? `They will join ${familyName} once an administrator approves them.`
+                ? t('inv.joinOnceApproved', { family: familyName })
                 : t('inv.needsApproval')
         }
       >

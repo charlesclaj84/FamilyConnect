@@ -54,7 +54,7 @@ import { useT } from '@/components/layout/LocaleProvider'
 const RENDER_LIMIT = 60
 
 export function PersonPicker({
-  people, value, onChange, label, hint, emptyMessage = 'Nobody else in the family yet.',
+  people, value, onChange, label, hint, emptyMessage,
 }: {
   people: SelectablePerson[]
   /** The chosen people.id, or '' for none. */
@@ -91,7 +91,7 @@ export function PersonPicker({
       <div className="space-y-1.5">
         <Label>{label}</Label>
         <p className="rounded-lg border border-dashed px-3 py-2 text-xs text-muted-foreground">
-          {emptyMessage}
+          {emptyMessage ?? t('pp.nobodyElseYet')}
         </p>
       </div>
     )
@@ -170,7 +170,9 @@ export function PersonPicker({
           as the migration verify blocks: a skip must be visible. */}
       <p className="text-xs text-muted-foreground">
         {shown.length} of {people.length} shown
-        {hiddenByLimit > 0 && <> · {hiddenByLimit} more match — keep typing</>}
+        {hiddenByLimit > 0 && ` · ${t('pp.moreMatchKeepTyping', {
+          n: String(hiddenByLimit),
+        })}`}
       </p>
     </div>
   )

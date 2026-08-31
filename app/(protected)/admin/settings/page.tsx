@@ -7,10 +7,13 @@ import { FamilySettingsClient } from '@/components/admin/FamilySettingsClient'
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
 // "Settings", not "Family Settings" — see the note on the FEATURES entry in
 // lib/features.ts. The route and the resource key both stay `admin/family`.
-export const metadata = { title: 'Settings' }
+export async function generateMetadata() {
+  return docTitle('page./admin/settings.title')
+}
 
 interface Props {
   searchParams: Promise<{ pane?: string }>

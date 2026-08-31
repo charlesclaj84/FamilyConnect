@@ -67,7 +67,7 @@ export function FamilyRemoved({ membership, families, t }: {
         </span>
         <div className="min-w-0">
           <h1 className="text-2xl font-bold leading-tight sm:text-3xl">
-            {membership.familyName} has been removed
+            {t('rem.familyRemovedHeading', { family: membership.familyName })}
           </h1>
           <p className="mt-2 text-muted-foreground">{t('ui.administratorFamilySwitchedOff')}</p>
         </div>
@@ -88,7 +88,7 @@ export function FamilyRemoved({ membership, families, t }: {
             {elsewhere.length === 1 ? t('rem.otherFamily') : t('rem.otherFamilies')}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Switch with the family menu at the top of the page, or from{' '}
+            {t('rem.switchWithMenu')}{' '}
             <Link href="/my-families">{t('fam.heading')}</Link>.
           </p>
           <ul className="mt-3 space-y-1 text-sm">
@@ -105,8 +105,9 @@ export function FamilyRemoved({ membership, families, t }: {
       )}
 
       <p className="text-sm text-muted-foreground">
-        <Link href="/my-families">{t('fam.heading')}</Link> is still open to you, and so is the{' '}
-        <Link href="/help">manual</Link>.
+        <Link href="/my-families">{t('fam.heading')}</Link>{' '}
+        {t('rem.stillOpenToYou')}{' '}
+        <Link href="/help">{t('rem.manual')}</Link>.
       </p>
     </PageShell>
   )

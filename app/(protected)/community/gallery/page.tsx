@@ -5,8 +5,11 @@ import { getGalleryRights } from '@/app/actions/gallery'
 import { GalleryClient } from '@/components/gallery/GalleryClient'
 import { PageShell } from '@/components/layout/PageShell'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Gallery' }
+export async function generateMetadata() {
+  return docTitle('doc./community/gallery.title')
+}
 
 /**
  * The family's photographs, in albums.

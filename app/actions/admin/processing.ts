@@ -8,7 +8,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireEdit, requireRead } from '@/lib/auth/guard'
 import { SECTION_RESOURCE } from '@/components/admin/account-sections'
 import { intentKey, onAccount, stripeClient, stripeUnavailableReason } from '@/lib/stripe/client'
-import { CONNECT_ACCOUNT_COUNTRY, connectConfigured } from '@/lib/stripe/config'
+import { connectConfigured } from '@/lib/stripe/config'
+import {
+  DEFAULT_CONNECT_COUNTRY, isEnabledConnectCountry,
+} from '@/lib/stripe/connect-countries'
 // PLAIN MODULES, imported and never re-exported. Everything exported from a `'use server'`
 // file gets a URL, so a `sendEmail` re-export would be an open relay carrying GENORRA's SPF
 // and DKIM — see the header of lib/email/send.ts.
@@ -153,11 +156,38 @@ export type ProcessorLinkResult =
  * on. Writing a second "resume onboarding" action would be two paths to one screen, and the
  * one that got the `use_case` wrong would be whichever nobody tested.
  */
-export async function startProcessorOnboarding(): Promise<ProcessorLinkResult> {
+export async function startProcessorOnboarding(
+  /**
+   * Which country the connected account is created in. ISO 3166-1 alpha-2, lowercase.
+   *
+   * ── IT IS ASKED, AND IT IS VALIDATED HERE RATHER THAN TRUSTED ────────────────────
+   * `identity.country` decides the payout currency, which identity documents Stripe demands
+   * and which regulations apply, and **it cannot be changed after the account is created.**
+   * So this is the one parameter in this module where getting it wrong is permanent, and a
+   * `<select>` in front of a server action is a convenience rather than a gate (AGENTS.md
+   * §2).
+   *
+   * `isEnabledConnectCountry` is the check, and an unrecognised value is REFUSED rather than
+   * defaulted to the US. Silently creating an American account for a family that asked for a
+   * Canadian one is the exact failure the picker exists to remove, and doing it in the name
+   * of robustness would hide it better than the old constant did.
+   *
+   * OPTIONAL, because a family RECONNECTING has a country already — `ensureConnectedAccount`
+   * returns the existing row's account id and creates nothing, so there is nothing to decide
+   * and nothing to ask. Absent means `DEFAULT_CONNECT_COUNTRY`, which is what every account
+   * created before the picker holds.
+   */
+  country?: string,
+): Promise<ProcessorLinkResult> {
   const g = await requireEdit(PROCESSING)
   if (!g.ok) return { success: false, message: g.message }
   const { t } = g
   if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
+
+  const wanted = country ?? DEFAULT_CONNECT_COUNTRY
+  if (!isEnabledConnectCountry(wanted)) {
+    return { success: false, message: t('act.countryNotAvailableForDues') }
+  }
 
   const unavailable = stripeUnavailableReason()
   if (unavailable) return { success: false, message: unavailable }
@@ -171,6 +201,7 @@ export async function startProcessorOnboarding(): Promise<ProcessorLinkResult> {
   const accountId = await ensureConnectedAccount(admin, stripe, {
     familyCode: g.familyCode,
     personId: g.personId,
+    country: wanted,
   })
   if (!accountId) {
     return { success: false, message: t('act.couldNotStartSettingUp') }
@@ -554,7 +585,9 @@ export async function disconnectProcessor(code: string): Promise<ProcessorAction
   return {
     success: true,
     message: cancelled > 0
-      ? `Disconnected, and ${cancelled} recurring payment${cancelled === 1 ? '' : 's'} stopped. Every payment already recorded is kept.`
+      ? t(cancelled === 1
+          ? 'proc.disconnectedStoppedOne'
+          : 'proc.disconnectedStoppedMany', { n: String(cancelled) })
       : 'Disconnected. Every payment already recorded is kept.',
   }
 }
@@ -572,7 +605,7 @@ export async function disconnectProcessor(code: string): Promise<ProcessorAction
 async function ensureConnectedAccount(
   admin: AdminClient,
   stripe: NonNullable<ReturnType<typeof stripeClient>>,
-  input: { familyCode: string; personId: string | null },
+  input: { familyCode: string; personId: string | null; country: string },
 ): Promise<string | null> {
   const { data: existing } = await admin
     .from('family_stripe_accounts')
@@ -591,13 +624,17 @@ async function ensureConnectedAccount(
       dashboard: 'full',
       // ── REQUIRED, NOT OPTIONAL, AND THE ACCOUNT CANNOT BE CREATED WITHOUT IT ──────
       // Stripe answers `identity_country_required` for any account requesting the merchant
-      // configuration — which this one does, on the line below. `CONNECT_ACCOUNT_COUNTRY`
-      // carries the argument for the value and what it costs a non-US family.
+      // configuration — which this one does, on the line below.
+      //
+      // THE FAMILY'S ANSWER, since 2026-08-31, validated by the caller against
+      // `isEnabledConnectCountry`. It was the constant `'us'` for every family, including the
+      // Canadian ones `lib/regions.ts` already admits — and it cannot be changed afterwards,
+      // so that was permanent rather than merely wrong.
       //
       // `entity_type` is deliberately absent: Stripe asks the family during onboarding, and
       // it decides how the whole account is validated, so a guess here is worse than a
       // question there.
-      identity: { country: CONNECT_ACCOUNT_COUNTRY },
+      identity: { country: input.country },
       defaults: {
         responsibilities: { fees_collector: 'stripe', losses_collector: 'stripe' },
       },
@@ -625,10 +662,11 @@ async function ensureConnectedAccount(
       disconnected_at: null,
       card_payments_status:
         account.configuration?.merchant?.capabilities?.card_payments?.status ?? null,
-      // Recorded at creation rather than waiting for the first refresh. It is the value we
-      // just sent, echoed back — so a row that disagrees with `CONNECT_ACCOUNT_COUNTRY` is a
-      // family created before that constant moved, which is exactly the thing somebody will
-      // need to be able to see.
+      // Recorded at creation rather than waiting for the first refresh. It is the value the
+      // family CHOSE, echoed back by Stripe — so this column is how a family created before
+      // the picker (always `us`) stays distinguishable from one that answered, which is
+      // exactly the thing somebody will need to be able to see. Stripe's echo rather than
+      // `input.country`, because if the two ever differ Stripe's is the account's truth.
       country: account.identity?.country ?? null,
     }, { onConflict: 'family_code' })
     if (error) {

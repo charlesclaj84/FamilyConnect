@@ -468,7 +468,9 @@ function StepDialog({
     <Dialog
       open
       onClose={onClose}
-      title={adding ? `Add a step to ${templateName}` : `Edit “${step.label}”`}
+      title={adding
+        ? t('tmpl.addStepTo', { template: templateName })
+        : t('tmpl.editStepQuoted', { step: step.label })}
       description={t('tmpl.stepsHint')}
       className="max-w-xl"
     >
@@ -648,7 +650,7 @@ export function AdminGatheringTemplatesClient({
 
       {templates.length === 0 ? (
         <p className="rounded-xl border bg-muted/40 px-4 py-6 text-sm text-muted-foreground">
-          No gathering templates yet.{' '}
+          {t('tmpl.noneYet')}{' '}
           {mayCreate
             ? t('tmpl.addOneThen')
             : t('tmpl.somebodyCan')}
@@ -796,9 +798,9 @@ function TemplateCard({
   async function handleDeleteStep(step: TemplateStep) {
     const ok = await confirm({
       title: t('tmpl.deleteStep'),
-      description: `Delete the “${step.label}” step from ${template.name}? Any task already `
-        + 'created from it keeps its own wording, its assignee and its answer — only the '
-        + 'template loses the step. This cannot be undone.',
+      description: t('tmpl.deleteStepConfirm', {
+        step: step.label, template: template.name,
+      }),
       confirmLabel: t('tmpl.deleteStep'),
       destructive: true,
     })
@@ -862,7 +864,7 @@ function TemplateCard({
             {mayEdit && (
               <Button
                 size="sm" variant="outline" disabled={isPending}
-                aria-label={`Edit the ${template.name} template`}
+                aria-label={t('tmpl.editTemplateAria', { template: template.name })}
                 onClick={() => setEditingTemplate(true)}
               >
                 <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> {t('action.edit')}
@@ -871,9 +873,8 @@ function TemplateCard({
             {mayEdit && (
               <Button
                 size="sm" variant="outline" disabled={isPending}
-                title={template.isArchived
-                  ? `Put ${template.name} back in the schedule-from list`
-                  : `Take ${template.name} out of the schedule-from list, leaving every gathering as it is`}
+                title={t(template.isArchived ? 'tmpl.unarchiveTitle' : 'tmpl.archiveTitle',
+                  { template: template.name })}
                 onClick={() => handleArchive(!template.isArchived)}
               >
                 {template.isArchived ? t('tmpl.restore') : t('tmpl.archive')}
@@ -887,9 +888,12 @@ function TemplateCard({
                 /* NOT disabled on the use count. The count came with the page and the action
                    re-derives it; the title is what makes the refusal predictable. */
                 title={template.usedByCount > 0
-                  ? `${template.name} has been used to build ${template.usedByCount} ${template.usedByCount === 1 ? 'gathering' : 'gatherings'}, so it cannot be deleted. Archive it instead.`
-                  : `Delete the ${template.name} template`}
-                aria-label={`Delete the ${template.name} template`}
+                  ? t(template.usedByCount === 1
+                      ? 'tmpl.cannotDeleteUsedOne'
+                      : 'tmpl.cannotDeleteUsedMany',
+                    { template: template.name, n: String(template.usedByCount) })
+                  : t('tmpl.deleteTemplateAria', { template: template.name })}
+                aria-label={t('tmpl.deleteTemplateAria', { template: template.name })}
                 onClick={handleDelete}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -1142,8 +1146,8 @@ function StepRow({
               <Button
                 size="sm" variant="ghost" className="h-7 w-7 p-0"
                 disabled={busy}
-                title={`Edit the “${step.label}” step`}
-                aria-label={`Edit the “${step.label}” step`}
+                title={t('tmpl.editStepAria', { step: step.label })}
+                aria-label={t('tmpl.editStepAria', { step: step.label })}
                 onClick={onEdit}
               >
                 <Pencil className="h-3.5 w-3.5" />
@@ -1151,8 +1155,8 @@ function StepRow({
               <Button
                 size="sm" variant="ghost" className="h-7 w-7 p-0"
                 disabled={busy || isFirst}
-                title={`Move “${step.label}” earlier in ${templateName}`}
-                aria-label={`Move “${step.label}” earlier`}
+                title={t('tmpl.moveStepEarlierIn', { step: step.label, template: templateName })}
+                aria-label={t('tmpl.moveStepEarlier', { step: step.label })}
                 onClick={() => onMove('up')}
               >
                 <ArrowUp className="h-3.5 w-3.5" />
@@ -1160,8 +1164,8 @@ function StepRow({
               <Button
                 size="sm" variant="ghost" className="h-7 w-7 p-0"
                 disabled={busy || isLast}
-                title={`Move “${step.label}” later in ${templateName}`}
-                aria-label={`Move “${step.label}” later`}
+                title={t('tmpl.moveStepLaterIn', { step: step.label, template: templateName })}
+                aria-label={t('tmpl.moveStepLater', { step: step.label })}
                 onClick={() => onMove('down')}
               >
                 <ArrowDown className="h-3.5 w-3.5" />
@@ -1173,8 +1177,8 @@ function StepRow({
               size="sm" variant="ghost"
               className="h-7 w-7 p-0 text-destructive hover:text-destructive"
               disabled={busy}
-              title={`Delete the “${step.label}” step`}
-              aria-label={`Delete the “${step.label}” step`}
+              title={t('tmpl.deleteStepAria', { step: step.label })}
+              aria-label={t('tmpl.deleteStepAria', { step: step.label })}
               onClick={onDelete}
             >
               <Trash2 className="h-3.5 w-3.5" />

@@ -5,8 +5,11 @@ import { AdminElectionsClient } from '@/components/admin/AdminElectionsClient'
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Elections — Admin' }
+export async function generateMetadata() {
+  return docTitle('doc./admin/elections.title')
+}
 
 /**
  * The organizer's screen. `/review/election-management` until 2026-08-21, when the route, the

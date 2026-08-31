@@ -115,7 +115,7 @@ export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false 
         aria-expanded={open ? 'true' : 'false'}
         aria-haspopup="menu"
         className="flex items-center gap-1 rounded-full p-0.5 pr-1 text-brand-ink transition-colors hover:bg-brand-soft/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        aria-label={`Account menu for ${name}`}
+        aria-label={t('account.menuFor', { name })}
       >
         <Avatar url={avatarUrl} initials={initials} size="sm" className="h-9 w-9" />
         <ChevronDown className="h-4 w-4 shrink-0 opacity-60" aria-hidden="true" />

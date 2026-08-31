@@ -93,7 +93,7 @@ export function FundsSection({ funds, canManage }: Props) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="text-sm font-medium">{fund.name}</p>
-                      <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{pctLabel(fund.allocation_bps)} of dues</span>
+                      <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded-full">{t('fnd.shareOfDues', { percent: pctLabel(fund.allocation_bps) })}</span>
                     </div>
                     {fund.description && (
                       <p className="text-xs text-muted-foreground truncate">{fund.description}</p>
@@ -106,8 +106,8 @@ export function FundsSection({ funds, canManage }: Props) {
                   </div>
                   <div className="text-right shrink-0 text-xs text-muted-foreground">
                     <p className="font-medium text-sm text-foreground">{fmt(fund.balance_cents)}</p>
-                    <p>balance</p>
-                    {target && <p>of {fmt(target)} minimum</p>}
+                    <p>{t('fnd.balanceWord')}</p>
+                    {target && <p>{t('fnd.ofMinimum', { amount: fmt(target) })}</p>}
                   </div>
                   {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
                 </button>
@@ -115,7 +115,10 @@ export function FundsSection({ funds, canManage }: Props) {
                   <div className="border-t bg-muted/20 px-3 py-3 space-y-2">
                     <p className="text-xs text-muted-foreground">
                       Receives {pctLabel(fund.allocation_bps)} of routed dues.
-                      {fund.minimum_cents > 0 && ` Minimum balance ${fmt(fund.minimum_cents)}.`}
+                      {fund.minimum_cents > 0
+                        && t('fnd.minimumBalanceIs', {
+                          amount: fmt(fund.minimum_cents),
+                        })}
                     </p>
                     {/* Transferred appears only when there is one, and it has to appear
                         then: without it these three stop adding up for any fund that has

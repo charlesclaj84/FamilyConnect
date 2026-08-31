@@ -35,7 +35,9 @@ export default function ProtectedError({
         <Link href="/dashboard" className="text-sm text-primary hover:underline">{t('shell.backDashboard')}</Link>
       </div>
       {error.digest && (
-        <p className="mt-6 text-[11px] text-muted-foreground/60">Error reference: {error.digest}</p>
+        <p className="mt-6 text-[11px] text-muted-foreground/60">
+          {t('err.errorReference', { digest: error.digest })}
+        </p>
       )}
     </div>
   )

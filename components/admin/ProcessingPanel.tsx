@@ -7,6 +7,11 @@ import { CreditCard, ExternalLink, RefreshCw, Unplug } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
+import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
+import {
+  DEFAULT_CONNECT_COUNTRY, enabledConnectCountries, hasConnectCountryChoice,
+} from '@/lib/stripe/connect-countries'
 import { EmailedCodeField, PasswordReauthField } from '@/components/ui/challenge-fields'
 // THE THROWAWAY CLIENT, deliberately — never the app's own. Signing in on the app's client
 // would replace the session, and a new session's `created_at` resets GoTrue's 24-hour
@@ -165,6 +170,29 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
       router.refresh()
     })
   }, [canManage, router, t])
+
+  /**
+   * Which country a NEW connected account is created in.
+   *
+   * ── LOCAL, AND ONLY EVER READ WHEN THERE IS NO ACCOUNT YET ───────────────────────
+   * `identity.country` cannot be changed after creation, so this decides something
+   * permanent — and a family RECONNECTING has already decided it. The picker is rendered
+   * only on the no-account branch below, and `startProcessorOnboarding` ignores the argument
+   * when `ensureConnectedAccount` finds an existing row.
+   *
+   * NOT SEEDED FROM `status.country`: on the branch where this is rendered there is no
+   * account and therefore no country. `DEFAULT_CONNECT_COUNTRY` is the preselection, and it
+   * is the US for the reason that constant states — every account created before the picker
+   * existed is genuinely American rather than merely unasked.
+   *
+   * ── DECLARED HERE, ABOVE THE TWO EARLY RETURNS ──────────────────────────────────
+   * Not beside the picker it feeds. This component returns early when `status` is null and
+   * again when the deployment cannot take payments, so a `useState` below either of those
+   * is called conditionally — `react-hooks/rules-of-hooks` caught it, and it is a real
+   * defect: the hook order would differ between a render that has a status and one that
+   * does not.
+   */
+  const [country, setCountry] = useState(DEFAULT_CONNECT_COUNTRY)
 
   // Null means the read was refused or failed — NOT "no processor" (§8). Saying so is the
   // point: the alternative invites a treasurer to connect a second account on top of a working
@@ -341,7 +369,39 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
         {status.canManage
           ? (
             <>
-              <Button onClick={() => go(startProcessorOnboarding)} disabled={pending || busy}>
+              {/* ── WHERE THE FAMILY BANKS, ASKED ONCE AND NEVER AGAIN ─────────────────
+                  `identity.country` decides the payout currency, which identity documents
+                  Stripe demands and which regulations apply, and **Stripe does not let it
+                  change afterwards** — so this is the one control on this panel whose answer
+                  is permanent, and the copy under it says so rather than leaving a treasurer
+                  to discover it during onboarding.
+
+                  ONLY ON THE NO-ACCOUNT BRANCH, and only when there is more than one country
+                  to choose between: a family reconnecting has already decided, and a picker
+                  offering one option is furniture. `hasConnectCountryChoice()` is the whole
+                  condition, so narrowing `CONNECT_COUNTRIES` back to one enabled country
+                  removes this control rather than leaving a dead one.
+
+                  A NATIVE `<select>`, per AGENTS.md's rule about member pickers: three
+                  options, no icons, no per-row actions, and the platform gives keyboard
+                  handling, mobile presentation and type-ahead for free. */}
+              {!returning && hasConnectCountryChoice() && (
+                <div className="mx-auto max-w-xs space-y-1.5 text-left">
+                  <Label htmlFor="connect-country" required>{t('proc.countryLabel')}</Label>
+                  <Select
+                    id="connect-country"
+                    value={country}
+                    onChange={e => setCountry(e.target.value)}
+                    disabled={pending || busy}
+                  >
+                    {enabledConnectCountries().map(c => (
+                      <option key={c.code} value={c.code}>{t(`country.${c.code}`)}</option>
+                    ))}
+                  </Select>
+                  <p className="text-xs text-brand-withheld">{t('proc.countryPermanent')}</p>
+                </div>
+              )}
+              <Button onClick={() => go(() => startProcessorOnboarding(country))} disabled={pending || busy}>
                 <CreditCard className="h-4 w-4" />
                 {pending
                   ? t('proc.opening')

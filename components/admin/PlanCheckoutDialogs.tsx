@@ -103,15 +103,15 @@ export function BuyDialog({
   const afterCombined = nextPaymentDate(options.remainderPlusNextThrough, intl)
 
   return (
-    <Dialog open onClose={onClose} title={`Pay for ${TIER_LABEL[tier]}`}>
+    <Dialog open onClose={onClose} title={t('chk.payForPlan', { plan: TIER_LABEL[tier] })}>
       <div className="space-y-5">
         {purchasable.recurring && (
           <section className="space-y-3">
             <h4 className="text-sm font-semibold">{t('chk.monthly')}</h4>
             <p className="text-sm text-muted-foreground">
-              {monthly != null ? formatCurrency(monthly, intl) : '—'} a month, taken on the 1st, until
-              you stop it. Change or stop it whenever — what you have already paid for stays
-              open.
+              {t('chk.monthlyBlurb', {
+                amount: monthly != null ? formatCurrency(monthly, intl) : '—',
+              })}
             </p>
 
             {/* ── THE FIRST PAYMENT IS NOT A FULL MONTH, AND IT SAYS SO ────────────────
@@ -132,8 +132,12 @@ export function BuyDialog({
                       onClick={() => onBuy('recurring', 1, 'remainder')}
                     >
                       <CreditCard className="h-4 w-4" />
-                      Pay {formatCurrency(options.remainderOnly, intl)} for the{' '}
-                      {options.daysLeft} day{options.daysLeft === 1 ? '' : 's'} left this month
+                      {t(options.daysLeft === 1
+                        ? 'chk.payRemainderOne'
+                        : 'chk.payRemainderMany', {
+                        amount: formatCurrency(options.remainderOnly, intl),
+                        days: String(options.daysLeft),
+                      })}
                     </Button>
                   )}
                   <Button
@@ -142,19 +146,31 @@ export function BuyDialog({
                     onClick={() => onBuy('recurring', 1, 'remainder-plus-next')}
                   >
                     <CreditCard className="h-4 w-4" />
-                    Pay{' '}
-                    {options.remainderPlusNext != null
-                      ? formatCurrency(options.remainderPlusNext, intl)
-                      : ''}{' '}
-                    for the rest of this month and next
+                    {t('chk.payRestAndNext', {
+                      amount: options.remainderPlusNext != null
+                        ? formatCurrency(options.remainderPlusNext, intl)
+                        : '',
+                    })}
                   </Button>
                   <p className="text-xs text-muted-foreground">
                     {options.remainderOnly == null
                       // NOT "invalid amount". The remainder alone is below the smallest charge
                       // a card network will take, which is an ordinary state at the end of a
                       // month on the cheaper plans — so it is explained rather than hidden.
-                      ? `Only ${options.daysLeft} day${options.daysLeft === 1 ? '' : 's'} are left this month, which is too small a charge to take on its own — so the first payment covers ${combinedThrough ? `through ${combinedThrough}` : 'next month too'}. The next payment is then ${afterCombined ?? 'on the 1st'}.`
-                      : `Either way, every payment after the first is on the 1st — the next one ${firstRenewal ? `is ${firstRenewal}` : 'is the 1st of next month'}.`}
+                      ? t(options.daysLeft === 1
+                          ? 'chk.shortMonthCombinedOne'
+                          : 'chk.shortMonthCombinedMany', {
+                          days: String(options.daysLeft),
+                          through: combinedThrough
+                            ? t('chk.throughDate', { date: combinedThrough })
+                            : t('chk.nextMonthToo'),
+                          next: afterCombined ?? t('chk.onTheFirst'),
+                        })
+                      : t('chk.everyPaymentOnFirst', {
+                          next: firstRenewal
+                            ? t('chk.isDate', { date: firstRenewal })
+                            : t('chk.isFirstOfNextMonth'),
+                        })}
                   </p>
                 </div>
               )}
@@ -165,9 +181,7 @@ export function BuyDialog({
           <section className={cn('space-y-2', purchasable.recurring && 'border-t pt-5')}>
             <h4 className="text-sm font-semibold">{t('chk.inAdvance')}</h4>
             <p className="text-sm text-muted-foreground">
-              One payment covering the rest of this month plus whole months after it, up to{' '}
-              {MAX_PREPAY_MONTHS}. Nothing renews it, so nothing is charged again until you
-              choose to.
+              {t('chk.inAdvanceBlurb', { max: String(MAX_PREPAY_MONTHS) })}
             </p>
             <div className="flex flex-wrap gap-1.5">
               {PREPAY_PRESET_MONTHS.map(n => (
@@ -199,17 +213,23 @@ export function BuyDialog({
                 onClick={() => onBuy('prepaid', months, 'remainder')}
               >
                 <CreditCard className="h-4 w-4" />
-                Pay {prepaid ? formatCurrency(prepaid.totalCents, intl) : ''} now
+                {t('chk.payNowSimple', {
+                  amount: prepaid ? formatCurrency(prepaid.totalCents, intl) : '',
+                })}
               </Button>
             </div>
             {/* BOTH HALVES OF THE FIGURE. "Why is it not six times five?" has one answer and
                 it is a part month nobody mentioned — so it is mentioned. */}
             {prepaid && prepaid.prorationCents > 0 && (
               <p className="text-xs text-muted-foreground">
-                {formatCurrency(prepaid.prorationCents, intl)} for the {options.daysLeft} day
-                {options.daysLeft === 1 ? '' : 's'} left this month, plus{' '}
-                {formatCurrency(prepaid.monthsCents, intl)} for {prepaid.months} whole month
-                {prepaid.months === 1 ? '' : 's'}.
+                {t(options.daysLeft === 1
+                  ? 'chk.prorationBreakdownOne'
+                  : 'chk.prorationBreakdownMany', {
+                  proration: formatCurrency(prepaid.prorationCents, intl),
+                  days: String(options.daysLeft),
+                  months: formatCurrency(prepaid.monthsCents, intl),
+                  n: String(prepaid.months),
+                })}
               </p>
             )}
             <p className="text-xs text-muted-foreground">
@@ -297,7 +317,7 @@ export function UpgradeDialog({
   const fromLabel = fromTier ? TIER_LABEL[fromTier] : 'current'
 
   return (
-    <Dialog open onClose={onClose} title={`Upgrade to ${TIER_LABEL[toTier]}`}>
+    <Dialog open onClose={onClose} title={t('chk.upgradeToPlan', { plan: TIER_LABEL[toTier] })}>
       <div className="space-y-5">
         {/* ── THE CHOICE ──────────────────────────────────────────────────────────────
             A `<fieldset>` so the two options are announced as one group with the legend as
@@ -322,8 +342,10 @@ export function UpgradeDialog({
             id="upgrade-leave"
             selected={!includeNext}
             onSelect={() => setIncludeNext(false)}
-            title={leave.dueNowCents === 0 ? t('chk.payNothing') : `Pay ${formatCurrency(leave.dueNowCents, intl)} now`}
-            summary={`${TIER_LABEL[toTier]} through the end of this month.`}
+            title={leave.dueNowCents === 0
+              ? t('chk.payNothing')
+              : t('chk.payNowAmount', { amount: formatCurrency(leave.dueNowCents, intl) })}
+            summary={t('chk.throughEndOfThisMonth', { plan: TIER_LABEL[toTier] })}
             quote={leave}
           />
           <UpgradeOption
@@ -332,8 +354,10 @@ export function UpgradeDialog({
             onSelect={() => setIncludeNext(true)}
             title={take.dueNowCents === 0
               ? t('chk.coverNext')
-              : `Cover next month too — ${formatCurrency(take.dueNowCents, intl)}`}
-            summary={`${TIER_LABEL[toTier]} through the end of next month.`}
+              : t('chk.coverNextTooAmount', {
+                  amount: formatCurrency(take.dueNowCents, intl),
+                })}
+            summary={t('chk.throughEndOfNextMonth', { plan: TIER_LABEL[toTier] })}
             quote={take}
           />
         </fieldset>
@@ -350,7 +374,9 @@ export function UpgradeDialog({
             <dd>{formatCurrency(chosen.neededCents, intl)}</dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt className="text-muted-foreground">Your {fromLabel} term, unused</dt>
+            <dt className="text-muted-foreground">
+              {t('chk.yourTermUnused', { plan: fromLabel })}
+            </dt>
             <dd>&minus;{formatCurrency(chosen.creditCents, intl)}</dd>
           </div>
           <div className="flex justify-between gap-4 border-t pt-1 font-medium">
@@ -372,8 +398,11 @@ export function UpgradeDialog({
         >
           <CreditCard className="h-4 w-4" />
           {chosen.dueNowCents === 0
-            ? `Upgrade to ${TIER_LABEL[toTier]} — nothing to pay`
-            : `Upgrade to ${TIER_LABEL[toTier]} — pay ${formatCurrency(chosen.dueNowCents, intl)}`}
+            ? t('chk.upgradeNothingToPay', { plan: TIER_LABEL[toTier] })
+            : t('chk.upgradePayAmount', {
+                plan: TIER_LABEL[toTier],
+                amount: formatCurrency(chosen.dueNowCents, intl),
+              })}
         </Button>
 
         {/* THE SAME MONEY, SAID OUT LOUD — and one sentence, since 2026-08-25. It carried two
@@ -406,6 +435,7 @@ function UpgradeOption({ id, selected, onSelect, title, summary, quote }: {
   quote: UpgradeQuote
 }) {
   const intl = useIntlTag()
+  const t = useT()
   const through = formatDate(quote.paidThrough, intl)
   const next = nextPaymentDate(quote.paidThrough, intl)
 
@@ -434,11 +464,11 @@ function UpgradeOption({ id, selected, onSelect, title, summary, quote }: {
             act again, and it is the one people came for — so it is the one that gets the
             calendar glyph and the emphasis. */}
         <span className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-0.5 text-xs text-muted-foreground">
-          {through && <span>Paid through {through}</span>}
+          {through && <span>{t('chk.paidThroughDate', { date: through })}</span>}
           {next && (
             <span className="inline-flex items-center gap-1 font-medium text-brand-ink">
               <CalendarClock className="h-3 w-3" aria-hidden="true" />
-              Next payment {next}
+              {t('chk.nextPaymentDate', { date: next })}
             </span>
           )}
         </span>

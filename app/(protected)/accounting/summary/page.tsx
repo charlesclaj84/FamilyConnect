@@ -13,10 +13,13 @@ import { PageShell } from '@/components/layout/PageShell'
 import { cn } from '@/lib/utils'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
 // "Summary", not "My Summary" — see the note on the FEATURES entry in lib/features.ts.
 // The route and the resource key both stay `account-summary`.
-export const metadata = { title: 'Summary' }
+export async function generateMetadata() {
+  return docTitle('page./accounting/summary.title')
+}
 
 /**
  * Where this member stands, and where the family's money is.
@@ -168,8 +171,10 @@ export default async function AccountSummaryPage() {
           <DonationsSection donations={openDrives} chargesReady={online.chargesReady} intl={intl} t={t} />
           {closedCount > 0 && (
             <p className="text-xs text-muted-foreground">
-              {closedCount} closed drive{closedCount === 1 ? ' is' : 's are'} not shown here —
-              {' '}<Link href="/accounting/dues-and-donations?pane=donations">see Donations</Link> for the full record.
+              {t(closedCount === 1 ? 'acct.closedDrivesOne' : 'acct.closedDrivesMany',
+                { n: String(closedCount) })}
+              {' '}<Link href="/accounting/dues-and-donations?pane=donations">see Donations</Link>{' '}
+              {t('acct.seeDonationsForFull')}
             </p>
           )}
         </section>

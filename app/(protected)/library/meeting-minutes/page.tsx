@@ -9,8 +9,11 @@ import {
 import { MeetingsClient } from '@/components/meetings/MeetingsClient'
 import { PageShell } from '@/components/layout/PageShell'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Meeting Minutes' }
+export async function generateMetadata() {
+  return docTitle('doc./library/meeting-minutes.title')
+}
 
 /**
  * Meeting Minutes — the family's record of what it met about and decided.

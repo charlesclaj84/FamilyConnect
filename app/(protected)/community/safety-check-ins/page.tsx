@@ -7,8 +7,11 @@ import {
 import { SafetyCheckInsClient } from '@/components/safety/SafetyCheckInsClient'
 import { PageShell } from '@/components/layout/PageShell'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Safety Check-Ins' }
+export async function generateMetadata() {
+  return docTitle('doc./community/safety-check-ins.title')
+}
 
 /**
  * Ask the relatives in one area whether they are safe. `/community/safety-check-ins`, Premium.

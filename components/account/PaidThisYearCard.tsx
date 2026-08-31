@@ -58,7 +58,11 @@ export function PaidThisYearCard({ history, className, intl, t }: {
       </div>
       <p className="text-3xl font-bold">{formatCurrency(totalPaidCents, intl)}</p>
       <p className="text-xs text-muted-foreground">
-        {paidPayments.length === 0 ? t('cards.noPayments') : `${paidPayments.length} payment${paidPayments.length !== 1 ? 's' : ''} recorded`}
+        {paidPayments.length === 0
+          ? t('cards.noPayments')
+          : t(paidPayments.length === 1
+              ? 'plan.paymentsRecordedOne'
+              : 'plan.paymentsRecordedMany', { n: String(paidPayments.length) })}
       </p>
       {/* The breakdown, under the count. Name on the left, figure on the right rather
           than run together with a dash: these are a column of amounts to be compared

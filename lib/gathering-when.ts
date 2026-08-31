@@ -1,3 +1,4 @@
+import type { T } from '@/lib/i18n/t'
 import { formatDate, formatDateRange, formatMonthDay, formatTime } from '@/lib/date-utils'
 import { isValidZone, zoneAbbrev } from '@/lib/tz'
 
@@ -365,14 +366,24 @@ function withZone(time: string, zone: string | null, on?: string): string {
   return abbrev ? `${time} ${abbrev}` : time
 }
 
-export function formatWhen(when: GatheringWhen): string | null {
+/**
+ * ── `intl` AND `t` ARE PARAMETERS, WHICH IS §7b's RULE AND WHY IT APPLIES HERE ─────
+ * This module is pure and `npm test` has no clock and no request, so anything it needs
+ * from the world arrives as an argument — the same reason `duesPlanMath` takes `today`.
+ * Until 2026-08-31 it took neither, so `formatDate` fell through to its English default
+ * and every gathering's dates rendered "September 30 – October 2, 2026" to a Spanish
+ * reader. `npm run i18n:literals` cannot see that — `lib/` is out of its sight by design —
+ * and `i18n:check` cannot either, because there was no key to be stale. The RENDER DIFF is
+ * what found it.
+ */
+export function formatWhen(when: GatheringWhen, intl: string, t: T): string | null {
   const list = when.occurrences.filter(o => o.startsOn)
   if (list.length === 0) return null
 
   if (when.isContinuous || list.length === 1) {
     const first = list[0]
-    const range = formatDateRange(first.startsOn, first.endsOn ?? undefined)
-      ?? formatDate(first.startsOn)
+    const range = formatDateRange(first.startsOn, first.endsOn ?? undefined, intl)
+      ?? formatDate(first.startsOn, intl)
     if (!range) return null
     const time = timeLabelFor(first)
     return time ? `${range} · ${withZone(time, when.timeZone, first.startsOn)}` : range
@@ -383,12 +394,24 @@ export function formatWhen(when: GatheringWhen): string | null {
   // the LIST on the form keeps the order they typed.
   const sorted = [...list].sort((a, b) => a.startsOn.localeCompare(b.startsOn))
   const named = sorted.slice(0, 2)
-    .map(o => formatMonthDay(o.startsOn) ?? formatDate(o.startsOn))
+    .map(o => formatMonthDay(o.startsOn, intl) ?? formatDate(o.startsOn, intl))
     .filter((v): v is string => Boolean(v))
   if (named.length === 0) return null
   const rest = sorted.length - named.length
-  const head = named.join(', ')
-  return rest > 0 ? `${head} and ${rest} more` : head
+
+  // ── ONE KEY PER SHAPE, AND NOT `Intl.ListFormat` ─────────────────────────────────
+  // This is a list WITH A TAIL, which `Intl.ListFormat` cannot express: every `type: 'unit'`
+  // style that keeps a separator also inserts a conjunction in Spanish and French, so
+  // "July 4, July 11 and 1 more" came out "July 4 y July 11 y 1 más" — two conjunctions for
+  // one list. `narrow` avoids that by dropping the separator altogether, which is worse.
+  // Measured, not reasoned; the wrapper in the test file pins the English shape.
+  const [first, second] = named
+  if (rest > 0) {
+    return second
+      ? t('gath.seriesTwoAndMore', { first, second, n: String(rest) })
+      : t('gath.seriesOneAndMore', { first, n: String(rest) })
+  }
+  return second ? t('gath.seriesTwo', { first, second }) : first
 }
 
 /**
@@ -413,16 +436,18 @@ export function formatWhenBrief(row: {
   endTime: string | null
   isContinuous: boolean
   occurrenceCount: number
-}): string | null {
+}, intl: string, t: T): string | null {
   if (!row.startsOn) return null
 
   if (!row.isContinuous && row.occurrenceCount > 1) {
-    const first = formatDate(row.startsOn)
+    const first = formatDate(row.startsOn, intl)
     if (!first) return null
-    return `${row.occurrenceCount} days from ${first}`
+    return t(row.occurrenceCount === 1 ? 'gath.daysFromOne' : 'gath.daysFromMany',
+      { n: String(row.occurrenceCount), date: first })
   }
 
-  const range = formatDateRange(row.startsOn, row.endsOn ?? undefined) ?? formatDate(row.startsOn)
+  const range = formatDateRange(row.startsOn, row.endsOn ?? undefined, intl)
+    ?? formatDate(row.startsOn, intl)
   if (!range) return null
   const time = timeLabelFor({
     startsOn: row.startsOn,

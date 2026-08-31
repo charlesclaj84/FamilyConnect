@@ -7,8 +7,11 @@ import { FundsSection } from '@/components/account/FundsSection'
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'P&L Summary' }
+export async function generateMetadata() {
+  return docTitle('page./reporting/pl-summary.title')
+}
 
 /**
  * The family's profit-and-loss statement: what came in, what went out, and what is left.

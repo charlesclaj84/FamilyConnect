@@ -6,8 +6,11 @@ import { MembershipReportView } from '@/components/reports/MembershipReportView'
 import type { MembershipRepairRights } from '@/lib/membership-drill'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Membership' }
+export async function generateMetadata() {
+  return docTitle('page./reporting/membership.title')
+}
 
 /**
  * Who the family is made up of — nationally, by region, by chapter, by whether each person

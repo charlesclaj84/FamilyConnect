@@ -35,8 +35,10 @@ import {
 } from '@/app/actions/gatherings'
 import { getMyActionableElection } from '@/app/actions/elections'
 import { getSignupPlanPrompt } from '@/app/actions/billing'
+import { getMyBirthdayBanner } from '@/app/actions/birthdays'
 import { anyPlatformBillingConfigured } from '@/lib/stripe/config'
 import { PremierGatheringHero } from '@/components/dashboard/PremierGatheringHero'
+import { BirthdayHero } from '@/components/dashboard/BirthdayHero'
 import { RecentUpdates } from '@/components/dashboard/RecentUpdates'
 import { mergeUpdates } from '@/components/dashboard/updates'
 import {
@@ -46,8 +48,11 @@ import {
 } from '@/components/dashboard/tiles'
 import { isFeatureLive } from '@/lib/features'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Dashboard' }
+export async function generateMetadata() {
+  return docTitle('doc./dashboard.title')
+}
 
 /**
  * The member's landing screen, in the Golden Master's visual language.
@@ -278,7 +283,7 @@ export default async function DashboardPage() {
     notifications, memberCountResult, myPersonResult, chapters,
     pendingApprovals, duesCollectedCents, treeSummary, donations,
     premierGathering, upcomingGatheringCount, myTaskCount, actionableElection,
-    signupPlan,
+    signupPlan, birthdayBanner,
   ] = await Promise.all([
     getMyRoles(),
     // "Were you already added to the family?" — parked, see lib/feature-flags.ts.
@@ -409,6 +414,14 @@ export default async function DashboardPage() {
     // evidence about the key. Measured: it was written there first and the positive control
     // caught it on the first run. Skipping the CALL is the same §5 shape as every line above.
     anyPlatformBillingConfigured() ? getSignupPlanPrompt() : Promise.resolve(null),
+    // ── IS IT THE CALLER'S OWN BIRTHDAY? ────────────────────────────────────────────
+    // NO GRANT CONDITION, and it is the only line here that needs none: it reads the
+    // caller's own `people` row for their own date of birth. There is nothing to withhold
+    // from somebody about themselves, and no permission key governs a person's birthday.
+    //
+    // NOT TIER-GATED either. Wishing a member a happy birthday is not a feature a family
+    // buys, and putting it behind a plan would mean the product knows and declines to say.
+    getMyBirthdayBanner(),
   ])
 
   const memberCount = memberCountResult?.count ?? 0
@@ -568,6 +581,18 @@ export default async function DashboardPage() {
           chapterName={myChapterName}
         />
       )}
+
+      {/* ── THE BIRTHDAY BAND, ABOVE EVERY BANNER AND BELOW THE SAFETY CHECK-IN ──────
+          It is not a banner in the sense the four below are: those are things this member
+          has to DO, and this is the one thing on the screen that asks nothing of them. So it
+          sits with the hero rather than in the queue of prompts, and the emergency check-in
+          still outranks it — a family asking whether somebody is alive comes before wishing
+          them a happy birthday, even on their birthday.
+
+          `null` for everybody on 364 days a year, and for anybody with no recorded birthday
+          on all 365: `getMyBirthdayBanner` answers null unless today's month and day match a
+          stored one. A NULL birthday is not a birthday. */}
+      {birthdayBanner && <BirthdayHero banner={birthdayBanner} t={t} />}
 
       {/* AN EMERGENCY CHECK-IN OUTRANKS EVERY OTHER BANNER, so it goes first — above the
           linked-person prompt and above the profile nudge. Those are things a member should

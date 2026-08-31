@@ -9,8 +9,11 @@ import { ELECTION_WINDOW } from '@/components/elections/status'
 import { PageShell } from '@/components/layout/PageShell'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Election' }
+export async function generateMetadata() {
+  return docTitle('doc./admin/elections/[id].title')
+}
 
 /**
  * One election, as the organizer running it needs to see it.

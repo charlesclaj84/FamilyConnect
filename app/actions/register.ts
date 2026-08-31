@@ -150,7 +150,7 @@ export async function registerUser(input: RegisterInput): Promise<RegisterResult
       return {
         success: false,
         field: 'email',
-        message: `This invitation was sent to ${peek.email}. Register with that address.`,
+        message: t('reg.invitationSentToAddress', { email: peek.email }),
       }
     }
     // Registration is the wrong door for an address that can already sign in, and the

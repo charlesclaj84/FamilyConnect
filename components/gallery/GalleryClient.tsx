@@ -73,10 +73,14 @@ export function GalleryClient({ rights, myPersonId }: {
       // THE COUNT IS THE WHOLE WARNING. "This cannot be undone" is a sentence; "and its 214
       // photographs" is a fact somebody stops and reads.
       description: count > 0
-        ? `This deletes the album AND all ${count} photograph${count === 1 ? '' : 's'} in it, `
-          + 'for everybody. The image files are removed as well. This cannot be undone.'
+        ? t(count === 1
+            ? 'gal.deleteAlbumWithPhotosOne'
+            : 'gal.deleteAlbumWithPhotosMany', { n: String(count) })
         : t('gal.deleteAlbumBody'),
-      confirmLabel: count > 0 ? `Delete album and ${count} photo${count === 1 ? '' : 's'}` : t('gal.deleteAlbum'),
+      confirmLabel: count > 0
+        ? t(count === 1 ? 'gal.deleteAlbumAndOne' : 'gal.deleteAlbumAndMany',
+            { n: String(count) })
+        : t('gal.deleteAlbum'),
       destructive: true,
     })
     if (!ok) return
@@ -119,8 +123,7 @@ export function GalleryClient({ rights, myPersonId }: {
           <Images className="mx-auto mb-3 h-12 w-12 text-muted-foreground/30" />
           <p className="text-sm text-muted-foreground">{t('gal.noAlbums')}</p>
           <p className="mx-auto mt-2 max-w-md text-xs text-muted-foreground">
-            An album is a set of photographs the family keeps together — a reunion, a wedding,
-            a year. {rights.upload
+            {t('gal.albumIsASet')} {rights.upload
               ? t('gal.pressNew')
               : t('gal.somebodyCan')}
           </p>
@@ -138,7 +141,7 @@ export function GalleryClient({ rights, myPersonId }: {
                   type="button"
                   onClick={() => handleDelete(c)}
                   disabled={isPending}
-                  aria-label={`Delete the album “${c.name}”`}
+                  aria-label={t('gal.deleteNamedAlbumAria', { name: c.name })}
                   title={t('gal.deleteAlbum')}
                   /* IT WAS INVISIBLE UNTIL 2026-08-22, and both halves of why are worth
                      keeping. `group-hover:` needs an ANCESTOR carrying `group`, and the

@@ -297,7 +297,7 @@ export async function startPlanCheckout(input: {
   if (mode === 'prepaid' && !isPrepayMonths(months)) {
     return {
       success: false,
-      message: `Choose between 1 and ${MAX_PREPAY_MONTHS} months.`,
+      message: t('bill.chooseMonths', { max: String(MAX_PREPAY_MONTHS) }),
     }
   }
   // ── WHICH FIRST PAYMENT, ON THE MONTHLY PATH ──────────────────────────────────────
@@ -314,12 +314,12 @@ export async function startPlanCheckout(input: {
   const firstPayment = input.firstPayment ?? 'remainder'
 
   if (!TIER_IS_SOLD[tier]) {
-    return { success: false, message: `${TIER_LABEL[tier]} is not on sale yet.` }
+    return { success: false, message: t('bill.notOnSale', { plan: TIER_LABEL[tier] }) }
   }
   const unavailable = stripeUnavailableReason()
   if (unavailable) return { success: false, message: unavailable }
   if (!platformBillingConfigured(tier, mode)) {
-    return { success: false, message: `${TIER_LABEL[tier]} cannot be bought this way yet.` }
+    return { success: false, message: t('bill.notBuyableThisWay', { plan: TIER_LABEL[tier] }) }
   }
 
   const stripe = stripeClient()
@@ -336,7 +336,7 @@ export async function startPlanCheckout(input: {
   //
   // So the shape is checked here instead, where the failure can be described without naming
   // anything: which plan, which way of paying, and that nothing was charged.
-  const shapeError = await priceShapeError(stripe, priceId, tier, mode)
+  const shapeError = await priceShapeError(stripe, priceId, tier, mode, t)
   if (shapeError) {
     // The DETAIL, with the id, goes to the log — the same split the catch below makes.
     console.error(`[billing] price ${priceId} unusable for ${tier}/${mode}: ${shapeError.detail}`)
@@ -365,7 +365,7 @@ export async function startPlanCheckout(input: {
   if (mode === 'prepaid' && tierMove(toRecord(record).paidTier, tier) === 'downgrade') {
     return {
       success: false,
-      message: `Moving down to ${TIER_LABEL[tier]} costs nothing — use Change plan. It takes effect when the term you have paid for ends.`,
+      message: t('bill.useChangePlanInstead', { plan: TIER_LABEL[tier] }),
     }
   }
 
@@ -410,7 +410,9 @@ export async function startPlanCheckout(input: {
     const daysLeft = daysLeftInMonth(today)
     return {
       success: false,
-      message: `Only ${daysLeft} day${daysLeft === 1 ? '' : 's'} are left this month, which is too small a charge to take on its own. Choose the option that covers this month and next.`,
+      message: daysLeft === 1
+        ? t('bill.tooFewDaysOne')
+        : t('bill.tooFewDaysMany', { days: String(daysLeft) }),
     }
   }
 
@@ -589,9 +591,12 @@ export async function startPlanCheckout(input: {
       ? {
           custom_text: {
             submit: {
-              message: `${formatCurrency(dueNowCents, intl)} today covers you to the end of `
-                + `${monthLabel(addDays(billingStartsOn, -1).slice(0, 7))}. ${TIER_LABEL[tier]} then `
-                + `renews at ${formatCurrency(TIER_PRICE[tier]?.monthlyCents ?? 0, intl)} a month, on the 1st.`,
+              message: t('bill.checkoutSubmitCovers', {
+                amount: formatCurrency(dueNowCents, intl),
+                month: monthLabel(addDays(billingStartsOn, -1).slice(0, 7)),
+                plan: TIER_LABEL[tier],
+                monthly: formatCurrency(TIER_PRICE[tier]?.monthlyCents ?? 0, intl),
+              }),
             },
           },
         }
@@ -701,14 +706,16 @@ export async function changePlanTier(
   const admin = createAdminClient()
   const record = await loadRecord(admin, g.familyCode)
   const move = tierMove(toRecord(record).paidTier, nextTier)
-  if (move === 'same') return { success: false, message: `This family is already on ${TIER_LABEL[nextTier]}.` }
+  if (move === 'same') {
+    return { success: false, message: t('bill.alreadyOnPlan', { plan: TIER_LABEL[nextTier] }) }
+  }
 
   // Moving DOWN TO FREE on a monthly plan is a cancellation, which is its own function
   // because Stripe models it differently — there is no cheaper price to move the item to.
   if (nextTier === 'free') return cancelPlanRenewal()
 
   if (!TIER_IS_SOLD[nextTier]) {
-    return { success: false, message: `${TIER_LABEL[nextTier]} is not on sale yet.` }
+    return { success: false, message: t('bill.notOnSale', { plan: TIER_LABEL[nextTier] }) }
   }
 
   // ── NO SUBSCRIPTION: A PREPAID TERM, OR NONE AT ALL ───────────────────────────────
@@ -729,7 +736,9 @@ export async function changePlanTier(
     })
   }
   const priceId = platformPriceId(nextTier, 'recurring')
-  if (!priceId) return { success: false, message: `${TIER_LABEL[nextTier]} cannot be bought monthly yet.` }
+  if (!priceId) {
+    return { success: false, message: t('bill.notBuyableMonthly', { plan: TIER_LABEL[nextTier] }) }
+  }
 
   try {
     const subscription = await stripe.subscriptions.retrieve(record.stripe_subscription_id)
@@ -774,14 +783,16 @@ export async function changePlanTier(
       revalidateBilling()
       return {
         success: true,
-        message: `${TIER_LABEL[nextTier]} starts on ${scheduled.on} — the next billing date. Nothing changes before then, and there is no refund for the days already paid for.`,
+        message: t('bill.startsOnNextBilling', {
+          plan: TIER_LABEL[nextTier], on: scheduled.on,
+        }),
       }
     }
 
     revalidateBilling()
     return {
       success: true,
-      message: `${TIER_LABEL[nextTier]} takes effect as soon as the extra amount is paid. Stripe is charging the difference for the rest of this period now.`,
+      message: t('bill.effectOnceDifferencePaid', { plan: TIER_LABEL[nextTier] }),
     }
   } catch (e) {
     console.error(`[billing] plan change failed for ${g.familyCode} -> ${nextTier}: ${describe(e)}`)
@@ -840,7 +851,7 @@ export async function cancelPlanRenewal(): Promise<PlanChangeResult> {
   revalidateBilling()
   return {
     success: true,
-    message: `The plan stops on ${scheduled.on}. Every page stays open until then, and every record is kept afterwards.`,
+    message: t('bill.planStopsOn', { on: scheduled.on }),
   }
 }
 
@@ -1045,7 +1056,7 @@ async function scheduleDowngradeOnly(input: {
   revalidateBilling()
   return {
     success: true,
-    message: `${TIER_LABEL[nextTier]} starts on ${scheduled.on}. Nothing changes before then, and there is no refund for the term already paid for.`,
+    message: t('bill.startsOnNoRefund', { plan: TIER_LABEL[nextTier], on: scheduled.on }),
   }
 }
 
@@ -1096,7 +1107,9 @@ async function upgradeFromPrepaid(input: {
     today,
     includeNextMonth,
   })
-  if (!quote) return { success: false, message: `${TIER_LABEL[nextTier]} cannot be bought yet.` }
+  if (!quote) {
+    return { success: false, message: t('bill.notBuyableYet', { plan: TIER_LABEL[nextTier] }) }
+  }
 
   // ── NOTHING TO CHARGE: APPLY IT NOW ────────────────────────────────────────────────
   if (quote.dueNowCents === 0) {
@@ -1129,8 +1142,14 @@ async function upgradeFromPrepaid(input: {
     return {
       success: true,
       message: quote.creditLeftCents > 0
-        ? `${TIER_LABEL[nextTier]} is active now, paid through ${quote.paidThrough}. What was left of the old term — ${formatCurrency(quote.creditLeftCents, intl)} — is held as credit against your next invoice.`
-        : `${TIER_LABEL[nextTier]} is active now, paid through ${quote.paidThrough}. The term you had already paid for covered it exactly.`,
+        ? t('bill.activeNowCredit', {
+            plan: TIER_LABEL[nextTier],
+            through: quote.paidThrough,
+            credit: formatCurrency(quote.creditLeftCents, intl),
+          })
+        : t('bill.activeNowExact', {
+            plan: TIER_LABEL[nextTier], through: quote.paidThrough,
+          }),
     }
   }
 
@@ -1191,7 +1210,9 @@ async function upgradeFromPrepaid(input: {
     return {
       success: true,
       url: session.url,
-      message: `Opening Stripe to collect ${formatCurrency(quote.dueNowCents, intl)}.`,
+      message: t('bill.openingStripeToCollect', {
+        amount: formatCurrency(quote.dueNowCents, intl),
+      }),
     }
   } catch (e) {
     console.error(`[billing] upgrade checkout failed for ${familyCode} -> ${nextTier}: ${describe(e)}`)
@@ -1415,13 +1436,15 @@ async function priceShapeError(
   priceId: string,
   tier: FamilyTier,
   mode: BillingMode,
+  /** The caller's language, for the one half of this that a member reads. The `detail`
+      stays English — its only reader is `console.error`, in a server log. */
+  t: T,
 ): Promise<{ message: string; detail: string } | null> {
-  const way = mode === 'recurring' ? 'monthly' : 'paying in advance'
+  const way = t(mode === 'recurring' ? 'bill.wayMonthly' : 'bill.wayInAdvance')
   const bad = (detail: string) => ({
     // NAMES NO ID AND NO ACCOUNT, per the same rule as the catch below — and says the thing
     // the family most needs to know, which is that no money moved.
-    message: `${TIER_LABEL[tier]} is not set up correctly for ${way} on this deployment. `
-      + 'Nothing has been charged. Please report this rather than retrying.',
+    message: t('bill.priceMisconfigured', { plan: TIER_LABEL[tier], way }),
     detail,
   })
 

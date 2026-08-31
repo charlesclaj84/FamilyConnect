@@ -254,7 +254,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
     // ask again, and a password left in a ref is one a later action could spend.
     passwordRef.current = ''
     const ok = await confirm({
-      title: `Downgrade this family to ${TIER_LABEL[next]}?`,
+      title: t('plan.downgradeConfirmTitle', { plan: TIER_LABEL[next] }),
       // THE SENTENCE STILL STANDS ON ITS OWN, and it does not refer to anything's position —
       // no "the pages below". It is what `aria-describedby` names, it is all the native
       // fallback can show, and on a phone the columns stack so there is no "left" to point at.
@@ -659,15 +659,17 @@ function PlanChangeColumns({ from, to, change }: {
   return (
     <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
       <PlanColumn
-        heading={change.up ? `What you gain on ${TIER_LABEL[to]}` : t('plan.whatYouLose')}
+        heading={change.up
+          ? t('plan.whatYouGainOn', { plan: TIER_LABEL[to] })
+          : t('plan.whatYouLose')}
         tone={change.up ? 'gain' : 'lose'}
         items={change.changing}
         detailed
       />
       <PlanColumn
         heading={change.up
-          ? `What you have now on ${TIER_LABEL[from]}`
-          : `What you keep on ${TIER_LABEL[to]}`}
+          ? t('plan.whatYouHaveNowOn', { plan: TIER_LABEL[from] })
+          : t('plan.whatYouKeepOn', { plan: TIER_LABEL[to] })}
         tone="muted"
         items={change.keeping}
       />
@@ -870,7 +872,7 @@ function PlanDetailDialog({ plan, current, onClose }: {
     <Dialog
       open
       onClose={onClose}
-      title={`${TIER_LABEL[plan]} — what you get`}
+      title={t('plan.whatYouGetTitle', { plan: TIER_LABEL[plan] })}
       description={tierTagline(t, plan)}
       // The same measure the confirmation takes, for the same reason: two columns of
       // benefits with a sentence of mechanism under each cannot be read at `lg`.
@@ -880,11 +882,12 @@ function PlanDetailDialog({ plan, current, onClose }: {
         {plan === current
           ? t('plan.yoursToday')
           : included
-            ? `Included in ${TIER_LABEL[current]}, which your family is on. Everything here is switched on.`
+            ? t('plan.includedInYours', { plan: TIER_LABEL[current] })
             // NOT "everything here would open up" — most of the right-hand column is
             // already open, and the cut is what makes that sentence sayable at all.
-            : `Your family is on ${TIER_LABEL[current]}. Here is what ${TIER_LABEL[plan]} `
-              + 'would add, beside what you already have.'}
+            : t('plan.yourFamilyIsOnWhatAdds', {
+                current: TIER_LABEL[current], plan: TIER_LABEL[plan],
+              })}
         {(() => {
           // THE PRICE BELONGS IN THIS SENTENCE, not only on the row behind the dialog.
           // Whoever opened "Features" is deciding, and the panel's own row is now covered
@@ -903,8 +906,8 @@ function PlanDetailDialog({ plan, current, onClose }: {
             amount: formatPlanPrice(price.monthlyCents, intl),
           })
           return TIER_IS_SOLD[plan]
-            ? `${rate} It is set up in the Billing section of Settings.`
-            : `${rate} There is no payment step yet — nothing here is billed.`
+            ? t('plan.rateSetUpInBilling', { rate })
+            : t('plan.rateNoPaymentStep', { rate })
         })()}
       </p>
 
@@ -912,9 +915,9 @@ function PlanDetailDialog({ plan, current, onClose }: {
         <PlanColumn
           heading={included
             ? splitAt
-              ? `What ${TIER_LABEL[plan]} adds`
-              : `What ${TIER_LABEL[plan]} includes`
-            : `What you would gain on ${TIER_LABEL[plan]}`}
+              ? t('plan.whatPlanAdds', { plan: TIER_LABEL[plan] })
+              : t('plan.whatPlanIncludes', { plan: TIER_LABEL[plan] })
+            : t('plan.whatYouWouldGainOn', { plan: TIER_LABEL[plan] })}
           tone="gain"
           items={gains}
           detailed
@@ -922,9 +925,10 @@ function PlanDetailDialog({ plan, current, onClose }: {
         {splitAt && (
           <PlanColumn
             heading={included
-              ? `Also included, from ${heldFrom}`
-              // The same words the confirmation uses for the same list, deliberately.
-              : `What you have now on ${TIER_LABEL[current]}`}
+              ? t('plan.alsoIncludedFrom', { plan: heldFrom })
+              // The same words the confirmation uses for the same list, deliberately —
+              // and now literally the same KEY, so they cannot drift apart.
+              : t('plan.whatYouHaveNowOn', { plan: TIER_LABEL[current] })}
             tone="muted"
             items={held}
             detailed

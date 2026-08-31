@@ -1304,7 +1304,7 @@ export async function createGathering(input: {
     return {
       success: true,
       gatheringId,
-      message: `Created, but the steps from ${failures.join(', ')} could not be added. Add the template again from the gathering.`,
+      message: t('agat.createdStepsFailed', { templates: failures.join(', ') }),
     }
   }
   return { success: true, gatheringId }
@@ -1398,7 +1398,7 @@ async function resolveTemplates(
 
   const archived = rows.find(r => r.is_archived)
   if (archived) {
-    return { message: `“${archived.name}” has been archived and cannot start a new gathering` }
+    return { message: t('agat.templateArchived', { template: archived.name }) }
   }
 
   // Back into the order the caller named them, so the tasks come out in that order.
@@ -1611,7 +1611,12 @@ export async function deleteGathering(gatheringId: string): Promise<ActionResult
   if ((count ?? 0) > 0) {
     return {
       success: false,
-      message: `${count} task${count === 1 ? ' on' : 's on'} “${(existing as { title: string }).title}” ${count === 1 ? 'has' : 'have'} been answered, so it cannot be deleted. Set its status to Cancelled instead — nothing is lost and it can be reopened.`,
+      message: t(count === 1
+        ? 'agat.cannotDeleteAnsweredOne'
+        : 'agat.cannotDeleteAnsweredMany', {
+        n: String(count),
+        title: (existing as { title: string }).title,
+      }),
     }
   }
 
@@ -1942,13 +1947,15 @@ function segmentSpanWarning(
   occursOn: string | null | undefined,
   startsOn: string,
   endsOn: string | null,
+  /** The caller's language. This sentence is rendered beside the save, so it is read. */
+  t: T,
 ): string | null {
   if (!occursOn) return null
   const last = endsOn ?? startsOn
   if (occursOn >= startsOn && occursOn <= last) return null
   return startsOn === last
-    ? `Saved. That day is outside the gathering, which is on ${startsOn}.`
-    : `Saved. That day is outside the gathering, which runs ${startsOn} to ${last}.`
+    ? t('agat.savedOutsideOneDay', { on: startsOn })
+    : t('agat.savedOutsideRange', { from: startsOn, to: last })
 }
 
 /**
@@ -2055,7 +2062,10 @@ export async function addGatheringTemplate(input: {
   // Checked rather than left to `UNIQUE (gathering_id, template_id)`: a 23505 reads as a bug,
   // and "already part of this gathering" is what actually happened.
   if (existing) {
-    return { success: false, message: `“${templates.rows[0].name}” is already part of this gathering` }
+    return {
+      success: false,
+      message: t('agat.templateAlreadyPart', { template: templates.rows[0].name }),
+    }
   }
 
   const { data: last, error: lastError } = await admin
@@ -2090,7 +2100,7 @@ export async function addGatheringTemplate(input: {
     // was left to work out unaided that removing it first was the way through.
     return {
       success: false,
-      message: `Could not add the steps from ${failures.join(', ')}. Nothing was changed — try again.`,
+      message: t('agat.couldNotAddSteps', { templates: failures.join(', ') }),
     }
   }
 
@@ -2099,7 +2109,7 @@ export async function addGatheringTemplate(input: {
   // condition on creating it, and computing it first would invite somebody to turn it into one.
   if (occursOn) {
     const span = await gatheringSpan(admin, input.gatheringId, g.familyCode)
-    const warning = span ? segmentSpanWarning(occursOn, span.startsOn, span.endsOn) : null
+    const warning = span ? segmentSpanWarning(occursOn, span.startsOn, span.endsOn, t) : null
     if (warning) return { success: true, warning }
   }
   return { success: true }
@@ -2211,7 +2221,10 @@ export async function setGatheringSegment(input: {
     return { success: false, message: t('act.couldNotSaveSegmentJust') }
   }
   if (((data ?? []) as unknown[]).length === 0) {
-    return { success: false, message: `“${templates.rows[0].name}” is not part of this gathering` }
+    return {
+      success: false,
+      message: t('agat.templateNotPart', { template: templates.rows[0].name }),
+    }
   }
 
   revalidateGathering(input.gatheringId)
@@ -2220,7 +2233,9 @@ export async function setGatheringSegment(input: {
   // did not touch. See `segmentSpanWarning` for why this warns rather than refuses.
   if (nextOccursOn) {
     const span = await gatheringSpan(admin, input.gatheringId, g.familyCode)
-    const warning = span ? segmentSpanWarning(nextOccursOn, span.startsOn, span.endsOn) : null
+    const warning = span
+      ? segmentSpanWarning(nextOccursOn, span.startsOn, span.endsOn, t)
+      : null
     if (warning) return { success: true, warning }
   }
   return { success: true }
@@ -2290,7 +2305,9 @@ export async function removeGatheringTemplate(input: {
   if (inFlight.length > 0) {
     return {
       success: false,
-      message: `${inFlight.length} task${inFlight.length === 1 ? ' from this template has' : 's from this template have'} been assigned or answered, so it cannot be removed. Reassign or approve them first.`,
+      message: t(inFlight.length === 1
+        ? 'agat.cannotRemoveInFlightOne'
+        : 'agat.cannotRemoveInFlightMany', { n: String(inFlight.length) }),
     }
   }
 

@@ -7,8 +7,11 @@ import { PageShell } from '@/components/layout/PageShell'
 import { resolveMoneyPane } from '@/lib/money-panes'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Dues & Donations' }
+export async function generateMetadata() {
+  return docTitle('page./accounting/dues-and-donations.title')
+}
 
 /**
  * What this member owes, and what their family is inviting them to give to.

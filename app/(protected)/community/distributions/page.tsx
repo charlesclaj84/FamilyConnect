@@ -6,8 +6,11 @@ import {
 import { DistributionsClient } from '@/components/distributions/DistributionsClient'
 import { PageShell } from '@/components/layout/PageShell'
 import { currentUser } from '@/lib/auth/current-user'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Distributions' }
+export async function generateMetadata() {
+  return docTitle('doc./community/distributions.title')
+}
 
 /**
  * Email the family, drawn from the membership. `/community/distributions`, Premium.

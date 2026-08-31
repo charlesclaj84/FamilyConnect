@@ -232,7 +232,9 @@ export function BudgetBand({ budget, state, className, intl, t }: BudgetBandProp
           value={knowBalance ? formatCurrency(math.fundBalanceCents, intl) : '—'}
           caption={knowBalance
             ? (budget.otherCommittedCents > 0
-                ? `${formatCurrency(budget.otherCommittedCents, intl)} of it is claimed by other gatherings`
+                ? t('budget.claimedByOthers', {
+                    amount: formatCurrency(budget.otherCommittedCents, intl),
+                  })
                 : t('budget.nothingElse'))
             : budget.fundName
               ? t('budget.balanceUnavailable')
@@ -248,9 +250,13 @@ export function BudgetBand({ budget, state, className, intl, t }: BudgetBandProp
       {math.overFund && (
         <p className="mt-4 rounded-xl border border-destructive/40 bg-destructive/5 px-4 py-3 text-sm text-destructive">
           This gathering&rsquo;s budget of{' '}
-          <span className="font-semibold tabular-nums">{formatCurrency(math.budgetCents, intl)}</span>{' '}
-          is <span className="font-semibold tabular-nums">{formatCurrency(math.overFundByCents, intl)}</span>{' '}
-          more than {budget.fundName ?? 'the fund'} holds.
+          {/* ONE SENTENCE, ONE KEY. The figures were three JSX children with English word
+              order between them, which no translation can reorder. */}
+          {t('budget.overFundSentence', {
+            budget: formatCurrency(math.budgetCents, intl),
+            over: formatCurrency(math.overFundByCents, intl),
+            fund: budget.fundName ?? t('budget.theFund'),
+          })}
         </p>
       )}
       {/* THE SECOND SENTENCE IS SUPPRESSED WHEN NOTHING ELSE IS CLAIMING THE FUND, and that
@@ -266,12 +272,12 @@ export function BudgetBand({ budget, state, className, intl, t }: BudgetBandProp
           // about the same fund rather than as two unrelated alarms.
           math.overFund ? 'mt-2' : 'mt-4',
         )}>
-          Other live gatherings already claim{' '}
-          <span className="font-semibold tabular-nums">{formatCurrency(budget.otherCommittedCents, intl)}</span>{' '}
-          of the same fund, so {formatCurrency(math.totalCommittedCents, intl)} is committed against{' '}
-          {budget.fundName ?? 'the fund'} —{' '}
-          <span className="font-semibold tabular-nums">{formatCurrency(math.overFundWithOthersByCents, intl)}</span>{' '}
-          more than it holds.
+          {t('budget.overWithOthersSentence', {
+            others: formatCurrency(budget.otherCommittedCents, intl),
+            total: formatCurrency(math.totalCommittedCents, intl),
+            fund: budget.fundName ?? t('budget.theFund'),
+            over: formatCurrency(math.overFundWithOthersByCents, intl),
+          })}
         </p>
       )}
 
@@ -280,11 +286,10 @@ export function BudgetBand({ budget, state, className, intl, t }: BudgetBandProp
           down, which is fixed by editing one of them. */}
       {math.overAllocated && (
         <p className="mt-2 rounded-xl border border-brand-withheld/40 bg-brand-withheld/5 px-4 py-3 text-sm text-brand-withheld">
-          The task budgets add up to{' '}
-          <span className="font-semibold tabular-nums">{formatCurrency(math.linesTotalCents, intl)}</span>,{' '}
-          which is <span className="font-semibold tabular-nums">{formatCurrency(math.overAllocatedByCents, intl)}</span>{' '}
-          more than this gathering budgeted. Nothing has been spent — raise the budget or trim a
-          task line.
+          {t('budget.overAllocatedSentence', {
+            lines: formatCurrency(math.linesTotalCents, intl),
+            over: formatCurrency(math.overAllocatedByCents, intl),
+          })}
         </p>
       )}
     </section>

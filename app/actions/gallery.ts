@@ -305,7 +305,7 @@ export async function uploadPhotos(
       continue
     }
     if (file.size > 10 * 1024 * 1024) {
-      failed.push(`${file.name} is larger than 10 MB.`)
+      failed.push(t('gal.fileTooLarge', { name: file.name }))
       continue
     }
 
@@ -561,8 +561,9 @@ export async function deleteCollection(
     return {
       success: true,
       removedPhotos: paths.length - unremoved,
-      message: `The album is gone, but ${unremoved} of its image files could not be removed from storage. `
-        + 'They are no longer listed anywhere; tell an administrator so they can be swept.',
+      message: t(unremoved === 1
+        ? 'gal.albumGoneFilesLeftOne'
+        : 'gal.albumGoneFilesLeftMany', { n: String(unremoved) }),
     }
   }
   return { success: true, removedPhotos: paths.length }

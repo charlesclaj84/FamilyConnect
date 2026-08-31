@@ -104,7 +104,9 @@ export function NextInstallmentsCard({ summary, className, intl, t }: {
                   about it. */}
               {!s.onSchedule && s.followingInstallmentDate && (
                 <p className="text-muted-foreground/80">
-                  covers {s.periodsElapsed} earlier installment{s.periodsElapsed === 1 ? '' : 's'}
+                  {t(s.periodsElapsed === 1
+                    ? 'plan.coversEarlierOne'
+                    : 'plan.coversEarlierMany', { n: String(s.periodsElapsed) })}
                   {' · then '}
                   {formatCurrency(s.followingInstallmentCents, intl)} from {fmtDate(s.followingInstallmentDate)}
                 </p>

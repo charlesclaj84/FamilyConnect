@@ -136,8 +136,13 @@ export function MembershipSliceDialog({
       open
       onClose={onClose}
       title={slice.label}
-      description={`${chartTitle} · ${slice.count} ${slice.count === 1 ? 'member' : 'members'}`
-        + ` · ${slice.percent}% of the family`}
+      description={t(slice.count === 1
+        ? 'slice.descriptionOne'
+        : 'slice.descriptionMany', {
+        chart: chartTitle,
+        n: String(slice.count),
+        percent: String(slice.percent),
+      })}
       className="max-w-lg"
     >
       {/* NO SCROLL CONTAINER HERE. `Dialog` already caps its own height and scrolls its body
@@ -290,16 +295,16 @@ function MemberRow({ member, repair, chapters, busy, onDone, onError }: {
         // invitation exists and the mail did not go. `inviteMember` fails soft by design
         // (AGENTS.md, "Sending fails soft, so the UI owes the truth").
         onDone(r.emailed === false
-          ? `${member.name} was invited, but the email could not be sent. `
+          ? t('slice.invitedNotEmailed', { name: member.name })
             + t('slice.canResend')
-          : `${member.name} has been invited.`)
+          : t('slice.invited', { name: member.name }))
         return
       }
       if (offered === 'record-birthday') {
         const r = await updateUserProfile(member.personId, { date_of_birth: trimmed })
         if (!r.success) { onError(r.error ?? t('slice.dateFailed')); return }
         setOpen(false)
-        onDone(`${member.name}'s date of birth recorded.`)
+        onDone(t('slice.birthdayRecorded', { name: member.name }))
       }
     })
   }

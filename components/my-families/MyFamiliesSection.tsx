@@ -186,7 +186,7 @@ export function MyFamiliesSection({ families }: { families: FamilyMembership[] }
                     title: t('fam.changeDefault'),
                     // The label is just "Default", which does not say default *what* —
                     // so the confirmation is where that gets spelled out.
-                    description: `Open ${family.familyName} by default when you log in?`,
+                    description: t('fam.openByDefault', { family: family.familyName }),
                     confirmLabel: t('fam.makeDefault'),
                   }, () => setDefaultFamily(family.familyCode))}
                   className={cn(

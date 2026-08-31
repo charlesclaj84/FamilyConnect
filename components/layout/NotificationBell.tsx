@@ -224,7 +224,9 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
                     see openQueue. The one that needs no switch keeps its href, so
                     cmd-click and copy-link-address still work where they can. */}
                 {queues.map(queue => {
-                  const caption = `${queue.count} ${queue.count === 1 ? 'person is' : 'people are'} waiting for approval`
+                  const caption = t(queue.count === 1
+                    ? 'notify.waitingApprovalOne'
+                    : 'notify.waitingApprovalMany', { n: String(queue.count) })
                   const body = (
                     <>
                       <UserCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-accent" />

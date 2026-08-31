@@ -729,7 +729,9 @@ export function TransactionsClient({
     // of the form is the difference between a hint and a rejection. The action is still
     // the gate — this list is as fresh as the last server render.
     if (tfFrom && cents > tfFrom.balance_cents) {
-      setError(`${tfFrom.name} holds ${fmt(tfFrom.balance_cents)}. Transfer that or less.`)
+      setError(t('fnd.holdsTransferLess', {
+        name: tfFrom.name, amount: fmt(tfFrom.balance_cents),
+      }))
       return
     }
     setError('')

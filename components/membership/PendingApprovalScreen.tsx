@@ -145,8 +145,7 @@ export function PendingApprovalScreen({
         approved: <>{t('fam.yourRequestTo')} <span className="font-medium">{single.familyName}</span> is with
           its administrators.</>,
       }[single.status]
-    : <>You are waiting on {pending.length} families. Each one is reviewed by its own
-        administrators, so they may not answer at the same time.</>
+    : t('pend.waitingOnFamilies', { n: String(pending.length) })
 
   return (
     <Card>
@@ -197,7 +196,8 @@ export function PendingApprovalScreen({
             {appealed.includes(family.familyCode) ? (
               <>
                 <p className="flex items-center gap-2 text-sm font-medium">
-                  <Clock className="h-4 w-4" /> Sent to {family.familyName}
+                  <Clock className="h-4 w-4" />{' '}
+                  {t('pend.sentTo', { family: family.familyName })}
                 </p>
                 <p className="mt-1 text-sm text-muted-foreground">{t('ui.requestBackTheirAdministrators')}</p>
               </>
@@ -207,7 +207,7 @@ export function PendingApprovalScreen({
                   htmlFor={`appeal-${family.familyCode}`}
                   className="text-sm font-medium"
                 >
-                  Ask {family.familyName} to look again
+                  {t('pend.askToLookAgain', { family: family.familyName })}
                 </label>
                 <p className="mt-1 text-sm text-muted-foreground">{t('ui.sayWhoHowRelated')}</p>
                 <Textarea
@@ -260,7 +260,7 @@ export function PendingApprovalScreen({
 
         {waiting && (
           <p className="text-sm text-muted-foreground">
-            In the meantime you can fill in{' '}
+            {t('pend.meantimeFillIn')}{' '}
             <Link href="/personal-info" className="text-primary hover:underline">
               your profile
             </Link>

@@ -130,3 +130,52 @@ export async function mintChallenge(
 
   return { ok: true, code, minutes: CHALLENGE_CODE_MINUTES }
 }
+
+/**
+ * Mint a staff family-deletion code.
+ *
+ * ── A SECOND MINT, NOT A SECOND MECHANISM ──────────────────────────────────────────
+ * It shares `sixDigits()`, `hashChallengeCode()` and `CHALLENGE_CODE_MINUTES` with
+ * `mintChallenge` above — the three decisions that must not differ between two codes a
+ * reader cannot tell apart. What differs is the ACTOR and therefore the table:
+ * `family_action_challenges` resolves on a `people.id`, and a GENORRA staff member has none
+ * in the family they are acting on. `20260831000001` §1 argues why that is a different table
+ * rather than a nullable column on the shared one.
+ *
+ * ── THE SUPERSEDE IS NOT TIDYING, FOR `mintChallenge`'s REASON ─────────────────────
+ * Without it, asking twice leaves two live codes and the older one keeps working — so a code
+ * an owner abandoned because they were not sure they had the right family stays spendable.
+ */
+export async function mintStaffDeleteChallenge(
+  admin: ReturnType<typeof createAdminClient>,
+  input: { userId: string; familyCode: string; logTag: string },
+): Promise<MintedChallenge> {
+  const { userId, familyCode, logTag } = input
+
+  const { error: supersedeError } = await admin
+    .from('genorra_staff_challenges')
+    .update({ consumed_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .eq('family_code', familyCode)
+    .is('consumed_at', null)
+  if (supersedeError) {
+    console.error(`${logTag} could not close open staff challenges for ${familyCode}: ${supersedeError.message}`)
+    return { ok: false }
+  }
+
+  const code = sixDigits()
+  const { error: insertError } = await admin
+    .from('genorra_staff_challenges')
+    .insert({
+      user_id: userId,
+      family_code: familyCode,
+      code_hash: hashChallengeCode(code),
+      expires_at: new Date(Date.now() + CHALLENGE_CODE_MINUTES * 60_000).toISOString(),
+    })
+  if (insertError) {
+    console.error(`${logTag} could not mint a staff challenge for ${familyCode}: ${insertError.message}`)
+    return { ok: false }
+  }
+
+  return { ok: true, code, minutes: CHALLENGE_CODE_MINUTES }
+}

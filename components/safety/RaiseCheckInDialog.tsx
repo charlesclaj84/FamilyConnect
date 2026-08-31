@@ -183,8 +183,12 @@ export function RaiseCheckInDialog({
           >
             {audiences.map(a => (
               <option key={`${a.scope}:${a.id ?? ''}`} value={`${a.scope}:${a.id ?? ''}`}>
-                {a.label} — {a.addressed === 1 ? '1 relative' : `${a.addressed} relatives`}
-                {a.unreachable > 0 ? `, ${a.unreachable} with no email` : ''}
+                {a.label} — {t(a.addressed === 1
+                  ? 'safety.relativeOne'
+                  : 'safety.relativesMany', { n: String(a.addressed) })}
+                {a.unreachable > 0
+                  ? t('safety.withNoEmail', { n: String(a.unreachable) })
+                  : ''}
               </option>
             ))}
             {/*
@@ -234,15 +238,15 @@ export function RaiseCheckInDialog({
           ) : (
             <>
               <p className="font-medium text-brand-urgent">
-                {addressed === 1
-                  ? '1 relative will be asked.'
-                  : `${addressed} relatives will be asked.`}
+                {t(addressed === 1
+                  ? 'safety.willBeAskedOne'
+                  : 'safety.willBeAskedMany', { n: String(addressed) })}
               </p>
               {unreachable > 0 && (
                 <p className="mt-1 text-muted-foreground">
-                  {unreachable === 1
-                    ? '1 of them has no email address on file, so somebody will need to telephone them.'
-                    : `${unreachable} of them have no email address on file, so somebody will need to telephone them.`}
+                  {t(unreachable === 1
+                    ? 'safety.noEmailPhoneOne'
+                    : 'safety.noEmailPhoneMany', { n: String(unreachable) })}
                 </p>
               )}
             </>

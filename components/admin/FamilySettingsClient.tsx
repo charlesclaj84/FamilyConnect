@@ -1,5 +1,6 @@
 'use client'
 
+import { APP_NAME } from '@/lib/brand'
 import { useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Check, Copy, CreditCard, Crown, Home, PowerOff } from 'lucide-react'
@@ -508,10 +509,10 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
           {t('set.removed')}
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Nobody can open it, join it or accept an invitation to it.{' '}
-          <strong className="font-semibold">{t('rem.nothingDeleted')}</strong> — every
-          payment, photograph, event and person is exactly where it was. Only GENORRA
-          support can bring it back; write to them and ask.
+          {t('rem.nobodyCanOpen', {
+            nothingDeleted: t('rem.nothingDeleted'),
+            app: APP_NAME,
+          })}
         </p>
       </section>
     )
@@ -604,9 +605,10 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
           <p className="text-sm">
             {challenge.emailed ? (
               <>
-                We sent a six-digit code to{' '}
-                <span className="font-medium">{challenge.sentTo}</span>. It lasts{' '}
-                {challenge.minutes} minutes and can be used once.
+                {t('set.codeSentTo', {
+                  email: challenge.sentTo,
+                  minutes: String(challenge.minutes),
+                })}
               </>
             ) : (
               // THE TRUTH ABOUT A SEND THAT DID NOT HAPPEN. `sendEmail` fails soft and the
@@ -615,9 +617,10 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
               // to avoid. The code itself is deliberately NOT handed back here: the
               // recipient is the caller, so that would hand them both factors at once.
               <>
-                {challenge.note ?? t('set.codeFailed')} No code has
-                reached <span className="font-medium">{challenge.sentTo}</span>, so there
-                is nothing to type yet. Try again in a moment.
+                {t('set.codeFailedTo', {
+                  note: challenge.note ?? t('set.codeFailed'),
+                  email: challenge.sentTo,
+                })}
               </>
             )}
           </p>

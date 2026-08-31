@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, KeyRound, LayoutGrid, UserSearch } from 'lucide-react'
+import { Building2, CreditCard, KeyRound, LayoutGrid, UserSearch } from 'lucide-react'
 import type { StaffRole } from '@/lib/auth/staff'
 import { cn } from '@/lib/utils'
 import { useT } from '@/components/layout/LocaleProvider'
@@ -72,6 +72,9 @@ function items(t: T) {
     { href: '/staff', label: t('staff.overview'), icon: LayoutGrid, ownerOnly: false },
     { href: '/staff/families', label: t('staff.families'), icon: Building2, ownerOnly: false },
     { href: '/staff/accounts', label: t('staff.accounts'), icon: UserSearch, ownerOnly: false },
+    // NOT owner-only: reading what the platform is owed destroys nothing, and it is where
+    // most support conversations start. `owner` is the line for irreversible acts.
+    { href: '/staff/subscriptions', label: t('staff.subscriptions'), icon: CreditCard, ownerOnly: false },
     // LAST, and not because it is least important. It is the only destination here that
     // changes who can open the console at all, and the three above it are the ones somebody
     // opens the console to do. A key rather than a shield: `ShieldCheck` is already the

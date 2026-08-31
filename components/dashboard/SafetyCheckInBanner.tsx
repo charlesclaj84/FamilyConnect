@@ -73,7 +73,7 @@ export async function SafetyCheckInBanner({ t }: {
                 <p className="text-sm font-medium">{row.title}</p>
                 {row.raisedByName && (
                   <p className="text-sm text-muted-foreground">
-                    Raised by {row.raisedByName}
+                    {t('dash.raisedBy', { name: row.raisedByName })}
                   </p>
                 )}
                 {row.detail && <p className="text-sm">{row.detail}</p>}

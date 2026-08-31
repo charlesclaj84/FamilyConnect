@@ -94,7 +94,8 @@ export function CreateGroupDialog({ open, onClose, familyMembers, onRoomCreated 
               })}
             </div>
             <p className="text-xs text-muted-foreground">
-              {selected.size} member{selected.size !== 1 ? 's' : ''} selected
+              {t(selected.size === 1 ? 'chat.selectedOne' : 'chat.selectedMany',
+                { n: String(selected.size) })}
             </p>
           </div>
         )}

@@ -161,10 +161,10 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
         <div className="flex items-start gap-2 rounded-lg border border-brand-warm bg-brand-warm/10 p-3 text-sm text-brand-warm">
           <CreditCard className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <p>
-            A card payment has been failing since{' '}
-            <strong>{formatDate(billing.delinquentSince, intl) ?? billing.delinquentSince}</strong>.
-            Nothing has changed about what this family can reach. Update the card under{' '}
-            <em>{t('bill.cardsReceipts')}</em> and Stripe will try again.
+            {t('bill.cardFailingSince', {
+              date: formatDate(billing.delinquentSince, intl) ?? billing.delinquentSince,
+              where: t('bill.cardsReceipts'),
+            })}
           </p>
         </div>
       )}
@@ -229,7 +229,9 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
                     <tr key={p.id} className="align-top sm:align-middle">
                       <td className="px-4 py-2">
                         {TIER_LABEL[p.tier]}
-                        {p.months > 1 ? ` · ${p.months} months` : ''}
+                        {p.months > 1
+                          ? t('bill.monthsSuffix', { n: String(p.months) })
+                          : ''}
                         <RowMeta>
                           {paid && <span>Paid {paid}</span>}
                           {paid && covers && <MetaDot />}

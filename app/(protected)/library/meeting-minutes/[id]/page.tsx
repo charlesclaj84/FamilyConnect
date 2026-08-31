@@ -8,8 +8,11 @@ import { MeetingDetailClient } from '@/components/meetings/MeetingDetailClient'
 import { PageShell } from '@/components/layout/PageShell'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
+import { docTitle } from '@/lib/i18n/page-metadata'
 
-export const metadata = { title: 'Meeting' }
+export async function generateMetadata() {
+  return docTitle('doc./library/meeting-minutes/[id].title')
+}
 
 /**
  * One meeting's minutes.
