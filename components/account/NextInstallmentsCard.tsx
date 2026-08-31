@@ -70,7 +70,7 @@ export function NextInstallmentsCard({ summary, className, intl, t }: {
             payment; five and the figure below is a sum, which the title has to admit
             or the number reads as a single installment five times too large. */}
         <span className="text-sm text-muted-foreground font-medium">
-          Next Installment{upcoming.length > 1 ? 's' : ''}
+          {upcoming.length > 1 ? t('cards.nextInstallmentsMany') : t('cards.nextInstallmentOne')}
         </span>
       </div>
       <p className="text-2xl font-bold leading-tight">

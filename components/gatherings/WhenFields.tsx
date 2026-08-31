@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { FieldError } from '@/components/ui/form-message'
 import { cn } from '@/lib/utils'
-import { TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
+import { TIMEZONES, timezoneLabel } from '@/lib/date-utils'
 import {
   WHEN_PROBLEM_TEXT, whenProblems,
   type GatheringOccurrence, type GatheringWhen,
@@ -423,7 +423,7 @@ function ZoneRow({ value, onChange, idPrefix, disabled }: {
       >
         <option value="">{t('gath.chooseTimezone')}</option>
         {TIMEZONES.map(tz => (
-          <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>
+          <option key={tz} value={tz}>{timezoneLabel(t, tz)}</option>
         ))}
       </Select>
       <p className="text-xs text-muted-foreground">{t('gath.everyoneSeesTimeExactly')}</p>

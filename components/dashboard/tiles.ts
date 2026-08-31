@@ -132,12 +132,12 @@ export interface TileMeta {
  */
 export function tileMeta(t: T): Record<TileId, TileMeta> {
   return {
-    members:    { label: t('dash.familyMembers'),       href: '/community/directory',                           linkLabel: 'View directory', accent: 'primary', icon: UsersRound },
-    approvals:  { label: t('dash.pendingApproval'),     href: '/admin/members?tab=approvals',         linkLabel: 'Review queue',   accent: 'warm',    icon: ClipboardCheck },
+    members:    { label: t('dash.familyMembers'),       href: '/community/directory',                           linkLabel: t('dash.viewDirectory'), accent: 'primary', icon: UsersRound },
+    approvals:  { label: t('dash.pendingApproval'),     href: '/admin/members?tab=approvals',         linkLabel: t('dash.reviewQueue'),   accent: 'warm',    icon: ClipboardCheck },
     // `affirm` is Growth olive, which is the kit's own `#62642F` chip for this tile, and the
     // captions are the kit's too — "View calendar" under the count, because the figure is a
     // count of gatherings and the way through is the calendar that shows them beside events.
-    gatherings: { label: t('dash.upcomingGatherings'),  href: '/gatherings/calendar',                          linkLabel: 'View calendar',  accent: 'affirm',  icon: CalendarDays },
+    gatherings: { label: t('dash.upcomingGatherings'),  href: '/gatherings/calendar',                          linkLabel: t('dash.viewCalendar'),  accent: 'affirm',  icon: CalendarDays },
     }
 }
 
@@ -239,9 +239,16 @@ export function quickActionMeta(t: T): Record<QuickActionId, QuickActionMeta> {
  * destination list — the same argument `my-gathering-tasks` is written on. A chip reading
  * "Vote" eleven days before the poll opens is a button that does nothing.
  */
-export const ELECTION_ACTION_LABEL: Record<'nominations' | 'voting', string> = {
-  nominations: 'Nominate',
-  voting: 'Vote',
+/**
+ * What there is to DO in an election that is open — the Quick Action's caption.
+ *
+ * A FUNCTION OF `t` since 2026-08-29, for the reason every other registry in this file is
+ * one: a module-level literal cannot call `t`, and the PHASE is the contract while the verb
+ * is copy. It was the last English map on this screen, and the Dashboard is the screen every
+ * member lands on.
+ */
+export function electionActionLabel(t: T, phase: 'nominations' | 'voting'): string {
+  return t(`dash.election.${phase}`)
 }
 
 /**

@@ -33,7 +33,7 @@ import {
   recordDisbursement, recordFundContribution, transferBetweenFunds,
   type FundMilestone, type FundDisbursement, type FundContribution, type FundTransfer,
 } from '@/app/actions/funds'
-import { LEDGER_LABELS, type Ledger } from '@/components/transactions/ledgers'
+import { ledgerLabels, type Ledger } from '@/components/transactions/ledgers'
 import { MainRail } from '@/components/layout/MainRail'
 import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
 import { FormError } from '@/components/ui/form-message'
@@ -124,13 +124,20 @@ const LEDGER_ICONS: Record<Ledger, IconComponent> = {
   transfers: ArrowLeftRight,
 }
 
-/** The button that opens each ledger's record form. */
-const RECORD_LABELS: Record<Ledger, string> = {
-  dues: 'New Dues Payment',
-  donations: 'New Donation Payment',
-  contributions: 'New Contribution',
-  disbursements: 'New Disbursement',
-  transfers: 'New Transfer',
+/**
+ * The button that opens each ledger's record form.
+ *
+ * A FUNCTION OF `t` since 2026-08-29 — the conversion AGENTS.md prescribes for a
+ * module-level registry, and the last thing on this screen that was still English.
+ */
+function recordLabels(t: T): Record<Ledger, string> {
+  return {
+    dues: t('tx.newDuesPayment'),
+    donations: t('tx.newDonationPayment'),
+    contributions: t('tx.newContribution'),
+    disbursements: t('tx.newDisbursement'),
+    transfers: t('tx.newTransfer'),
+  }
 }
 
 /** Sentinel for "the giver is not a member" — reveals the free-text name field. */
@@ -141,19 +148,20 @@ const NON_MEMBER = 'non-member'
  * column's. 'dues_routing' is the automatic split of a paid dues or donation payment;
  * the other two are money someone handed over and someone recorded.
  */
-const SOURCE_LABELS: Record<string, string> = {
-  dues_routing: 'Routed',
-  admin_manual: 'Recorded',
-  member_contribution: 'From a member',
+function sourceLabel(t: T, source: string): string {
+  return ['dues_routing', 'admin_manual', 'member_contribution'].includes(source)
+    ? t(`tx.source.${source}`)
+    : source
 }
 
 // MOVED TO lib/dues-utils.ts, and a FUNCTION of `t` since Phase 5. My Summary's Payment
 // History dialog renders the same statuses, and a second copy of this map is a second
 // answer on the one pair of screens a family compares when a figure looks wrong.
 //
-// THIS SCREEN IS NOT TRANSLATED YET — the Transactions ledger is on Phase 5's admin pass.
-// Bound to English here rather than left broken, so the two statuses it shows still read
-// as words. When this file gets its pass, take `t` from `useT()` and delete this.
+// THIS SCREEN GOT ITS PASS ON 2026-08-29. `paymentStatusLabel(t, …)` is what renders the
+// two statuses now, and every literal below it is keyed — found by rendering the page as a
+// Spanish-reading member and diffing against the English, which is the only method that
+// sees a screen a static scan reports as clean.
 
 /**
  * One transaction rendered as a title and a flat list of labelled fields.
@@ -178,30 +186,30 @@ interface TransactionView {
  */
 const recorderField = (name: string | null, t: T) => ({
   label: t('tx.recorded'),
-  value: name ?? 'No longer in the family',
+  value: name ?? t('tx.noLongerInFamily'),
 })
 
 function viewOfPayment(p: DuesPayment | undefined, zone: string, t: T, intl: string): TransactionView | null {
   if (!p) return null
   const isReversal = Boolean(p.reverses_id)
-  const kindWord = p.schedule_kind === 'donation' ? 'Donation payment' : 'Dues payment'
+  const kindWord = p.schedule_kind === 'donation' ? t('tx.donationPayment') : t('tx.duesPayment')
   return {
-    title: p.person_name ?? 'Unknown member',
-    subtitle: isReversal ? `${kindWord} — correcting entry` : kindWord,
+    title: p.person_name ?? t('tx.unknownMember'),
+    subtitle: isReversal ? t('tx.correctingEntry', { kind: kindWord }) : kindWord,
     fields: [
-      { label: 'Amount', value: fmt(p.amount_cents) },
-      { label: 'Status', value: paymentStatusLabel(t, p.status) },
-      { label: p.schedule_kind === 'donation' ? 'Donation' : 'Schedule', value: p.schedule_label ?? 'No schedule' },
-      { label: 'Date', value: formatDate(p.payment_date, intl) },
+      { label: t('tx.amount'), value: fmt(p.amount_cents) },
+      { label: t('money.status'), value: paymentStatusLabel(t, p.status) },
+      { label: p.schedule_kind === 'donation' ? t('acct.section.donations') : t('tx.schedule'), value: p.schedule_label ?? t('tx.noSchedule') },
+      { label: t('money.date'), value: formatDate(p.payment_date, intl) },
       // Absent on a waived row by design — no money moved, so there was no method and
       // no cheque to number.
       { label: t('tx.paymentMethod2'), value: p.payment_method },
       { label: t('tx.checkReference'), value: p.payment_reference },
-      { label: 'Notes', value: p.notes },
+      { label: t('history.notes'), value: p.notes },
       recorderField(p.recorded_by_name, t),
-      { label: 'Entered', value: formatInstantDate(p.created_at, zone) },
-      ...(p.reversed_by_id ? [{ label: 'Reversed', value: 'Yes — a correcting entry cancels this payment' }] : []),
-      ...(isReversal ? [{ label: 'Corrects', value: 'An earlier payment on this ledger' }] : []),
+      { label: t('tx.entered'), value: formatInstantDate(p.created_at, zone) },
+      ...(p.reversed_by_id ? [{ label: t('tx.reversed'), value: t('tx.reversedByCorrecting') }] : []),
+      ...(isReversal ? [{ label: t('tx.corrects'), value: t('tx.correctsEarlierPayment') }] : []),
     ],
   }
 }
@@ -209,17 +217,17 @@ function viewOfPayment(p: DuesPayment | undefined, zone: string, t: T, intl: str
 function viewOfContribution(c: FundContribution | undefined, zone: string, t: T, intl: string): TransactionView | null {
   if (!c) return null
   return {
-    title: c.contributor_name ?? 'Routed from a payment',
-    subtitle: `Fund contribution — ${SOURCE_LABELS[c.source] ?? c.source}`,
+    title: c.contributor_name ?? t('tx.routedFromPayment'),
+    subtitle: t('tx.fundContribution', { source: sourceLabel(t, c.source) }),
     fields: [
-      { label: 'Amount', value: fmt(c.amount_cents) },
-      { label: 'Fund', value: c.fund_name ?? 'Unknown fund' },
-      { label: 'Date', value: formatDate(c.contributed_date, intl) },
+      { label: t('tx.amount'), value: fmt(c.amount_cents) },
+      { label: t('fnd.fund'), value: c.fund_name ?? t('tx.unknownFund') },
+      { label: t('money.date'), value: formatDate(c.contributed_date, intl) },
       { label: t('tx.paymentMethod2'), value: c.payment_method },
       { label: t('tx.checkReference'), value: c.payment_reference },
-      { label: 'Notes', value: c.notes },
+      { label: t('history.notes'), value: c.notes },
       recorderField(c.recorded_by_name, t),
-      { label: 'Entered', value: formatInstantDate(c.created_at, zone) },
+      { label: t('tx.entered'), value: formatInstantDate(c.created_at, zone) },
     ],
   }
 }
@@ -227,17 +235,17 @@ function viewOfContribution(c: FundContribution | undefined, zone: string, t: T,
 function viewOfDisbursement(d: FundDisbursement | undefined, zone: string, t: T, intl: string): TransactionView | null {
   if (!d) return null
   return {
-    title: d.person_name ?? 'Unknown member',
-    subtitle: 'Fund disbursement',
+    title: d.person_name ?? t('tx.unknownMember'),
+    subtitle: t('tx.fundDisbursement'),
     fields: [
-      { label: 'Amount', value: fmt(d.amount_cents) },
-      { label: 'Fund', value: d.fund_name ?? 'Unknown fund' },
-      { label: 'Milestone', value: d.milestone_name },
-      { label: 'Date', value: formatDate(d.disbursed_date, intl) },
+      { label: t('tx.amount'), value: fmt(d.amount_cents) },
+      { label: t('fnd.fund'), value: d.fund_name ?? t('tx.unknownFund') },
+      { label: t('tx.milestone'), value: d.milestone_name },
+      { label: t('money.date'), value: formatDate(d.disbursed_date, intl) },
       { label: t('tx.checkReference'), value: d.payment_reference },
-      { label: 'Notes', value: d.notes },
+      { label: t('history.notes'), value: d.notes },
       recorderField(d.recorded_by_name, t),
-      { label: 'Entered', value: formatInstantDate(d.created_at, zone) },
+      { label: t('tx.entered'), value: formatInstantDate(d.created_at, zone) },
     ],
   }
 }
@@ -249,16 +257,16 @@ function viewOfDisbursement(d: FundDisbursement | undefined, zone: string, t: T,
 function viewOfTransfer(tr: FundTransfer | undefined, zone: string, t: T, intl: string): TransactionView | null {
   if (!tr) return null
   return {
-    title: `${tr.from_fund_name ?? 'Unknown fund'} → ${tr.to_fund_name ?? 'Unknown fund'}`,
-    subtitle: 'Fund transfer — money moved within the family',
+    title: `${tr.from_fund_name ?? t('tx.unknownFund')} → ${tr.to_fund_name ?? t('tx.unknownFund')}`,
+    subtitle: t('tx.fundTransfer'),
     fields: [
-      { label: 'Amount', value: fmt(tr.amount_cents) },
-      { label: 'From', value: tr.from_fund_name ?? 'Unknown fund' },
-      { label: 'To', value: tr.to_fund_name ?? 'Unknown fund' },
-      { label: 'Date', value: formatDate(tr.transferred_date, intl) },
-      { label: 'Reason', value: tr.reason },
+      { label: t('tx.amount'), value: fmt(tr.amount_cents) },
+      { label: t('tx.fromLabel'), value: tr.from_fund_name ?? t('tx.unknownFund') },
+      { label: t('tx.toLabel'), value: tr.to_fund_name ?? t('tx.unknownFund') },
+      { label: t('money.date'), value: formatDate(tr.transferred_date, intl) },
+      { label: t('tx.reason'), value: tr.reason },
       recorderField(tr.recorded_by_name, t),
-      { label: 'Entered', value: formatInstantDate(tr.created_at, zone) },
+      { label: t('tx.entered'), value: formatInstantDate(tr.created_at, zone) },
     ],
   }
 }
@@ -540,32 +548,34 @@ export function TransactionsClient({
    */
   async function handleReverse(payment: DuesPayment) {
     const ok = await confirm({
-      title: 'Reverse this payment',
-      description:
-        `Post a correcting entry of ${fmt(-payment.amount_cents)} against ${payment.person_name ?? 'this member'}'s `
-        + `${fmt(payment.amount_cents)} payment? The original stays on the ledger — reversing is how a `
-        + 'mistake is corrected, because posted payments cannot be edited or deleted. '
-        + 'Any money this payment routed into funds is taken back out of the same funds.',
-      confirmLabel: 'Post reversal',
+      title: t('tx.reverseThisPayment'),
+      // ONE KEY, not a chain of concatenated clauses: a sentence spliced around two figures
+      // and a name hard-codes English word order, and no catalogue can hold a third of it.
+      description: t('tx.reverseConfirm', {
+        credit: fmt(-payment.amount_cents),
+        member: payment.person_name ?? t('tx.thisMember'),
+        amount: fmt(payment.amount_cents),
+      }),
+      confirmLabel: t('tx.postReversal'),
       destructive: true,
     })
     if (!ok) return
     setError('')
     startTransition(async () => {
       const result = await reversePayment(payment.id, '')
-      if (!result.success) { setError(result.message ?? 'Failed to reverse'); return }
+      if (!result.success) { setError(result.message ?? t('tx.failedToReverse')); return }
       router.refresh()
     })
   }
 
   function handleRecordPayment() {
-    if (!rpPersonId || !rpScheduleId || !rpAmount) { setError('Member, schedule and amount required'); return }
+    if (!rpPersonId || !rpScheduleId || !rpAmount) { setError(t('tx.memberScheduleAmountRequired')); return }
     // A donation has no waived form — nobody owed it — so the dialog hides Status and
     // this is always false there.
     const waived = payingKind !== 'donation' && rpStatus === 'waived'
     if (!waived) {
-      if (!rpMethod) { setError('Choose how the payment was made'); return }
-      if (!rpReference.trim()) { setError('Enter the check number or reference for the payment'); return }
+      if (!rpMethod) { setError(t('tx.chooseHowPaymentMade')); return }
+      if (!rpReference.trim()) { setError(t('tx.enterCheckPayment')); return }
     }
     setError('')
     const kind = payingKind
@@ -586,7 +596,7 @@ export function TransactionsClient({
         payment_reference: reference,
         notes: rpNotes || null,
       })
-      if (!result.success) { setError(result.message ?? 'Failed'); return }
+      if (!result.success) { setError(result.message ?? t('action.failed')); return }
       const cents = Math.round(parseFloat(rpAmount) * 100)
       const member = members.find(m => m.id === rpPersonId)
       const schedule = schedules.find(s => s.id === rpScheduleId)
@@ -616,11 +626,11 @@ export function TransactionsClient({
   }
 
   function handleRecordContribution() {
-    if (!fcFundId || !fcAmount) { setError('Fund and amount required'); return }
-    if (!fcGiver) { setError('Choose who the contribution came from'); return }
-    if (fcGiver === NON_MEMBER && !fcGiverName.trim()) { setError('Name who the contribution came from'); return }
-    if (!fcMethod) { setError('Choose how the contribution was given'); return }
-    if (!fcReference.trim()) { setError('Enter the check number or reference for the contribution'); return }
+    if (!fcFundId || !fcAmount) { setError(t('tx.fundAndAmountRequired')); return }
+    if (!fcGiver) { setError(t('tx.chooseWhoContributionFrom')); return }
+    if (fcGiver === NON_MEMBER && !fcGiverName.trim()) { setError(t('tx.nameWhoContributionFrom')); return }
+    if (!fcMethod) { setError(t('tx.chooseHowContributionGiven')); return }
+    if (!fcReference.trim()) { setError(t('tx.enterCheckContribution')); return }
     setError('')
     const cents = dollarsToCents(fcAmount)
     const fundId = fcFundId
@@ -668,8 +678,8 @@ export function TransactionsClient({
   }
 
   function handleRecordDisbursement() {
-    if (!rdFundId || !rdPersonId || !rdAmount) { setError('Fund, member, and amount required'); return }
-    if (!rdReference.trim()) { setError('Enter the check number or reference for the disbursement'); return }
+    if (!rdFundId || !rdPersonId || !rdAmount) { setError(t('tx.fundMemberAmountRequired')); return }
+    if (!rdReference.trim()) { setError(t('tx.enterCheckDisbursement')); return }
     setError('')
     const cents = Math.round(parseFloat(rdAmount) * 100)
     const fundId = rdFundId, personId = rdPersonId, milestoneId = rdMilestoneId || null
@@ -684,7 +694,7 @@ export function TransactionsClient({
         payment_reference: reference,
         notes,
       })
-      if (!result.success) { setError(result.message ?? 'Failed'); return }
+      if (!result.success) { setError(result.message ?? t('action.failed')); return }
       const fund = funds.find(f => f.id === fundId)
       const person = members.find(m => m.id === personId)
       const milestone = milestones.find(m => m.id === milestoneId)
@@ -710,11 +720,11 @@ export function TransactionsClient({
   }
 
   function handleTransfer() {
-    if (!tfFromId || !tfToId || !tfAmount) { setError('Both funds and an amount are required'); return }
-    if (tfFromId === tfToId) { setError('Choose two different funds'); return }
-    if (!tfReason.trim()) { setError('Say why the money is being moved'); return }
+    if (!tfFromId || !tfToId || !tfAmount) { setError(t('tx.bothFundsAmountRequired')); return }
+    if (tfFromId === tfToId) { setError(t('tx.chooseTwoDifferentFunds')); return }
+    if (!tfReason.trim()) { setError(t('tx.sayWhyMoneyMoved')); return }
     const cents = dollarsToCents(tfAmount)
-    if (cents <= 0) { setError('Enter an amount greater than zero'); return }
+    if (cents <= 0) { setError(t('tx.enterAmountAboveZero')); return }
     // Checked here as well as in the action, because being told before typing the rest
     // of the form is the difference between a hint and a rejection. The action is still
     // the gate — this list is as fresh as the last server render.
@@ -732,7 +742,7 @@ export function TransactionsClient({
         transferred_date: date,
         reason,
       })
-      if (!result.success) { setError(result.message ?? 'Failed'); return }
+      if (!result.success) { setError(result.message ?? t('action.failed')); return }
       setTransfers(prev => [{
         id: `temp-${Date.now()}`,
         from_fund_id: fromId,
@@ -789,10 +799,10 @@ export function TransactionsClient({
           It replaced a 16rem left column, which is why the pane below is now full
           width. */}
       <MainRail
-        label="Transaction ledgers"
+        label={t('tx.transactionLedgers')}
         items={visibleLedgers.map(id => ({
           id,
-          label: LEDGER_LABELS[id],
+          label: ledgerLabels(t)[id],
           icon: LEDGER_ICONS[id],
           href: `/accounting/transactions?ledger=${id}`,
         }))}
@@ -806,7 +816,7 @@ export function TransactionsClient({
             variant="affirm"
             onClick={() => { setError(''); setRecording(ledger) }}
           >
-            <CirclePlus className="h-4 w-4 mr-1" /> {RECORD_LABELS[ledger]}
+            <CirclePlus className="h-4 w-4 mr-1" /> {recordLabels(t)[ledger]}
           </Button>
         )}
       />
@@ -845,16 +855,16 @@ export function TransactionsClient({
                       <LedgerRowTrigger onOpen={() => setViewing({ ledger: 'contributions', id: c.id })}>
                         {/* A routed row has no giver — the money came from a payment, not
                             from someone handing it over. */}
-                        {c.contributor_name ?? 'Routed from a payment'}
+                        {c.contributor_name ?? t('tx.routedFromPayment')}
                       </LedgerRowTrigger>
                       {c.notes && <p className="text-xs text-muted-foreground">{c.notes}</p>}
                       <RowMeta>
-                        <span>{c.fund_name ?? 'Unknown fund'}</span>
+                        <span>{c.fund_name ?? t('tx.unknownFund')}</span>
                         <MetaDot />
                         <span>{formatDate(c.contributed_date, intl)}</span>
                       </RowMeta>
                     </td>
-                    <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{c.fund_name ?? 'Unknown fund'}</td>
+                    <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{c.fund_name ?? t('tx.unknownFund')}</td>
                     <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(c.contributed_date, intl)}</td>
                     <td className="px-3 py-2.5 text-right align-top font-medium text-brand-affirm whitespace-nowrap sm:align-middle">{fmt(c.amount_cents)}</td>
                   </LedgerRow>
@@ -985,7 +995,7 @@ export function TransactionsClient({
               ))}
             </dl>
             <div className="pt-4">
-              <Button variant="outline" className="w-full" onClick={() => setViewing(null)}>Close</Button>
+              <Button variant="outline" className="w-full" onClick={() => setViewing(null)}>{t('action.close')}</Button>
             </div>
           </div>
         )}
@@ -995,24 +1005,24 @@ export function TransactionsClient({
       <Dialog
         open={recording === 'dues' || recording === 'donations'}
         onClose={() => setRecording(null)}
-        title={payingKind === 'donation' ? 'New Donation Payment' : 'New Dues Payment'}
+        title={payingKind === 'donation' ? t('tx.newDonationPayment') : t('tx.newDuesPayment')}
         description={payingKind === 'donation'
-          ? 'Record a gift a member has already given.'
-          : 'Record dues a member has already paid.'}
+          ? t('tx.recordGiftLede')
+          : t('tx.recordDuesLede')}
         className="max-w-lg"
       >
         <div className="space-y-3 mt-2">
           <div className="space-y-1.5">
-            <Label required>Member</Label>
+            <Label required>{t('pend.member')}</Label>
             <Select value={rpPersonId} onChange={e => setRpPersonId(e.target.value)} autoFocus>
-              <option value="">— Select member —</option>
+              <option value="">{t('tx.selectMember')}</option>
               {members.map(m => <option key={m.id} value={m.id}>{disambiguatedName(m, members)}</option>)}
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label required>{payingKind === 'donation' ? 'Donation' : 'Schedule'}</Label>
+            <Label required>{payingKind === 'donation' ? t('acct.section.donations') : t('tx.schedule')}</Label>
             <Select value={rpScheduleId} onChange={e => setRpScheduleId(e.target.value)}>
-              <option value="">— Select —</option>
+              <option value="">{t('tx.selectOne')}</option>
               {payableSchedules.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
             </Select>
             {payableSchedules.length === 0 && (
@@ -1021,11 +1031,11 @@ export function TransactionsClient({
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label required>Amount ($)</Label>
+              <Label required>{t('tx.amountDollars')}</Label>
               <Input type="number" min="0" step="0.01" value={rpAmount} onChange={e => setRpAmount(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label required>Date</Label>
+              <Label required>{t('money.date')}</Label>
               <Input type="date" value={rpDate} onChange={e => setRpDate(e.target.value)} />
             </div>
           </div>
@@ -1035,10 +1045,10 @@ export function TransactionsClient({
               recordPayment enforces both halves; this only decides what is asked. */}
           {payingKind !== 'donation' && (
             <div className="space-y-1.5">
-              <Label>Status</Label>
+              <Label>{t('money.status')}</Label>
               <Select value={rpStatus} onChange={e => setRpStatus(e.target.value as typeof rpStatus)}>
-                <option value="paid">Paid</option>
-                <option value="waived">Waived</option>
+                <option value="paid">{t('money.paid')}</option>
+                <option value="waived">{t('payStatus.waived')}</option>
               </Select>
               {rpStatus === 'waived' && (
                 <p className="text-xs text-muted-foreground">{t('tx.waivingForgivesDueNo')}</p>
@@ -1052,7 +1062,7 @@ export function TransactionsClient({
               <div className="space-y-1.5">
                 <Label required>{t('tx.paymentMethod')}</Label>
                 <Select value={rpMethod} onChange={e => setRpMethod(e.target.value)}>
-                  <option value="">— Select method —</option>
+                  <option value="">{t('tx.selectMethod')}</option>
                   {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
                 </Select>
               </div>
@@ -1071,15 +1081,15 @@ export function TransactionsClient({
               at one row and adds rows as the text wraps, up to the cap in
               components/ui/textarea.tsx, after which it scrolls. */}
           <div className="space-y-1.5">
-            <Label>Notes</Label>
+            <Label>{t('history.notes')}</Label>
             <Textarea autoGrow rows={1} value={rpNotes} onChange={e => setRpNotes(e.target.value)} placeholder={t('tx.optionalNotes')} />
           </div>
           <FormError message={error} />
           <div className="flex gap-2 pt-1">
             <Button className="flex-1" onClick={handleRecordPayment} disabled={isPending}>
-              {isPending ? 'Recording…' : 'Record Payment'}
+              {isPending ? t('tx.recording') : t('tx.recordPayment')}
             </Button>
-            <Button variant="outline" onClick={() => setRecording(null)} disabled={isPending}>Cancel</Button>
+            <Button variant="outline" onClick={() => setRecording(null)} disabled={isPending}>{t('action.cancel')}</Button>
           </div>
         </div>
       </Dialog>
@@ -1089,21 +1099,21 @@ export function TransactionsClient({
         open={recording === 'contributions'}
         onClose={() => setRecording(null)}
         title={t('tx.newContribution')}
-        description="Money added to a fund directly, outside of dues routing."
+        description={t('tx.contributionLede')}
         className="max-w-lg"
       >
         <div className="space-y-3 mt-2">
           <div className="space-y-1.5">
-            <Label required>Fund</Label>
+            <Label required>{t('fnd.fund')}</Label>
             <Select value={fcFundId} onChange={e => setFcFundId(e.target.value)} autoFocus>
-              <option value="">— Select fund —</option>
+              <option value="">{t('tx.selectFund')}</option>
               {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </Select>
           </div>
           <div className="space-y-1.5">
             <Label required>{t('tx.whoGave')}</Label>
             <Select value={fcGiver} onChange={e => setFcGiver(e.target.value)}>
-              <option value="">— Select —</option>
+              <option value="">{t('tx.selectOne')}</option>
               {members.map(m => <option key={m.id} value={m.id}>{disambiguatedName(m, members)}</option>)}
               <option value={NON_MEMBER}>{t('tx.someoneSomethingElse')}</option>
             </Select>
@@ -1122,7 +1132,7 @@ export function TransactionsClient({
             <div className="space-y-1.5">
               <Label required>{t('tx.paymentMethod')}</Label>
               <Select value={fcMethod} onChange={e => setFcMethod(e.target.value)}>
-                <option value="">— Select method —</option>
+                <option value="">{t('tx.selectMethod')}</option>
                 {PAYMENT_METHODS.map(m => <option key={m} value={m}>{m}</option>)}
               </Select>
             </div>
@@ -1133,24 +1143,24 @@ export function TransactionsClient({
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label required>Amount ($)</Label>
+              <Label required>{t('tx.amountDollars')}</Label>
               <Input type="number" min="0" step="0.01" value={fcAmount} onChange={e => setFcAmount(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label required>Date</Label>
+              <Label required>{t('money.date')}</Label>
               <Input type="date" value={fcDate} onChange={e => setFcDate(e.target.value)} />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label>Notes</Label>
+            <Label>{t('history.notes')}</Label>
             <Textarea autoGrow rows={1} value={fcNotes} onChange={e => setFcNotes(e.target.value)} placeholder={t('tx.optionalNotes')} />
           </div>
           <FormError message={error} />
           <div className="flex gap-2 pt-1">
             <Button className="flex-1" onClick={handleRecordContribution} disabled={isPending}>
-              {isPending ? 'Recording…' : 'Add Contribution'}
+              {isPending ? t('tx.recording') : t('tx.addContribution')}
             </Button>
-            <Button variant="outline" onClick={() => setRecording(null)} disabled={isPending}>Cancel</Button>
+            <Button variant="outline" onClick={() => setRecording(null)} disabled={isPending}>{t('action.cancel')}</Button>
           </div>
         </div>
       </Dialog>
@@ -1160,14 +1170,14 @@ export function TransactionsClient({
         open={recording === 'disbursements'}
         onClose={() => setRecording(null)}
         title={t('tx.newDisbursement')}
-        description="Money paid out of a fund to a member."
+        description={t('tx.disbursementLede')}
         className="max-w-lg"
       >
         <div className="space-y-3 mt-2">
           <div className="space-y-1.5">
-            <Label required>Fund</Label>
+            <Label required>{t('fnd.fund')}</Label>
             <Select value={rdFundId} onChange={e => { setRdFundId(e.target.value); setRdMilestoneId('') }} autoFocus>
-              <option value="">— Select fund —</option>
+              <option value="">{t('tx.selectFund')}</option>
               {funds.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
             </Select>
           </div>
@@ -1181,25 +1191,25 @@ export function TransactionsClient({
                   if (m) setRdAmount((m.amount_cents / 100).toFixed(2))
                 }
               }}>
-                <option value="">— None —</option>
+                <option value="">{t('tx.selectNone')}</option>
                 {filteredMilestones.map(m => <option key={m.id} value={m.id}>{m.name} ({fmt(m.amount_cents)})</option>)}
               </Select>
             </div>
           )}
           <div className="space-y-1.5">
-            <Label required>Recipient</Label>
+            <Label required>{t('tx.recipient')}</Label>
             <Select value={rdPersonId} onChange={e => setRdPersonId(e.target.value)}>
-              <option value="">— Select member —</option>
+              <option value="">{t('tx.selectMember')}</option>
               {members.map(m => <option key={m.id} value={m.id}>{disambiguatedName(m, members)}</option>)}
             </Select>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label required>Amount ($)</Label>
+              <Label required>{t('tx.amountDollars')}</Label>
               <Input type="number" min="0" step="0.01" value={rdAmount} onChange={e => setRdAmount(e.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label required>Date</Label>
+              <Label required>{t('money.date')}</Label>
               <Input type="date" value={rdDate} onChange={e => setRdDate(e.target.value)} />
             </div>
           </div>
@@ -1208,15 +1218,15 @@ export function TransactionsClient({
             <Input value={rdReference} onChange={e => setRdReference(e.target.value)} placeholder={t('tx.check1043')} />
           </div>
           <div className="space-y-1.5">
-            <Label>Notes</Label>
+            <Label>{t('history.notes')}</Label>
             <Textarea autoGrow rows={1} value={rdNotes} onChange={e => setRdNotes(e.target.value)} placeholder={t('tx.optionalNotes')} />
           </div>
           <FormError message={error} />
           <div className="flex gap-2 pt-1">
             <Button className="flex-1" onClick={handleRecordDisbursement} disabled={isPending}>
-              {isPending ? 'Recording…' : 'Record Disbursement'}
+              {isPending ? t('tx.recording') : t('tx.recordDisbursement')}
             </Button>
-            <Button variant="outline" onClick={() => setRecording(null)} disabled={isPending}>Cancel</Button>
+            <Button variant="outline" onClick={() => setRecording(null)} disabled={isPending}>{t('action.cancel')}</Button>
           </div>
         </div>
       </Dialog>
@@ -1226,7 +1236,7 @@ export function TransactionsClient({
         open={recording === 'transfers'}
         onClose={() => setRecording(null)}
         title={t('tx.newTransfer')}
-        description="Move money from one fund to another. Nothing leaves the family."
+        description={t('tx.transferLede')}
         className="max-w-lg"
       >
         <div className="space-y-3 mt-2">
@@ -1234,22 +1244,22 @@ export function TransactionsClient({
               the only way to get this form wrong is to ask for more than a fund holds,
               and the answer is on screen before the question is asked. */}
           <div className="space-y-1.5">
-            <Label required>From</Label>
+            <Label required>{t('tx.fromLabel')}</Label>
             <Select value={tfFromId} onChange={e => setTfFromId(e.target.value)} autoFocus>
-              <option value="">— Select fund —</option>
+              <option value="">{t('tx.selectFund')}</option>
               {transferFunds.map(f => (
                 <option key={f.id} value={f.id}>{f.name} ({fmt(f.balance_cents)})</option>
               ))}
             </Select>
           </div>
           <div className="space-y-1.5">
-            <Label required>To</Label>
+            <Label required>{t('tx.toLabel')}</Label>
             {/* The source is filtered OUT rather than left in and rejected. Money cannot
                 move to where it already is, the database refuses it
                 (fund_transfers_distinct_funds), and an option that can only ever produce
                 an error is not a choice. */}
             <Select value={tfToId} onChange={e => setTfToId(e.target.value)}>
-              <option value="">— Select fund —</option>
+              <option value="">{t('tx.selectFund')}</option>
               {transferFunds.filter(f => f.id !== tfFromId).map(f => (
                 <option key={f.id} value={f.id}>{f.name} ({fmt(f.balance_cents)})</option>
               ))}
@@ -1257,7 +1267,7 @@ export function TransactionsClient({
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label required>Amount ($)</Label>
+              <Label required>{t('tx.amountDollars')}</Label>
               <Input
                 type="number" min="0" step="0.01"
                 value={tfAmount} onChange={e => setTfAmount(e.target.value)}
@@ -1267,7 +1277,7 @@ export function TransactionsClient({
               )}
             </div>
             <div className="space-y-1.5">
-              <Label required>Date</Label>
+              <Label required>{t('money.date')}</Label>
               <Input type="date" value={tfDate} onChange={e => setTfDate(e.target.value)} />
             </div>
           </div>
@@ -1275,7 +1285,7 @@ export function TransactionsClient({
               check number because something crossed the family's boundary; nothing did
               here, so the one thing worth recording is why the money moved. */}
           <div className="space-y-1.5">
-            <Label required>Reason</Label>
+            <Label required>{t('tx.reason')}</Label>
             <Textarea
               autoGrow rows={1}
               value={tfReason} onChange={e => setTfReason(e.target.value)}
@@ -1286,9 +1296,9 @@ export function TransactionsClient({
           <FormError message={error} />
           <div className="flex gap-2 pt-1">
             <Button className="flex-1" onClick={handleTransfer} disabled={isPending}>
-              {isPending ? 'Transferring…' : 'Transfer Funds'}
+              {isPending ? t('tx.transferring') : t('tx.transferFunds')}
             </Button>
-            <Button variant="outline" onClick={() => setRecording(null)} disabled={isPending}>Cancel</Button>
+            <Button variant="outline" onClick={() => setRecording(null)} disabled={isPending}>{t('action.cancel')}</Button>
           </div>
         </div>
       </Dialog>
@@ -1319,8 +1329,8 @@ function PaymentStatusPill({ payment }: { payment: DuesPayment }) {
           : payment.status === 'waived' ? 'bg-muted text-muted-foreground'
             : 'bg-brand-legacy text-brand-on-legacy',
     )}>
-      {isReversed ? 'Reversed'
-        : isReversal ? 'Correcting entry'
+      {isReversed ? t('tx.reversed')
+        : isReversal ? t('tx.correctingEntryPill')
           : paymentStatusLabel(t, payment.status)}
     </span>
   )
@@ -1355,11 +1365,12 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
   onOpen: (id: string) => void
   pending: boolean
 }) {
+  const t = useT()
   const intl = useIntlTag()
   if (rows.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        {kind === 'donations' ? 'No donations received yet.' : 'No dues payments recorded yet.'}
+        {kind === 'donations' ? t('tx.noDonationsYet') : t('tx.noDuesPaymentsYet')}
       </p>
     )
   }
@@ -1397,7 +1408,7 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
               {/* Below sm the schedule, the date and (on dues) the status pill come and
                   sit here, because their columns are gone. See LedgerTable. */}
               <RowMeta>
-                <span>{p.schedule_label ?? 'No schedule'}</span>
+                <span>{p.schedule_label ?? t('tx.noSchedule')}</span>
                 <MetaDot />
                 <span>{formatDate(p.payment_date, intl)}</span>
                 {/* On Donations the pill is already conditional in the wide layout — an
@@ -1407,7 +1418,7 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
             </td>
             <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
               <span className="flex flex-wrap items-center gap-2">
-                {p.schedule_label ?? 'No schedule'}
+                {p.schedule_label ?? t('tx.noSchedule')}
                 {/* Donations only, and only when the row is not an ordinary one: this is
                     where Reversed / Correcting entry lives once the Status column is
                     gone. A plain donation says nothing here. */}

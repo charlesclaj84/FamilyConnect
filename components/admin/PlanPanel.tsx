@@ -460,7 +460,7 @@ export function PlanPanel({ tier, canEdit, billing }: {
                       withdrawn on 2026-08-19 — see `TIER_PRICE`. "No annual plan" replaces them
                       rather than a bare "/month": a figure with no term beside it invites an
                       administrator to assume a commitment, and there is none to make. */}
-                  <span className="text-muted-foreground"> /month · no annual plan</span>
+                  <span className="text-muted-foreground">{t('plan.perMonthNoAnnual')}</span>
                 </p>
               )}
 

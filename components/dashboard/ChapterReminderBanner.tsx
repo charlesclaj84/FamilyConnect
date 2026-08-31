@@ -95,7 +95,7 @@ export function ChapterReminderBanner({ chapters }: Props) {
             className="flex-1 h-9 text-sm"
             disabled={isPending}
           >
-            <option value="">— Select your chapter —</option>
+            <option value="">{t('dash.selectYourChapter')}</option>
             {chapters.map(c => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}

@@ -1027,7 +1027,7 @@ export function Sidebar({ viewable }: {
         <nav className="mt-4 flex flex-col">
           <NavTree groups={navGroups} pathname={pathname} t={t} />
         </nav>
-        <RailMotto />
+        <RailMotto t={t} />
       </div>
     </aside>
   )
@@ -1073,7 +1073,7 @@ export function MobileNav({ viewable }: {
         aria-expanded={mobileOpen ? 'true' : 'false'}
       >
         <Menu className="h-4 w-4" />
-        Menu
+        {t('nav.menu')}
       </button>
 
       {mobileOpen && (
@@ -1111,7 +1111,7 @@ export function MobileNav({ viewable }: {
                 alone. */}
             <nav className="relative z-10 flex flex-col overflow-y-auto py-3 pl-3 pr-9">
               <NavTree groups={navGroups} pathname={pathname} onNavClick={() => setMobileOpen(false)} t={t} />
-              <RailMotto />
+              <RailMotto t={t} />
             </nav>
             {/* The rail-windowed variant, not the shell one: a drawer is a 16rem panel
                 with nothing beside it, so a hill drawn to run 400 units past the rail

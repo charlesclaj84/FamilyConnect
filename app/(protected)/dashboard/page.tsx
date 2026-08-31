@@ -41,7 +41,7 @@ import { RecentUpdates } from '@/components/dashboard/RecentUpdates'
 import { mergeUpdates } from '@/components/dashboard/updates'
 import {
   TILE_RESOURCE, QUICK_ACTION_GRANT, routeForGrant, DUES_COLLECTED_RESOURCE,
-  ELECTION_ACTION_LABEL,
+  electionActionLabel,
   type ResolvedTile, type ResolvedQuickAction,
 } from '@/components/dashboard/tiles'
 import { isFeatureLive } from '@/lib/features'
@@ -494,7 +494,7 @@ export default async function DashboardPage() {
     ...(actionableElection
       ? [{
         id: 'election' as const,
-        label: ELECTION_ACTION_LABEL[actionableElection.phase],
+        label: electionActionLabel(t, actionableElection.phase),
         href: `/community/elections/${actionableElection.id}`,
       }]
       : []),

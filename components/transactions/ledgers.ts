@@ -17,16 +17,31 @@
  * boundary or an icon set into its module graph.
  */
 
+import { type T } from '@/lib/i18n/t'
+
 export const LEDGERS = ['dues', 'donations', 'contributions', 'disbursements', 'transfers'] as const
 
 export type Ledger = (typeof LEDGERS)[number]
 
-export const LEDGER_LABELS: Record<Ledger, string> = {
-  dues: 'Dues',
-  donations: 'Donations',
-  contributions: 'Contributions',
-  disbursements: 'Disbursements',
-  transfers: 'Transfers',
+/**
+ * The five ledger tabs, in the reader's language.
+ *
+ * A FUNCTION OF `t` since 2026-08-29 — the conversion AGENTS.md prescribes for a
+ * module-level registry. The IDS are the contract: they are in `?ledger=`, in `ALIASES`
+ * below and in `LEDGER_RESOURCE`, and none of them moved. Only the captions did.
+ *
+ * This module stays free of React and of the catalogue — the `T` import is type-only and
+ * erased — because the Transactions page is a Server Component that resolves `?ledger=`
+ * before rendering anything.
+ */
+export function ledgerLabels(t: T): Record<Ledger, string> {
+  return {
+    dues: t('ledger.dues'),
+    donations: t('ledger.donations'),
+    contributions: t('ledger.contributions'),
+    disbursements: t('ledger.disbursements'),
+    transfers: t('ledger.transfers'),
+  }
 }
 
 /** Landing ledger when `?ledger=` is absent or unreadable. */

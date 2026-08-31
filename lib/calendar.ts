@@ -312,6 +312,21 @@ export function buildCalendarMonth(
   month: string,
   today: string,
   entries: readonly CalendarEntry[],
+  /**
+   * The reader's BCP-47 tag, for the month heading.
+   *
+   * ── IT DEFAULTS TO ENGLISH, AND THAT DEFAULT WAS THE BUG ────────────────────────
+   * `monthLabel` has taken a locale since it was written and says in its own comment that
+   * *"this is a heading somebody reads — 'August 2026' / 'agosto de 2026' — so it follows the
+   * reader"*. This function then called it with no locale at all, so every calendar in the
+   * product printed an English month to every reader. Found by rendering the page in two
+   * languages and diffing: the heading was the same string in both.
+   *
+   * OPTIONAL rather than required, because `lib/calendar.test.ts` builds ~40 months and the
+   * month NAME is not what any of them asserts — a required parameter would be forty edits
+   * to say nothing. The one real caller passes it.
+   */
+  intl: string = 'en-US',
 ): CalendarMonth {
   if (!isValidMonth(month)) throw new TypeError(`buildCalendarMonth: not a YYYY-MM month: ${String(month)}`)
   const { year, monthNumber } = monthParts(month)
@@ -371,7 +386,7 @@ export function buildCalendarMonth(
 
   return {
     month,
-    label: monthLabel(month),
+    label: monthLabel(month, intl),
     weeks,
     prevMonth: shiftMonth(month, -1),
     nextMonth: shiftMonth(month, 1),

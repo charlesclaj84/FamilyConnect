@@ -84,7 +84,7 @@ export function FamilyTreeCard({ summary, t }: {
         <div className="min-w-0 space-y-3">
           <Figure value={generations} label={generations === 1 ? t('dash.tree.generationOne') : t('dash.tree.generationMany')} />
           <Figure value={people} label={people === 1 ? 'Member' : 'Members'} />
-          <Figure value={leaves} label={leaves === 1 ? 'Leaf' : 'Leaves'} />
+          <Figure value={leaves} label={leaves === 1 ? t('dash.tree.leafOne') : t('dash.tree.leavesMany')} />
         </div>
 
         {/* ── THE ILLUSTRATION ──────────────────────────────────────────────────────

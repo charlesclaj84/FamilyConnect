@@ -151,6 +151,155 @@ export const en: Catalogue = {
   // translated, because a member looking for their own language scans for the word they would
   // use for it and that word does not change with the interface they are reading.
   'language.choose': 'Choose a language',
+  // ── BATCH 1 OF THE 2026-08-29 SWEEP ────────────────────────────────────────
+  // Found by rendering every route as a Spanish-reading member and again as an English
+  // one and diffing the visible text — see the note above `i18n:literals`' ceiling on why
+  // a static scan could not see these. `field.required` is the sharpest of them: it is
+  // read aloud beside the asterisk on EVERY required field in the product.
+  'field.required': '(required)',
+  'dash.viewDirectory': 'View directory',
+  'dash.reviewQueue': 'Review queue',
+  'dash.viewCalendar': 'View calendar',
+  'dash.election.nominations': 'Nominate',
+  'dash.election.voting': 'Vote',
+  'dash.selectYourChapter': '— Select your chapter —',
+  'gath.comingUp': 'Coming up',
+  'gath.alreadyHeld': 'Already held',
+  'gath.nothingPlannedYet': 'Nothing is planned yet.',
+  'gath.nothingHeldYet': 'Nothing has been held yet.',
+  'cards.nextInstallmentOne': 'Next Installment',
+  'cards.nextInstallmentsMany': 'Next Installments',
+  // ── BATCH 2 OF THE 2026-08-29 SWEEP ────────────────────────────────────────
+  // `tree.bloodlineFrom*` is the one worth reading: it was six JSX fragments spliced
+  // around two names, which hard-codes ENGLISH WORD ORDER and cannot be translated at
+  // all. One key with `{anchor}` and `{parents}` lets each language put the names where
+  // that language puts them.
+  'dash.tree.leafOne': 'Leaf',
+  'dash.tree.leavesMany': 'Leaves',
+  'plan.perMonthNoAnnual': ' /month · no annual plan',
+  'set.removalKeepsEverything': 'Every payment, fund, photograph, event, message and person stays exactly where it is. Removing is not a way to erase anything — and it is not something you can undo from here:',
+  'set.onlySupportRestores': 'only GENORRA support can bring a family back.',
+  'tree.dashedCardsAreGaps': '· Dashed cards are gaps you can fill',
+  'tree.removingNeverRemoves': '· Removing a connection never removes anyone from the family',
+  'tree.thePersonNamedAbove': 'the person named above',
+  'tree.thatParent': 'that parent',
+  'tree.bloodlineFromOneParent': 'The bloodline is being worked out from {anchor}, who has a parent on the tree — so {parents} and everybody they descend from count as blood, on both sides. A spouse who married in is included that way.',
+  'tree.bloodlineFromParents': 'The bloodline is being worked out from {anchor}, who has parents on the tree — so {parents} and everybody they descend from count as blood, on both sides. A spouse who married in is included that way.',
+  // ── THE TRANSACTIONS LEDGER, 2026-08-29 ────────────────────────────────────
+  // This screen carried a note saying it was "not translated yet — on Phase 5's admin
+  // pass", and it was the densest concentration of English left in the product: every
+  // field label in the detail dialog, every validator refusal, and both module-level
+  // registries. `tx.reverseConfirm` is one key rather than the five concatenated clauses
+  // it replaced — a sentence spliced around two figures and a name hard-codes English
+  // word order and cannot be translated at all.
+  'tx.newDuesPayment': 'New Dues Payment',
+  'tx.newDonationPayment': 'New Donation Payment',
+  'tx.source.dues_routing': 'Routed',
+  'tx.source.admin_manual': 'Recorded',
+  'tx.source.member_contribution': 'From a member',
+  'tx.noLongerInFamily': 'No longer in the family',
+  'tx.donationPayment': 'Donation payment',
+  'tx.duesPayment': 'Dues payment',
+  'tx.unknownMember': 'Unknown member',
+  'tx.correctingEntry': '{kind} — correcting entry',
+  'tx.correctingEntryPill': 'Correcting entry',
+  'tx.amount': 'Amount',
+  'tx.amountDollars': 'Amount ($)',
+  'tx.schedule': 'Schedule',
+  'tx.noSchedule': 'No schedule',
+  'tx.entered': 'Entered',
+  'tx.reversed': 'Reversed',
+  'tx.reversedByCorrecting': 'Yes — a correcting entry cancels this payment',
+  'tx.corrects': 'Corrects',
+  'tx.correctsEarlierPayment': 'An earlier payment on this ledger',
+  'tx.routedFromPayment': 'Routed from a payment',
+  'tx.fundContribution': 'Fund contribution — {source}',
+  'tx.unknownFund': 'Unknown fund',
+  'tx.fundDisbursement': 'Fund disbursement',
+  'tx.milestone': 'Milestone',
+  'tx.fundTransfer': 'Fund transfer — money moved within the family',
+  'tx.fromLabel': 'From',
+  'tx.toLabel': 'To',
+  'tx.reason': 'Reason',
+  'tx.recipient': 'Recipient',
+  'tx.reverseThisPayment': 'Reverse this payment',
+  'tx.thisMember': 'this member',
+  'tx.reverseConfirm': 'Post a correcting entry of {credit} against {member}’s {amount} payment? The original stays on the ledger — reversing is how a mistake is corrected, because posted payments cannot be edited or deleted. Any money this payment routed into funds is taken back out of the same funds.',
+  'tx.postReversal': 'Post reversal',
+  'tx.failedToReverse': 'Failed to reverse',
+  'tx.memberScheduleAmountRequired': 'Member, schedule and amount required',
+  'tx.chooseHowPaymentMade': 'Choose how the payment was made',
+  'tx.enterCheckPayment': 'Enter the check number or reference for the payment',
+  'tx.fundAndAmountRequired': 'Fund and amount required',
+  'tx.chooseWhoContributionFrom': 'Choose who the contribution came from',
+  'tx.nameWhoContributionFrom': 'Name who the contribution came from',
+  'tx.chooseHowContributionGiven': 'Choose how the contribution was given',
+  'tx.enterCheckContribution': 'Enter the check number or reference for the contribution',
+  'tx.fundMemberAmountRequired': 'Fund, member, and amount required',
+  'tx.enterCheckDisbursement': 'Enter the check number or reference for the disbursement',
+  'tx.bothFundsAmountRequired': 'Both funds and an amount are required',
+  'tx.chooseTwoDifferentFunds': 'Choose two different funds',
+  'tx.sayWhyMoneyMoved': 'Say why the money is being moved',
+  'tx.enterAmountAboveZero': 'Enter an amount greater than zero',
+  'tx.selectMember': '— Select member —',
+  'tx.selectFund': '— Select fund —',
+  'tx.selectMethod': '— Select method —',
+  'tx.selectOne': '— Select —',
+  'tx.selectNone': '— None —',
+  'tx.recording': 'Recording…',
+  'tx.recordPayment': 'Record Payment',
+  'tx.addContribution': 'Add Contribution',
+  'tx.recordDisbursement': 'Record Disbursement',
+  'tx.transferring': 'Transferring…',
+  'tx.transferFunds': 'Transfer Funds',
+  'tx.transactionLedgers': 'Transaction ledgers',
+  'tx.recordGiftLede': 'Record a gift a member has already given.',
+  'tx.recordDuesLede': 'Record dues a member has already paid.',
+  'tx.contributionLede': 'Money added to a fund directly, outside of dues routing.',
+  'tx.disbursementLede': 'Money paid out of a fund to a member.',
+  'tx.transferLede': 'Move money from one fund to another. Nothing leaves the family.',
+  'tx.noDonationsYet': 'No donations received yet.',
+  'tx.noDuesPaymentsYet': 'No dues payments recorded yet.',
+  // ── BATCH 3 OF THE 2026-08-29 SWEEP ────────────────────────────────────────
+  // The rail's motto is the one worth a note: it was read straight out of `lib/brand.ts`,
+  // so the single piece of writing a member sees on EVERY screen was English for every
+  // reader. Same call `FeatureShowcase` records about `APP_PROMISE` — the brand file keeps
+  // the product's name, and finished prose a reader reads belongs here.
+  'ledger.dues': 'Dues',
+  'ledger.donations': 'Donations',
+  'ledger.contributions': 'Contributions',
+  'ledger.disbursements': 'Disbursements',
+  'ledger.transfers': 'Transfers',
+  'nav.menu': 'Menu',
+  'brand.motto.lead': 'Our Roots',
+  'brand.motto.rest': 'run deep, our bond runs deeper.',
+  // ── TIME ZONES ─────────────────────────────────────────────────────────────
+  // Keyed on the IANA name, which is what `people.time_zone` stores — see
+  // `timezoneLabel` in lib/date-utils.ts. The bracketed abbreviations are the ones
+  // a speaker of each language actually uses, so ET is HE in French and stays ET in
+  // Spanish; they are not a translation of the letters.
+  'tz.America/New_York': 'Eastern Time (ET)',
+  'tz.America/Chicago': 'Central Time (CT)',
+  'tz.America/Denver': 'Mountain Time (MT)',
+  'tz.America/Phoenix': 'Mountain Time – Arizona (no DST)',
+  'tz.America/Los_Angeles': 'Pacific Time (PT)',
+  'tz.America/Anchorage': 'Alaska Time (AKT)',
+  'tz.Pacific/Honolulu': 'Hawaii Time (HT)',
+  'tz.America/Toronto': 'Eastern – Canada',
+  'tz.America/Vancouver': 'Pacific – Canada',
+  'tz.America/Halifax': 'Atlantic – Canada',
+  'tz.America/St_Johns': 'Newfoundland – Canada',
+  'tz.Europe/London': 'London (GMT/BST)',
+  'tz.Europe/Paris': 'Paris (CET/CEST)',
+  'tz.Europe/Berlin': 'Berlin (CET/CEST)',
+  'tz.Africa/Lagos': 'West Africa (WAT)',
+  'tz.Africa/Johannesburg': 'South Africa (SAST)',
+  'tz.Asia/Dubai': 'Gulf Time (GST)',
+  'tz.Asia/Kolkata': 'India (IST)',
+  'tz.Asia/Tokyo': 'Japan (JST)',
+  'tz.Asia/Shanghai': 'China (CST)',
+  'tz.Australia/Sydney': 'Sydney (AEST/AEDT)',
+  'tz.Pacific/Auckland': 'New Zealand (NZST/NZDT)',
 
   // ── PAGE HEADINGS ────────────────────────────────────────────────────────────────
   // The `<h1>` at the top of each screen, keyed on its ROUTE — which §1 makes the same string

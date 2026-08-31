@@ -270,14 +270,14 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
       )}
 
       <Section
-        heading="Coming up"
+        heading={t('gath.comingUp')}
         rows={upcoming}
-        empty="Nothing is planned yet."
+        empty={t('gath.nothingPlannedYet')}
       />
       <Section
-        heading="Already held"
+        heading={t('gath.alreadyHeld')}
         rows={past}
-        empty="Nothing has been held yet."
+        empty={t('gath.nothingHeldYet')}
       />
 
       {/* The dialog is only MOUNTED for a caller who could open it. `open` can never be true

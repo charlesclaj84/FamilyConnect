@@ -12,7 +12,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { TSHIRT_CATEGORIES, TSHIRT_SIZES, PREFIXES, SUFFIXES, type TshirtCategory } from '@/lib/tshirt-sizes'
 import { GENDERS, GENDER_LABELS } from '@/lib/gender'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
-import { TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
+import { TIMEZONES, timezoneLabel } from '@/lib/date-utils'
 import {
   getMemberProfileForEdit, sendMemberPasswordReset, setMemberChapter, updateUserProfile,
   type MemberProfileForEdit,
@@ -471,7 +471,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
             <Cell label={t('field.timeZone')} htmlFor="mp-tz">
               <Select id="mp-tz" value={form.time_zone ?? ''} onChange={e => set('time_zone', e.target.value)}>
                 <option value="">— Select —</option>
-                {TIMEZONES.map(tz => <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>)}
+                {TIMEZONES.map(tz => <option key={tz} value={tz}>{timezoneLabel(t, tz)}</option>)}
               </Select>
             </Cell>
           </Band>

@@ -1,4 +1,4 @@
-import { APP_MOTTO } from '@/lib/brand'
+import { type T } from '@/lib/i18n/t'
 
 /**
  * The Golden Master's decorative shell system: the cream bite at the top of the rail, and
@@ -254,12 +254,25 @@ function HillPaths() {
  * is the tightest pairing in the shell — so if the tint ever gets heavier, re-measure
  * rather than assume. Dropping the tint entirely would take gold to 5.94 / 7.57.
  */
-export function RailMotto() {
+/**
+ * ── THE MOTTO IS CATALOGUE COPY NOW, NOT A BRAND CONSTANT (2026-08-29) ──────────────
+ * It read `APP_MOTTO.lead` and `APP_MOTTO.rest` straight out of `lib/brand.ts`, so the one
+ * piece of writing on the Dashboard rail — the thing a member sees on every screen — was
+ * English for every reader. This is exactly the call `FeatureShowcase` records about
+ * `APP_PROMISE`: **`lib/brand.ts` is still the one place the product's NAME lives, and
+ * finished English prose that a reader reads belongs in the catalogue.**
+ *
+ * It stays two keys rather than one sentence because the treatment is a SET quotation —
+ * the first half is Legacy gold and the rest is cream — and that is a fact about the
+ * artwork rather than about the words. `APP_MOTTO` keeps its own header on why the pair
+ * exists and is still what an untranslated surface would reach for.
+ */
+export function RailMotto({ t }: { t: T }) {
   return (
     <div className="relative mt-6 overflow-hidden rounded-3xl border border-brand-legacy/25 bg-brand-primary/60 px-4 py-4">
       <p className="text-sm font-semibold leading-relaxed">
-        <span className="text-brand-legacy">{APP_MOTTO.lead}</span>{' '}
-        <span className="text-brand-on-hero">{APP_MOTTO.rest}</span>
+        <span className="text-brand-legacy">{t('brand.motto.lead')}</span>{' '}
+        <span className="text-brand-on-hero">{t('brand.motto.rest')}</span>
       </p>
       <svg
         aria-hidden="true"

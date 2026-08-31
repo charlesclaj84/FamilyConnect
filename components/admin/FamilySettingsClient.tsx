@@ -9,7 +9,7 @@ import { EmailedCodeField } from '@/components/ui/challenge-fields'
 import { FormError } from '@/components/ui/form-message'
 import { useConfirm } from '@/components/ui/confirm'
 import { useServerState } from '@/lib/use-server-state'
-import { formatDate, TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
+import { formatDate, TIMEZONES, timezoneLabel } from '@/lib/date-utils'
 import { Select } from '@/components/ui/select'
 import {
   renameFamily, removeFamily, requestFamilyRemovalCode, setFamilyZone, type FamilySettings,
@@ -364,7 +364,7 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
                 disabled={!settings.canEdit || isPending}
               >
                 {TIMEZONES.map(tz => (
-                  <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>
+                  <option key={tz} value={tz}>{timezoneLabel(t, tz)}</option>
                 ))}
               </Select>
               <p className="text-xs text-muted-foreground">{t('adm.whereFamilyDecidesWhether')}</p>
@@ -592,10 +592,9 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">{t('adm.switchesFamilyOffEverybody')}</p>
       <p className="mt-2 text-sm text-muted-foreground">
-        <strong className="font-semibold">{t('set.nothingDeleted')}</strong> Every payment,
-        fund, photograph, event, message and person stays exactly where it is. Removing is
-        not a way to erase anything — and it is not something you can undo from here:{' '}
-        <strong className="font-semibold">only GENORRA support can bring a family back.</strong>
+        <strong className="font-semibold">{t('set.nothingDeleted')}</strong>{' '}
+        {t('set.removalKeepsEverything')}{' '}
+        <strong className="font-semibold">{t('set.onlySupportRestores')}</strong>
       </p>
 
       <FormError message={error} />

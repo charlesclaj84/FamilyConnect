@@ -163,6 +163,155 @@ export const fr: Catalogue = {
   // ── THE LANGUAGE SWITCHER ────────────────────────────────────────────────────────
   // *Choisissez*, not *Choisis* — formal.
   'language.choose': 'Choisissez une langue',
+  // ── BATCH 1 OF THE 2026-08-29 SWEEP ────────────────────────────────────────
+  // Found by rendering every route as a Spanish-reading member and again as an English
+  // one and diffing the visible text — see the note above `i18n:literals`' ceiling on why
+  // a static scan could not see these. `field.required` is the sharpest of them: it is
+  // read aloud beside the asterisk on EVERY required field in the product.
+  'field.required': '(obligatoire)',
+  'dash.viewDirectory': 'Voir l’annuaire',
+  'dash.reviewQueue': 'File d’attente',
+  'dash.viewCalendar': 'Voir le calendrier',
+  'dash.election.nominations': 'Proposer',
+  'dash.election.voting': 'Voter',
+  'dash.selectYourChapter': '— Choisissez votre section —',
+  'gath.comingUp': 'À venir',
+  'gath.alreadyHeld': 'Déjà tenues',
+  'gath.nothingPlannedYet': 'Rien n’est encore prévu.',
+  'gath.nothingHeldYet': 'Rien ne s’est encore tenu.',
+  'cards.nextInstallmentOne': 'Prochaine échéance',
+  'cards.nextInstallmentsMany': 'Prochaines échéances',
+  // ── BATCH 2 OF THE 2026-08-29 SWEEP ────────────────────────────────────────
+  // `tree.bloodlineFrom*` is the one worth reading: it was six JSX fragments spliced
+  // around two names, which hard-codes ENGLISH WORD ORDER and cannot be translated at
+  // all. One key with `{anchor}` and `{parents}` lets each language put the names where
+  // that language puts them.
+  'dash.tree.leafOne': 'Feuille',
+  'dash.tree.leavesMany': 'Feuilles',
+  'plan.perMonthNoAnnual': ' /mois · pas de forfait annuel',
+  'set.removalKeepsEverything': 'Chaque paiement, fonds, photographie, événement, message et personne reste exactement où il est. Retirer n’est pas une façon d’effacer quoi que ce soit, et ce n’est pas quelque chose que vous pouvez annuler d’ici :',
+  'set.onlySupportRestores': 'seul le support GENORRA peut rétablir une famille.',
+  'tree.dashedCardsAreGaps': '· Les cartes en pointillés sont des vides que vous pouvez combler',
+  'tree.removingNeverRemoves': '· Retirer un lien ne retire jamais personne de la famille',
+  'tree.thePersonNamedAbove': 'la personne nommée ci-dessus',
+  'tree.thatParent': 'ce parent',
+  'tree.bloodlineFromOneParent': 'La lignée est établie à partir de {anchor}, qui a un parent sur l’arbre — donc {parents} et tous ceux dont ils descendent comptent comme du sang, des deux côtés. Un conjoint entré par mariage est inclus de cette façon.',
+  'tree.bloodlineFromParents': 'La lignée est établie à partir de {anchor}, qui a des parents sur l’arbre — donc {parents} et tous ceux dont ils descendent comptent comme du sang, des deux côtés. Un conjoint entré par mariage est inclus de cette façon.',
+  // ── THE TRANSACTIONS LEDGER, 2026-08-29 ────────────────────────────────────
+  // This screen carried a note saying it was "not translated yet — on Phase 5's admin
+  // pass", and it was the densest concentration of English left in the product: every
+  // field label in the detail dialog, every validator refusal, and both module-level
+  // registries. `tx.reverseConfirm` is one key rather than the five concatenated clauses
+  // it replaced — a sentence spliced around two figures and a name hard-codes English
+  // word order and cannot be translated at all.
+  'tx.newDuesPayment': 'Nouveau paiement de cotisation',
+  'tx.newDonationPayment': 'Nouveau paiement de don',
+  'tx.source.dues_routing': 'Réparti',
+  'tx.source.admin_manual': 'Enregistré',
+  'tx.source.member_contribution': 'D’un membre',
+  'tx.noLongerInFamily': 'Ne fait plus partie de la famille',
+  'tx.donationPayment': 'Paiement de don',
+  'tx.duesPayment': 'Paiement de cotisation',
+  'tx.unknownMember': 'Membre inconnu',
+  'tx.correctingEntry': '{kind} — écriture de correction',
+  'tx.correctingEntryPill': 'Écriture de correction',
+  'tx.amount': 'Montant',
+  'tx.amountDollars': 'Montant ($)',
+  'tx.schedule': 'Barème',
+  'tx.noSchedule': 'Aucun barème',
+  'tx.entered': 'Saisi le',
+  'tx.reversed': 'Annulé',
+  'tx.reversedByCorrecting': 'Oui — une écriture de correction annule ce paiement',
+  'tx.corrects': 'Corrige',
+  'tx.correctsEarlierPayment': 'Un paiement antérieur dans ce registre',
+  'tx.routedFromPayment': 'Réparti depuis un paiement',
+  'tx.fundContribution': 'Contribution au fonds — {source}',
+  'tx.unknownFund': 'Fonds inconnu',
+  'tx.fundDisbursement': 'Décaissement du fonds',
+  'tx.milestone': 'Étape',
+  'tx.fundTransfer': 'Virement entre fonds — argent déplacé au sein de la famille',
+  'tx.fromLabel': 'De',
+  'tx.toLabel': 'À',
+  'tx.reason': 'Motif',
+  'tx.recipient': 'Bénéficiaire',
+  'tx.reverseThisPayment': 'Annuler ce paiement',
+  'tx.thisMember': 'ce membre',
+  'tx.reverseConfirm': 'Enregistrer une écriture de correction de {credit} sur le paiement de {amount} de {member} ? L’original reste au registre — annuler est la façon de corriger une erreur, car un paiement enregistré ne peut être ni modifié ni supprimé. Tout l’argent que ce paiement a réparti dans les fonds est repris sur ces mêmes fonds.',
+  'tx.postReversal': 'Enregistrer l’annulation',
+  'tx.failedToReverse': 'Échec de l’annulation',
+  'tx.memberScheduleAmountRequired': 'Membre, barème et montant obligatoires',
+  'tx.chooseHowPaymentMade': 'Choisissez comment le paiement a été fait',
+  'tx.enterCheckPayment': 'Saisissez le numéro de chèque ou la référence du paiement',
+  'tx.fundAndAmountRequired': 'Fonds et montant obligatoires',
+  'tx.chooseWhoContributionFrom': 'Choisissez de qui vient la contribution',
+  'tx.nameWhoContributionFrom': 'Indiquez de qui vient la contribution',
+  'tx.chooseHowContributionGiven': 'Choisissez comment la contribution a été remise',
+  'tx.enterCheckContribution': 'Saisissez le numéro de chèque ou la référence de la contribution',
+  'tx.fundMemberAmountRequired': 'Fonds, membre et montant obligatoires',
+  'tx.enterCheckDisbursement': 'Saisissez le numéro de chèque ou la référence du décaissement',
+  'tx.bothFundsAmountRequired': 'Les deux fonds et un montant sont obligatoires',
+  'tx.chooseTwoDifferentFunds': 'Choisissez deux fonds différents',
+  'tx.sayWhyMoneyMoved': 'Indiquez pourquoi l’argent est déplacé',
+  'tx.enterAmountAboveZero': 'Saisissez un montant supérieur à zéro',
+  'tx.selectMember': '— Choisissez un membre —',
+  'tx.selectFund': '— Choisissez un fonds —',
+  'tx.selectMethod': '— Choisissez un moyen —',
+  'tx.selectOne': '— Choisissez —',
+  'tx.selectNone': '— Aucun —',
+  'tx.recording': 'Enregistrement…',
+  'tx.recordPayment': 'Enregistrer le paiement',
+  'tx.addContribution': 'Ajouter la contribution',
+  'tx.recordDisbursement': 'Enregistrer le décaissement',
+  'tx.transferring': 'Virement en cours…',
+  'tx.transferFunds': 'Virer les fonds',
+  'tx.transactionLedgers': 'Registres des transactions',
+  'tx.recordGiftLede': 'Enregistrez un don qu’un membre a déjà remis.',
+  'tx.recordDuesLede': 'Enregistrez des cotisations qu’un membre a déjà payées.',
+  'tx.contributionLede': 'Argent ajouté directement à un fonds, en dehors de la répartition des cotisations.',
+  'tx.disbursementLede': 'Argent versé d’un fonds à un membre.',
+  'tx.transferLede': 'Déplacez de l’argent d’un fonds à un autre. Rien ne quitte la famille.',
+  'tx.noDonationsYet': 'Aucun don reçu pour le moment.',
+  'tx.noDuesPaymentsYet': 'Aucun paiement de cotisation enregistré pour le moment.',
+  // ── BATCH 3 OF THE 2026-08-29 SWEEP ────────────────────────────────────────
+  // The rail's motto is the one worth a note: it was read straight out of `lib/brand.ts`,
+  // so the single piece of writing a member sees on EVERY screen was English for every
+  // reader. Same call `FeatureShowcase` records about `APP_PROMISE` — the brand file keeps
+  // the product's name, and finished prose a reader reads belongs here.
+  'ledger.dues': 'Cotisations',
+  'ledger.donations': 'Dons',
+  'ledger.contributions': 'Contributions',
+  'ledger.disbursements': 'Décaissements',
+  'ledger.transfers': 'Virements',
+  'nav.menu': 'Menu',
+  'brand.motto.lead': 'Nos racines',
+  'brand.motto.rest': 'sont profondes, notre lien l’est plus encore.',
+  // ── TIME ZONES ─────────────────────────────────────────────────────────────
+  // Keyed on the IANA name, which is what `people.time_zone` stores — see
+  // `timezoneLabel` in lib/date-utils.ts. The bracketed abbreviations are the ones
+  // a speaker of each language actually uses, so ET is HE in French and stays ET in
+  // Spanish; they are not a translation of the letters.
+  'tz.America/New_York': 'Heure de l’Est (HE)',
+  'tz.America/Chicago': 'Heure du Centre (HC)',
+  'tz.America/Denver': 'Heure des Rocheuses (HR)',
+  'tz.America/Phoenix': 'Heure des Rocheuses – Arizona (sans heure d’été)',
+  'tz.America/Los_Angeles': 'Heure du Pacifique (HP)',
+  'tz.America/Anchorage': 'Heure de l’Alaska (AKT)',
+  'tz.Pacific/Honolulu': 'Heure d’Hawaï (HT)',
+  'tz.America/Toronto': 'Est – Canada',
+  'tz.America/Vancouver': 'Pacifique – Canada',
+  'tz.America/Halifax': 'Atlantique – Canada',
+  'tz.America/St_Johns': 'Terre-Neuve – Canada',
+  'tz.Europe/London': 'Londres (GMT/BST)',
+  'tz.Europe/Paris': 'Paris (CET/CEST)',
+  'tz.Europe/Berlin': 'Berlin (CET/CEST)',
+  'tz.Africa/Lagos': 'Afrique de l’Ouest (WAT)',
+  'tz.Africa/Johannesburg': 'Afrique du Sud (SAST)',
+  'tz.Asia/Dubai': 'Heure du Golfe (GST)',
+  'tz.Asia/Kolkata': 'Inde (IST)',
+  'tz.Asia/Tokyo': 'Japon (JST)',
+  'tz.Asia/Shanghai': 'Chine (CST)',
+  'tz.Australia/Sydney': 'Sydney (AEST/AEDT)',
+  'tz.Pacific/Auckland': 'Nouvelle-Zélande (NZST/NZDT)',
 
   // ── PAGE HEADINGS ────────────────────────────────────────────────────────────────
   // The same words as the rail for most screens, and kept as separate keys for the reason

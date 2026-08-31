@@ -249,6 +249,15 @@ const KNOWN_DYNAMIC = [
   ['nav.item.', 'The rail maps its own registry: t(`nav.item.${item.href}`) in Sidebar.tsx.'],
   ['nav.section.', 'Likewise for section headings, keyed on the section id.'],
   ['theme.', 'ThemeToggle maps its three modes: t(`theme.${mode}`).'],
+  ['tx.source.', 'sourceLabel() maps a fund_contributions.source: t(`tx.source.${source}`) in '
+    + 'TransactionsClient. The column value is the contract; the word is copy.'],
+  ['tz.', 'timezoneLabel() maps an IANA zone: t(`tz.${zone}`) in lib/date-utils.ts. The id '
+    + 'is what `people.time_zone` stores and what Intl is handed; only the caption is copy.'],
+  ['dash.election.', 'electionActionLabel() maps an election PHASE to the verb the Quick '
+    + 'Action offers: t(`dash.election.${phase}`) in components/dashboard/tiles.ts.'],
+  ['tree.bloodlineFrom', 'One key or the other by the number of parents the anchor has — '
+    + 'FamilyTreeBuilder picks between `…OneParent` and `…Parents`. Two keys rather than a '
+    + 'fragment per clause, because a spliced sentence hard-codes English word order.'],
   ['switcher.badge.', 'FamilySwitcher picks a badge by membership state.'],
   ['dash.link.match.', 'LinkPersonBanner names why a record matched: t(`dash.link.match.${reason}`).'],
   ['profile.section.', 'profileSectionLabel() maps a section id: t(`profile.section.${section}`).'],

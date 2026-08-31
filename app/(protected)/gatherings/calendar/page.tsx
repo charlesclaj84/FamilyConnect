@@ -78,7 +78,7 @@ export default async function CalendarPage({
   const month = isValidMonth(raw) ? raw : today.slice(0, 7)
 
   const { entries, sources } = await getCalendarMonth(month)
-  const grid = buildCalendarMonth(month, today, entries)
+  const grid = buildCalendarMonth(month, today, entries, intl)
 
   // A LIST OF ONE, kept as a list because `sources` is kept as a record — see the action's
   // header. A second source is a line here and nothing else.

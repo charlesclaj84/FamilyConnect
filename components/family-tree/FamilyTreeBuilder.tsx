@@ -23,7 +23,7 @@ import {
   removeRelationship, setBloodlineAnchor,
   type FamilyTree, type TreeEdge, type TreePerson,
 } from '@/app/actions/family-tree'
-import { useT } from '@/components/layout/LocaleProvider'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The family-wide tree — the only tree in the product, since the per-member lineage view
@@ -105,6 +105,8 @@ export function FamilyTreeBuilder({
   canViewDirectory?: boolean
 }) {
   const t = useT()
+  // For `Intl.ListFormat` on the bloodline sentence below — "and" is copy.
+  const intl = useIntlTag()
   const router = useRouter()
   const confirm = useConfirm()
   const [error, setError] = useState('')
@@ -654,18 +656,28 @@ export function FamilyTreeBuilder({
           <div className="flex items-start gap-2 rounded-xl border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             <div className="space-y-1.5">
+              {/* ── ONE SENTENCE, ONE KEY, AND THE NAMES INTERPOLATED ──────────────
+                  It was assembled from six JSX fragments — an English clause, a name, another
+                  clause, a joined list, then two more clauses — which is untranslatable by
+                  construction: the word order it hard-codes is English word order, and no
+                  catalogue can hold a third of a sentence. So the whole thing is one key with
+                  `{anchor}` and `{parents}` in it, and each language decides where the names
+                  go. The bold on the anchor's name is the cost, and it is the right thing to
+                  give up: a name is already the most distinctive thing in the line.
+
+                  `Intl.ListFormat` joins the parents rather than `' and '`, for the reason
+                  AGENTS.md gives about conjunctions — "and", "y" and "et" are copy. */}
               <p>
-                The bloodline is being worked out from{' '}
-                <span className="font-medium text-foreground">
-                  {nameOf.get(tree.bloodlineAnchorId ?? '') ?? 'the person named above'}
-                </span>
-                , who has {anchorAudit.parentIds.length === 1 ? 'a parent' : 'parents'} on the
-                tree — so{' '}
-                {anchorAudit.parentIds
-                  .map(id => nameOf.get(id) ?? 'that parent')
-                  .join(' and ')}{' '}
-                and everybody they descend from count as blood, on both sides. A spouse who
-                married in is included that way.
+                {t(
+                  anchorAudit.parentIds.length === 1
+                    ? 'tree.bloodlineFromOneParent'
+                    : 'tree.bloodlineFromParents',
+                  {
+                    anchor: nameOf.get(tree.bloodlineAnchorId ?? '') ?? t('tree.thePersonNamedAbove'),
+                    parents: new Intl.ListFormat(intl, { style: 'long', type: 'conjunction' })
+                      .format(anchorAudit.parentIds.map(id => nameOf.get(id) ?? t('tree.thatParent'))),
+                  },
+                )}
               </p>
               <p>{t('ui.ifFamilySLine')}</p>
               {/* THE TOPMOST ANCESTORS, as one click each. Usually two — a father's line
@@ -1434,8 +1446,8 @@ export function TreeLegend() {
         <Droplet className="h-3 w-3 fill-brand-primary text-brand-primary" aria-hidden="true" />
         {t('tree.marksBlood')}
       </span>
-      <span>· Dashed cards are gaps you can fill</span>
-      <span>· Removing a connection never removes anyone from the family</span>
+      <span>{t('tree.dashedCardsAreGaps')}</span>
+      <span>{t('tree.removingNeverRemoves')}</span>
     </p>
   )
 }

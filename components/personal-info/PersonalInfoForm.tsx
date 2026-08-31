@@ -22,7 +22,7 @@ import { TSHIRT_CATEGORIES, TSHIRT_SIZES, PREFIXES, SUFFIXES, type TshirtCategor
 import { GENDERS, GENDER_LABELS, genderLabel } from '@/lib/gender'
 import { COUNTRIES, REGIONS, type Country } from '@/lib/regions'
 import { formatDate as fmtDate } from '@/lib/date-utils'
-import { TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
+import { TIMEZONES, timezoneLabel } from '@/lib/date-utils'
 import { LOCALES } from '@/lib/i18n/locales'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 import { SignInSecuritySection } from '@/components/personal-info/SignInSecurity'
@@ -789,7 +789,7 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
             </p>
           </div>
           <Field label={t('field.tshirt')} value={shirtDisplay} />
-          <Field label={t('field.timeZone')} value={existing?.time_zone ? (TIMEZONE_LABELS[existing.time_zone] ?? existing.time_zone) : null} />
+          <Field label={t('field.timeZone')} value={existing?.time_zone ? timezoneLabel(t, existing.time_zone) : null} />
         </div>
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -823,7 +823,7 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
               <Select id="time_zone" {...register('time_zone')}>
                 <option value="">— Select —</option>
                 {TIMEZONES.map(tz => (
-                  <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>
+                  <option key={tz} value={tz}>{timezoneLabel(t, tz)}</option>
                 ))}
               </Select>
               <p className="text-xs text-muted-foreground">{t('prof.datesTimesProductRecords')}</p>

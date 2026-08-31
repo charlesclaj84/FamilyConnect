@@ -3,6 +3,7 @@
 import * as React from "react"
 
 import { cn } from "@/lib/utils"
+import { useT } from "@/components/layout/LocaleProvider"
 
 /**
  * The "this field is required" marker, in one place.
@@ -31,6 +32,7 @@ import { cn } from "@/lib/utils"
  * the native bubble would be a second, differently-worded refusal.
  */
 function RequiredMark({ className }: { className?: string }) {
+  const t = useT()
   return (
     <>
       <span
@@ -39,7 +41,7 @@ function RequiredMark({ className }: { className?: string }) {
       >
         *
       </span>
-      <span className="sr-only">(required)</span>
+      <span className="sr-only">{t('field.required')}</span>
     </>
   )
 }

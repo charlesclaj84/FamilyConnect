@@ -505,6 +505,55 @@ would make `setMyNotificationPref` refuse that withdrawal too.
 
 Recorded 2026-08-23.
 
+## The product is not finished being translated, and now there is a way to measure it
+
+**Action:** work `npm run i18n:onscreen` down to zero, then decide whether it becomes a gate.
+
+`npm run i18n:check` and `npm run i18n:literals` were both CLEAN, with the literal gate's
+ceiling at zero, while **399 runs of text were still identical in English and Spanish across
+43 routes**. Neither could see it, and the reason is structural rather than a bug in either:
+the first asks only about keys that exist, and the second can only recognise the SHAPES it was
+taught. `scripts/i18n-onscreen.mjs` asks the product instead — it renders every route as a
+Spanish-reading member and again as an English one and diffs the visible text — and its header
+lists the seven shapes the source sweep misses.
+
+**399 → 113 occurrences on 2026-08-29** (142 → 92 distinct). What was closed, and each of these
+is a class rather than a string:
+
+| | |
+|---|---|
+| the 22 time zones | `TIMEZONE_LABELS` was a `Record<string,string>` of English phrases read into six `<option>` lists. Now `timezoneLabel(t, zone)` |
+| every calendar heading | `buildCalendarMonth` called `monthLabel(month)` with no locale, so "August 2026" was English for everybody — `monthLabel`'s own comment says it must follow the reader |
+| `(required)` | read aloud beside the asterisk on EVERY required field in the product |
+| the whole Transactions ledger | 68 keys. It carried a comment saying it was "not translated yet — on Phase 5's admin pass" |
+| the rail's motto | read straight out of `lib/brand.ts`, so the one piece of writing on every screen was English |
+| the Dashboard's tiles, the Gatherings sections, the chapter picker, the bloodline explanation | |
+
+### WHAT IS LEFT, and the two shapes that are not merely untranslated
+
+**~35 of the 92 are PAGE TITLES.** `export const metadata = { title: 'Dashboard' }` is static,
+so the browser tab and the bookmark are English on every screen. The convention to adopt already
+exists — `page./<route>.title` keys hold the visible `<h1>` — so each page becomes an
+`async generateMetadata()` resolving `callerI18n`. 46 files, mechanical, and the one thing to
+check is the ~12 pages that already have a `generateMetadata` to extend rather than replace.
+
+**AN ENGLISH PLURAL BUILT BY APPENDING A LETTER IS NOT TRANSLATABLE AT ALL**, and there are
+about thirty: `{n} member{n === 1 ? '' : 's'}`. No catalogue can hold a third of a word, and
+Spanish and French do not pluralise that way. It renders as *"14 member s"* on screen today,
+which is how the probe found it — so it is a visible BUG in English as well. The convention to
+follow is the one `attachedCaption` already uses: two keys, `…One` and `…Many`.
+
+**A DATE FORMATTED WITHOUT THE READER'S TAG** is the same kind of thing: `lib/gathering-when.ts`
+builds "September 28 – 30, 2026 · 11:00 AM – 4:00 PM" with no `intl`, so a French reader gets US
+month order and a 12-hour clock. It is a pure module, so it takes the tag as a parameter (§7b).
+
+The rest are ordinary: three notification titles (which are STORED, so they are written in the
+sender's language at write time — the same shape as the auth-email locale problem, and worth
+deciding rather than patching), the plan words around a tier name (`in Free`, `Plus · 12 months`),
+`stripeUnavailableReason()`, and a handful of section captions.
+
+Recorded 2026-08-29.
+
 ## BUILD: the delinquency ladder — decided 2026-08-23, and it needs the scheduler first
 
 **Action:** build it. `pg_cron` is installed as of `20260823000006`, so the ladder is no longer

@@ -14,7 +14,7 @@ import { PersonMultiSelect } from '@/components/ui/person-multi-select'
 import { FormError } from '@/components/ui/form-message'
 import { cn } from '@/lib/utils'
 import { useServerState } from '@/lib/use-server-state'
-import { formatDate, TIMEZONES, TIMEZONE_LABELS } from '@/lib/date-utils'
+import { formatDate, TIMEZONES, timezoneLabel } from '@/lib/date-utils'
 import { resolveMeetingRoom } from '@/lib/meeting-boards'
 import {
   scheduleMeeting, type MeetingAttendeeOptions, type MeetingSession,
@@ -481,7 +481,7 @@ function ScheduleDialog({ options, zone, onClose, onScheduled }: {
                   onChange={e => setTimeZone(e.target.value)} className="max-w-[20rem]">
                   <option value="">{t('meet.chooseTimezone')}</option>
                   {TIMEZONES.map(tz => (
-                    <option key={tz} value={tz}>{TIMEZONE_LABELS[tz] ?? tz}</option>
+                    <option key={tz} value={tz}>{timezoneLabel(t, tz)}</option>
                   ))}
                 </Select>
                 <p className="text-xs text-muted-foreground">{t('ui.everyoneSeesTimeExactly')}</p>

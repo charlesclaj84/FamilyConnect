@@ -1,4 +1,5 @@
 import { DEFAULT_MONEY_LOCALE } from '@/lib/currency-utils'
+import { type T } from '@/lib/i18n/t'
 
 /**
  * How a DATE or a TIME is worded.
@@ -395,27 +396,25 @@ export const TIMEZONES = [
   'Pacific/Auckland',
 ] as const
 
-export const TIMEZONE_LABELS: Record<string, string> = {
-  'America/New_York':      'Eastern Time (ET)',
-  'America/Chicago':       'Central Time (CT)',
-  'America/Denver':        'Mountain Time (MT)',
-  'America/Phoenix':       'Mountain Time – Arizona (no DST)',
-  'America/Los_Angeles':   'Pacific Time (PT)',
-  'America/Anchorage':     'Alaska Time (AKT)',
-  'Pacific/Honolulu':      'Hawaii Time (HT)',
-  'America/Toronto':       'Eastern – Canada',
-  'America/Vancouver':     'Pacific – Canada',
-  'America/Halifax':       'Atlantic – Canada',
-  'America/St_Johns':      'Newfoundland – Canada',
-  'Europe/London':         'London (GMT/BST)',
-  'Europe/Paris':          'Paris (CET/CEST)',
-  'Europe/Berlin':         'Berlin (CET/CEST)',
-  'Africa/Lagos':          'West Africa (WAT)',
-  'Africa/Johannesburg':   'South Africa (SAST)',
-  'Asia/Dubai':            'Gulf Time (GST)',
-  'Asia/Kolkata':          'India (IST)',
-  'Asia/Tokyo':            'Japan (JST)',
-  'Asia/Shanghai':         'China (CST)',
-  'Australia/Sydney':      'Sydney (AEST/AEDT)',
-  'Pacific/Auckland':      'New Zealand (NZST/NZDT)',
+/**
+ * A time zone's caption, in the reader's language.
+ *
+ * ── A FUNCTION OF `t`, NOT A MAP, SINCE 2026-08-29 ─────────────────────────────────
+ * It was `TIMEZONE_LABELS: Record<string, string>` holding twenty-two English phrases, read
+ * straight into six `<option>` lists — so every family in every language picked their time
+ * zone from *"Mountain Time – Arizona (no DST)"*. The conversion AGENTS.md prescribes for a
+ * module-level registry: **the IDS are the contract and the words are looked up.**
+ *
+ * The id is the IANA name, unchanged, because it is what `people.time_zone` stores and what
+ * `Intl` is handed. Only the caption moved, to `tz.<IANA name>` — the slash is legal in a key
+ * and `nav.item./community/directory` already uses one.
+ *
+ * ── AN UNKNOWN ZONE ANSWERS ITSELF, AND THAT IS WHY THE LIST IS CONSULTED ──────────
+ * `t()` returns the KEY for a key it does not hold, so a stored zone outside `TIMEZONES` —
+ * a row written before the list was trimmed, or by hand — would render as the string
+ * `tz.Europe/Kyiv` rather than as anything a reader could act on. Falling back to the IANA
+ * name is not pretty and is at least true.
+ */
+export function timezoneLabel(t: T, zone: string): string {
+  return (TIMEZONES as readonly string[]).includes(zone) ? t(`tz.${zone}`) : zone
 }
