@@ -51,7 +51,27 @@ function Dialog({ open, onClose, title, description, children, className }: Dial
         aria-modal="true"
         aria-labelledby="dialog-title"
         className={cn(
-          "relative z-10 flex w-full max-w-md flex-col overflow-hidden rounded-xl bg-card text-card-foreground shadow-lg",
+          // `text-left` IS LOAD-BEARING, and it is not a default anybody chose for taste.
+          //
+          // This panel is `fixed`, which changes its CONTAINING BLOCK and not its place in
+          // the DOM — so it goes on inheriting from whatever it was rendered inside. Both
+          // staff delete dialogs are rendered from a `<td className="… text-right">`, and
+          // `text-align` inherited straight through: the title, the destructive paragraph
+          // and the field hints all came out right-aligned, while the labels did not,
+          // because a flex container's items ignore `text-align` and mask it. Reported as
+          // "the popup is right aligned", guessed at as a locale problem, and it was a table
+          // cell three levels up.
+          //
+          // A panel that positions itself independently of its parent must not take its
+          // typography from that parent. Asserting the alignment here fixes every caller at
+          // once and cannot be undone by the next screen that opens a dialog from a cell.
+          //
+          // THE DEEPER FIX IS A PORTAL, which is what `RowMenu` already does and what
+          // AGENTS.md endorses for the clipping version of this same problem — a `fixed`
+          // panel inside an `overflow` ancestor. That would end inheritance of everything
+          // rather than of one property, and it is a change to every dialog in the product;
+          // TODO.md carries it.
+          "relative z-10 flex w-full max-w-md flex-col overflow-hidden rounded-xl bg-card text-card-foreground text-left shadow-lg",
           // Underscores are Tailwind's escape for the spaces `calc()` requires around
           // a `-` — `calc(100dvh-2rem)` is not valid CSS and silently drops the rule.
           "max-h-[calc(100dvh_-_1.5rem)] sm:max-h-[calc(100dvh_-_2rem)]",
