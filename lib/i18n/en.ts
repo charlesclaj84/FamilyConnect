@@ -290,7 +290,6 @@ export const en: Catalogue = {
   // revenue and never a family's dues — the two ledgers must not meet, and a caption
   // here that blurred them would be quoted.
   'staff.subscriptions': 'Subscriptions',
-  'stf.subscriptionsLede': 'What every family is paying GENORRA, and which of them need chasing. This is the platform’s own revenue — never a family’s dues.',
   'stf.subscriptionsReadFailed': 'We could not read the billing records just now. Nothing is wrong with any family’s plan — refresh the page, and if it keeps happening the figures are not safe to quote.',
   'stf.subPaying': 'Paying today',
   'stf.subMrr': 'Monthly',
@@ -300,6 +299,9 @@ export const en: Catalogue = {
   'stf.subAttention': 'Need attention',
   'stf.subAttentionHint': '{delinquent} failed, {leaving} leaving',
   'stf.subNoneYet': 'No family has reached checkout yet.',
+  'stf.tierMixHeading': 'Families by plan',
+  'stf.tierMixHint': 'Every family on the platform, counted by the plan in force — not only those that have paid.',
+  'stf.sortOrdersThisPage': 'Sorting orders the rows on this page, not the whole list.',
   'stf.subFamily': 'Family',
   'stf.subPlan': 'Plan',
   'stf.subPaidThrough': 'Paid through',
@@ -872,6 +874,8 @@ export const en: Catalogue = {
   'pay.nothingLeftOn': 'There is nothing left to pay on {schedule}.',
   'pay.moreThanOwed':
     'That is more than is owed. The most that can be paid on {schedule} is {amount}.',
+  'pay.feeLineName': 'Card processing fee',
+  'pay.feeLineDesc': 'So the full amount reaches your family',
   'pay.driveClosed': '{drive} has closed. Nothing more can be given to it.',
   'pay.maxCharge': 'A single card payment cannot be more than {amount}. Give it in two.',
   'rep.elecOpenNow': '{n} open now · published only',
@@ -1668,6 +1672,8 @@ export const en: Catalogue = {
   'pnl.balancesToday': 'Fund balances today',
   'pnl.nothingPaidOut': 'Nothing paid out yet',
   'pnl.disbursed': 'Disbursed from the family’s funds',
+  'pnl.disbursements': 'Disbursements',
+  'pnl.processingFees': 'Card processing fees',
   'pnl.surplus': 'Net surplus',
   'pnl.deficit': 'Net deficit',
   'pnl.routedBeyond': 'Routed beyond dues income',
@@ -2927,6 +2933,18 @@ export const en: Catalogue = {
   'proc.notOn': 'Online payments are not switched on yet',
   'proc.stripeAccount': 'Stripe account',
   'proc.payingAuto': 'Members paying automatically',
+  'proc.feeHeading': 'Card processing fees',
+  'proc.feeBlurb': 'Stripe takes a fee on every card payment. It comes out of your family’s side, and this decides whether your family absorbs it or the member covers it.',
+  'proc.feeWhoPays': 'Who pays the fee',
+  'proc.feePayerFamily': 'The family absorbs it',
+  'proc.feePayerMember': 'The member covers it',
+  'proc.feePercent': 'Percentage rate (%)',
+  'proc.feeFixed': 'Flat fee per payment ($)',
+  'proc.feeExplainFamily': 'A member owing $40.00 is charged $40.00, and their dues fall by $40.00. Your family receives what is left after Stripe’s fee.',
+  'proc.feeExplainMember': 'A member owing {owed} is charged {charged}, so your family receives the full {owed} and their dues fall by {owed}. The extra is shown as its own line before they pay.',
+  'proc.feeRateUnusable': 'That rate cannot be added on top of a payment. Lower the percentage.',
+  'proc.feesPaidSoFar': 'Stripe has taken {amount} in fees from this family so far.',
+  'proc.feePolicySaved': 'Saved',
   'proc.continueStripe': 'Continue in Stripe',
   'proc.checkStripe': 'Check with Stripe',
   'proc.disconnect': 'Disconnect',
@@ -4124,6 +4142,10 @@ export const en: Catalogue = {
   'act.familyNoPaymentHistoryYet': 'This family has no payment history yet.',
   'act.familyNoSettingsRecordChange': 'This family has no settings record to change.',
   'act.familyNotConnectedAccountYet': 'This family has not connected an account yet.',
+  'act.feePercentOutOfRange': 'The percentage rate must be between 0% and 50%.',
+  'act.feeFixedOutOfRange': 'The flat fee must be between $0.00 and $10.00.',
+  'act.couldNotSaveFeePolicy': 'That could not be saved. Please try again.',
+  'act.feePolicySaved': 'Saved.',
   'act.familyNotConnectedAccount': 'This family has not connected an account.',
   'act.familyAlreadyRemovedNoSettings': 'This family is already removed, or has no settings record to remove.',
   'act.familyNotSetUpTake': 'This family is not set up to take card payments yet.',
@@ -4305,7 +4327,6 @@ export const en: Catalogue = {
   'rep.votesCast': 'Votes cast',
   'stf.staffConsole': 'Staff Console',
   'stf.readsAcrossEveryFamily': 'Reads across every family on the platform',
-  'stf.backApp': 'Back to the app',
   'stf.pageNotFound': 'Page not found',
   'stf.thereNothingAddress': 'There is nothing at this address.',
   'stf.everybodyWhoCanOpen': 
@@ -4313,28 +4334,6 @@ export const en: Catalogue = {
     + 'Only an owner can see this page or change anything on it — everyone else '
     + 'gets a 404, the same answer the console gives a customer. The very first '
     + 'owner on a new database still comes from',
-  'stf.everyAccountCanSign': 
-    'Every account that can sign in, listed from the authentication service '
-    + 'rather than from any family’s records — so an account that belongs to '
-    + 'nothing, which is one of the ways “it does not work” happens, still '
-    + 'appears here.',
-  'stf.everyFamilyPlatformWhatever': 
-    'Every family on the platform, whatever plan it is on and whether or not '
-    + 'it has been removed. Removing a family happens in the product, behind a '
-    + 'code emailed to the administrator doing it; putting one back happens '
-    + 'only here.',
-  'stf.crossFamilyToolsAnswering': 
-    'Cross-family tools for answering a support ticket. Everything here reads '
-    + 'every family on the platform, not one — and the only thing it can change '
-    + 'is putting a removed family back.',
-  'stf.accessConsole': 'Access to this console',
-  'stf.staffAccessRow': 'Staff access is a row in',
-  'stf.anybodyWithoutRowGets': 
-    'Anybody without a row gets a 404 on every page here, which is why the '
-    + 'console never says “not authorized”. There is no family-facing '
-    + 'permission for any of this: staffness is orthogonal to the family '
-    + 'permission model, so no family administrator can see that these screens '
-    + 'exist.',
   'shell.everyoneFamily': 'Everyone in the family',
   'inv.invitationNotValid': 'This invitation is not valid',
   'inv.mayExpiredBeenCancelled': 

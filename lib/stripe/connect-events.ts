@@ -2,6 +2,7 @@ import type Stripe from 'stripe'
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { routePaidPayment } from '@/lib/dues-routing'
+import { settleChargeFee } from '@/lib/stripe/fee-settlement'
 import type { ScheduleKind } from '@/lib/dues-utils'
 
 /**
@@ -87,6 +88,17 @@ export async function handleConnectEvent(
 
     case 'account.updated':
       return onAccountUpdated(admin, familyCode, event.data.object as Stripe.Account)
+
+    // WHAT STRIPE ACTUALLY TOOK. Not a money event — `checkout.session.completed` above has
+    // already posted the payment — this one records the FEE, which is not knowable at post
+    // time because `balance_transaction` is not populated until the charge settles.
+    //
+    // BOTH EVENTS, deliberately: the balance transaction can be absent on `succeeded` and
+    // present on `updated`, so subscribing to one of them would miss the fee for some charges
+    // and never for a reason anybody could see. `settleChargeFee` is built to run twice.
+    case 'charge.succeeded':
+    case 'charge.updated':
+      return settleChargeFee(admin, familyCode, accountId, event.data.object as Stripe.Charge)
 
     default:
       return IGNORED
@@ -194,11 +206,27 @@ async function onCheckoutSession(
   // after the session was made — the same thing the family-code check above refuses, and
   // refused the same way rather than reconciled. Scaling the allocation to fit would be this
   // code inventing which due somebody paid.
+  //
+  // ── PLUS THE SURCHARGE, WHICH IS A LINE ITEM AND NOT A DUE ────────────────────────
+  // Where the family has said the MEMBER bears the processing fee, `startDuesCheckout` grosses
+  // the charge up and adds the difference as its own line — so `amount_total` legitimately
+  // exceeds the allocation by exactly that much. The check is TIGHTENED to account for it
+  // rather than loosened to tolerate a gap: a check that tolerates a gap cannot tell a
+  // surcharge from a tampered allocation, which is the only thing it was ever for.
+  //
+  // A missing key reads as zero, so a session created before this existed — and sitting on
+  // Stripe's hosted page at deploy time — still adds up.
+  const surcharge = readSurcharge(meta)
+  if (surcharge === null) {
+    return { handled: false, detail: `session ${session.id} carries an unreadable surcharge` }
+  }
   const allocated = allocations.reduce((sum, a) => sum + a.amountCents, 0)
-  if (allocated !== amount) {
+  if (allocated + surcharge !== amount) {
     return {
       handled: false,
-      detail: `session ${session.id} allocates ${allocated}c of a ${amount}c charge`,
+      detail: surcharge > 0
+        ? `session ${session.id} allocates ${allocated}c + ${surcharge}c surcharge of a ${amount}c charge`
+        : `session ${session.id} allocates ${allocated}c of a ${amount}c charge`,
     }
   }
 
@@ -258,6 +286,27 @@ async function onCheckoutSession(
  * with `.eq('family_code', …)` beside it (§4), which is the check that matters and the one
  * place it should live.
  */
+/**
+ * The surcharge a grossed-up session added on top of the dues, in cents.
+ *
+ * Returns 0 for a session that carries no such key — which is every session created before
+ * member-pays existed, and every session for a family that absorbs the fee.
+ *
+ * RETURNS NULL RATHER THAN 0 FOR A KEY THAT IS PRESENT AND UNREADABLE, and the distinction is
+ * the whole reason this is a function. "Absent" means the family absorbs the fee; "present but
+ * not a positive integer" means somebody edited the metadata, which is precisely what the
+ * arithmetic check downstream exists to catch. Coalescing the second into the first would let
+ * a tampered surcharge through as zero, and the check would then refuse a legitimate charge
+ * while reporting the wrong reason.
+ */
+function readSurcharge(meta: Record<string, string>): number | null {
+  const raw = meta.genorra_surcharge_cents
+  if (raw === undefined) return 0
+  const value = Number(raw)
+  if (!Number.isInteger(value) || value <= 0) return null
+  return value
+}
+
 function readAllocations(
   meta: Stripe.Metadata,
   fallbackScheduleId: string | null,

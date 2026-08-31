@@ -83,9 +83,36 @@ export function AccountPnLCard({ data, intl, t }: Props) {
               that actually left a fund, which is the only outgoing this product records since
               the Events tables were dropped. The caption says which, because a figure whose
               source has changed is the kind a treasurer reconciles against a bank statement. */}
-          <p className="text-xs text-muted-foreground">
-            {data.totalExpenseCents === 0 ? t('pnl.nothingPaidOut') : t('pnl.disbursed')}
-          </p>
+          {data.totalFeesCents > 0 ? (
+            // ── SPLIT, THE MOMENT THERE IS A FEE TO SPLIT OUT ───────────────────────
+            // Since 2026-08-31 this figure is disbursements PLUS card processing fees, and
+            // those are two quite different things: one is money the family decided to pay
+            // out, the other is money that left without anybody deciding anything. A single
+            // total with the old "paid out in disbursements" caption under it would be a
+            // caption that had quietly stopped being true — which is exactly the reconciling
+            // problem the note above is about, arriving again.
+            //
+            // Only when non-zero. A family taking no card payments should not grow a $0.00
+            // line explaining a cost it does not have.
+            <div className="text-xs text-muted-foreground space-y-0.5">
+              <p className="flex items-center justify-between gap-2">
+                <span>{t('pnl.disbursements')}</span>
+                <span className="font-medium text-foreground">
+                  {formatCurrency(data.totalExpenseCents - data.totalFeesCents, intl)}
+                </span>
+              </p>
+              <p className="flex items-center justify-between gap-2">
+                <span>{t('pnl.processingFees')}</span>
+                <span className="font-medium text-foreground">
+                  {formatCurrency(data.totalFeesCents, intl)}
+                </span>
+              </p>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {data.totalExpenseCents === 0 ? t('pnl.nothingPaidOut') : t('pnl.disbursed')}
+            </p>
+          )}
         </div>
 
         <div className="rounded-2xl border bg-card p-5 space-y-2">

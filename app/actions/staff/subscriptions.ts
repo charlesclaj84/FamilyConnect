@@ -2,7 +2,7 @@
 
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireStaff } from '@/lib/auth/staff'
-import { isFamilyTier, type FamilyTier } from '@/lib/tiers'
+import { TIERS, isFamilyTier, type FamilyTier } from '@/lib/tiers'
 import { TIER_PRICE } from '@/lib/plans'
 
 /**
@@ -89,6 +89,26 @@ export interface StaffSubscriptionSummary {
   /** Families on a prepaid term that has not run out. */
   prepaid: number
   /**
+   * How many families are on each tier — every family on the platform, keyed by
+   * `families.tier`.
+   *
+   * ── COUNTED FROM `families`, NEVER FROM `rows`, AND THAT IS THE WHOLE POINT ───────
+   * `rows` is built from `platform_billing_accounts`, so it holds only families that have
+   * been through a checkout. Most FREE families never have — there is nothing to charge
+   * them for — so a distribution counted from `rows` would report a platform whose Free
+   * population is a handful, when it is very likely the largest group there is. The donut
+   * on `/staff/subscriptions` is drawn from this field for exactly that reason.
+   *
+   * It answers a different question from every other field on this summary: those are
+   * about what has been PAID, this is about what is IN FORCE. `families.tier` is also the
+   * only thing any gate in the product reads, which makes it the honest answer to "what is
+   * this family on".
+   *
+   * EVERY TIER IS PRESENT, including the ones with nobody on them, so a reader can tell
+   * "no Premium families" from "Premium is missing from this chart".
+   */
+  byTier: Record<FamilyTier, number>
+  /**
    * True when the underlying read was refused (§8). A screen that rendered zeros over a
    * failed read would report a platform with no customers, which on this screen is the worst
    * possible wrong answer.
@@ -101,8 +121,14 @@ export interface StaffSubscriptionPage {
   summary: StaffSubscriptionSummary
 }
 
+/** Every tier at zero — the shape `byTier` always has, so a caller never has to guard a key. */
+function noTiers(): Record<FamilyTier, number> {
+  return Object.fromEntries(TIERS.map(tier => [tier, 0])) as Record<FamilyTier, number>
+}
+
 const EMPTY_SUMMARY: StaffSubscriptionSummary = {
-  paying: 0, leaving: 0, delinquent: 0, mrrCents: 0, lifetimeCents: 0, prepaid: 0, failed: true,
+  paying: 0, leaving: 0, delinquent: 0, mrrCents: 0, lifetimeCents: 0, prepaid: 0,
+  byTier: noTiers(), failed: true,
 }
 
 function readMode(value: unknown): 'recurring' | 'prepaid' | null {
@@ -209,6 +235,13 @@ export async function listStaffSubscriptions(): Promise<StaffSubscriptionPage> {
     leaving: live.filter(r => r.cancelAtPeriodEnd).length,
     delinquent: rows.filter(r => r.delinquentSince != null).length,
     prepaid: live.filter(r => r.mode === 'prepaid').length,
+    // FROM `nameOf`, which holds EVERY family, and not from `rows`, which holds only those
+    // with a billing account. See the field's own note: counting the tiers off `rows` would
+    // leave out every Free family that has never been near a checkout, which is most of them.
+    byTier: [...nameOf.values()].reduce((acc, f) => {
+      acc[f.tier] += 1
+      return acc
+    }, noTiers()),
     // See `mrrCents` on why prepaid is excluded and why a cancelling family is too: this
     // figure answers "what arrives next month", and neither of those does.
     mrrCents: live

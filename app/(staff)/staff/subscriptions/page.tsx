@@ -41,10 +41,7 @@ export default async function StaffSubscriptionsPage() {
 
   return (
     <PageShell className="space-y-6">
-      <div>
-        <h1 className="mb-1 text-3xl font-bold">{t('staff.subscriptions')}</h1>
-        <p className="max-w-3xl text-muted-foreground">{t('stf.subscriptionsLede')}</p>
-      </div>
+        <h1 className="text-3xl font-bold">{t('staff.subscriptions')}</h1>
 
       <StaffSubscriptionsClient data={data} />
     </PageShell>

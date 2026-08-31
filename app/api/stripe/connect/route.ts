@@ -11,8 +11,21 @@ import { handleStripeWebhookRequest } from '@/lib/stripe/webhook-route'
  * `https://genorra.com/api/stripe/connect` and subscribe it to
  * `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
  * `checkout.session.async_payment_failed`, `invoice.paid`,
- * `customer.subscription.updated|deleted` and `account.updated`. Its signing secret is
+ * `customer.subscription.updated|deleted`, `account.updated` and — since 2026-08-31 —
+ * `charge.succeeded` and `charge.updated`. Its signing secret is
  * `STRIPE_CONNECT_WEBHOOK_SECRET`.
+ *
+ * ── THE TWO CHARGE EVENTS ARE WHAT RECORD THE PROCESSING FEE, AND FORGETTING THEM IS SILENT ──
+ * `settleChargeFee` is the only thing that ever writes `stripe_charge_fees`, and it runs only
+ * from those two. An endpoint that is not subscribed to them keeps working perfectly: members
+ * pay, dues are credited, funds are routed — and the family's fee is never recorded, their
+ * fund balances stay overstated by it forever, and the P&L's processing-fee line reads $0.00
+ * over money Stripe demonstrably took. Nothing errors and nothing logs, because from this
+ * app's side no event ever arrived.
+ *
+ * BOTH, not one. The balance transaction — the only place the real fee lives — can be absent
+ * on `succeeded` and present on `updated`, so subscribing to one of them records the fee for
+ * some charges and not others, for a reason nobody could see from here.
  *
  * ── THE `account` FIELD IS THE FAMILY-SCOPING KEY, SO ITS ABSENCE IS FATAL ──────────
  * Every Connect delivery carries `account` — the `acct_…` the thing happened on — and

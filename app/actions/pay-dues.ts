@@ -9,6 +9,7 @@ import { intentKey, onAccount, stripeClient, stripeUnavailableReason } from '@/l
 import { INTEGRATION_IDS, checkoutReturnUrls } from '@/lib/stripe/config'
 import { formatCurrency } from '@/lib/currency-utils'
 import type { PayCadence } from '@/lib/dues-utils'
+import { grossUpCents, type FeeRate } from '@/lib/stripe-fees'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
 
@@ -223,10 +224,11 @@ export async function startDuesCheckout(input: {
   const stripe = stripeClient()
   if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
-  const account = await readyAccount(g.familyCode)
-  if (!account) {
+  const processor = await readyProcessor(g.familyCode)
+  if (!processor) {
     return { success: false, message: t('act.familyNotSetUpTake') }
   }
+  const account = processor.accountId
 
   // THE SCHEDULES COME OUT OF THE CALLER'S OWN SUMMARY. An id that is not in it — another
   // family's, a donation drive's, a due they have opted out of — resolves to nothing, so the
@@ -274,6 +276,27 @@ export async function startDuesCheckout(input: {
   const totalCents = resolved.reduce((sum, r) => sum + r.amount, 0)
   const allocation = resolved.map(({ row, amount }) => ({ scheduleId: row.schedule.id, amount }))
 
+  // ── THE SURCHARGE, WHEN THE FAMILY HAS SAID THE MEMBER BEARS THE FEE ──────────────
+  // `grossUpCents` answers the CHEAPEST charge whose net clears what is owed, so the family
+  // banks the dues in full and the member's balance falls by the full amount. See
+  // `lib/stripe-fees.ts` for the arithmetic and for why the closed form is not the answer.
+  //
+  // THE ALLOCATION IS NOT TOUCHED. It carries what each due is OWED, which is what gets
+  // credited when the webhook posts; the surcharge belongs to no schedule and is deliberately
+  // outside it. That is also why it travels as its own metadata key rather than being folded
+  // into a line — `onCheckoutSession` asserts the allocation adds up to what Stripe took, and
+  // that assertion has to be able to account for this without loosening.
+  //
+  // A NULL GROSS-UP MEANS THE FAMILY ABSORBS IT. The only way to get one is a stated rate with
+  // no fixed point, which the CHECK on `fee_percent_bps` already refuses — so this is the
+  // unreachable branch being answered honestly rather than with a `!`. Charging the bare
+  // amount is the safe direction: the member is never charged a figure the code could not
+  // justify.
+  const grossCents = processor.feePayer === 'member'
+    ? grossUpCents(totalCents, processor.rate) ?? totalCents
+    : totalCents
+  const surchargeCents = grossCents - totalCents
+
   try {
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -283,21 +306,48 @@ export async function startDuesCheckout(input: {
       // ONE LINE PER DUE, NAMED. The hosted page is the last thing the member reads before
       // they commit, so it has to itemize what they are about to pay rather than showing one
       // total they would have to take on trust.
-      line_items: resolved.map(({ row, amount }) => ({
-        quantity: 1,
-        price_data: {
-          currency: CURRENCY,
-          unit_amount: amount,
-          product_data: {
-            name: row.schedule.label,
-            description: `Dues payment · ${g.familyCode}`,
+      line_items: [
+        ...resolved.map(({ row, amount }) => ({
+          quantity: 1,
+          price_data: {
+            currency: CURRENCY,
+            unit_amount: amount,
+            product_data: {
+              name: row.schedule.label,
+              description: `Dues payment · ${g.familyCode}`,
+            },
           },
-        },
-      })),
+        })),
+        // ── THE SURCHARGE IS ITS OWN LINE, AND THAT IS THE WHOLE POINT ──────────────
+        // A member who is being charged more than they owe has to be able to SEE why, on the
+        // page where they commit. Folding it into the dues lines would inflate each due by a
+        // few cents and leave the hosted page quoting figures that match nothing on their own
+        // dues screen — which is how a surcharge becomes something a family gets complained
+        // about rather than something it disclosed.
+        // KEYED, and in the MEMBER'S language — `g.t` off the guard. This text renders on
+        // Stripe's hosted page, which is a screen a relative reads, so it is copy in every
+        // sense the i18n rules mean. It is also the one line on that page they did not expect,
+        // which makes it the worst one to leave in English for a Spanish- or French-reading
+        // family. (`npm run i18n:literals` is what caught it: the gate reads a `name:` in an
+        // object, and it was written as a literal first.)
+        ...(surchargeCents > 0
+          ? [{
+              quantity: 1,
+              price_data: {
+                currency: CURRENCY,
+                unit_amount: surchargeCents,
+                product_data: {
+                  name: t('pay.feeLineName'),
+                  description: t('pay.feeLineDesc'),
+                },
+              },
+            }]
+          : []),
+      ],
       customer_email: await payerEmail(),
       client_reference_id: g.personId,
       payment_intent_data: {
-        metadata: allocationMetadata('dues', g.familyCode, g.personId, allocation),
+        metadata: allocationMetadata('dues', g.familyCode, g.personId, allocation, surchargeCents),
         // ON THE FAMILY'S OWN STATEMENT, not ours. A relative who does not recognise a line on
         // their card statement disputes it, and a dispute on a direct charge is the family's
         // to answer — so the descriptor has to name the family, not the software.
@@ -309,7 +359,7 @@ export async function startDuesCheckout(input: {
           ? statementSuffix(single.row.schedule.label)
           : statementSuffix('Dues'),
       },
-      metadata: allocationMetadata('dues', g.familyCode, g.personId, allocation),
+      metadata: allocationMetadata('dues', g.familyCode, g.personId, allocation, surchargeCents),
       integration_identifier: INTEGRATION_IDS.familyDuesOnce,
       ...checkoutReturnUrls('/accounting/dues-and-donations'),
     }, {
@@ -661,9 +711,32 @@ export async function startDonationCheckout(input: {
  * fails after they have decided to pay.
  */
 async function readyAccount(familyCode: string): Promise<string | null> {
+  return (await readyProcessor(familyCode))?.accountId ?? null
+}
+
+/**
+ * The family's account AND its fee policy, when it can take a card.
+ *
+ * ── ONE READ, BECAUSE THEY ARE ONE DECISION ─────────────────────────────────────────
+ * Whether to charge and how much to charge are settled by the same row, and splitting them
+ * into two reads would open a window where a family switches to member-pays between the two —
+ * producing a session charged at one policy and posted under another. `readyAccount` stays as
+ * the one-line answer for the callers that only need the id.
+ *
+ * THE RATE IS THE FAMILY'S STATED ONE and is used for nothing but the gross-up quote. What
+ * lands in the ledger is `balance_transaction.fee`, recorded by `lib/stripe/fee-settlement.ts`
+ * — see `lib/stripe-fees.ts` for why those two must never be confused.
+ */
+interface ReadyProcessor {
+  accountId: string
+  feePayer: 'family' | 'member'
+  rate: FeeRate
+}
+
+async function readyProcessor(familyCode: string): Promise<ReadyProcessor | null> {
   const { data, error } = await createAdminClient()
     .from('family_stripe_accounts')
-    .select('stripe_account_id, card_payments_status, disconnected_at')
+    .select('stripe_account_id, card_payments_status, disconnected_at, fee_payer, fee_percent_bps, fee_fixed_cents')
     .eq('family_code', familyCode)
     .maybeSingle()
   if (error) {
@@ -672,7 +745,18 @@ async function readyAccount(familyCode: string): Promise<string | null> {
   }
   if (!data || data.disconnected_at != null) return null
   if (data.card_payments_status !== 'active') return null
-  return data.stripe_account_id as string
+  return {
+    accountId: data.stripe_account_id as string,
+    // ANYTHING BUT THE ONE VALUE FALLS BACK TO 'family'. The column has a CHECK so a third
+    // value cannot exist, and defaulting to the absorbing case anyway means the failure mode
+    // of a future vocabulary change is a family paying its own fees rather than a member
+    // being silently surcharged.
+    feePayer: data.fee_payer === 'member' ? 'member' : 'family',
+    rate: {
+      percentBps: Number(data.fee_percent_bps) || 0,
+      fixedCents: Number(data.fee_fixed_cents) || 0,
+    },
+  }
 }
 
 function duesMetadata(familyCode: string, personId: string, scheduleId: string): Record<string, string> {
@@ -708,6 +792,21 @@ function allocationMetadata(
   familyCode: string,
   personId: string,
   resolved: readonly { scheduleId: string; amount: number }[],
+  /**
+   * What was added on top so the family banks the dues in full — 0 when it absorbs the fee.
+   *
+   * ── IT IS PART OF THE ALLOCATION'S ARITHMETIC, NOT A NOTE ─────────────────────────
+   * `onCheckoutSession` refuses a session whose allocation does not sum to what Stripe took,
+   * because a disagreement means the metadata was edited after the session was made. A
+   * surcharge makes `amount_total` legitimately exceed the allocation, so the webhook has to
+   * be TOLD the difference rather than have the check loosened to tolerate a gap — a check
+   * that tolerates a gap cannot tell a surcharge from a tampered allocation.
+   *
+   * Omitted entirely when zero. Every session created before this existed carries no such
+   * key, and the webhook reads a missing one as zero — so an old session sitting on Stripe's
+   * hosted page at deploy time still posts correctly.
+   */
+  surchargeCents = 0,
 ): Record<string, string> {
   const meta: Record<string, string> = {
     genorra_flow: flow,
@@ -716,6 +815,7 @@ function allocationMetadata(
     genorra_alloc_count: String(resolved.length),
   }
   if (resolved.length === 1) meta.genorra_schedule_id = resolved[0].scheduleId
+  if (surchargeCents > 0) meta.genorra_surcharge_cents = String(surchargeCents)
   resolved.forEach(({ scheduleId, amount }, i) => {
     meta[`genorra_alloc_${i}`] = `${scheduleId}:${amount}`
   })

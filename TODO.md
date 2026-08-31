@@ -293,7 +293,7 @@ anything.
 | Endpoint | URL | Events |
 |---|---|---|
 | Account | `https://genorra.com/api/stripe/platform` | `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted` |
-| **Connect** | `https://genorra.com/api/stripe/connect` | the first four above, plus `customer.subscription.updated`, `customer.subscription.deleted`, `account.updated` |
+| **Connect** | `https://genorra.com/api/stripe/connect` | the first four above, plus `customer.subscription.updated`, `customer.subscription.deleted`, `account.updated`, **`charge.succeeded`**, **`charge.updated`** |
 
 Then **turn a real payment on and watch it land.** "The endpoint returned 200" is not
 validation; these are:
@@ -586,6 +586,60 @@ list should not be worked blindly:
 | `China (CST)` | French should be `Chine (CST)`; Spanish is correctly identical. |
 
 Recorded 2026-08-29, rewritten 2026-08-31.
+
+## Stripe fees: the two halves that are NOT built
+
+**Action:** surface the fee on the member-facing dues screens, and subscribe the live webhook.
+
+`20260831000003` and `lib/stripe-fees.ts` shipped the mechanism on 2026-08-31 — the actual fee
+is captured from `balance_transaction`, apportioned per due, taken back out of the funds it was
+routed into, and reported on the P&L as its own expense line. `family_stripe_accounts.fee_payer`
+decides whether the family absorbs it or the charge is grossed up so the member covers it. Two
+things were deliberately left.
+
+**1. THE STRIPE ENDPOINT MUST BE SUBSCRIBED TO `charge.succeeded` AND `charge.updated`, and
+until it is this feature is inert in a way nothing reports.** `settleChargeFee` is the only
+writer of `stripe_charge_fees` and it runs only from those two events. An endpoint without them
+keeps working perfectly — members pay, dues are credited, funds are routed — and the fee is
+never recorded, fund balances stay overstated by it forever, and the P&L's processing-fee line
+reads $0.00 over money Stripe demonstrably took. Nothing errors, because from the app's side no
+event arrived. The endpoint table in the GO LIVE section above now names both.
+
+**2. THE DUES STATEMENTS DO NOT SHOW IT YET.** The P&L does; `/reporting/dues-projections`,
+`/dues` and `/payment-history` do not. The data is there — `dues_payment_fees` carries each
+payment's share — so this is presentation, not plumbing. The decision it needs is whose figure
+it is: under `fee_payer = 'family'` the fee is the FAMILY's cost and has no business on a
+member's own payment history, while under `'member'` they were charged it and it belongs on
+their receipt. So the member-facing surfaces probably show it only for the second, and the
+projections (an organizer's screen) show it for both.
+
+**And two smaller ones.** The manual says nothing about the setting — `help:check` passes
+because Processing is not a new screen, so nothing gates this. And `stripe_charge_fees` records
+only fees for charges this product posted (no matching `dues_payments` row, no fee row), which
+is deliberate — a family's own unrelated charges on their account must not become an expense on
+a P&L that never counted the income — but it means the figure is GENORRA's view of their fees
+and not their whole Stripe bill. The panel's caption should probably say so.
+
+Recorded 2026-08-31.
+
+## Staff console: sorting orders one page, not the list
+
+**Action:** push sorting into `listStaffFamilies`, or accept the page-local behaviour forever.
+
+Families and Accounts both sort client-side over a server-paged list, so pressing a heading
+orders the twenty-five rows in hand rather than the platform. `PageScopedSortNote` says so under
+both tables, and only when there is more than one page — so today, with every platform fitting
+on one page, the caveat is invisible and the sort is complete.
+
+**The two screens are not equally fixable, which is why both were left page-local.**
+`listStaffFamilies` already builds an `.order()` chain over a Postgres query and could take a
+sort parameter tomorrow. Accounts cannot: it pages GoTrue's admin `listUsers`, which offers no
+ordering at all, so sorting the whole set there means listing the whole set. Fixing one and not
+the other would put two different meanings behind the same control on two adjacent screens of
+one console, which is worse than one limitation stated plainly in both — but it is worth
+revisiting the moment either list outgrows a page.
+
+Recorded 2026-08-31.
 
 ## BUILD: collect dues in the family's own currency, not in dollars
 

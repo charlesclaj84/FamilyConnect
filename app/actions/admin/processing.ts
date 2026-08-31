@@ -91,6 +91,30 @@ export interface ProcessorStatus {
   /** How many members have a live recurring arrangement. Disconnecting cancels them. */
   liveAutopayCount: number
   canManage: boolean
+  /**
+   * Who bears Stripe's processing fee — `'family'` (absorbed) or `'member'` (charge grossed up).
+   *
+   * DEFAULTS TO `'family'`, which is what the product did before the setting existed. A family
+   * that has never opened this control is absorbing the fee, and must go on doing so until
+   * somebody decides otherwise: a default of `'member'` would have started surcharging every
+   * relative in the product on the day this deployed.
+   */
+  feePayer: 'family' | 'member'
+  /** The family's STATED percentage rate, in basis points. Quotes a gross-up; never a fee. */
+  feePercentBps: number
+  /** The family's STATED flat rate, in cents. */
+  feeFixedCents: number
+  /**
+   * What the family has actually paid in card fees, in cents — the sum of every recorded
+   * `stripe_charge_fees` row. Zero for a family that has taken no card payments.
+   *
+   * MEASURED, NEVER ESTIMATED, which is the distinction `lib/stripe-fees.ts` is built on: the
+   * three fields above quote a charge, this one reports what Stripe took. Shown beside them so
+   * a treasurer can see whether their stated rate resembles reality — which is the only way
+   * anybody would ever notice that the rate they typed is wrong for the cards their family
+   * actually uses.
+   */
+  feesPaidCents: number
 }
 
 export async function getProcessorStatus(): Promise<ProcessorStatus | null> {
@@ -98,15 +122,21 @@ export async function getProcessorStatus(): Promise<ProcessorStatus | null> {
   if (!g.ok || !g.familyCode) return null
 
   const admin = createAdminClient()
-  const [accountRes, autopayRes, editable] = await Promise.all([
+  const [accountRes, autopayRes, feesRes, editable] = await Promise.all([
     admin.from('family_stripe_accounts')
-      .select('stripe_account_id, card_payments_status, details_submitted, connected_at, disconnected_at')
+      .select('stripe_account_id, card_payments_status, details_submitted, connected_at, disconnected_at, fee_payer, fee_percent_bps, fee_fixed_cents')
       .eq('family_code', g.familyCode)
       .maybeSingle(),
     admin.from('dues_autopay')
       .select('id', { count: 'exact', head: true })
       .eq('family_code', g.familyCode)
       .is('cancelled_at', null),
+    // §3 by hand, on the admin client, for the reason every report in this product uses it: a
+    // fee total narrowed to what the READER may see is a wrong number rather than a withheld
+    // one, and `stripe_charge_fees` has no policy for the user client to satisfy anyway.
+    admin.from('stripe_charge_fees')
+      .select('fee_cents')
+      .eq('family_code', g.familyCode),
     requireEdit(PROCESSING).then(r => r.ok),
   ])
 
@@ -133,6 +163,18 @@ export async function getProcessorStatus(): Promise<ProcessorStatus | null> {
     disconnectedAt: (row?.disconnected_at as string | null) ?? null,
     liveAutopayCount: autopayRes.count ?? 0,
     canManage: editable,
+    // The same fall-back-to-absorbing rule `readyProcessor` applies, and for the same reason:
+    // if the vocabulary ever grows a third value, the failure mode should be a family paying
+    // its own fees rather than a member being silently surcharged.
+    feePayer: row?.fee_payer === 'member' ? 'member' : 'family',
+    feePercentBps: Number(row?.fee_percent_bps ?? 290),
+    feeFixedCents: Number(row?.fee_fixed_cents ?? 30),
+    // §8: a refused read here would report $0.00 of fees over a family that has paid plenty,
+    // which is the wrong-number-rather-than-a-missing-one failure this product keeps returning
+    // to. `feesRes.error` is checked rather than `?? []` swallowing it.
+    feesPaidCents: feesRes.error
+      ? 0
+      : (feesRes.data ?? []).reduce((sum, r) => sum + (Number(r.fee_cents) || 0), 0),
   }
 }
 
@@ -682,4 +724,82 @@ async function ensureConnectedAccount(
 
 function describe(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
+}
+
+/**
+ * Say who bears Stripe's processing fee, and at what stated rate.
+ *
+ * ── IT CHANGES WHAT A MEMBER IS CHARGED, SO IT IS `requireEdit` AND NOTHING LESS ────
+ * Switching to `'member'` makes every subsequent card payment cost the payer more than the
+ * due says. That is a decision about the family's money and about its relatives' money, and it
+ * sits behind the same grant as connecting and disconnecting the account itself.
+ *
+ * ── IT IS NOT RETROSPECTIVE, AND CANNOT BE ─────────────────────────────────────────
+ * The surcharge is decided when the Checkout Session is CREATED, so this only affects payments
+ * started after it is saved. A member sitting on Stripe's hosted page when a treasurer flips
+ * the switch pays what they were quoted — which is the only defensible answer, and the reason
+ * `readyProcessor` reads the policy in the same query as the account id rather than in a
+ * second one.
+ *
+ * ── THE RATE IS A QUOTE, NEVER A RECORD ────────────────────────────────────────────
+ * `lib/stripe-fees.ts` states it at length: what is typed here decides what to CHARGE, and
+ * what lands in the ledger is `balance_transaction.fee`, measured. They differ for an
+ * international card, an Amex or a negotiated rate, and the family absorbs the difference —
+ * so a rate typed too low is not an error, it is the family quietly paying a few cents per
+ * payment. The panel shows what has actually been paid beside the box for that reason.
+ *
+ * ── AND THE SERVICE ROLE, WITH §3 BY HAND ──────────────────────────────────────────
+ * `family_stripe_accounts` has RLS enabled and ZERO policies (`20260823000005`), so there is
+ * no policy underneath this and the `.eq('family_code', …)` IS the family boundary — the
+ * `editPersonRecord` situation, one table along.
+ */
+export async function setProcessingFeePolicy(input: {
+  feePayer: 'family' | 'member'
+  feePercentBps: number
+  feeFixedCents: number
+}): Promise<ProcessorActionResult> {
+  const g = await requireEdit(PROCESSING)
+  if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
+
+  // A `'use server'` export is a public HTTP endpoint, so the union in the signature is a type
+  // and not a check. Anything but the one value is read as the absorbing case rather than
+  // refused: the caller is a two-option control, and the safe direction is unambiguous.
+  const feePayer = input.feePayer === 'member' ? 'member' : 'family'
+
+  // ── THE SAME BOUNDS THE CHECK CONSTRAINT STATES, CHECKED HERE FOR THE MESSAGE ─────
+  // The database refuses these anyway (`family_stripe_accounts_fee_rate_sane`), which is what
+  // makes them safe. Repeating them is so a slipped decimal produces a sentence naming the
+  // field rather than a raw 23514 the treasurer has to interpret — the same reason
+  // `assignBoardPosition` re-checks what its trigger enforces.
+  const percentBps = Math.round(Number(input.feePercentBps))
+  const fixedCents = Math.round(Number(input.feeFixedCents))
+  if (!Number.isFinite(percentBps) || percentBps < 0 || percentBps > 5000) {
+    return { success: false, message: t('act.feePercentOutOfRange') }
+  }
+  if (!Number.isFinite(fixedCents) || fixedCents < 0 || fixedCents > 1000) {
+    return { success: false, message: t('act.feeFixedOutOfRange') }
+  }
+
+  const { data, error } = await createAdminClient()
+    .from('family_stripe_accounts')
+    .update({ fee_payer: feePayer, fee_percent_bps: percentBps, fee_fixed_cents: fixedCents })
+    .eq('family_code', g.familyCode)
+    // §8b: the row exists only once a family has connected an account, so a caller who has not
+    // matches zero rows — and `{ error: null }` over nothing would report success for a
+    // setting that was never stored. `.select()` is what tells the two apart.
+    .select('id')
+
+  if (error) {
+    console.error(`[processing] fee policy update failed for ${g.familyCode}: ${error.message}`)
+    return { success: false, message: t('act.couldNotSaveFeePolicy') }
+  }
+  if (!data || data.length === 0) {
+    return { success: false, message: t('act.familyNotConnectedAccountYet') }
+  }
+
+  revalidatePath('/admin/accounting')
+  revalidatePath('/accounting/dues-and-donations')
+  return { success: true, message: t('act.feePolicySaved') }
 }

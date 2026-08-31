@@ -281,7 +281,6 @@ export const es: Catalogue = {
   // revenue and never a family's dues — the two ledgers must not meet, and a caption
   // here that blurred them would be quoted.
   'staff.subscriptions': 'Suscripciones',
-  'stf.subscriptionsLede': 'Lo que cada familia paga a GENORRA y a cuáles hay que dar seguimiento. Estos son los ingresos de la plataforma, nunca las cuotas de una familia.',
   'stf.subscriptionsReadFailed': 'No pudimos leer los registros de facturación en este momento. No hay ningún problema con el plan de ninguna familia: actualice la página, y si sigue ocurriendo no conviene citar estas cifras.',
   'stf.subPaying': 'Pagando hoy',
   'stf.subMrr': 'Mensual',
@@ -291,6 +290,9 @@ export const es: Catalogue = {
   'stf.subAttention': 'Requieren atención',
   'stf.subAttentionHint': '{delinquent} con fallo, {leaving} se van',
   'stf.subNoneYet': 'Ninguna familia ha llegado al pago todavía.',
+  'stf.tierMixHeading': 'Familias por plan',
+  'stf.tierMixHint': 'Todas las familias de la plataforma, contadas por el plan vigente, no sólo las que han pagado.',
+  'stf.sortOrdersThisPage': 'La ordenación afecta a las filas de esta página, no a toda la lista.',
   'stf.subFamily': 'Familia',
   'stf.subPlan': 'Plan',
   'stf.subPaidThrough': 'Pagado hasta',
@@ -860,6 +862,8 @@ export const es: Catalogue = {
   'pay.nothingLeftOn': 'No queda nada por pagar en {schedule}.',
   'pay.moreThanOwed':
     'Eso es más de lo que se debe. Lo máximo que se puede pagar en {schedule} es {amount}.',
+  'pay.feeLineName': 'Comisión por pago con tarjeta',
+  'pay.feeLineDesc': 'Para que su familia reciba el importe completo',
   'pay.driveClosed': '{drive} se ha cerrado. Ya no se puede aportar nada más.',
   'pay.maxCharge': 'Un solo pago con tarjeta no puede ser mayor de {amount}. Hágalo en dos.',
   'rep.elecOpenNow': '{n} abiertas ahora · solo publicadas',
@@ -1618,6 +1622,8 @@ export const es: Catalogue = {
   'pnl.balancesToday': 'Saldos de los fondos hoy',
   'pnl.nothingPaidOut': 'Todavía no se ha pagado nada',
   'pnl.disbursed': 'Pagado desde los fondos de la familia',
+  'pnl.disbursements': 'Pagos',
+  'pnl.processingFees': 'Comisiones por tarjeta',
   'pnl.surplus': 'Superávit neto',
   'pnl.deficit': 'Déficit neto',
   'pnl.routedBeyond': 'Asignado más allá de los ingresos por cuotas',
@@ -2839,6 +2845,18 @@ export const es: Catalogue = {
   'proc.notOn': 'Los pagos en línea todavía no están activados',
   'proc.stripeAccount': 'Cuenta de Stripe',
   'proc.payingAuto': 'Integrantes que pagan automáticamente',
+  'proc.feeHeading': 'Comisiones por pago con tarjeta',
+  'proc.feeBlurb': 'Stripe cobra una comisión por cada pago con tarjeta. Sale del lado de su familia, y esto decide si la asume la familia o la cubre el integrante.',
+  'proc.feeWhoPays': 'Quién paga la comisión',
+  'proc.feePayerFamily': 'La familia la asume',
+  'proc.feePayerMember': 'La cubre el integrante',
+  'proc.feePercent': 'Porcentaje (%)',
+  'proc.feeFixed': 'Importe fijo por pago ($)',
+  'proc.feeExplainFamily': 'A un integrante que debe $40.00 se le cobran $40.00, y su cuota baja $40.00. Su familia recibe lo que queda después de la comisión de Stripe.',
+  'proc.feeExplainMember': 'A un integrante que debe {owed} se le cobran {charged}, así que su familia recibe los {owed} completos y su cuota baja {owed}. El importe adicional se muestra en una línea aparte antes de pagar.',
+  'proc.feeRateUnusable': 'Esa tasa no se puede añadir a un pago. Reduzca el porcentaje.',
+  'proc.feesPaidSoFar': 'Stripe ha cobrado {amount} en comisiones a esta familia hasta ahora.',
+  'proc.feePolicySaved': 'Guardado',
   'proc.continueStripe': 'Continuar en Stripe',
   'proc.checkStripe': 'Comprobar con Stripe',
   'proc.disconnect': 'Desconectar',
@@ -4077,6 +4095,10 @@ export const es: Catalogue = {
   'act.familyNoPaymentHistoryYet': 'Esta familia todavía no tiene historial de pagos.',
   'act.familyNoSettingsRecordChange': 'Esta familia no tiene un registro de ajustes que cambiar.',
   'act.familyNotConnectedAccountYet': 'Esta familia todavía no ha conectado una cuenta.',
+  'act.feePercentOutOfRange': 'El porcentaje debe estar entre 0 % y 50 %.',
+  'act.feeFixedOutOfRange': 'La tarifa fija debe estar entre $0.00 y $10.00.',
+  'act.couldNotSaveFeePolicy': 'No se pudo guardar. Inténtelo de nuevo.',
+  'act.feePolicySaved': 'Guardado.',
   'act.familyNotConnectedAccount': 'Esta familia no ha conectado una cuenta.',
   'act.familyAlreadyRemovedNoSettings': 
     'Esta familia ya está eliminada, o no tiene un registro de ajustes que '
@@ -4257,7 +4279,6 @@ export const es: Catalogue = {
   'rep.votesCast': 'Votos emitidos',
   'stf.staffConsole': 'Consola del personal',
   'stf.readsAcrossEveryFamily': 'Lee todas las familias de la plataforma',
-  'stf.backApp': 'Volver a la aplicación',
   'stf.pageNotFound': 'Página no encontrada',
   'stf.thereNothingAddress': 'No hay nada en esta dirección.',
   'stf.everybodyWhoCanOpen': 
@@ -4266,28 +4287,6 @@ export const es: Catalogue = {
     + 'ella; a los demás se les responde 404, la misma respuesta que la consola '
     + 'da a un cliente. El primerísimo propietario de una base de datos nueva '
     + 'sigue viniendo de',
-  'stf.everyAccountCanSign': 
-    'Todas las cuentas que pueden iniciar sesión, listadas desde el servicio '
-    + 'de autenticación y no desde los registros de ninguna familia, de modo '
-    + 'que una cuenta que no pertenece a nada —una de las formas en que ocurre '
-    + 'el «no funciona»— también aparece aquí.',
-  'stf.everyFamilyPlatformWhatever': 
-    'Todas las familias de la plataforma, sea cual sea su plan y esté o no '
-    + 'eliminada. Eliminar una familia se hace en el producto, tras un código '
-    + 'enviado por correo al administrador que lo hace; volver a ponerla solo '
-    + 'se hace aquí.',
-  'stf.crossFamilyToolsAnswering': 
-    'Herramientas entre familias para atender un ticket de soporte. Todo lo '
-    + 'de aquí lee todas las familias de la plataforma, no una sola, y lo único '
-    + 'que puede cambiar es volver a poner una familia eliminada.',
-  'stf.accessConsole': 'Acceso a esta consola',
-  'stf.staffAccessRow': 'El acceso del personal es una fila en',
-  'stf.anybodyWithoutRowGets': 
-    'A quien no tenga una fila se le responde 404 en todas las páginas de '
-    + 'aquí, y por eso la consola nunca dice «no autorizado». No hay ningún '
-    + 'permiso de cara a la familia para nada de esto: la condición de personal '
-    + 'es ajena al modelo de permisos de la familia, así que ningún '
-    + 'administrador de familia puede ver que estas pantallas existen.',
   'shell.everyoneFamily': 'Todos los de esta familia',
   'inv.invitationNotValid': 'Esta invitación no es válida',
   'inv.mayExpiredBeenCancelled': 

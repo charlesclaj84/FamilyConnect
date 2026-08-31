@@ -46,10 +46,7 @@ export default async function StaffAccountsPage() {
 
   return (
     <PageShell className="space-y-6">
-      <div>
-        <h1 className="mb-1 text-3xl font-bold">{t('page./staff/accounts.title')}</h1>
-        <p className="max-w-3xl text-muted-foreground">{t('stf.everyAccountCanSign')}</p>
-      </div>
+        <h1 className="text-3xl font-bold">{t('page./staff/accounts.title')}</h1>
 
       <StaffAccountsClient initial={initial} isOwner={staff.role === 'owner'} />
     </PageShell>

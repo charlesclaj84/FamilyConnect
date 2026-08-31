@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from 'react'
 import { ChevronLeft, ChevronRight, Loader2, Search } from 'lucide-react'
 import { MemberSearchBox } from '@/components/admin/MemberSearch'
+import { SortTh, useTableSort } from '@/components/ui/sortable-header'
+import { PageScopedSortNote } from '@/components/staff/PageScopedSortNote'
 import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
 import { FormError } from '@/components/ui/form-message'
 import { Input } from '@/components/ui/input'
@@ -183,6 +185,38 @@ function AccountTable({ initial, isOwner }: {
   // is how an off-by-one gets in.
   const [page, setPage] = useState(1)
   const [data, setData] = useState<StaffAccountPage>(initial)
+
+  // ── SORTING ORDERS THE PAGE, AND HERE IT CAN NEVER BE OTHERWISE ──────────────────
+  // Families next door pages a Postgres query and could in principle be sorted server-side.
+  // This one cannot: it pages GoTrue's admin `listUsers`, which offers no ordering parameter
+  // at all, so the only list that exists to sort is the one in hand. `PageScopedSortNote`
+  // under the table says so when there is more than one page — the same sentence and the same
+  // component both screens use, because it is the same limitation and two wordings would
+  // drift.
+  //
+  // NO `total`, EITHER, which is why the note is given `hasMore`. GoTrue returns no dependable
+  // count (`lib/auth/account-state.ts` says so, and it is why the pager here states a page
+  // number rather than "3 of 9"), so there is no figure to compare against a page size.
+  // "There is at least one more page" is the whole of what can be known, and it is enough to
+  // decide whether the caveat applies.
+  //
+  // STATUS SORTS ON THE SAME TEST THE CELL RENDERS. `confirmedAt` being null is what the
+  // column reports — an unconfirmed address, the first thing to check on a support call — so
+  // unconfirmed sorts FIRST ascending. A boolean, which `lib/sort-rows.ts` puts true-first on
+  // exactly that reasoning: the flagged rows are what somebody pressing the heading is after.
+  //
+  // FAMILIES SORTS ON THE COUNT, not on the names in the cell. An account belonging to no
+  // family is "a finding, not a blank" per `StaffAccountRow`, and a count sorts it to one end
+  // where the reader can act on it; ordering by the first family's name would scatter those
+  // rows through the alphabet.
+  const { rows: sortedRows, sortProps } = useTableSort(data.rows, {
+    incoming: () => 0,
+    email: r => r.email,
+    status: r => r.confirmedAt == null,
+    families: r => r.memberships.length,
+    lastSignIn: r => r.lastSignInAt,
+    created: r => r.createdAt,
+  }, 'incoming')
   const [isPending, startTransition] = useTransition()
 
   const reqId = useRef(0)
@@ -255,11 +289,11 @@ function AccountTable({ initial, isOwner }: {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-semibold">{t('field.email')}</th>
-                <th scope="col" className="px-3 py-2 font-semibold">{t('money.status')}</th>
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.families')}</th>
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.lastSignIn')}</th>
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.created')}</th>
+                <SortTh label={t('field.email')} {...sortProps('email')} className="px-3 py-2 font-semibold" />
+                <SortTh label={t('money.status')} {...sortProps('status')} className="px-3 py-2 font-semibold" />
+                <SortTh label={t('staff.families')} {...sortProps('families')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                <SortTh label={t('staff.lastSignIn')} {...sortProps('lastSignIn')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                <SortTh label={t('staff.created')} {...sortProps('created')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                 {/* AN `sr-only` HEADING, not an empty `<th>`. A screen reader announces the
                     column when it reads the cell, and a column with no heading to give still
                     needs one — AGENTS.md, "A table is a table". Rendered only when the
@@ -273,7 +307,7 @@ function AccountTable({ initial, isOwner }: {
               </tr>
             </thead>
             <tbody>
-              {data.rows.map(row => (
+              {sortedRows.map(row => (
                 <tr key={row.userId} className="border-b align-top last:border-0">
                   <td className="px-3 py-2.5">
                     <span className="font-medium break-all">{row.email || '(no address)'}</span>
@@ -350,6 +384,8 @@ function AccountTable({ initial, isOwner }: {
           </table>
         </div>
       )}
+
+      <PageScopedSortNote moreThanOnePage={data.hasMore || data.page > 1} />
 
       {/* Prev/Next over an unknown total — see the header for why `Pager` cannot be used. */}
       <div className="flex items-center justify-between gap-3 pt-1 text-xs text-muted-foreground">

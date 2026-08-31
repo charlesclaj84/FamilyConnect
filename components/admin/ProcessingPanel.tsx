@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import {
   DEFAULT_CONNECT_COUNTRY, enabledConnectCountries, hasConnectCountryChoice,
@@ -17,11 +18,13 @@ import { EmailedCodeField, PasswordReauthField } from '@/components/ui/challenge
 // would replace the session, and a new session's `created_at` resets GoTrue's 24-hour
 // reauthentication window. AGENTS.md states that rule where the Password panel lives.
 import { verifyCurrentPassword } from '@/lib/supabase/client'
+import { formatCurrency } from '@/lib/currency-utils'
+import { grossUpCents } from '@/lib/stripe-fees'
 import {
   disconnectProcessor, refreshProcessorStatus, requestProcessorDisconnectCode,
-  startProcessorOnboarding, type ProcessorStatus,
+  startProcessorOnboarding, setProcessingFeePolicy, type ProcessorStatus,
 } from '@/app/actions/admin/processing'
-import { useT } from '@/components/layout/LocaleProvider'
+import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 import type { T } from '@/lib/i18n/t'
 
 /**
@@ -472,6 +475,12 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
           </div>
         </dl>
 
+        {/* ── WHO PAYS THE PROCESSING FEE ─────────────────────────────────────────────
+            Under the account details, above the buttons that connect and disconnect it: it is
+            a setting ABOUT this account, and it is meaningless without one. A family that has
+            not connected never sees it, because there is nothing yet for it to govern. */}
+        <FeePolicyFields status={status} />
+
         {status.canManage && (
           <div className="flex flex-wrap gap-2">
             {!status.chargesReady && (
@@ -519,3 +528,164 @@ function Panel({ children }: { children: React.ReactNode }) {
     </div>
   )
 }
+
+/**
+ * Who bears Stripe's processing fee, and at what stated rate.
+ *
+ * ── THE QUOTE IS SHOWN, BECAUSE THE SETTING IS OTHERWISE ABSTRACT ───────────────────
+ * "The member covers the fee" does not tell a treasurer what a relative will actually be
+ * asked for, and the answer is not the one most people would guess: grossing up $40 at
+ * 2.9% + 30c is $41.50, not $41.46, because the fee applies to the grossed-up charge too. So
+ * the panel works the example with the family's own rate, live, as they type it.
+ *
+ * `grossUpCents` rather than a second copy of the arithmetic — the SAME function
+ * `startDuesCheckout` charges with, so the figure quoted here cannot come to differ from the
+ * figure a member is charged. That is the whole reason it is a pure module in `lib/`.
+ *
+ * ── AND WHAT THEY HAVE ACTUALLY PAID, BESIDE IT ─────────────────────────────────────
+ * `feesPaidCents` is measured — the sum of every `balance_transaction.fee` recorded. It is
+ * shown next to the stated rate because that juxtaposition is the only way anybody would ever
+ * notice their stated rate is wrong for the cards their family really uses: the difference is
+ * silently absorbed by the family, so nothing else will ever raise it.
+ *
+ * ── IT IS A CLIENT COMPONENT AND OWNS `'use client'` THROUGH ITS PARENT ─────────────
+ * Declared in this file rather than its own, so it inherits the directive at the top. It takes
+ * no `t` prop and calls `useT()` because it is only ever rendered by `ProcessingPanel`, which
+ * is itself a client component — the second row of AGENTS.md's table, not the first.
+ */
+function FeePolicyFields({ status }: { status: ProcessorStatus }) {
+  const t = useT()
+  const intl = useIntlTag()
+  const router = useRouter()
+  const [pending, startTransition] = useTransition()
+
+  const [feePayer, setFeePayer] = useState<'family' | 'member'>(status.feePayer)
+  // Held as typed, in the units a person thinks in — a percentage and dollars — and converted
+  // on save. Basis points in an input box would be a control asking somebody to do arithmetic
+  // in their head to enter a rate their processor states as "2.9%".
+  const [percent, setPercent] = useState((status.feePercentBps / 100).toString())
+  const [fixed, setFixed] = useState((status.feeFixedCents / 100).toFixed(2))
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  const rate = {
+    percentBps: Math.round((parseFloat(percent) || 0) * 100),
+    fixedCents: Math.round((parseFloat(fixed) || 0) * 100),
+  }
+  // THE WORKED EXAMPLE, on a round $40 so the arithmetic is legible. Null when the typed rate
+  // has no fixed point, which the save below refuses anyway — the example simply goes quiet
+  // rather than printing a figure derived from a rate nobody can be charged at.
+  const example = grossUpCents(EXAMPLE_OWED_CENTS, rate)
+
+  const dirty = feePayer !== status.feePayer
+    || rate.percentBps !== status.feePercentBps
+    || rate.fixedCents !== status.feeFixedCents
+
+  function save() {
+    setError('')
+    setSaved(false)
+    startTransition(async () => {
+      const result = await setProcessingFeePolicy({
+        feePayer,
+        feePercentBps: rate.percentBps,
+        feeFixedCents: rate.fixedCents,
+      })
+      if (!result.success) { setError(result.message); return }
+      setSaved(true)
+      router.refresh()
+    })
+  }
+
+  return (
+    <div className="space-y-3 rounded-lg border bg-muted/30 p-4">
+      <div>
+        <h3 className="text-sm font-semibold">{t('proc.feeHeading')}</h3>
+        <p className="mt-0.5 text-xs text-muted-foreground">{t('proc.feeBlurb')}</p>
+      </div>
+
+      <div className="space-y-1.5">
+        <Label htmlFor="fee-payer">{t('proc.feeWhoPays')}</Label>
+        <Select
+          id="fee-payer"
+          value={feePayer}
+          disabled={!status.canManage || pending}
+          onChange={e => { setFeePayer(e.target.value === 'member' ? 'member' : 'family'); setSaved(false) }}
+        >
+          <option value="family">{t('proc.feePayerFamily')}</option>
+          <option value="member">{t('proc.feePayerMember')}</option>
+        </Select>
+      </div>
+
+      {/* THE RATE ONLY MATTERS WHEN SOMEBODY IS BEING CHARGED IT. Under 'family' the gross-up
+          is never computed, so a rate box would be a control that changes nothing — the same
+          objection AGENTS.md makes to a permission switch nothing consults. It stays mounted
+          rather than unmounting so a treasurer comparing the two options does not lose what
+          they typed. */}
+      {feePayer === 'member' && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="fee-percent">{t('proc.feePercent')}</Label>
+            <Input
+              id="fee-percent" type="number" min="0" max="50" step="0.01"
+              value={percent} disabled={!status.canManage || pending}
+              onChange={e => { setPercent(e.target.value); setSaved(false) }}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="fee-fixed">{t('proc.feeFixed')}</Label>
+            <Input
+              id="fee-fixed" type="number" min="0" max="10" step="0.01"
+              value={fixed} disabled={!status.canManage || pending}
+              onChange={e => { setFixed(e.target.value); setSaved(false) }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* WHAT IT MEANS, IN ONE SENTENCE, FOR EACH CHOICE. Not a restatement of the option
+          label: each says what happens to a member's balance, because that is the half a
+          treasurer cannot infer and the half a relative will ask about. */}
+      <p className="text-xs text-muted-foreground">
+        {feePayer === 'family'
+          ? t('proc.feeExplainFamily')
+          : example != null
+            ? t('proc.feeExplainMember', {
+                owed: formatCurrency(EXAMPLE_OWED_CENTS, intl),
+                charged: formatCurrency(example, intl),
+              })
+            : t('proc.feeRateUnusable')}
+      </p>
+
+      {status.feesPaidCents > 0 && (
+        <p className="text-xs text-muted-foreground">
+          {t('proc.feesPaidSoFar', { amount: formatCurrency(status.feesPaidCents, intl) })}
+        </p>
+      )}
+
+      <FormError message={error} />
+
+      {status.canManage && (
+        <div className="flex items-center gap-3">
+          <Button size="sm" variant="affirm" onClick={save} disabled={!dirty || pending}>
+            {t('action.save')}
+          </Button>
+          {/* Quiet, and only after a save that landed. `--brand-affirm` is the create/record/pay
+              role and this is a record; it is not a `FormMessage`, which owns refusals. */}
+          {saved && !dirty && (
+            <span className="text-xs text-brand-affirm">{t('proc.feePolicySaved')}</span>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The amount the worked example is quoted on.
+ *
+ * A ROUND $40, chosen so the arithmetic is legible rather than because it resembles anybody's
+ * dues. The point of the sentence is the RELATIONSHIP between the two figures — that the
+ * surcharge is a little more than the fee on the original amount — and a lumpy number would
+ * bury that in decimals.
+ */
+const EXAMPLE_OWED_CENTS = 4000

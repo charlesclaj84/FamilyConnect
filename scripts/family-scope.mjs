@@ -168,6 +168,17 @@ const REVIEWED = {
     "SELF — `.eq('recipient_id', person.id)` where `person` is the caller's own row, which is "
     + 'narrower than the family.',
 
+  'lib/stripe/fee-settlement.ts:fund_contributions':
+    'STAMPED — this is the INSERT of the fee contra-entries, and every row in it carries '
+    + '`family_code: input.familyCode`. The sweep cannot see it because the rows are built in '
+    + 'a `rows` variable a few lines above rather than inline in the chained statement, which '
+    + "is the script's own stated blind spot about a query it cannot read end to end. The "
+    + 'family comes from `settleChargeFee`, which resolved it from the `acct_…` on the event '
+    + 'through the UNIQUE `family_stripe_accounts.stripe_account_id` — the only scoping key a '
+    + 'webhook has, since there is no session and no caller. The SELECT immediately above it '
+    + "does carry `.eq('family_code', …)`, so the fund ids being written to came out of a "
+    + 'family-scoped read as well.',
+
   'lib/auth/locale.ts:people':
     "SELF — `.eq('user_id', userId)`, the caller's own rows, which is narrower than a family. "
     + 'Identical shape and identical reasoning to lib/auth/zone.ts:people below: the column '

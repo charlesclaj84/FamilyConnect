@@ -3,6 +3,8 @@ import { ArrowRight, Building2, UserSearch } from 'lucide-react'
 import { requireStaff } from '@/lib/auth/staff'
 import { getStaffFamilyCounts } from '@/app/actions/staff/families'
 import { getStaffMembershipCount } from '@/app/actions/staff/accounts'
+import { listStaffSubscriptions } from '@/app/actions/staff/subscriptions'
+import { StaffSubscriptionFigures } from '@/components/staff/StaffSubscriptionsClient'
 import { PageShell } from '@/components/layout/PageShell'
 import { APP_NAME } from '@/lib/brand'
 import { cn } from '@/lib/utils'
@@ -44,17 +46,40 @@ export default async function StaffOverviewPage() {
   // Both gate themselves again, and both go through the service role on purpose — see
   // the headers on the two action modules for why §3's usual family-scoping obligation
   // is inverted rather than forgotten.
-  const [families, memberships] = await Promise.all([
+  // ── THE SUBSCRIPTION SUMMARY IS READ HERE TOO, SINCE 2026-08-31 ───────────────────
+  // `listStaffSubscriptions()` rather than a summary-only action, and only `.summary` is
+  // used. That is deliberate: the two screens then compute their figures from ONE function,
+  // so the Overview and Subscriptions cannot come to disagree about what the platform is
+  // owed — which is the same argument `StaffSubscriptionFigures` makes about the markup.
+  //
+  // The discarded `rows` cost a query and no payload: this is a Server Component, so what
+  // is not passed down never crosses the wire. If that list ever grows past what one read
+  // should carry, the fix is a summary-only action that the LIST also calls — not a second
+  // implementation of the arithmetic.
+  const [families, memberships, subscriptions] = await Promise.all([
     getStaffFamilyCounts(),
     getStaffMembershipCount(),
+    listStaffSubscriptions(),
   ])
 
   return (
     <PageShell className="space-y-8">
-      <div>
-        <h1 className="mb-1 text-3xl font-bold">{t('page./staff.title', { app: APP_NAME })}</h1>
-        <p className="max-w-2xl text-muted-foreground">{t('stf.crossFamilyToolsAnswering')}</p>
-      </div>
+      <h1 className="text-3xl font-bold">{t('page./staff.title', { app: APP_NAME })}</h1>
+
+      {/* ── WHAT THE PLATFORM IS OWED, ABOVE THE TWO ROSTERS ───────────────────────
+          The console's widest fact, so it leads. Families and Accounts below it are the
+          rows BEHIND these numbers, which is the order the rail now runs in too.
+
+          A REFUSED READ SAYS NOTHING RATHER THAN ZERO. `summary.failed` is set when any of
+          the subscription reads was refused, and four zeros on this band would report a
+          platform with no customers on the one screen somebody would quote — §8, and the
+          same call `StaffSubscriptionsClient` makes with a whole sentence. Here the band
+          simply does not render: the Overview has two other cards that are still true, and
+          replacing a figure with an apology at the top of a landing page is louder than the
+          failure warrants. The Subscriptions screen is one click away and says it plainly. */}
+      {!subscriptions.summary.failed && (
+        <StaffSubscriptionFigures summary={subscriptions.summary} />
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <ConsoleCard
@@ -97,25 +122,6 @@ export default async function StaffOverviewPage() {
           />
         </ConsoleCard>
       </div>
-
-      <section className="rounded-xl border bg-card p-5 text-sm text-card-foreground">
-        <h2 className="mb-2 text-base font-semibold">{t('stf.accessConsole')}</h2>
-        {/* THIS PARAGRAPH WAS FALSE FOR MOST OF 2026-08-19 and is worth a note, because the
-            way it went wrong is the way this kind of copy always goes wrong. It read "there is
-            no screen that grants it, deliberately" — an accurate statement of the old design,
-            left standing on the landing page after /staff/access shipped, one click from a nav
-            item that contradicted it. Prose describing an absence has no test: nothing fails
-            when the absence ends. If the grant flow moves again, this is the sentence to
-            change, and AGENTS.md's staff-console section is the other one. */}
-        <p className="text-muted-foreground">{t('stf.staffAccessRow')}<code className="rounded bg-muted px-1 py-0.5 text-xs">genorra_staff</code>.
-          An <strong className="font-medium text-foreground">owner</strong> grants and revokes it
-          from <strong className="font-medium text-foreground">Access</strong>, by email address, with
-          a note saying why — support and engineer roles cannot open that screen or read the team.
-          The very first owner is still seeded by hand with SQL, because a console that could
-          bootstrap its own first account would need no account to do it.
-        </p>
-        <p className="mt-2 text-muted-foreground">{t('stf.anybodyWithoutRowGets')}</p>
-      </section>
     </PageShell>
   )
 }

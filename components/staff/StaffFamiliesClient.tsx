@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useTransition } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { MEMBER_PAGE_SIZE } from '@/lib/pagination'
 import { MemberSearchBox, Pager } from '@/components/admin/MemberSearch'
+import { SortTh, useTableSort } from '@/components/ui/sortable-header'
+import { PageScopedSortNote } from '@/components/staff/PageScopedSortNote'
 import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
 import { FormError } from '@/components/ui/form-message'
 import { useConfirm } from '@/components/ui/confirm'
@@ -76,6 +78,36 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
   const [debounced, setDebounced] = useState('')
   const [page, setPage] = useState(0)
   const [data, setData] = useState<StaffFamilyPage>(initial)
+
+  // ── SORTING ORDERS THE PAGE, AND THE TABLE SAYS SO WHEN THERE IS MORE THAN ONE ────
+  // This list is paged on the SERVER (`.range(offset, …)`), so the rows in hand are one page
+  // of many and a client sort can only order those. That is a control that lies unless the
+  // reader is told — it looks like it ordered the platform and it ordered twenty-five rows —
+  // so `PageScopedSortNote` sits under the table and appears only when `total` exceeds a
+  // page. On a platform with one page it is the whole list and there is nothing to caption.
+  //
+  // WHY NOT SERVER-SIDE, WHICH WOULD BE HONEST EVERYWHERE. It is genuinely feasible here —
+  // `listStaffFamilies` already builds an `.order()` chain — and it is NOT feasible one
+  // screen along: Accounts pages through GoTrue's `listUsers`, which offers no ordering at
+  // all. Doing it properly here and page-locally there would put two different meanings
+  // behind the same control on two adjacent screens of one console, which is worse than one
+  // limitation stated plainly in both places. TODO.md carries the upgrade.
+  //
+  // THE DEFAULT IS A CONSTANT KEY, so first paint is exactly `listStaffFamilies`' own order —
+  // removed families first, then by name, which its comment argues for at length ("a staff
+  // console's reason to exist is the exceptional row"). `sortRows` is stable, so an extractor
+  // returning the same value for every row reorders nothing.
+  const { rows: sortedRows, sortProps } = useTableSort(data.rows, {
+    incoming: () => 0,
+    family: r => r.familyName,
+    plan: r => TIER_LABEL[r.tier],
+    members: r => r.memberCount,
+    created: r => r.createdAt,
+    // The printed word, per the rule for an enum reaching a cell through a lookup. There is
+    // no urgency order to preserve here the way there is on Subscriptions' Standing column:
+    // active and removed are two states, not a scale.
+    status: r => r.status,
+  }, 'incoming')
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
 
@@ -184,11 +216,11 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                <th scope="col" className="px-3 py-2 font-semibold">{t('staff.family')}</th>
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('set.pane.plan')}</th>
-                <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('rep.members')}</th>
-                <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('staff.created')}</th>
-                <th scope="col" className="px-3 py-2 font-semibold">{t('money.status')}</th>
+                <SortTh label={t('staff.family')} {...sortProps('family')} className="px-3 py-2 font-semibold" />
+                <SortTh label={t('set.pane.plan')} {...sortProps('plan')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                <SortTh label={t('rep.members')} align="right" {...sortProps('members')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                <SortTh label={t('staff.created')} {...sortProps('created')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                <SortTh label={t('money.status')} {...sortProps('status')} className="px-3 py-2 font-semibold" />
                 {/* A column with no caption to give still owes one — without it a screen
                     reader announces the restore button under whatever heading came last. */}
                 <th scope="col" className="px-3 py-2 font-semibold">
@@ -197,7 +229,7 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
               </tr>
             </thead>
             <tbody>
-              {data.rows.map(row => {
+              {sortedRows.map(row => {
                 const removed = row.status === 'removed'
                 return (
                   <tr key={row.familyCode} className="border-b align-top last:border-0 sm:align-middle">
@@ -297,6 +329,7 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
         </div>
       )}
 
+      <PageScopedSortNote moreThanOnePage={data.total > MEMBER_PAGE_SIZE} />
       <Pager page={page} total={data.total} onPage={setPage} />
     </div>
   )

@@ -1,5 +1,4 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import Image from 'next/image'
 import { ShieldCheck } from 'lucide-react'
 import { requireStaff } from '@/lib/auth/staff'
@@ -178,12 +177,17 @@ export default async function StaffLayout({ children }: { children: React.ReactN
                 </span>
               </span>
               <ThemeToggle />
-              {/* Back to the member product. An explicit colour on both this and the nav
-                  links, because globals.css paints every bare anchor `--brand-accent`. */}
-              <Link
-                href="/dashboard"
-                className="shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-medium text-brand-on-hero/80 underline-offset-4 transition-colors hover:bg-brand-on-hero/10 hover:text-brand-on-hero hover:underline"
-              >{t('stf.backApp')}</Link>
+              {/* ── NO "BACK TO THE APP" LINK, REMOVED 2026-08-31 ──────────────────────
+                  There was one here, pointing at `/dashboard`. It is gone deliberately and
+                  should not come back as a convenience: this console is not a section of
+                  the member product, and a link out of it framed as "back" told a staffer
+                  they were somewhere inside the thing they are looking at. The band, the
+                  colours and the separate route group all say the opposite.
+
+                  Nothing is stranded by its absence. The browser's own Back button returns
+                  wherever they came from, and `/dashboard` is one address bar away — the
+                  console is reached from the account menu in the member product, so the
+                  route between the two was never this link in the first place. */}
             </div>
           </div>
         </header>

@@ -5753,6 +5753,29 @@ const clearRemovalChallenges = async (db) => {
  * from a known empty state of its OWN rows, which is also what the `purpose` conjunct on the
  * action's supersede is there to guarantee in the product.
  */
+/**
+ * Put ALPHA's fee policy back to the shipped default before each half of a fee-policy case.
+ *
+ * ── WITHOUT IT THE SECOND AND THIRD CONTROLS REPORT A VACUOUS PASS ─────────────────
+ * Measured, on the first run of those cases. All three write the SAME values, so the first
+ * case's control genuinely moves the row to `member/500/99` — and every control after it then
+ * writes values the row already holds. The action succeeds, `.select()` returns the row, and
+ * the PROBE sees nothing change, which the runner correctly reports as "owner's own write did
+ * nothing — the attack assertion above is vacuous".
+ *
+ * That is AGENTS.md §7's named fixture trap ("a case whose positive control mutates a row a
+ * later case depends on") arriving through a row rather than through a deletion. Distinct
+ * values per case would also have worked and are worse: the next case added would have to
+ * know which triples were already spent, which is a rule nobody can see from the case they
+ * are writing.
+ */
+const resetAlphaFeePolicy = async (db) => {
+  const { error } = await db.from('family_stripe_accounts')
+    .update({ fee_payer: 'family', fee_percent_bps: 290, fee_fixed_cents: 30 })
+    .eq('family_code', ALPHA)
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
 const clearDisconnectChallenges = async (db) => {
   const { error } = await db.from('family_action_challenges')
     .delete().in('family_code', REMOVAL_FAMILIES).eq('purpose', 'processor_disconnect')
@@ -11330,6 +11353,75 @@ const BILLING_CASES = [
     setup: clearDisconnectChallenges,
     probe: db => snapshot('family_action_challenges', 'id, family_code, requested_by, purpose',
       { family_code: ALPHA, purpose: 'processor_disconnect' })(db),
+    positiveActor: 'alphaAdmin',
+  },
+
+  // ── WHO PAYS THE CARD FEE (20260831000003) ───────────────────────────────────────────
+  //
+  // `setProcessingFeePolicy` is the one write in `admin/processing.ts` that is NOT
+  // STRIPE-INERT: it resolves no credential and goes straight to `family_stripe_accounts`, so
+  // an action-shaped case here actually reaches the database and the assertions mean
+  // something. That is why it gets three cases rather than a verdict.
+  //
+  // IT IS WORTH TESTING BECAUSE OF WHAT IT DECIDES. Flipping a family to `'member'` makes
+  // every subsequent card payment cost the payer more than their due says — so the failure
+  // this guards against is one family surcharging ANOTHER family's relatives, which is a
+  // §3 hole with a bill attached.
+  //
+  // NO POLICY IS UNDERNEATH IT. `family_stripe_accounts` has RLS enabled and ZERO policies
+  // (20260823000005), so the `.eq('family_code', …)` in the action IS the whole boundary —
+  // the `editPersonRecord` situation.
+  //
+  // ── MUTATION-CHECKED, AND THE FIRST MUTATION WAS THE WRONG ONE ────────────────────
+  // The obvious mutation is to DELETE the conjunct, and it proves nothing here. Measured: the
+  // suite goes red, but through all three CONTROLS with the attacks still reporting "no-op" —
+  // because PostgREST refuses an UPDATE carrying no filter at all, so the statement is never
+  // sent and nobody's row moves. Red for a reason that has nothing to do with family scoping.
+  //
+  // The mutation that isolates it is to point the conjunct at the WRONG family —
+  // `.eq('family_code', 'ALPHATEST')` — so BRAVO's administrator writes ALPHA's row. Measured:
+  // exactly one line moves, `processing.setProcessingFeePolicy (cross-family)` attack, "ROW
+  // MUTATED", 1020/1021. That is what this case is evidence for.
+  //
+  // Worth carrying to any other case over a table with no policy: "delete the conjunct" and
+  // "aim the conjunct elsewhere" are different experiments, and only the second one tests the
+  // boundary on an UPDATE or a DELETE.
+  {
+    kind: 'write',
+    id: 'processing.setProcessingFeePolicy (cross-family)',
+    mod: 'app/actions/admin/processing.ts', fn: 'setProcessingFeePolicy',
+    args: () => [{ feePayer: 'member', feePercentBps: 500, feeFixedCents: 99 }],
+    setup: resetAlphaFeePolicy,
+    // The whole row, so the probe fails on ANY of the three columns moving rather than only
+    // on the one the attack happens to aim at.
+    probe: snapshot('family_stripe_accounts', 'family_code, fee_payer, fee_percent_bps, fee_fixed_cents',
+      { family_code: ALPHA }),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'processing.setProcessingFeePolicy (same family, member with no grant)',
+    mod: 'app/actions/admin/processing.ts', fn: 'setProcessingFeePolicy',
+    // The half family scoping cannot catch, and the one that matters most here: alphaMember
+    // is inside the boundary and approved, so the only thing that may refuse them is
+    // `admin/accounting/processing:edit`. Without it, any relative could decide that every
+    // other relative pays the processing fee.
+    attacker: 'alphaMember',
+    args: () => [{ feePayer: 'member', feePercentBps: 500, feeFixedCents: 99 }],
+    setup: resetAlphaFeePolicy,
+    probe: snapshot('family_stripe_accounts', 'family_code, fee_payer, fee_percent_bps, fee_fixed_cents',
+      { family_code: ALPHA }),
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'processing.setProcessingFeePolicy (pending member)',
+    mod: 'app/actions/admin/processing.ts', fn: 'setProcessingFeePolicy',
+    attacker: 'alphaPending',
+    args: () => [{ feePayer: 'member', feePercentBps: 500, feeFixedCents: 99 }],
+    setup: resetAlphaFeePolicy,
+    probe: snapshot('family_stripe_accounts', 'family_code, fee_payer, fee_percent_bps, fee_fixed_cents',
+      { family_code: ALPHA }),
     positiveActor: 'alphaAdmin',
   },
 

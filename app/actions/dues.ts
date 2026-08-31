@@ -370,6 +370,26 @@ export interface PnLData {
    * records now, so this is both the honest figure and the complete one.
    */
   totalExpenseCents: number
+  /**
+   * Stripe's processing fees, positive, and INSIDE `totalExpenseCents`.
+   *
+   * ── WHY IT IS AN EXPENSE AND NOT A SMALLER INCOME ─────────────────────────────────
+   * A member who paid $40 paid $40. Netting the fee off income would make this statement
+   * disagree with that member's own payment history, with the Transactions ledger and with
+   * the receipt Stripe sent them — and it would change the meaning of `totalIncomeCents`,
+   * which the dashboard headline and `getFamilyDuesCollected()` are both built on.
+   *
+   * ── SUMMED FROM THE FUND CONTRA-ENTRIES, NOT FROM `stripe_charge_fees` ────────────
+   * The `stripe_fee` rows are what actually moved the family's fund balances, so taking the
+   * figure from them is what keeps this line and the fund section of the same statement from
+   * disagreeing. `stripe_charge_fees` is the record of what Stripe charged; this is the
+   * record of what it did to the family's funds, and where a correction failed to write the
+   * honest answer is the smaller number rather than the one nothing can reconcile.
+   *
+   * ZERO IS THE ORDINARY STATE. A family taking no card payments has no fees, and the card
+   * says nothing rather than printing a $0.00 line — the same rule the Pending tile follows.
+   */
+  totalFeesCents: number
   netCents: number
   payments: DuesPayment[]
   routing: PnLRoutingFund[]
@@ -2553,19 +2573,51 @@ export async function getFamilyPnL(): Promise<PnLData | null> {
   // un-routes the money from the fund. The old filter was `!== 'dues_routing'`, so the
   // mirror fell through to here and the same reversal came off the family's collected total
   // twice. See the note on `totalContributionsCents`.
-  const NOT_DUES = (source: string | null) => source !== 'dues_routing' && source !== 'reversal'
+  //
+  // ── AND `'stripe_fee'` IS EXCLUDED FROM BOTH SUMS, WHICH IS A THIRD CATEGORY ──────
+  // Added 2026-08-31 with card processing fees. A `stripe_fee` row is a NEGATIVE mirror, the
+  // same shape as a reversal — but it belongs in neither of the two buckets below, and putting
+  // it in either is a different wrong answer:
+  //
+  //   in `totalContributionsCents`  the fee comes off the family's INCOME, so a $40 due reads
+  //                                 as $38.54 collected — and it is counted a second time as
+  //                                 an expense below. The reversal double-count, exactly.
+  //   in `routedFromDuesCents`      routing then reads $38.54 of a $40 income, so
+  //                                 `unroutedIncomeCents` reports the fee as money "sitting"
+  //                                 unallocated. It is not sitting anywhere; it went to Stripe.
+  //
+  // So it is its own term, summed once, and reported as an EXPENSE. That keeps
+  // `totalIncomeCents` meaning what it has always meant — what members paid — which is the
+  // figure the dashboard headline and every sum built on it already depend on.
+  const IS_FEE = (source: string | null) => source === 'stripe_fee'
+  const NOT_DUES = (source: string | null) =>
+    source !== 'dues_routing' && source !== 'reversal' && !IS_FEE(source)
   const totalContributionsCents = (contribRes.data ?? [])
     .filter(c => NOT_DUES(c.source))
     .reduce((s, c) => s + (c.amount_cents ?? 0), 0)
   const totalCollectedCents = totalIncomeCents + totalContributionsCents
+
+  // NEGATED, because the rows are negative and an expense is reported positive. Summed from
+  // the fund contra-entries rather than from `stripe_charge_fees` deliberately: these are the
+  // rows that actually moved the family's fund balances, so the expense line and the fund
+  // section of this same statement cannot come to disagree about the figure.
+  const totalFeesCents = -(contribRes.data ?? [])
+    .filter(c => IS_FEE(c.source))
+    .reduce((s, c) => s + (c.amount_cents ?? 0), 0)
 
   // WHERE THE DUES ACTUALLY WENT. Routing moves a paid dues payment into one or more funds
   // as `dues_routing` rows, and a reversal takes it back out again — so the two together are
   // what the funds have received on the income line's behalf, and the remainder is money the
   // family holds that no fund is named for. A family whose routing rules miss a schedule
   // collects into that remainder indefinitely with nothing anywhere saying so.
+  //
+  // A POSITIVE TEST NOW, NOT `!NOT_DUES`. It was the negation until fees arrived, and the
+  // negation silently acquired `stripe_fee` the moment that source was added to `NOT_DUES`
+  // above — which would have made routing read $38.54 against a $40 income and reported the
+  // fee as unallocated money. Naming the two sources this sum is actually about is what stops
+  // the next source added to the vocabulary from landing here by accident.
   const routedFromDuesCents = (contribRes.data ?? [])
-    .filter(c => !NOT_DUES(c.source))
+    .filter(c => c.source === 'dues_routing' || c.source === 'reversal')
     .reduce((s, c) => s + (c.amount_cents ?? 0), 0)
   const unroutedIncomeCents = totalIncomeCents - routedFromDuesCents
 
@@ -2627,7 +2679,15 @@ export async function getFamilyPnL(): Promise<PnLData | null> {
   // that had demonstrably left a fund. It is DISBURSEMENTS now: the only outgoing this
   // product records, which makes `netCents` the first honest bottom line this statement has
   // had.
-  const totalExpenseCents = (disbRes.data ?? []).reduce((sum, d) => sum + d.amount_cents, 0)
+  //
+  // ── AND SINCE 2026-08-31 IT INCLUDES CARD PROCESSING FEES ─────────────────────────
+  // The second thing that genuinely leaves the family's money, and the first that leaves it
+  // without anybody deciding to spend it. It belongs on this line rather than netted off
+  // income for the reason the income comment gives: a member who paid $40 paid $40, and a
+  // statement that quietly reported $38.54 would disagree with that member's own payment
+  // history, with the ledger, and with the receipt Stripe sent them.
+  const totalDisbursedCents = (disbRes.data ?? []).reduce((sum, d) => sum + d.amount_cents, 0)
+  const totalExpenseCents = totalDisbursedCents + totalFeesCents
 
   return {
     totalIncomeCents,
@@ -2635,6 +2695,9 @@ export async function getFamilyPnL(): Promise<PnLData | null> {
     totalCollectedCents,
     unroutedIncomeCents,
     totalExpenseCents,
+    totalFeesCents,
+    // Unchanged by fees arriving, and that is the check that they were added in the right
+    // place: `totalExpenseCents` grew, so the bottom line falls by exactly what Stripe took.
     netCents: totalCollectedCents - totalExpenseCents,
     payments,
     routing,

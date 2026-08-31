@@ -70,11 +70,17 @@ import type { T } from '@/lib/i18n/t'
 function items(t: T) {
   return [
     { href: '/staff', label: t('staff.overview'), icon: LayoutGrid, ownerOnly: false },
-    { href: '/staff/families', label: t('staff.families'), icon: Building2, ownerOnly: false },
-    { href: '/staff/accounts', label: t('staff.accounts'), icon: UserSearch, ownerOnly: false },
+    // ── SUBSCRIPTIONS SECOND, SINCE 2026-08-31 ──────────────────────────────────────
+    // It sat after Families and Accounts, which put the two ROSTERS between the summary and
+    // the thing the summary is mostly about. The order now runs from the widest view to the
+    // narrowest: what the platform is owed, then the families that owe it, then the accounts
+    // inside them — so moving left to right is moving from a number to the row behind it.
+    //
     // NOT owner-only: reading what the platform is owed destroys nothing, and it is where
     // most support conversations start. `owner` is the line for irreversible acts.
     { href: '/staff/subscriptions', label: t('staff.subscriptions'), icon: CreditCard, ownerOnly: false },
+    { href: '/staff/families', label: t('staff.families'), icon: Building2, ownerOnly: false },
+    { href: '/staff/accounts', label: t('staff.accounts'), icon: UserSearch, ownerOnly: false },
     // LAST, and not because it is least important. It is the only destination here that
     // changes who can open the console at all, and the three above it are the ones somebody
     // opens the console to do. A key rather than a shield: `ShieldCheck` is already the
