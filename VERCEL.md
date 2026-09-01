@@ -8,10 +8,10 @@ how a deployment gains behaviour nobody reviewed.
 ## What it does
 
 ```
-40 * * * *   GET /api/billing/notices
+40 0 * * *   GET /api/billing/notices
 ```
 
-Hourly at forty past, it asks the app to drain the billing notice queue — the dunning ladder's
+Once a day at 00:40 UTC, it asks the app to drain the billing notice queue — the dunning ladder's
 five emails and the retention window's four reminders. That route sends mail and decides
 nothing; `sweep_platform_billing()` in the database has already decided which notices are due.
 
@@ -22,11 +22,33 @@ other's:
 
 | | |
 |---|---|
-| `pg_cron`, twenty past | **State.** Enqueue due notices, drop a delinquent family to Free, delete a withheld tier's data. It has no network — `http` and `pg_net` are both available on this project and neither is installed, and putting an outbound HTTP call inside a transaction that also deletes a family tree is not something to do casually. |
-| Vercel Cron, forty past | **Mail.** Claim pending notices and send them. It makes no decisions and can move no tier. |
+| `pg_cron`, 00:20 UTC | **State.** Enqueue due notices, drop a delinquent family to Free, delete a withheld tier's data. It has no network — `http` and `pg_net` are both available on this project and neither is installed, and putting an outbound HTTP call inside a transaction that also deletes a family tree is not something to do casually. |
+| Vercel Cron, 00:40 UTC | **Mail.** Claim pending notices and send them. It makes no decisions and can move no tier. |
 
-Twenty minutes apart so the state is settled before the mail is composed; both hourly because
-both are idempotent and a missed run then costs an hour rather than a day.
+Twenty minutes apart so the state is settled before the mail is composed.
+
+## Why once a day, and why just after midnight
+
+Three schedules run in order, and `20260901000005` argues the whole decision:
+
+```
+00:05 UTC   platform-tier-sweep        a term that ended moves the tier
+00:20 UTC   platform-billing-ladder    measures after that, enqueues notices, deletes
+00:40 UTC   POST /api/billing/notices  sends what was enqueued        ← this file
+```
+
+**Every one of them decides from a UTC DATE** — a term that ended, a delinquency that reached
+day 5, 15, 30, 45 or 60. A date changes once a day at midnight, so the hourly schedules these
+replaced spent twenty-three runs in twenty-four re-asking a question whose answer could not
+have changed.
+
+**Nobody waits a day for a purchase.** `app/api/stripe/platform/route.ts` applies tier changes
+at the end of every signature-verified delivery, so an upgrade lands in seconds. The daily jobs
+are the backstop for the one case that produces no Stripe event at all: a term simply lapsing.
+
+**And this file had a second reason to move.** Vercel's Hobby plan permits cron at a daily
+granularity only, and rejects an hourly expression at deploy time. Daily deploys on either
+plan, which removes a class of "it works on mine".
 
 ## What happens if this never runs
 

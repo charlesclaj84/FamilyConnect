@@ -15,12 +15,16 @@ import { createAdminClient } from '@/lib/supabase/admin'
  * returns rather than propagating. Letting it throw would turn a transient database blip into
  * Stripe re-applying a settled payment.
  *
- * ── WHAT IT IS WAITING FOR ──────────────────────────────────────────────────────────
- * `pg_cron`. TODO.md records that the extension is available on this project and not
- * installed, and the SQL function was written for it: no arguments, no caller, idempotent, and
- * safe to run hourly forever. When that lands, this wrapper stays — the webhook call is still
- * the exact one for a renewal — and the cron job becomes the answer for a prepaid term that
- * ends on a quiet week.
+ * ── THE OTHER CALLER IS A CRON JOB, AND THIS WRAPPER IS STILL THE RIGHT ONE ─────────
+ * `20260823000006` installed `pg_cron` and schedules the same function as
+ * `platform-tier-sweep`; `20260901000005` moved it to once a day, at 00:05 UTC. The SQL was
+ * written for exactly that: no arguments, no caller, idempotent, and safe to run forever
+ * against a database where nobody has ever paid.
+ *
+ * **The two are not redundant and neither may be dropped as a simplification.** This call is
+ * the exact one for a renewal — a family that pays sees its tier move within seconds of the
+ * webhook, never on a scheduler's clock. The cron job is the answer for the one case that
+ * produces no Stripe event at all: a prepaid term that ends on a quiet week.
  */
 export async function applyDuePlatformTierChanges(): Promise<number> {
   try {

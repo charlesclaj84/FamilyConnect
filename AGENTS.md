@@ -2767,16 +2767,42 @@ Neither of these may be dropped later as a simplification.
 
 ### The two clocks, and why neither can do the other's half
 
+**THREE SCHEDULES, ONCE A DAY, IN THIS ORDER — and the order is load-bearing.** They were
+hourly until 2026-09-01; `20260901000005` moved both `pg_cron` jobs and `vercel.json` moved
+with them.
+
+```
+00:05 UTC   platform-tier-sweep        a term that ended moves the tier
+00:20 UTC   platform-billing-ladder    measures AFTER that, enqueues notices, deletes
+00:40 UTC   POST /api/billing/notices  sends what was enqueued
+```
+
+**Daily is EXACT rather than a concession, and that is the thing to understand before
+changing it.** Every question either job asks is about a UTC **date** — a term that ended, a
+delinquency that reached day 5, 15, 30, 45 or 60 — and a date changes once, at midnight. So
+the hourly version spent twenty-three runs in twenty-four re-asking a question whose answer
+could not have changed. `20260823000006`'s own comment said as much when it chose hourly
+anyway.
+
+**AND NOBODY WAITS A DAY FOR A PURCHASE**, which is the objection this invites.
+`app/api/stripe/platform/route.ts` calls `applyDuePlatformTierChanges()` at the end of every
+signature-verified delivery, so an upgrade, a downgrade taking effect and a renewal all land
+in seconds. The cron is the BACKSTOP for the one case that produces no event at all: a term
+simply lapsing. What genuinely slows is a FAILED notice, which now spends
+`finish_platform_billing_notice`'s five attempts over five days — the safe direction, because
+both deletion paths refuse without a `sent` notice, so a slower retry postpones a deletion and
+can never permit one.
+
 | | |
 |---|---|
-| `pg_cron`, hourly at :20 | **State.** Enqueue due notices, drop a delinquent family to Free, delete a withheld tier's data. It has NO NETWORK — `http` and `pg_net` are available on this project and neither is installed, and an outbound HTTP call inside a transaction that also deletes a family tree is not a thing to add casually. |
-| Vercel Cron, hourly at :40 | **Mail.** Claim pending notices and send them. It decides nothing and can move no tier. `vercel.json` is the whole of it and `VERCEL.md` argues it. |
+| `pg_cron`, 00:20 UTC | **State.** Enqueue due notices, drop a delinquent family to Free, delete a withheld tier's data. It has NO NETWORK — `http` and `pg_net` are available on this project and neither is installed, and an outbound HTTP call inside a transaction that also deletes a family tree is not a thing to add casually. |
+| Vercel Cron, 00:40 UTC | **Mail.** Claim pending notices and send them. It decides nothing and can move no tier. `vercel.json` is the whole of it and `VERCEL.md` argues it — including the second reason that file had to move, which is that Vercel's Hobby plan permits a daily granularity only and rejects an hourly expression at deploy time. |
 
 The queue between them is `platform_billing_notices` — the `distribution_recipients` design,
 for the reason that one states: *this product has nowhere to run background work.* Its unique
 key is `(family_code, kind, stage, cycle_on)`, and **`cycle_on` is what makes it idempotent
-across time**: an hourly re-run inside one lapse enqueues nothing, and a SECOND lapse in March
-starts a fresh set. Keying on `(family, kind, stage)` alone would send the second lapse nothing
+across time**: a re-run inside one lapse enqueues nothing, and a SECOND lapse in March starts
+a fresh set. That property is what made the cadence a free choice rather than a constraint. Keying on `(family, kind, stage)` alone would send the second lapse nothing
 at all, silently and forever.
 
 ### The delinquency ladder, and what is a GUARD rather than a tier

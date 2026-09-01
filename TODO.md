@@ -55,7 +55,7 @@ launch day without.
 **Action:** set it in Vercel → Project → Settings → Environment Variables, on Production. Any
 long random string.
 
-`vercel.json` schedules `/api/billing/notices` hourly and Vercel sets
+`vercel.json` schedules `/api/billing/notices` daily at 00:40 UTC and Vercel sets
 `Authorization: Bearer $CRON_SECRET` on its own cron requests **only if the variable exists**.
 The route answers **503** without it rather than running open — a deployment that has not been
 configured must not have a mail-sending endpoint reachable by anybody.
@@ -780,7 +780,7 @@ the objects first; a sweep has no action in front of it.
 `public: true`, fetchable by URL to anybody who already has one. Two honest options, and the
 first is much the smaller:
 
-* **A reaper on the notice-drain path.** `/api/billing/notices` already runs Node hourly with
+* **A reaper on the notice-drain path.** `/api/billing/notices` already runs Node daily with
   the service key. It could read `platform_data_deletions` for rows whose `deleted` mentions
   `photos`, list the family's prefix and remove what no row points at. Needs a marker so it
   does not re-walk the same deletion forever.
@@ -792,7 +792,7 @@ the only place that says so.
 
 ### 2. `CRON_SECRET` IS A GO LIVE STEP AND THE ENDPOINT REFUSES WITHOUT IT
 
-`vercel.json` schedules `/api/billing/notices` hourly; Vercel sets
+`vercel.json` schedules `/api/billing/notices` daily at 00:40 UTC; Vercel sets
 `Authorization: Bearer $CRON_SECRET` only if the variable exists, and the route answers **503**
 when it is unset rather than running open. So an unconfigured deployment sends no dunning mail
 — and therefore deletes nothing, which is the correct direction to fail but is not the intended
@@ -819,9 +819,10 @@ nothing anywhere would say so.
 
 **Action:** decide it when the weather poller is built. Nothing else wants it.
 
-`pg_cron` went in with `20260823000006`, which schedules `apply_due_platform_tier_changes()`
-hourly at five past; `20260901000002` added `platform-billing-ladder` at twenty past, so there
-are two jobs now and both are created in a migration and asserted there. `pg_net` (0.20.3),
+`pg_cron` went in with `20260823000006`, which schedules `apply_due_platform_tier_changes()`;
+`20260901000002` added `platform-billing-ladder`. Both run ONCE A DAY since `20260901000005` —
+00:05 and 00:20 UTC, in that order because the ladder measures state the sweep has just moved —
+and both are created in a migration and asserted there, never in the dashboard. `pg_net` (0.20.3),
 `http` (1.6) and `postgis` (3.3.7) are all AVAILABLE on this project and **none is installed**.
 
 **THE LADDER DECLINED `pg_net`, WHICH IS THE PRECEDENT WORTH READING BEFORE INSTALLING EITHER.**

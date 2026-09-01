@@ -58,6 +58,13 @@
 --
 -- IDEMPOTENT. Safe to re-run.
 -- ═══════════════════════════════════════════════════════════════════════════════════════
+-- ── SUPERSEDED IN ONE RESPECT: THE SCHEDULE IS DAILY, NOT HOURLY ──────────────────────
+-- `20260901000005` re-scheduled both cron jobs to run once a day just after midnight UTC —
+-- `platform-tier-sweep` at 00:05 and `platform-billing-ladder` at 00:20 — because every
+-- question either of them asks is about a UTC DATE, and a date changes once a day. The word
+-- "hourly" below is left where it stands: this file is a RECORD of what ran, and editing an
+-- applied migration reaches no database. Everything else in it is still current.
+--
 
 BEGIN;
 

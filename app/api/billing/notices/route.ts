@@ -16,6 +16,15 @@ import { drainBillingNotices } from '@/lib/billing/notices'
  * It DECIDES NOTHING. Every row it sends was queued by the sweep, on a date the sweep
  * computed, and this route cannot make a family delinquent, move a tier or delete a row.
  *
+ * ── IT RUNS ONCE A DAY, AT 00:40 UTC ─────────────────────────────────────────────
+ * Last of three schedules, twenty minutes behind the `pg_cron` ladder that enqueues what this
+ * sends. `20260901000005` argues the cadence: everything either job decides comes from a UTC
+ * DATE, and a date changes once a day.
+ *
+ * The one consequence to know here is that a FAILED send retries daily rather than hourly, so
+ * `finish_platform_billing_notice`'s five attempts are spent over five days. That is the safe
+ * direction for the reason immediately below.
+ *
  * ── THE CONSEQUENCE OF IT NEVER RUNNING IS SAFE, AND THAT IS DELIBERATE ───────────
  * Both deletion paths refuse to act unless the notices they owed are recorded as `sent`. So an
  * unset secret, a missed schedule or a mail outage DELAYS a deletion indefinitely — it never
