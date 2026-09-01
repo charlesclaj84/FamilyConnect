@@ -2,6 +2,8 @@ import { timingSafeEqual } from 'node:crypto'
 import type { NextRequest } from 'next/server'
 
 import { drainBillingNotices } from '@/lib/billing/notices'
+import { reapPurgedStorage } from '@/lib/billing/storage-reaper'
+import { runDuesReminders } from '@/lib/dues/reminders'
 
 /**
  * The mail half of the billing ladder — the only thing that can send a dunning or retention
@@ -76,12 +78,57 @@ async function drain(request: NextRequest): Promise<Response> {
 
   try {
     const result = await drainBillingNotices()
+
+    // ── AND THE BYTES BEHIND A PURGE, WHICH SQL CANNOT DELETE ────────────────────
+    // `delete_family_data_above_tier` removes rows and cannot reach the storage backend, so
+    // this is where a purged family's photographs actually go. It rides this route because
+    // this is the one place Node runs on a clock with the service key.
+    //
+    // AFTER the mail, and in its own try: a sweep that throws must not cost the notices that
+    // already went, and a family warned is more urgent than bytes that have already survived
+    // longer than a day. Every claim it dies holding ages out in fifteen minutes.
+    // ── AND THE FAMILY-SIDE REMINDERS, WHICH ARE A DIFFERENT LEDGER ENTIRELY ─────
+    // "MONEY HAS TWO DIRECTIONS": everything above is the PLATFORM ledger — what a family
+    // owes GENORRA. This is the CONNECT side — what a relative owes their own family — and
+    // the two must never be conflated in a message or in a table. They share this route for
+    // one reason only: it is the single place in this product where Node runs on a clock.
+    //
+    // Its own try, after the platform mail, for the reaper's reason: a failure here must not
+    // cost a dunning notice that has already been composed.
+    let reminders
+    try {
+      reminders = await runDuesReminders()
+      if (reminders.queued + reminders.sent + reminders.failed > 0) {
+        console.log(
+          `[reminders] queued ${reminders.queued}, sent ${reminders.sent}, `
+          + `failed ${reminders.failed}, unreachable ${reminders.unreachable}, `
+          + `cancelled ${reminders.cancelled}`,
+        )
+      }
+    } catch (e) {
+      console.error(`[reminders] the run failed: ${e instanceof Error ? e.message : e}`)
+      reminders = { queued: 0, sent: 0, failed: 0, unreachable: 0, cancelled: 0 }
+    }
+
+    let reaped
+    try {
+      reaped = await reapPurgedStorage()
+      if (reaped.claimed > 0) {
+        console.log(
+          `[reaper] swept ${reaped.claimed} purge(s): ${reaped.removed} object(s) removed, `
+          + `${reaped.abandoned} abandoned`,
+        )
+      }
+    } catch (e) {
+      console.error(`[reaper] the storage sweep failed: ${e instanceof Error ? e.message : e}`)
+      reaped = { claimed: 0, removed: 0, abandoned: 0 }
+    }
     // LOGGED EVEN WHEN IT DID NOTHING. A quiet queue and a broken drain look identical from
     // outside, and this is the only line that tells them apart.
     console.log(
       `[billing] drained ${result.claimed} notice(s): ${result.sent} sent, ${result.failed} failed`,
     )
-    return Response.json(result)
+    return Response.json({ ...result, reaped, reminders })
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     console.error(`[billing] the notice drain failed: ${message}`)

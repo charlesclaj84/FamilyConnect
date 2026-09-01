@@ -959,6 +959,11 @@ export const fr: Catalogue = {
   'rel.nonBloodLinkNote': 'Enregistré comme {kind}. La lignée ne passe pas par ce lien.',
   'rel.parentBloodlineNote':
     ' {decidedBy} {control}, au-dessus de l’arbre — l’un de vos parents est votre parent par le sang sans faire partie de la lignée de votre famille.',
+  'rel.siblingNeedsSharedParent':
+    'Aucun parent n’est encore enregistré pour {name} ; ce frère ou cette sœur '
+    + 'n’apparaîtra donc pas dans {view} — l’arbre sait qu’ils sont frères et sœurs, mais '
+    + 'pas de qui ils sont les enfants. Enregistrez sur chacun d’eux le parent qu’ils ont '
+    + 'en commun et tous deux y figureront.',
   'rel.shareParentsQuestion': 'Partagent-ils les parents de {name} ?',
   'rel.whoElseIsParent': 'Qui d’autre est parent de ce {relation} ?',
   'rel.tickingRecordsParent':

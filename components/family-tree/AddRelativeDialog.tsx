@@ -349,6 +349,44 @@ export function AddRelativeDialog({
             </div>
           )}
 
+          {/* ── AND THE CASE WHERE THERE IS NOTHING TO ASK, WHICH WAS SILENT ──────────
+              Reported 2026-09-01: a sister added as BLOOD got no droplet and vanished from
+              the Bloodline view, with nothing anywhere saying why.
+
+              Nothing was wrong with the walk. `bloodlineIds` conducts along PARENT edges
+              only — a sibling edge says two people are siblings and nothing about whose
+              children they are, and guessing the shared parent is exactly how a
+              step-daughter once got a droplet. The block above is the fix for that: it asks
+              whose children they are, and recording it puts them in.
+
+              **But it only renders when the anchor already HAS recorded parents.** Add a
+              sibling to somebody at the top of the tree and there is nothing to offer, so
+              the question was never put, no parent edge was written, and the member — who
+              had just explicitly chosen Blood — watched the product disagree with them for
+              no stated reason.
+
+              So this says it. It is not a warning and must not be dressed as one: the
+              sibling edge is recorded correctly and the relationship is true. What is
+              missing is a fact nobody has entered yet, which is what `--brand-warm` reads
+              as here (AGENTS.md: never `--destructive`, which is for a failure).
+
+              NARROWED TO 'blood' ON PURPOSE. A step-sister correctly never joins the
+              bloodline, so telling somebody adding one that she will not is noise about a
+              thing they did not ask for. */}
+          {meta?.relation === 'sibling' && coParents.length === 0 && linkKind === 'blood' && (
+            <div className="rounded-xl border border-brand-warm bg-brand-warm/10 px-4 py-3">
+              <p className="text-xs text-brand-warm">
+                {t('rel.siblingNeedsSharedParent', {
+                  name: anchorName,
+                  // The toggle's OWN label, not a second copy of the word. Same rule the
+                  // manual keeps about naming controls verbatim: a sentence pointing at a
+                  // button must not be able to drift from what the button says.
+                  view: t('tree.bloodline'),
+                })}
+              </p>
+            </div>
+          )}
+
           {mode === 'existing' && (
             <PersonPicker
               people={candidates.map(c => ({

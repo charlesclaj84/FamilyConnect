@@ -8,6 +8,25 @@ Everything here is open. Completed work is deleted rather than archived — the 
 are in git history, and the lessons worth keeping have been promoted to AGENTS.md.
 GO LIVE is a checklist rather than a backlog.
 
+## Scrubbed 2026-09-01
+
+Four entries were CLOSED by work done on the day, and are deleted rather than annotated — a
+closed entry that stays is what makes the rest of this file untrustworthy:
+
+| | |
+|---|---|
+| Table sorting | done 2026-08-31; the whole entry removed at the owner's request |
+| Birthday greetings | BUILT. All three decisions in that entry were made and shipped — the product PROMPTS rather than posting in the family's name, it lands on the dashboard, and it is confetti and a gold band. **No cron was built and none is wanted:** both surfaces render when somebody opens the app, which `20260831000002`'s header states as the reason. |
+| The sitemap's three languages | BUILT. `absoluteLocaleAlternates` and `alternates.languages` on every entry. |
+| Automatic dues reminders | BUILT. `20260901000007` and `lib/dues/reminders.ts` — the last unbuilt Premium bullet. |
+| A purge leaving its bytes | BUILT. `20260901000006` and `lib/billing/storage-reaper.ts`. |
+
+**One entry was rewritten rather than closed, and the rewrite is the point.** The weather
+poller's blocker was named as the scheduler for months. The scheduler exists now, so the entry
+would have read as ready to build — and it is not: it is blocked on a ZIP-to-county crosswalk,
+with the state-level alternative documented as too coarse to be worth having. *"`http` is not
+installed"* now says which half is missing.
+
 ## Scrubbed 2026-08-29
 
 Every remaining entry was re-checked against the tree. **Nothing was newly closed** — each one
@@ -49,32 +68,6 @@ Things that must be true of the **hosted project** before real families use it. 
 are not code changes and none of them is done by `db push` — every one is a setting or
 a credential on the deployed environment, which is exactly why they are easy to reach
 launch day without.
-
-### [ ] `CRON_SECRET` is not set, so no dunning or retention mail is sent
-
-**Action:** set it in Vercel → Project → Settings → Environment Variables, on Production. Any
-long random string.
-
-`vercel.json` schedules `/api/billing/notices` daily at 00:40 UTC and Vercel sets
-`Authorization: Bearer $CRON_SECRET` on its own cron requests **only if the variable exists**.
-The route answers **503** without it rather than running open — a deployment that has not been
-configured must not have a mail-sending endpoint reachable by anybody.
-
-**WHAT IS ACTUALLY BROKEN WHILE IT IS UNSET IS NARROWER THAN IT SOUNDS, AND SAFER.** No
-dunning mail goes out, so no family is warned — and because both deletion sweeps refuse to act
-unless the notices they owed are recorded as `sent`, **nothing is ever deleted either.** The
-ladder still locks screens on schedule (that is `delinquent_since` and a guard, not the mail),
-but day 60 never fires. Failing in that direction is deliberate; see `20260901000002` §D.
-
-To prove it once it is set:
-
-```bash
-curl -i -X POST https://genorra.com/api/billing/notices \
-  -H "Authorization: Bearer $CRON_SECRET"
-```
-
-A 200 with `{"claimed":0,...}` on a healthy estate is the expected answer. `VERCEL.md` carries
-the rest.
 
 ### [~] Two `[auth]` values are set in `config.toml` and not on hosted — ONE APPLIED 2026-08-29, THE OTHER NEEDS A PLAN
 
@@ -763,42 +756,35 @@ below is in Stripe's cross-border set, so each is a one-flag change in
 
 Recorded 2026-08-31.
 
-## The billing ladder is built. Three things it deliberately did NOT do
+## The billing ladder is built. One thing it deliberately did NOT do
 
-**Action:** each is a decision somebody has to take, not work somebody forgot. Recorded
-2026-09-01, when `20260901000001`–`20260901000003` built the delinquency ladder and the
-sixty-day retention window. AGENTS.md carries the rules; this is only what is still open.
+**Action:** none, until somebody wants an end-to-end mail test. This is a note, not a task.
 
-### 1. A DELETED PHOTOGRAPH LEAVES ITS BYTES IN A PUBLIC BUCKET
+**THE BYTES ARE NO LONGER ONE OF THEM (2026-09-01).** `delete_family_data_above_tier` removes
+rows and structurally cannot touch storage, so a purged family kept every image file in a
+bucket that is `public: true`. `20260901000006` and `lib/billing/storage-reaper.ts` are the
+fix, on the notice-drain path — the first of the two options this entry named, and `pg_net`
+from the sweep is still declined for the reason `VERCEL.md` gives about the mail.
 
-`delete_family_data_above_tier` removes `photos` rows and cannot touch storage — SQL does not
-reach the backend, `storage.protect_delete()` refuses a direct DELETE, and a `pg_cron` job has
-no Storage API to call. `staff_delete_family` has the identical limit and its ACTION deletes
-the objects first; a sweep has no action in front of it.
+Three things about it worth knowing before touching it:
 
-**So a family whose Plus data is purged keeps every image file**, in a bucket that is
-`public: true`, fetchable by URL to anybody who already has one. Two honest options, and the
-first is much the smaller:
+* **The entry said "photos" and it is THREE TABLES ACROSS TWO BUCKETS.** Measured rather than
+  assumed: every `public` table with a `file_path` column is `photos`, `bylaws` and
+  `documents`, and all three purge at `plus`. `tier_data_tables.storage_bucket` names them and
+  the migration asserts that column against the actual `file_path` columns **in both
+  directions**, so a table that gains files next year cannot be silently un-reaped.
+* **THE DANGEROUS LINE IS A READ, NOT A DELETE.** The reaper removes an object no surviving row
+  points at, so a refused survivor read makes every photograph look like an orphan. `const
+  { data }` discarding an error (§8) would delete a family's whole gallery. It abandons the
+  family on any read failure, pages the survivor query to exhaustion, and refuses to proceed
+  past a row with a null `file_path`.
+* **`npm run reaper:check` is what proves it**, and the first of its four cases breaks the
+  survivor read FOR REAL — by renaming the column out from under it — and asserts that nothing
+  at all is removed. Mutation-checked: discarding that error deletes both objects. It runs
+  under `vitest.integration.config.mts` rather than `npm test`, because that runner's `lib/**`
+  include is a stated boundary.
 
-* **A reaper on the notice-drain path.** `/api/billing/notices` already runs Node daily with
-  the service key. It could read `platform_data_deletions` for rows whose `deleted` mentions
-  `photos`, list the family's prefix and remove what no row points at. Needs a marker so it
-  does not re-walk the same deletion forever.
-* **`pg_net` from the sweep**, which puts an outbound HTTP call in a transaction that deletes a
-  family tree. Cheaper to write and much worse to reason about.
-
-Until one exists, the deletion is honest about rows and silent about bytes, and this entry is
-the only place that says so.
-
-### 2. `CRON_SECRET` IS A GO LIVE STEP AND THE ENDPOINT REFUSES WITHOUT IT
-
-`vercel.json` schedules `/api/billing/notices` daily at 00:40 UTC; Vercel sets
-`Authorization: Bearer $CRON_SECRET` only if the variable exists, and the route answers **503**
-when it is unset rather than running open. So an unconfigured deployment sends no dunning mail
-— and therefore deletes nothing, which is the correct direction to fail but is not the intended
-state. `VERCEL.md` has the setting and the `curl` to prove it by hand.
-
-### 3. NOTHING TESTS THE LADDER END TO END, AND ONE THING STRUCTURALLY CANNOT
+### THE ONE THAT REMAINS: nothing tests the ladder end to end
 
 What IS tested: `20260901000002` §8 exercises the sweep for real against a throwaway family —
 five rungs enqueued, the day-60 drop refused without its warnings and granted with them, the
@@ -810,20 +796,21 @@ and composes nine messages, and no gate renders one. `npm run auth-email:check` 
 copy — a hand-run script against the local stack that drives the queue and reads Mailpit — and
 `realtime:check`'s header is the argument for why it stays hand-run.
 
-The gap that matters inside that: **`billingAdmins()` walks `template_permissions` in
-TypeScript rather than asking `auth_permission`**, because it answers for a FAMILY rather than
-for a caller. If the two ever disagree, dunning mail goes to the wrong people or to nobody, and
-nothing anywhere would say so.
+**AND THE SAME IS NOW TRUE OF THE DUES REMINDER**, which rides the same route: its queue, its
+key and its claim are all asserted in `20260901000007`'s verify block, and nothing renders
+`duesReminderEmail`. One script would cover both.
 
-## `http` is not installed, and one unbuilt feature wants it
+## `http` is not installed, and the one feature that wants it is blocked on DATA
 
-**Action:** decide it when the weather poller is built. Nothing else wants it.
+**Action:** get a ZIP-to-county crosswalk, or decide the weather poller waits behind a delivery
+channel. Nothing else wants the extension.
 
 `pg_cron` went in with `20260823000006`, which schedules `apply_due_platform_tier_changes()`;
 `20260901000002` added `platform-billing-ladder`. Both run ONCE A DAY since `20260901000005` —
 00:05 and 00:20 UTC, in that order because the ladder measures state the sweep has just moved —
-and both are created in a migration and asserted there, never in the dashboard. `pg_net` (0.20.3),
-`http` (1.6) and `postgis` (3.3.7) are all AVAILABLE on this project and **none is installed**.
+and both are created in a migration and asserted there, never in the dashboard. `pg_net`
+(0.20.3), `http` (1.6) and `postgis` (3.3.7) are all AVAILABLE on this project and **none is
+installed**.
 
 **THE LADDER DECLINED `pg_net`, WHICH IS THE PRECEDENT WORTH READING BEFORE INSTALLING EITHER.**
 It needed to send email on a schedule and could have done it from SQL. It does not: `pg_cron`
@@ -834,44 +821,82 @@ a queue in a table is recoverable in a way a fire-and-forget POST is not. `VERCE
 That is not an argument against the extension in general — it is an argument that "the job needs
 the network" is not on its own sufficient, and the alternative is usually a table.
 
-**This said "the last extension anything wants" and that was falsified within four days**, by
-`20260827000000`, which installs `unaccent` so full-text search folds accents — a thing
-`20260819000005` had explicitly declined to do. The claim was never load-bearing, and the
-correction is worth keeping rather than quietly rewording: **an entry that says "this is the
-last one" is a prediction, and this file is not the place for those.** What is still true, and
-is the whole item, is that `http` is wanted by exactly one unbuilt feature and by nothing else.
+### 1. AUTOMATIC DUES REMINDERS — BUILT 2026-09-01
 
-**What is still waiting on a scheduler**, in the order the value falls:
+`20260901000007` and `lib/dues/reminders.ts`. The last unbuilt Premium bullet, and the one
+decision FutureFeature §1 said it still needed is now a unique index:
+`dues_reminders_one_per_installment` on `(person_id, schedule_id, due_on)`.
 
-1. **Automatic dues reminders** — the last unbuilt Premium bullet whose two halves are both done
-   elsewhere. `/reporting/dues-projections` computes what is owed and `app/actions/distributions.ts`
-   is a working resumable per-recipient fan-out. FutureFeature.md §1 has the one decision it still
-   needs (a uniqueness key on person/schedule/period, in the schema rather than in the job).
-2. **Alert-driven check-in suggestions** — FutureFeature.md §5. A poller over `api.weather.gov`,
-   which needs no API key, and the only thing in the product that wants `http`.
+**THE "PERIOD" IS THE INSTALLMENT, NOT THE ANNUAL PERIOD**, which is where that entry's wording
+would have led somebody wrong: a member paying monthly has twelve installments inside one
+period, so keying on the year sends one reminder in January and nothing again for twelve months.
+`due_on` is the discriminator, exactly as `cycle_on` is for a dunning notice.
 
-**`http` (synchronous) probably beats `pg_net` for that poller.** `pg_net` is fire-and-forget —
-the response lands in a `net` table for a limited window, so a job that needs the body is two
-passes and a reaper. A poll that fetches, matches and writes in one statement wants the
-synchronous extension, with an explicit timeout so a hanging endpoint cannot wedge the job.
+**AND THE ENQUEUE IS IN NODE RATHER THAN `pg_cron`, WHICH IS THE DECISION TO PRESERVE.** The
+ladder's sweep asks a question SQL can answer — has this date passed. A reminder needs
+`duesPlanMath`: the cadence ladder, the month-end clamp `setUTCMonth` overflows on, arrears
+against settled cents, waivers, the age rule, the bloodline, the scope. Writing that in plpgsql
+would be a second implementation beside a tested one, and §7c is a list of four things the
+first implementation got wrong. So the queue is a table and the arithmetic stays where
+`npm test` can reach it.
+
+Three behaviours worth knowing: it re-checks at SEND time whether the installment was settled
+after it was queued and `cancelled`s it if so (a reminder is not a dunning notice, and chasing
+somebody for money they have already sent is the worst thing it could do); a generated
+placeholder address is `unreachable` rather than `failed`, because `placeholderEmail()` builds
+those on a real domain and mailing one is a hard bounce against our own reputation; and an
+opted-out or inactive plan is never reminded.
+
+### 2. ALERT-DRIVEN CHECK-IN SUGGESTIONS — BLOCKED, AND NOT ON THE SCHEDULER
+
+The scheduler was the stated blocker and it is gone: `pg_cron` is installed, and `http` is one
+`CREATE EXTENSION` in a migration away. **What blocks this now is DATA, and it is worth stating
+precisely so nobody re-reads the old entry and starts on the wrong half.**
+
+FutureFeature.md §5 item 3 is the whole of it. `people` holds `city`, `state` and `zip_code` —
+no latitude, no longitude, no geocoding, and PostGIS is not installed. NWS alerts carry county
+FIPS and UGC zones. So there are two ways to match a relative to an alert and neither is
+available:
+
+* **County-level** needs a ZIP-to-county crosswalk. That is a data dependency — the HUD USPS
+  file or the Census ZCTA relationship file, about 41,000 rows — and bundling one is a real
+  decision about a ~1MB government dataset in the repo, its licence, and who re-derives it when
+  ZIPs change. It is not hard; it is simply not something to do in passing.
+* **State-level** needs no new data except that `state` is not normalised — `pickProfileColumns`
+  normalises name case and phone country code only, so `TX`, `Texas` and `texas` are three kinds
+  of record and any state match silently misses two of them. **And state-level is too coarse to
+  be worth building anyway:** a tornado warning covers three counties out of Texas's 254, so
+  asking every Texan relative each time is how the feature gets ignored.
+
+**THE SEQUENCING ARGUMENT IS STILL THE DECISIVE ONE**, and it has not changed: *automation
+improves the TRIGGER, not the REACH — and reach is the feature.* The bell needs an open tab,
+`IdleTimeout` signs a member out after 60 idle minutes, and `sendEmail` fails soft. Detecting a
+hurricane faster than the family's own group text is worth nothing if the message cannot land,
+so push or SMS comes first. SMS is in no plan at all.
+
+**`http` (synchronous) probably still beats `pg_net` for the poller when it happens.** `pg_net`
+is fire-and-forget — the response lands in a `net` table for a limited window, so a job that
+needs the body is two passes and a reaper. A poll that fetches, matches and writes in one
+statement wants the synchronous extension, with an explicit timeout so a hanging endpoint cannot
+wedge the job.
 
 **Two things to carry into whatever is scheduled next, and the first is the one that will bite.**
 
 * **A CRON JOB IS DATABASE STATE, which is the same invisibility class as realtime publication
   membership.** `db:check` compares migration versions, `db:audit` reads policies, and a fresh
   `db reset` schedules nothing. A job created in the dashboard is drift with nothing in the repo
-  able to see it. **It must be created in a migration and asserted there** — the sweep's job is,
-  and the next one must be too. AGENTS.md's "REALTIME NEEDS THE TABLE IN A PUBLICATION" is the
-  same incident arriving through `cron.job`, and that section's warning about an instruction in a
-  migration addressed to a person applies word for word.
+  able to see it. **It must be created in a migration and asserted there** — all three existing
+  jobs are. AGENTS.md's "REALTIME NEEDS THE TABLE IN A PUBLICATION" is the same incident
+  arriving through `cron.job`, and that section's warning about an instruction in a migration
+  addressed to a person applies word for word.
 * **A job has no `auth.uid()`, so it has no caller to authorize.** That is why the alert poller
-  must SUGGEST and a person must RAISE (FutureFeature.md §5 argues it): automating the raise means
-  inventing a system actor and hanging the family's most sensitive write off it, with §2b's rule
-  about never taking an identity as a parameter standing in the way. Whatever is scheduled first
-  sets the precedent for that, so it is worth deciding deliberately rather than by whichever job
-  lands first.
+  must SUGGEST and a person must RAISE (FutureFeature.md §5 argues it): automating the raise
+  means inventing a system actor and hanging the family's most sensitive write off it, with
+  §2b's rule about never taking an identity as a parameter standing in the way. **The precedent
+  is now set by the two jobs that exist** — neither invents an actor, and the reminder resolves
+  every recipient from a `people` row it read itself rather than from any argument.
 
-Recorded 2026-08-23.
+Recorded 2026-08-23, rewritten 2026-09-01.
 
 ## GO LIVE: the Send Email hook is ON. What is left is proving it and retiring the fallback
 
@@ -947,81 +972,43 @@ If it is ever automated, it has to be ordered AFTER the Vercel alias moves — w
   with it — once the hook has been on long enough that turning it off is not the plan.
   **That deletion is now the second item on the list above rather than a someday note.**
 
-## BUILD: the sitemap lists one URL per route, and there are now three
+## NOTHING IN THE PRODUCT SHOWS THAT A DUES REMINDER WAS SENT
 
-**Action:** emit `alternates.languages` on every entry in `app/sitemap.ts`. Recorded
-2026-08-27, when the public site became three sites.
+**Action:** decide whether the reminder queue gets a surface, and where. Recorded 2026-09-01, in
+the same commit that built the queue, because the gap is a consequence of that design rather
+than something discovered later.
 
-`/es/pricing` and `/fr/pricing` are real, indexed, canonical addresses — `LOCALIZED_ROOTS`
-and `localizedAlternates` are what made them so — and `app/sitemap.ts` names neither. It maps
-`MARKETING_ROUTES` to one English URL each, which is what it did when there was one language.
+`dues_reminders` accumulates one row per member per installment with a delivery outcome beside
+it — `sent`, `failed`, `unreachable`, `cancelled` — and **no screen reads any of it.** The table
+has a SELECT policy and a `permission_table_map` row keyed on `admin/accounting`, so the access
+model is already decided; what does not exist is anything that asks the question.
 
-**IT IS NOT BROKEN, WHICH IS WHY THIS IS A BUILD AND NOT A BUG.** Every localized page carries
-its own `hreflang` set in the head, naming all three, and that is sufficient for a crawler to
-discover and consolidate them — the head and the sitemap are two ways to say one thing, and the
-page-level one is the one Google documents as adequate on its own. So the Spanish and French
-pages are findable today; they are simply found by following a link rather than by being
-announced.
+**THAT MAKES ONE OF THE FEATURE'S OWN ARGUMENTS HOLLOW, WHICH IS WHY THIS IS NOT COSMETIC.**
+`unreachable` is a separate state from `failed` on the stated ground that filing a generated
+placeholder address as a failure *"would sit forever in the column an organizer works through"*.
+There is no column. `distribution_recipients` earned that distinction because
+`/community/distributions` renders the outcomes; this earned it by analogy and has not paid for
+it yet.
 
-What emitting them buys is discovery for a page nothing links to yet, and a slightly faster
-first crawl of a new locale. Next supports it directly on a sitemap entry:
+Three things it would answer, and the second is the one a treasurer will ask first:
 
-```ts
-...MARKETING_ROUTES.map(route => ({
-  url: `${SITE_URL}${route.href}`,
-  alternates: { languages: localizedAlternates(route.href, BASE_LOCALE).languages },
-  lastModified, changeFrequency: route.changeFrequency, priority: route.priority,
-})),
-```
+* **Did anything go out?** A queue that silently sends nothing and a queue with nothing to send
+  are indistinguishable today, including to whoever is wondering why nobody paid.
+* **Whose address does not work?** Every `unreachable` row is a relative the family cannot reach
+  by email at all — which is a fact worth acting on well beyond dues, and is already recorded.
+* **Was anybody reminded twice?** The unique index makes it impossible, and the screen is how
+  somebody satisfies themselves of that without reading a migration.
 
-**Two things to get right, and the second is the trap.** The x-default entry must point at the
-unprefixed English URL, which is what `localizedAlternates` already returns rather than
-something to hand-write. And `npm run sitemap:check` compares a DATE against the newest commit
-touching the public pages — it says nothing about which URLs are listed, so it will stay green
-through this whole item and cannot be the thing that tells you it is done.
+**Where it belongs is a real choice and not obvious.** A band on `/reporting/dues-projections`
+is the cheapest and sits beside the figures it is about; a pane on `/admin/accounting/dues` is
+closer to the schedule that generated it. **A new route is the expensive answer** — a
+`permission_resources` row, a `resource_visibility` backfill, the Administrators grant, a rail
+item, a help chapter and an RLS case, per *"A FEATURE THAT RECORDS SOMETHING OWES A REPORT ON
+IT"*. Either of the first two reuses a grant that already exists.
 
-## BUILD: greet a relative on their birthday, and make it feel like a celebration
-
-**Action:** decide what "automatic" means here, then build it. Recorded 2026-08-25, out of the
-lede sweep — the Birthdays pane used to spend a sentence apologising that **nothing is sent
-automatically**, and a caption explaining what the product does not do is a feature request
-wearing a caption's clothes.
-
-**What exists today.** `/community/announcements?pane=birthdays` lists every relative with a
-birthday in the next `BIRTHDAY_HORIZON_DAYS` (60), soonest first, one click from the composer.
-That is a list an organizer works through by hand. Nothing is posted, nothing is mailed, nothing
-appears on the dashboard, and a birthday that passes unremarked leaves no trace anywhere.
-
-**Three decisions before any code, and the first is the whole feature.**
-
-1. **WHO GREETS — the family, or the product?** A card the product posts in the family's name is
-   the cheap version and is worse than nothing: a relative who realises the warm message was
-   generated has been told the family did not remember. The alternative is that the product
-   PROMPTS — the dashboard says "It's Ada's birthday today" with a composer already open — and
-   every word that reaches Ada was typed by a person. **Prefer the second.** It is also the only
-   version consistent with the Birthdays pane's own design, which has always been a list to act
-   on rather than a machine.
-2. **WHERE IT LANDS.** A dashboard band on the day is the obvious surface and reaches only
-   whoever opens the app. An announcement pinned for the day reaches everybody and costs a row in
-   `announcements` that nobody chose to write. Email is the loudest and needs the distribution
-   rules in "MAILING THE WHOLE FAMILY IS A QUEUE IN THE DATABASE" — including that a recorded
-   relative's placeholder address must never be mailed.
-3. **WHAT "CELEBRATION" MEANS ON SCREEN.** Confetti, a gold band, the person's avatar at size.
-   Whatever it is, it is `--brand-legacy` or `--brand-warm` territory and never `--destructive`;
-   and it has to degrade to something dignified for a relative with no photograph and no
-   recorded birth year, which is most of an older generation on a real family tree.
-
-**Two things the schema already gives you and one it does not.** `people.date_of_birth` is there
-and `lib/age-utils.ts` derives from it — and **a NULL birthday is not a birthday**, the same
-reading `isMinorOn` takes, so nobody with a blank field is ever greeted or ever counted as
-missed. `lib/birthdays.ts` already computes the horizon list. What does not exist is any record
-that a greeting HAPPENED, so "did anyone say anything to Ada?" is unanswerable — and without it a
-prompt reappears every year whether or not the family acted on it last time.
-
-**And there is no scheduler**, which is the constraint that shapes the whole thing. `pg_cron` is
-installed (`20260823000006`; see the `http` item above) but nothing in the product runs on a clock except the
-Stripe webhook's opportunistic sweep. A prompt rendered when somebody OPENS the app needs no
-scheduler at all and is another reason to prefer option 1.
+**AND IT IS PREMIUM-ONLY, so whatever surface it gets needs the tier by hand** if it is a pane
+on a page whose own tier is lower — the four-sub-key pattern in AGENTS.md, not a new `FEATURES`
+row unless it becomes a route.
 
 ## `tests/rls` has no member who has replied STOP
 
@@ -1172,169 +1159,6 @@ Re-checked 2026-08-29:
 4. Then the `alternates` block, exactly as every other page there has it.
 
 Recorded 2026-08-23; the i18n cost added 2026-08-29.
-
-## DONE 2026-08-31: sorting is on every table that should have it
-
-**No action.** Kept because the four decisions below are the ones a new table has to make, and
-because three of them are about tables that deliberately do NOT sort.
-
-`lib/sort-rows.ts` (pure, 18 tests, eight mutations measured) plus `useTableSort` and `SortTh`
-in [components/ui/sortable-header.tsx](components/ui/sortable-header.tsx) are the mechanism.
-Seventeen more tables across eleven files were converted on 2026-08-31, joining
-`MemberDirectoryClient`, `AdminAccessClient`, `DuesPlanSection` and `PaymentHistorySection`.
-
-**`SortTh` WAS MISSING `scope="col"` THE WHOLE TIME**, while every hand-written `<th>` in the
-app carried it — so the four tables that already sorted had been announcing their cells without
-a column since the component was written. Fixed in the component, which fixed all four.
-
-### Four tables do not sort, and each refusal is a different rule
-
-| | |
-|---|---|
-| the dues-routing waterfall, view AND edit (`AdminFundsClient`) | the row order IS the datum — funds fill in sequence, the first column is that ordinal, and the edit table exists to change it |
-| the template steps table (`AdminGatheringTemplatesClient`) | same shape: `StepRow` takes `isFirst`/`isLast`/`onMove`, and "move up" is incoherent under a table sorted by budget |
-| `StaffFamiliesClient`, `StaffAccountsClient` | SERVER-PAGED. A client sort orders the 25 rows on screen and looks like it ordered 400 — and Accounts pages through GoTrue's `listUsers`, which cannot order at all, so there is no server-side version to reach for either |
-
-`AdminGatheringTemplatesClient` turned out to hold **only** that steps table — its library is
-cards — so the file drops off the list entirely. `DonutChart` and `MonthCalendar` use `<th>` for
-a chart axis and a weekday header, and `components/ui/table-collapse.tsx` is the shared
-primitive rather than a table; none has rows to order.
-
-### The four decisions, which are what a new table has to make
-
-**1. THE DEFAULT REPRODUCES THE ORDER THE LIST ARRIVES IN.** `useTableSort` has no unsorted
-state, so every conversion picks the key that reproduces first paint, and where the incoming
-order is a decision somebody made, that is a constraint rather than a preference. Three shapes
-came up:
-
-* **A single column says it** — `.order('label')`, `.order('name')`, `.order('starts_on')`.
-  Most tables. Pass that key; the stable sort even preserves the secondary `.order()`.
-* **A composite says it** — `DuesProjectionsClient`'s member table is already sorted standing,
-  then outstanding descending, then name, and the lede says "Least settled first". `sortRows`
-  is STABLE, so sorting the already-sorted array by standing alone leaves the other two keys
-  exactly where they were. The default is reproduced to the row.
-* **Nothing printed says it** — a gathering's tasks are ordered by `position`, the narrative
-  the organizer authored, and no heading corresponds to it. Those take an extractor named
-  `authored` **with no heading**: nothing shows an active arrow until a heading is pressed. The
-  cost is that the authored order cannot be returned to without reloading.
-
-The one default that CHANGED is `AdminBoardPositionsClient`, and deliberately: its `sort_order`
-is `max + 1` on create with no reorder control anywhere, so it records the order somebody
-happened to add the offices in — not a fact the screen prints or a reader could infer.
-
-**2. AN ENUM SORTS ON THE PRINTED LABEL, NOT ON A RANK — WITH ONE EXCEPTION.** Alphabetical by
-the word in the cell is what a reader can predict, and it is locale-correct for free because
-`useTableSort` threads the `Intl` tag. A rank has to be INVENTED, and on the staff console
-inventing one would have meant saying something about support versus engineer that
-`lib/auth/staff.ts` is explicit nothing distinguishes. The exception is
-`DuesProjectionsClient`'s Standing, where `STANDING_ORDER` was not invented — the screen
-already shipped it, already sorts by it and already draws its pills in it.
-
-`PaymentLedger`'s Status is the sharpest case FOR the label: the pill reads "Reversed" or
-"Correcting entry" for rows whose stored `status` is an ordinary `'paid'`, so ordering by the
-column would file a reversed payment among the paid ones under a heading plainly saying
-otherwise.
-
-**3. SORT THE VALUE THE CELL IS BUILT FROM.** Money on `amount_cents` — about twenty currency
-columns in this pass, and "$9.00" sorts after "$10.00" as text. Dates on the stored
-`YYYY-MM-DD`, which is chronological as a string, so no `Date` is built and no timezone moves a
-row a day from the date printed beside it. And `AdminRegionsChaptersClient`'s Attached column
-sorts on a TOTAL of the five counts its caption is assembled from — returning `0` rather than
-`null` for nothing-attached, so ascending answers "what can I delete?" instead of burying those
-rows as blanks.
-
-**AND AN EXTRACTOR MUST READ ITS OWN ROW AND NOTHING ELSE** — the one defect in this pass that
-survived typecheck, lint and build, caught on review rather than by a gate. `useTableSort`'s
-memo depends on `rows` and deliberately not on the extractor map, so a column COMPOSED FROM
-ANOTHER LIST re-renders its cells with the new figure while keeping the order derived from the
-old one. Three tables here do that — a region's chapter count out of `chapters`, a milestone's
-fund name out of `funds`, a segment's task count out of `tasks` — and all three panes write
-optimistically with **no `router.refresh()`**, so nothing comes along to correct it: an
-ascending sort by chapter count sits there showing 5 above 3 for the rest of the visit.
-
-A `deps` parameter on the hook was the obvious fix and **cannot be written**: the React
-Compiler lint rule requires that dep list to be an array literal, so there is nothing to spread
-into. The answer is to compose the value onto the row in a `useMemo` of the caller's own that
-lists the other array — `regionRows`, `milestoneRows`, `segmentRows` — and let the extractor
-read the field. That is also the contract the hook documents, and it has a second benefit worth
-copying: the milestone Fund cell now reads `m.fundName` instead of running its own second
-`funds.find`, so the column's order and both places its text is drawn are one value.
-
-**4. TWO COLUMNS WERE LEFT UNSORTABLE FOR THEIR OWN REASONS**, which is a legitimate outcome:
-`BirthdaysPane`'s **Turning**, because `birthdayAge` withholds a number for 30–60 and a sort
-keyed on the true age would let a reader read a withheld age off its position; its **Day**,
-because a weekday's alphabetical order is nonsense and the row carries no weekday index; and
-`GatheringDetailClient`'s **Answer**, because `answer` is JSONB whose shape depends on `kind`.
-
-### Two things fixed on the way through
-
-**`DuesProjectionsClient`'s ten headings were English in all three languages** — the
-lone-capitalised-word class AGENTS.md says `i18n:literals` structurally cannot see and only the
-render diff can. Six new `proj.col*` keys in all three catalogues; `proj.collected` and
-`proj.waived` already existed for the figure tiles on the same screen and are reused rather
-than duplicated. **`AdminFundsClient`'s "% of dues"** was the same defect and now uses
-`fnd.shareOfDuesPrefix`, the key its own folded `RowMeta` copy was already labelled with.
-
-**`LedgerTable` was widened rather than unpicked.** Four ledgers share it, and a column opts
-into sorting by naming its key (`sort: 'amount'`); a generic ties that to the caller's
-`useTableSort` map, so naming a column that does not exist is a compile error. Four copies
-would have been four chances to sort a rendered string. `PaymentLedger`'s hook had to move
-ABOVE its `rows.length === 0` return — a hook after a conditional return breaks exactly when a
-ledger takes its first row.
-
-**One asymmetry is still deliberately unresolved.** Both member tables sort Name on the
-DISPLAYED name rather than on surname, which is the less useful order — `MemberRecord` has
-`last_name` and `MemberSummary` carries a pre-joined `name`, so surname order on both needs
-`lastName` added to `MemberSummary` server-side. Until then the two agree, which is what "a
-table is a table" is about. Both call sites say so; if that field is ever added, move both.
-
-**And a text column sorts in the READER'S alphabet, which costs a conversion nothing.**
-`compareValues` and `sortRows` take an `Intl` tag and **`useTableSort` calls `useIntlTag()`
-itself**, so a table converted the ordinary way is locale-correct with no extra line. It
-matters because `ñ` is a letter of its own in Spanish and files after `n`, and `sensitivity:
-'base'` does not collapse it — measured. The tag defaults to `'en'` rather than `undefined`
-deliberately: passing `undefined` asks the RUNTIME, and a comparator that answers differently
-on two hosts is a row order nothing in this repo decides.
-
-**Where it still costs something is a table that sorts by hand.** `DuesPlanSection` and
-`PaymentHistorySection` use `SortTh` with their own state and their own comparators rather
-than `useTableSort` — they sorted before any of this existed and share only the HEADER. Both
-already hold an `intl` from `useIntlTag()` for their money and date formatting, so if either is
-ever moved onto `useTableSort`, the tag is the thing to check reached the comparator and not
-just the labels.
-
-Recorded 2026-08-21; completed 2026-08-31.
-
-**Three things to carry into each one**, all learned on a conversion rather than guessed. Sort
-the value the cell is BUILT from, never the string it prints — a money column sorts on
-`amount_cents` or "$9.00" lands after "$10.00", and a date sorts on `YYYY-MM-DD` or the column
-orders by month name. And where a column is composed in the browser rather than carried on the
-row, sort through the SAME lookup the cell renders from: Members & Access's Position reads
-`board.holders`, because `MemberSummary` has no title on it.
-
-**And since 2026-08-27 a text column sorts in the READER'S alphabet — which costs a conversion
-NOTHING, and is worth knowing so nobody re-plumbs it.** `compareValues` and `sortRows` take an
-`Intl` tag, and **`useTableSort` calls `useIntlTag()` itself** and threads it, so a table
-converted the ordinary way is locale-correct with no extra line. It matters because `ñ` is a
-letter of its own in Spanish and files after `n`, and `sensitivity: 'base'` does not collapse
-it — measured. The tag defaults to `'en'` rather than to `undefined`, deliberately: passing
-`undefined` asks the RUNTIME, and a comparator that answers differently on two hosts is a row
-order nothing in this repo decides.
-
-**Where it does cost something is a table that sorts by hand.** `DuesPlanSection` and
-`PaymentHistorySection` use `SortTh` with their own state and their own comparators rather
-than `useTableSort` — that is what "sorted before any of this existed and now share the
-module" means above, and it is only the HEADER they share. Both already hold an `intl` from
-`useIntlTag()` for their money and date formatting, so if either is ever moved onto
-`useTableSort`, the tag is the thing to check reached the comparator and not just the labels.
-
-**One asymmetry is deliberately unresolved.** Both member tables sort Name on the DISPLAYED name
-rather than on surname, which is the less useful order — `MemberRecord` has `last_name` and
-`MemberSummary` carries a pre-joined `name`, so surname order on both needs `lastName` added to
-`MemberSummary` server-side. Until then the two agree, which is what "a table is a table" is
-about. Both call sites say so; if that field is ever added, move both.
-
-Recorded 2026-08-21.
 
 ## 1. PARKED 2026-08-07: "Were you already added to the family?"
 

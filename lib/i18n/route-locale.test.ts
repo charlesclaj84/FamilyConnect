@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { LOCALES } from '@/lib/i18n/locales'
 import {
   LOCALIZED_ROOTS,
+  absoluteLocaleAlternates,
   isLocalizablePath,
   localeAlternates,
   localePrefixRedirect,
@@ -200,5 +202,56 @@ describe('LOCALIZED_ROOTS', () => {
     // `/aboutus` is not `/about`. The `startsWith(root + '/')` conjunct is what stops it.
     expect(isLocalizablePath('/aboutus')).toBe(false)
     expect(LOCALIZED_ROOTS).toContain('/about')
+  })
+})
+
+/**
+ * The sitemap's absolute form of the alternates, added 2026-09-01 when `app/sitemap.ts`
+ * stopped listing one URL per route.
+ *
+ * The root is the case worth pinning: `localizedHref('/', 'en')` is `'/'`, so a naive
+ * `origin + path` gives `https://genorra.com/` while every other reference to the home page
+ * in that file is the bare origin — two spellings of one URL inside one sitemap, which is the
+ * exact duplicate a sitemap exists to prevent.
+ */
+describe('absoluteLocaleAlternates', () => {
+  const ORIGIN = 'https://genorra.com'
+
+  it('joins the root without a trailing slash, so it matches the sitemap’s own entry', () => {
+    const alt = absoluteLocaleAlternates('/', ORIGIN)
+    expect(alt.en).toBe('https://genorra.com')
+    expect(alt.es).toBe('https://genorra.com/es')
+    expect(alt.fr).toBe('https://genorra.com/fr')
+  })
+
+  it('prefixes an ordinary page and leaves English unprefixed', () => {
+    const alt = absoluteLocaleAlternates('/pricing', ORIGIN)
+    expect(alt.en).toBe('https://genorra.com/pricing')
+    expect(alt.es).toBe('https://genorra.com/es/pricing')
+    expect(alt.fr).toBe('https://genorra.com/fr/pricing')
+  })
+
+  it('points x-default at the unprefixed English URL', () => {
+    // Not a fourth language: x-default is what a crawler serves a reader whose own
+    // language is none of the three, and pointing it at a prefixed URL would make the
+    // Spanish page the default for a German reader.
+    expect(absoluteLocaleAlternates('/about', ORIGIN)['x-default'])
+      .toBe('https://genorra.com/about')
+    expect(absoluteLocaleAlternates('/', ORIGIN)['x-default']).toBe('https://genorra.com')
+  })
+
+  it('tolerates an origin with a trailing slash rather than doubling it', () => {
+    // `SITE_URL` is normalised, but it is resolved from an environment variable at module
+    // scope and `lib/site.ts` records a real incident where that value was not what anybody
+    // expected. A sitemap full of `https://genorra.com//pricing` is not worth risking on it.
+    expect(absoluteLocaleAlternates('/pricing', 'https://genorra.com/').es)
+      .toBe('https://genorra.com/es/pricing')
+  })
+
+  it('covers every locale the product offers, so a fourth needs no edit here', () => {
+    const alt = absoluteLocaleAlternates('/features', ORIGIN)
+    for (const { code } of LOCALES) expect(alt[code]).toBeTruthy()
+    // The languages plus x-default, and nothing else.
+    expect(Object.keys(alt).sort()).toEqual([...LOCALES.map(l => l.code), 'x-default'].sort())
   })
 })

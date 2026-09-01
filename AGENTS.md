@@ -2867,6 +2867,89 @@ available** — `permission_table_map` answers a policy question and `lib/featur
   bucket. `staff_delete_family` has the same limit and its ACTION deletes the objects first; a
   `pg_cron` job has no action. TODO.md carries it.
 
+### THE DAILY ROUTE CARRIES THREE JOBS, AND ONLY ONE OF THEM IS ABOUT PLATFORM BILLING
+
+Added 2026-09-01. `/api/billing/notices` is the ONLY place in this product where Node runs on a
+clock with the service key, so three unrelated things ride it. That is a fact about the
+infrastructure, not a family relationship between the features, and the file's own name is
+now the weakest thing about it.
+
+| | |
+|---|---|
+| platform billing mail | the ladder's five dunning emails and the retention window's four reminders |
+| **family dues reminders** | `lib/dues/reminders.ts`, `20260901000007` |
+| **the storage reaper** | `lib/billing/storage-reaper.ts`, `20260901000006` |
+
+**THE FIRST TWO ARE THE TWO DIRECTIONS OF MONEY AND MUST NEVER BE CONFLATED.** A dunning notice
+is about what a FAMILY owes GENORRA and has a lockout and a deletion behind it. A dues reminder
+is about what a RELATIVE owes their own family and has **no consequence at all** — no late fee,
+no lockout, no ladder, because this product has never had one. `duesReminderEmail`'s header says
+so, and an edit that gives it the word "overdue" is a change of product rather than of copy.
+
+**EACH RUNS IN ITS OWN `try`, IN THAT ORDER, AND THE RESPONSE REPORTS ALL THREE SEPARATELY.** A
+failure in the reminders must not cost a dunning notice already composed, and a partial run must
+be legible rather than looking like a success.
+
+#### A REMINDER'S ARITHMETIC STAYS IN TYPESCRIPT. THAT IS THE DECISION TO PRESERVE
+
+The obvious shape was a `pg_cron` sweep, matching the ladder, and it is wrong here. The ladder
+asks a question SQL can answer — has this date passed. A reminder needs `duesPlanMath`: the
+cadence ladder, the month-end clamp `setUTCMonth` overflows on, arrears against settled cents,
+waivers, the age rule, the bloodline and the scope. A plpgsql copy would be a SECOND
+implementation beside a tested one, and §7c is a list of four things the first one got wrong.
+
+So `20260901000007` ships a QUEUE and no sweep function, and the enqueue runs in Node. Four
+things about it are load-bearing:
+
+* **THE UNIQUENESS KEY IS THE INSTALLMENT, NOT THE PERIOD.** `(person_id, schedule_id, due_on)`.
+  FutureFeature.md said "(person, schedule, period)" and the annual period is the wrong grain — a
+  member paying monthly has twelve installments inside one, so keying on the year sends one
+  reminder in January and nothing again for twelve months. `cycle_on`'s role exactly, and it is
+  what makes an enqueue that runs every day for a fortnight insert exactly one row.
+* **IT RE-CHECKS AT SEND TIME WHETHER THE INSTALLMENT WAS SETTLED**, and `cancelled`s it if so.
+  Chasing somebody for money they have already sent is the worst thing this feature could do, and
+  the queue is a record of what was true when it was written rather than of what is true now.
+* **A GENERATED ADDRESS IS `unreachable`, NOT `failed`.** `placeholderEmail()` builds those on
+  `@genorra.com` — a REAL domain — so `sendEmail`'s reserved-TLD guard does not catch one and
+  mailing it is a hard bounce against our own sending reputation. Filed as `failed` it would sit
+  forever in the column somebody works through. Same five-state argument as
+  `distribution_recipients`.
+* **THE TIER IS RESOLVED WITH `requiredTier` + `tierMeets`, NEVER `tierAllows`.** That helper
+  takes a `userId` and resolves the caller's family; a cron job has no `auth.uid()` and no caller
+  at all. And no policy consults `families.tier` — the rule that section already keeps.
+
+#### AND A PURGE'S BYTES ARE DELETED BY THE ROUTE, BECAUSE SQL CANNOT REACH THEM
+
+`delete_family_data_above_tier` removes rows and structurally cannot touch storage:
+`storage.protect_delete()` refuses a direct `DELETE FROM storage.objects` and a `pg_cron` job has
+no Storage API to call. So until 2026-09-01 a purged family kept every image file, in a bucket
+that is `public: true`, fetchable by URL to anybody holding one.
+
+**IT IS THREE TABLES ACROSS TWO BUCKETS, and the entry that asked for it said "photos".**
+Measured rather than assumed: every `public` table with a `file_path` column is `photos`,
+`bylaws` and `documents`, and all three purge at `plus`.
+**`tier_data_tables.storage_bucket` names them, and the migration asserts that column against
+the actual `file_path` columns in BOTH DIRECTIONS** — so a table that gains files next year
+cannot be silently un-reaped, and a bucket named on a table with no such column cannot be a walk
+that only ever looks like it worked. Same shape as `20260901000001`'s completeness assertion,
+which is what makes a hand-written map survivable.
+
+**THE DANGEROUS LINE IS A READ, NOT A DELETE, AND THIS IS THE SHARPEST INSTANCE OF §8 IN THE
+PRODUCT.** The reaper deletes an object NO SURVIVING ROW POINTS AT. So `const { data }`
+discarding an error does not render an empty screen here — it makes every photograph the family
+owns look like an orphan and deletes all of them, permanently. Four rules follow and none may be
+simplified away: every read is checked and **abandons the whole family**, not just the bucket; the
+survivor query is **paged to exhaustion**, because a truncated survivor list is a delete list; a
+row with a null `file_path` abandons, because the survivor set is then not provably complete; and
+every path is re-checked against the family's own prefix before it is queued for removal.
+
+**`npm run reaper:check` IS WHAT PROVES IT, AND IT BREAKS THE READ FOR REAL** — renaming the
+column out from under the module so PostgREST answers 42703 — then asserts that nothing at all is
+removed. Mutation-checked: discarding that one error deletes both objects in the fixture. It runs
+under **`vitest.integration.config.mts`**, a second config with its own `include`, because
+`vitest.config.mts`' `lib/**` is a stated boundary and widening it to reach a module that needs
+Supabase would delete that argument. Hand-run, like `realtime:check`.
+
 ### One hard-delete path, three callers
 
 `delete_family_data_above_tier`. The retention sweep, day 60 of the ladder, and "start fresh".

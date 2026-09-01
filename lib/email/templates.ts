@@ -410,6 +410,66 @@ export function processorDisconnectCodeEmail(o: {
  * it rather than a mailbox that cannot help them. FutureFeature.md carries the preference
  * decision; the copy here must not imply one exists.
  */
+/**
+ * An automatic dues reminder — one installment, one member, sent once.
+ *
+ * ── THE READER'S LANGUAGE, NOT A SENDER'S ─────────────────────────────────────────
+ * `distributionEmail` is the one template that follows the SENDER, because its substance is
+ * one member's own words. This one's substance is OURS — a figure and a date the product
+ * computed — so it takes the reader's, resolved by `authMailLocale`. That is the ordinary
+ * rule; the distribution is the exception.
+ *
+ * ── IT ASKS, IT DOES NOT DEMAND ───────────────────────────────────────────────────
+ * A reminder is not a dunning notice. Nothing here threatens a consequence, because there
+ * is none: family dues have no lockout, no late fee and no ladder — that machinery is the
+ * PLATFORM's, for what a family owes GENORRA, and the two must never be made to sound alike
+ * (AGENTS.md, "MONEY HAS TWO DIRECTIONS"). Every word is chosen on that basis, and a future
+ * edit that adds "overdue" or "immediately" is a change of product, not of copy.
+ *
+ * The AMOUNT is formatted by the caller, in the FAMILY's currency and the reader's number
+ * conventions — `moneyFor(family.currency, locale)`. Never interpolated as a bare integer,
+ * and never formatted here, where the currency is not known.
+ */
+export function duesReminderEmail(o: {
+  origin: string
+  locale?: string
+  firstName: string
+  familyName: string
+  /** The schedule's own label, as the family named it. Not translated — it is their word. */
+  scheduleLabel: string
+  /** Already formatted, in the family's currency. See the header. */
+  amount: string
+  /** `YYYY-MM-DD`. Rendered in the reader's own conventions here. */
+  dueOn: string
+}): ComposedEmail {
+  const t = emailT(o.locale ?? BASE_LOCALE)
+  const family = esc(o.familyName)
+  const label = esc(o.scheduleLabel)
+  const amount = esc(o.amount)
+  // UTC, PINNED. `new Date('2026-10-01')` is UTC midnight and renders as 30 September in any
+  // negative offset — the trap `lib/calendar.ts` is written around, and it would put a due
+  // date a day early for half the country.
+  const due = new Intl.DateTimeFormat(o.locale ?? BASE_LOCALE, {
+    year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC',
+  }).format(new Date(`${o.dueOn}T00:00:00Z`))
+
+  return {
+    subject: t('email.duesReminder.subject', { family, label }),
+    tag: 'dues-reminder',
+    html: renderEmailFrom(o.origin, {
+      t,
+      preheader: t('email.duesReminder.preheader', { amount, due: esc(due) }),
+      heading: t('email.duesReminder.heading', { label }),
+      paragraphs: [
+        t('email.duesReminder.greeting', { name: esc(o.firstName) }),
+        t('email.duesReminder.body', { family, label, amount, due: esc(due) }),
+        t('email.duesReminder.paid'),
+      ],
+      footnote: t('email.duesReminder.footnote', { family, app: esc(APP_NAME) }),
+    }),
+  }
+}
+
 export function distributionEmail(o: {
   origin: string
   familyName: string

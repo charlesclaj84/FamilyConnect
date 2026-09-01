@@ -327,3 +327,81 @@ describe('generationLabel', () => {
     expect(generationLabel(0, 'down')).toBe('Descendants')
   })
 })
+
+/**
+ * A SIBLING EDGE ALONE DOES NOT PUT ANYBODY IN THE BLOODLINE, AND THAT IS THE DESIGN.
+ *
+ * Reported 2026-09-01, in these words: a sister added as the BLOOD sister of a brother got
+ * no droplet and did not appear under Bloodline.
+ *
+ * Nothing is wrong with the walk, and these tests exist so that nobody "fixes" it. Only
+ * `parent` edges conduct — see `bloodlineIds`, which argues it at length from the case that
+ * caused it: chaining a sibling edge onto a child edge once put a step-daughter in her
+ * step-father's bloodline, because half-siblings really are blood to each other and simply
+ * are not blood to each other's other parent.
+ *
+ * ── WHY THE RULE CANNOT BE RELAXED "JUST WHEN NOBODY HAS PARENTS" ───────────────────
+ * The tempting narrow fix is to let a sibling edge conduct when NEITHER person has a
+ * recorded parent, since there is then no other-parent for the bloodline to leak through.
+ * It is wrong, and the third test below is what says so: it would make the answer
+ * NON-MONOTONIC. Record the brother's father afterwards — a true fact, correctly entered —
+ * and the edge would stop conducting, silently ejecting the sister from the bloodline she
+ * was already in. Adding information must never take somebody out.
+ *
+ * What was actually broken was the SILENCE, and the fix is in `AddRelativeDialog`: it asks
+ * whose children they are, and now says so when it has nobody to offer.
+ */
+describe('a blood sibling with no shared parent recorded', () => {
+  const PEOPLE = [{ id: 'leroy' }, { id: 'sarah' }]
+
+  // Exactly what `addRelative` writes for "Sarah is Leroy's blood sister" when Leroy has no
+  // parents on the tree: the sibling edge and its mirror, and nothing else.
+  const EDGES: TreeLink[] = [
+    { from: 'leroy', to: 'sarah', relation: 'sibling', kind: 'blood' },
+    { from: 'sarah', to: 'leroy', relation: 'sibling', kind: 'blood' },
+  ]
+
+  it('leaves her out — this is the reported symptom, and it is correct', () => {
+    const blood = bloodlineIds(PEOPLE, EDGES, 'leroy')!
+    expect(blood.has('leroy')).toBe(true)
+    expect(blood.has('sarah')).toBe(false)
+  })
+
+  it('and recording one shared parent is what puts her in', () => {
+    const withFather: TreeLink[] = [
+      ...EDGES,
+      { from: 'leroy', to: 'father', relation: 'parent', kind: 'blood' },
+      { from: 'sarah', to: 'father', relation: 'parent', kind: 'blood' },
+    ]
+    const blood = bloodlineIds([...PEOPLE, { id: 'father' }], withFather, 'leroy')!
+    expect(blood.has('sarah')).toBe(true)
+    expect(blood.has('father')).toBe(true)
+  })
+
+  it('so the answer only ever GROWS as parents are recorded, never shrinks', () => {
+    // The monotonicity argument above, asserted. Give Leroy a father and Sarah none — the
+    // half-recorded state somebody passes through while typing — and Sarah is still out,
+    // exactly as she was before. No relaxed rule may let this line flip her out of a set
+    // she was already in.
+    const halfway: TreeLink[] = [
+      ...EDGES,
+      { from: 'leroy', to: 'father', relation: 'parent', kind: 'blood' },
+    ]
+    const blood = bloodlineIds([...PEOPLE, { id: 'father' }], halfway, 'leroy')!
+    expect(blood.has('sarah')).toBe(false)
+    expect(blood.has('father')).toBe(true)
+  })
+
+  it('and a STEP sister stays out however the parents are recorded', () => {
+    // The case the rule exists to protect, kept beside it: marking the link 'step' must be
+    // decisive, and a shared parent link written as 'step' must not smuggle her back in.
+    const stepEdges: TreeLink[] = [
+      { from: 'leroy', to: 'sarah', relation: 'sibling', kind: 'step' },
+      { from: 'sarah', to: 'leroy', relation: 'sibling', kind: 'step' },
+      { from: 'leroy', to: 'father', relation: 'parent', kind: 'blood' },
+      { from: 'sarah', to: 'father', relation: 'parent', kind: 'step' },
+    ]
+    const blood = bloodlineIds([...PEOPLE, { id: 'father' }], stepEdges, 'leroy')!
+    expect(blood.has('sarah')).toBe(false)
+  })
+})

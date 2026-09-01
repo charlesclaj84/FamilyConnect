@@ -135,6 +135,17 @@ export const emailEn: Catalogue = {
   // `distributionEmail`. What is translatable here is only the chrome around their words, and it
   // is sent in the SENDER's language for the reason that template's header gives.
   'email.distribution.preheaderFrom': 'From {sender}, to everyone in {family}.',
+  'email.duesReminder.subject': 'A reminder about {label} — {family}',
+  'email.duesReminder.preheader': '{amount} is due on {due}.',
+  'email.duesReminder.heading': '{label}',
+  'email.duesReminder.greeting': 'Hello {name},',
+  'email.duesReminder.body':
+    'This is a friendly reminder that {amount} towards {label} is due on {due} for {family}.',
+  'email.duesReminder.paid':
+    'If you have already paid, thank you — and please ignore this message.',
+  'email.duesReminder.footnote':
+    'Sent automatically by {family} through {app}. Reply to this email to reach your family’s '
+    + 'organizers.',
   'email.distribution.preheaderAnon': 'A message to everyone in {family}.',
   // Unreachable in practice — the action refuses an empty body — and cheaper than an email with
   // chrome and no content in it.

@@ -230,3 +230,33 @@ export function localizedAlternates(path: string, locale: string): Metadata['alt
     languages: { ...languages, 'x-default': languages[BASE_LOCALE] },
   }
 }
+
+/**
+ * The same `languages` map, as ABSOLUTE URLs, for `app/sitemap.ts`.
+ *
+ * ── WHY IT IS NOT `localizedAlternates(...).languages` WITH A PREFIX MAPPED ON ──────
+ * Two reasons, and the second is the one that would ship wrong. A sitemap entry needs
+ * absolute URLs where a `<head>` may use relative ones, so the join has to happen
+ * somewhere — and the ROOT is the case that makes it non-trivial: `localizedHref('/', 'en')`
+ * is `'/'`, so a naive `origin + path` yields `https://…/` while every other reference to
+ * the home page in that file is the bare origin. Two spellings of one URL in one sitemap is
+ * exactly the duplicate a sitemap exists to prevent, so the root is joined deliberately.
+ *
+ * `x-default` points at the UNPREFIXED English URL, which is what `localizedAlternates`
+ * already decides — restating it here would be a second answer to a question with one.
+ *
+ * The origin is a PARAMETER rather than an import of `SITE_URL`, so this module stays pure
+ * and `route-locale.test.ts` can assert the join without a deployment hostname.
+ */
+export function absoluteLocaleAlternates(
+  path: string,
+  origin: string,
+): Record<string, string> {
+  const base = origin.replace(/\/$/, '')
+  const absolute = (href: string) => (href === '/' ? base : `${base}${href}`)
+  const languages = localeAlternates(path)
+  const out: Record<string, string> = {}
+  for (const [code, href] of Object.entries(languages)) out[code] = absolute(href)
+  out['x-default'] = absolute(languages[BASE_LOCALE] ?? path)
+  return out
+}

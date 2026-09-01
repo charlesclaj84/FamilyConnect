@@ -21,7 +21,7 @@ are at the bottom.
 | `FEATURES[]` entries | **45** |
 | `status: 'live'` | **44** |
 | `status: 'future'` | **1** — `/admin`, the fail-closed catch-all, which is not a page |
-| **Marketing claims with no code** | **6** — one on Plus, five on Premium |
+| **Marketing claims with no code** | **5** — one on Plus, four on Premium |
 | Live features named on no marketing surface | **0**, and gated: `npm run marketing:check` |
 
 **Premium is no longer an empty tier, and since 2026-08-23 it holds two routes.**
@@ -59,16 +59,16 @@ than tidy anything.
 
 ---
 
-## 1. The six claims with no code
+## 1. The five claims with no code
 
 **No route means no gate.** `proxy.ts` can only rewrite a path that is registered, so none of
 these ever shows a Coming Soon screen — a visitor reads the bullet and there is nothing anywhere
-that says "not yet". That is why these six are the most exposed items in the product, and why
+that says "not yet". That is why these five are the most exposed items in the product, and why
 this section is first.
 
-**This said seven until 2026-08-22**, when email distributions was built. What is worth carrying
-forward from that one is the thing that made it the cheapest of the seven to close and the
-thing that made it expensive:
+**It said seven until 2026-08-22 and six until 2026-09-01**, when email distributions and then
+automatic dues reminders were built. What is worth carrying forward from the first is the thing
+that made it the cheapest to close and the thing that made it expensive:
 
 * **Cheap:** the audience was already computable. A distribution's whole value is that its
   recipients are the membership rather than a list, and `people` plus the chapter→region walk
@@ -76,76 +76,68 @@ thing that made it expensive:
 * **Expensive:** `sendEmail` takes ONE recipient per call and there is no cron, worker or queue
   anywhere in this product. So the fan-out had to become a resumable queue in the database
   (`distribution_recipients`), driven a batch at a time. **Every remaining Premium bullet except
-  the apps hits that same wall** — reminders need a scheduler, push needs a delivery channel —
-  so the next one of these to be built should read `app/actions/distributions.ts` first rather
-  than rediscovering that this product has nowhere to run background work.
+  the apps hits that same wall** — push needs a delivery channel — so the next one of these to be
+  built should read `app/actions/distributions.ts` first rather than rediscovering that this
+  product has nowhere to run background work.
+
+**THAT WALL IS NOW PARTLY DOWN, AND THE REMINDER IS WHAT PROVED IT.** Since 2026-08-23 there is
+a scheduler: `pg_cron` for state and a daily Vercel cron for anything that needs the network.
+`lib/dues/reminders.ts` is the first feature built on it that is not about billing, and its
+shape is the one to copy — a queue table with a uniqueness key, an enqueue that is safe to run
+every day, and a claim under `FOR UPDATE SKIP LOCKED`.
 
 | Claim | Tier | Where it is sold | What it actually needs |
 |---|---|---|---|
 | **Card, debit, PayPal, Apple Pay, Google Pay, Cash App** | Plus | Bullet 1 of the `featured` card, and `PLAN_ADDS.plus[0]` | Provider decided: Stripe, **Model C** ([payment_info.md](payment_info.md)). Two decisions remain — the platform fee, and what legal entity a "family" is (§5 there). |
-| **Automatic dues reminders** | Premium | `PLANS[]`, `PLAN_ADDS` | The hard half is built. A scheduler and a sender. |
 | **Push notifications, web and mobile** | Premium | same | No code. Two design questions below. |
 | **Apps for iPhone and Android** | Premium | same | The largest single item in the product; it leaves the web app entirely. |
 | **The public family website that builds itself** | Premium | same | Three decisions before a line of code. |
 | **A per-family public address** | Premium | same | Wildcard subdomain and certificate provisioning for `yourfamily.genorra.com`. |
 
-### Reminders is the cheapest of the five, and BOTH its halves are now done elsewhere
+### Reminders — BUILT 2026-09-01, and the scheduler section it needed is now history
 
-`/reporting/dues-projections` already computes, per approved person, what is owed and whether
-they are Active, Invited or Pending Invite. `duesPlanMath` in `lib/dues-utils.ts` computes what
-the NEXT installment has to be, arrears included, as a pure function taking `today` as a
-parameter and unit-tested under `npm test`. So *what to remind whom about* is built and checked.
+`20260901000007` (the queue) and `lib/dues/reminders.ts` (the enqueue and the send). This
+section spent months saying both halves were done elsewhere and only a scheduler was missing;
+that is what happened, and three things about how are worth keeping.
 
-**And since 2026-08-22 so is the sending.** `app/actions/distributions.ts` is a working
-per-recipient mail fan-out with resumable state, honest per-address delivery reporting, a
-provider-rate-limit pacing argument and a claim-under-lock so two callers cannot double-send.
-A reminder is a distribution whose audience is "everybody with an installment due" and whose
-body is generated rather than typed — so what is left is genuinely just **the scheduler**, plus
-one decision that feature will not answer for you:
+**THE ONE DECISION THIS FILE SAID IT STILL NEEDED IS A UNIQUE INDEX**, and the wording here
+would have led somebody wrong. *"A uniqueness key on (person, schedule, period), in the schema
+rather than in the job"* — but the annual PERIOD is not the right grain: a member paying monthly
+has twelve installments inside one, so keying on the year sends one reminder in January and
+nothing again for twelve months. The key is `(person_id, schedule_id, due_on)`, and `due_on` is
+the installment. That is `platform_billing_notices.cycle_on`'s role exactly.
 
-* **A reminder must not re-send.** A distribution is a one-off somebody pressed a button for;
-  a reminder fires on a date and must not fire twice for the same installment. That is a
-  uniqueness key on (person, schedule, period) and it belongs in the schema, not in the job.
+**THE ENQUEUE IS IN NODE AND THAT IS THE DECISION TO PRESERVE.** The obvious shape was a
+`pg_cron` sweep, matching the billing ladder. It is wrong here: the ladder asks a question SQL
+can answer — has this date passed — while a reminder needs `duesPlanMath`, which is the cadence
+ladder, the month-end clamp `setUTCMonth` overflows on, arrears against settled cents, waivers,
+the age rule, the bloodline and the scope. A plpgsql copy would be a second implementation
+beside a tested one, and AGENTS.md §7c is a list of four things the first implementation got
+wrong. So the queue is a table, the drain is the daily route, and the arithmetic stays where
+`npm test` can reach it.
 
-**The sender still has to read `lib/email/`'s rule first**: never export a sender from a
-`'use server'` file, because everything exported from one gets a URL, and a `sendEmail` export
-is an open relay carrying our SPF and DKIM.
+**AND IT ASKS RATHER THAN DEMANDS**, which is a product rule the template's own header carries:
+family dues have no lockout, no late fee and no ladder. That machinery is the PLATFORM's, for
+what a family owes GENORRA, and the two must never be made to sound alike. A future edit adding
+"overdue" or "immediately" to `duesReminderEmail` is a change of product, not of copy.
 
-**The scheduler is the thing this product still does not have, and it is now the binding
-constraint on three of the five.** There is no cron, no worker, no queue and no `vercel.json`.
-Distributions worked around it by making the client drive a resumable queue, which is fine for
-something a person initiates and useless for something that has to happen on the 1st of the
-month with nobody watching.
+Three behaviours that are the feature rather than the plumbing: it re-checks at SEND time
+whether the installment was settled after it was queued and cancels it if so; a generated
+placeholder address is `unreachable` rather than `failed`, because `placeholderEmail()` builds
+those on a real domain and mailing one is a hard bounce against our own reputation; and an
+opted-out or inactive plan is never reminded.
 
-### …AND IT IS ONE MIGRATION AWAY, WHICH THIS FILE SAID OTHERWISE FOR MONTHS
+**What is still owed:** nothing renders `duesReminderEmail`. TODO.md's ladder entry carries it,
+since the same one script would cover both queues.
 
-Measured against the local stack on 2026-08-23. Four extensions are **available and not
-installed** on this project's Postgres:
+### The extension table that used to be here has moved to TODO.md
 
-| Extension | Available | Installed |
-|---|---|---|
-| `pg_cron` | 1.6.4 | — |
-| `pg_net` | 0.20.3 | — |
-| `http` | 1.6 | — |
-| `postgis` | 3.3.7 | — |
-
-So "there is no cron anywhere in this product" is true of the APP LAYER and false of the
-database — and the database is reached by a migration, which is the one deployment path this repo
-already sanctions (`migrate.yml`), with no new infrastructure and nobody holding production
-credentials. Three things to know before building on it:
-
-* **`http` (synchronous) probably beats `pg_net` here.** `pg_net` is fire-and-forget — the
-  response lands in a `net` table for a limited window, so a job that needs the body is two
-  passes and a reaper. A poll that fetches, matches and writes in one statement wants the
-  synchronous extension, with an explicit timeout so a hanging endpoint cannot wedge the job.
-* **A cron job is DATABASE STATE, and that is the trap.** It is the same invisibility class as
-  realtime publication membership: `db:check` compares migration versions, `db:audit` reads
-  policies, and a fresh `db reset` schedules nothing. A job created in the dashboard is drift.
-  **It must be created in a migration and asserted there**, or local and hosted diverge with
-  nothing able to notice — which is the incident "REALTIME NEEDS THE TABLE IN A PUBLICATION"
-  records, arriving through `cron.job` instead.
-* **It unblocks all three at once.** Reminders, alert polling and anything else on a timer are one
-  constraint rather than three.
+This section carried a measured list of four available-and-not-installed extensions and the
+argument for choosing between them. **`pg_cron` is installed now** (`20260823000006`), which is
+what made everything above possible, and `pg_net` was declined with a stated reason. The live
+version of that table, the `http`-versus-`pg_net` argument, and the warning that a cron job is
+database state nothing in the repo can see, all live in TODO.md's *"`http` is not installed"*
+entry — one copy, beside the two jobs that exist.
 
 ### Push has two questions that are not engineering
 
@@ -566,9 +558,14 @@ Four things stand between that and a feature, and the first two are the ones tha
      file's own header;
    * and state-level is too coarse to be useful anyway. A tornado warning covers three counties out
      of Texas's 254, and asking every Texan relative each time is how the feature gets ignored.
-4. **THE SCHEDULER.** See §1 — `pg_cron`, `pg_net` and `http` are all available-and-not-installed,
-   so this is one migration rather than new infrastructure. The job must be created IN that
-   migration and asserted there, because `cron.job` is database state nothing in the repo can see.
+4. **THE SCHEDULER — NO LONGER A BLOCKER, AS OF 2026-08-23.** `pg_cron` is installed and runs
+   two daily jobs; `http` is one `CREATE EXTENSION` away in a migration. **So item 3 is the
+   whole of what stands here now**, and it is worth being blunt about which half: county-level
+   matching needs a ZIP-to-county crosswalk, which is a ~41,000-row government dataset and a
+   real decision about licence and re-derivation; state-level needs only a `state` normaliser
+   and is documented above as too coarse to be worth building. The job must still be created IN
+   a migration and asserted there, because `cron.job` is database state nothing in the repo can
+   see — both existing jobs are.
 
 **Sequence matters more than any of it.** The check-in's own first constraint is unchanged: the
 bell needs an open tab, `IdleTimeout` signs a member out after 60 idle minutes, and `sendEmail`

@@ -946,6 +946,10 @@ export const en: Catalogue = {
   'rel.nonBloodLinkNote': 'Recorded as {kind}. The bloodline does not travel down this link.',
   'rel.parentBloodlineNote':
     ' {decidedBy} {control}, above the tree — a parent of yours is your blood relative without being part of your family’s line.',
+  'rel.siblingNeedsSharedParent':
+    'Nobody is recorded as {name}’s parent yet, so this brother or sister will not show '
+    + 'under {view} — the tree has been told they are siblings, not whose children they '
+    + 'are. Record the parent they share on both of them and both appear there.',
   'rel.shareParentsQuestion': 'Do they share {name}’s parents?',
   'rel.whoElseIsParent': 'Who else is a parent of this {relation}?',
   'rel.tickingRecordsParent':

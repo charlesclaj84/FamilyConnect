@@ -138,6 +138,18 @@ export const emailFr: Catalogue = {
   // Sent in the SENDER's language, so this copy wraps a message that is also in French. The
   // subject and the heading are the member's own words and are not keys at all.
   'email.distribution.preheaderFrom': 'De {sender}, à toute la famille {family}.',
+  'email.duesReminder.subject': 'Un rappel concernant {label} — {family}',
+  'email.duesReminder.preheader': '{amount} à régler le {due}.',
+  'email.duesReminder.heading': '{label}',
+  'email.duesReminder.greeting': 'Bonjour {name},',
+  'email.duesReminder.body':
+    'Nous vous rappelons qu’un montant de {amount} au titre de {label} est à régler le {due} '
+    + 'pour {family}.',
+  'email.duesReminder.paid':
+    'Si vous avez déjà réglé ce montant, merci — et vous pouvez ignorer ce message.',
+  'email.duesReminder.footnote':
+    'Envoyé automatiquement par {family} via {app}. Répondez à cet e-mail pour joindre les '
+    + 'organisateurs de votre famille.',
   'email.distribution.preheaderAnon': 'Un message à toute la famille {family}.',
   'email.distribution.empty': '(Aucun message n’a été joint.)',
   'email.distribution.footnoteFrom':

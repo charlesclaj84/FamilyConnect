@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next'
 import { SITE_URL } from '@/lib/site'
 import { MARKETING_ROUTES } from '@/lib/marketing-nav'
+import { absoluteLocaleAlternates } from '@/lib/i18n/route-locale'
 
 /**
  * The crawlable surface of the site — which is a much smaller thing than the
@@ -70,12 +71,21 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // formatted in the reader's own conventions, the plan cards and the four tier
   // taglines are keyed, and the founder's letter on /about is translated.
   //
-  // WHAT IS DELIBERATELY NOT HERE YET: the localized URLs themselves. Every page
-  // carries its own `alternates.languages` through `localizedAlternates`, which is
-  // enough for a crawler to find and consolidate all three, so this file still
-  // lists one URL per route. Emitting the other two (Next supports
-  // `alternates.languages` on a sitemap entry) is the stronger signal and is owed —
-  // TODO.md carries it.
+  // ── AND THE LOCALIZED URLS ARE HERE NOW (2026-09-01) ──────────────────────
+  // Every entry below carries `alternates.languages`, so all three addresses are
+  // announced rather than only discovered by following a link. It was never broken:
+  // each page already emits its own `hreflang` set, which Google documents as
+  // sufficient on its own. What this adds is discovery for a page nothing links to
+  // and a faster first crawl of a new locale.
+  //
+  // `absoluteLocaleAlternates` is the one place the URLs are built, so the sitemap
+  // and the `<head>` cannot disagree about what the Spanish address of a page is.
+  //
+  // NOTE THAT `sitemap:check` CANNOT SEE ANY OF THIS. It compares this date against
+  // the newest commit touching the public pages and says nothing about which URLs
+  // are listed — so it stayed green through the whole change and would stay green if
+  // the alternates were deleted again. `lib/i18n/route-locale.test.ts` is what covers
+  // the join; that a sitemap ENTRY carries it is checked by nothing.
   //
   // ONE DATE FOR EVERY URL, and it is a deliberate simplification rather than
   // an oversight: `/about` has not changed since before the old stamp, so this
@@ -87,6 +97,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
       url: SITE_URL,
+      alternates: { languages: absoluteLocaleAlternates('/', SITE_URL) },
       lastModified,
       changeFrequency: 'weekly',
       priority: 1,
@@ -96,6 +107,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // Mapped rather than restated for exactly that reason.
     ...MARKETING_ROUTES.map(route => ({
       url: `${SITE_URL}${route.href}`,
+      alternates: { languages: absoluteLocaleAlternates(route.href, SITE_URL) },
       lastModified,
       changeFrequency: route.changeFrequency,
       priority: route.priority,
@@ -103,12 +115,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
     {
       // The page an interested visitor is actually looking for.
       url: `${SITE_URL}/register`,
+      // ON THE AUTH ROUTES TOO, because `LOCALIZED_ROOTS` puts them there: a reader
+      // who has been on Spanish Home for four pages must not be handed an English
+      // form by the one click that matters, and the sitemap should say so.
+      alternates: { languages: absoluteLocaleAlternates('/register', SITE_URL) },
       lastModified,
       changeFrequency: 'monthly',
       priority: 0.8,
     },
     {
       url: `${SITE_URL}/login`,
+      alternates: { languages: absoluteLocaleAlternates('/login', SITE_URL) },
       lastModified,
       changeFrequency: 'monthly',
       priority: 0.5,
