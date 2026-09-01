@@ -250,7 +250,13 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
     return (
       <Panel>
         <p className="text-sm font-medium">{t('proc.notOn')}</p>
-        <p className="text-sm text-muted-foreground max-w-md mx-auto">{status.unavailable}</p>
+        {/* A KEY since 2026-09-01 — see `stripeUnavailableKey`. `available` is derived from
+            this being non-null, so the guard is redundant in practice and written out rather
+            than asserted away: `available: unavailable == null` is one line in the action, and
+            a future edit that decoupled them would otherwise print a raw key here. */}
+        {status.unavailable && (
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">{t(status.unavailable)}</p>
+        )}
         <p className="text-xs text-muted-foreground">{t('adm.duesRecordedHandFrom')}</p>
       </Panel>
     )

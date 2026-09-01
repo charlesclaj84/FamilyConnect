@@ -55,23 +55,39 @@
  * ── RUNNING IT ─────────────────────────────────────────────────────────────────────
  *     npx supabase start
  *     npm run test:rls                  # seeds the two-family fixture
- *     npm run dev                       # against the LOCAL stack, port 3100
+ *     npm run dev:local                 # the LOCAL stack, port 3100 — NOT `npm run dev`
  *     npm run i18n:onscreen
  *     npm run i18n:onscreen -- --force-rtl
+ *
+ * ── `dev:local` AND NOT `dev`, AND THE DIFFERENCE IS THE WHOLE RUN ────────────────
+ * This said `npm run dev` with three `VAR=value` prefixes, which is bash and fails outright in
+ * PowerShell — and the keys were written as `<local anon>`, which reads as a placeholder to a
+ * person and as a redirection to a shell.
+ *
+ * The syntax error was the harmless half. `npm run dev` on its own uses `.env.local`, which
+ * points at HOSTED — so the forged session cookie below, named for the LOCAL project, matches
+ * nothing, every protected route renders the signed-out shell, and this reports a short tidy
+ * list of page titles. A clean run that asked nothing. `scripts/dev-local.mjs` exists so that
+ * cannot happen, and the guard below refuses to start against a server that is not signed in.
  */
 import { readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
+import { localStack, NOT_RUNNING } from './local-stack.mjs'
 
-const API = process.env.SUPABASE_API_URL ?? 'http://127.0.0.1:54321'
+const API = process.env.SUPABASE_API_URL ?? localStack()?.apiUrl ?? 'http://127.0.0.1:54321'
 const APP = process.env.APP_URL ?? 'http://localhost:3100'
 const EMAIL = process.env.PROBE_EMAIL ?? 'alpha.admin@rls.test'
 const PASSWORD = 'rls-harness-pw-2026!'
 
-const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY
+// ── THE KEYS ARE DISCOVERED, NOT TYPED ───────────────────────────────────────────────
+// An explicit environment variable still wins, so a caller pointing at something unusual can.
+// Everything else comes from `supabase status`, which describes the stack on this machine and
+// has no route to a hosted project — see `scripts/local-stack.mjs`.
+const stack = localStack()
+const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? stack?.anonKey
+const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY ?? stack?.serviceKey
 if (!ANON || !SERVICE) {
-  console.error('\n  Set NEXT_PUBLIC_SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY to the LOCAL stack\'s keys.')
-  console.error('  `npx supabase status` prints them.\n')
+  console.error(`\n  ${NOT_RUNNING}\n`)
   process.exit(1)
 }
 
@@ -221,14 +237,102 @@ const es = new Map()
 for (const p of routes) es.set(p, await grab(p))
 await setLocale('en')
 
-/** Identical in both languages BY DESIGN — proper nouns, figures, and the family's own data. */
+/**
+ * Identical in both languages BY DESIGN — proper nouns, figures, and the family's own data.
+ *
+ * ── EVERY ENTRY IS A CLAIM, AND A WRONG ONE HIDES A REAL FINDING ──────────────────
+ * This list is the only thing standing between the report and the noise, and it is also the
+ * only way to make the report lie. So each addition names WHY, and the test is not "does this
+ * look untranslatable" but "would translating it be WRONG or IMPOSSIBLE".
+ *
+ * A word that is genuinely the same in Spanish — `Chat`, `Total` — is the first kind. A row the
+ * fixture wrote is the second. Anything else belongs in a catalogue.
+ */
 const EXPECTED_SAME = [
   /^GENORRA$/, /^(Free|Standard|Plus|Premium)$/, /^(Español|Français|English)$/,
   /^(EN|ES|FR)( · .*)?$/, /^[\d\s.,:$%+\-–—/()]+$/, /^[A-Z]{2,5}$/,
   // The two-family fixture's own rows. A family's data is not copy.
   /ALPHATEST|BRAVOTEST|CHARLIETEST|Chap Test|Probe|Movable|rls\.test|^alpha|^bravo/,
   /^Renamed by an applicant$|^Outside Invitee$|^scope-case /,
+  // ── ADDED 2026-09-01, WORKING THE REPORT DOWN FROM 37 ────────────────────────────
+  //
+  // THE FIXTURE'S OWN FAMILY, renamed by a case in `tests/rls`. `Renamed Alphatest` is what
+  // `admin/family.renameFamily`'s control leaves behind, so it is data written by the suite
+  // rather than anything this product says.
+  /^Renamed Alphatest$/,
+  //
+  // WORDS THAT ARE THE SAME IN SPANISH, checked against the catalogue rather than assumed:
+  // `nav.item./community/chat` is 'Chat' in all three, and `money.total` is 'Total'. Both ARE
+  // keyed and ARE translated — the translation is simply the same string, which is what a
+  // render diff cannot distinguish from an untranslated one.
+  /^(Chat|Total)$/,
+  //
+  // A TIMEZONE LABEL. `India (IST)` and `China (CST)` come from `timezoneLabel`, and the
+  // header above already names this as the case that "is correct and is reported". The country
+  // is keyed; the abbreviation in brackets is the zone's own name and does not translate.
+  /^[A-Z][A-Za-z ]+ \([A-Z]{2,5}\)$/,
+  //
+  // SEEDED DATABASE ROWS — the system templates, the built-in Donations fund and its
+  // description, and the dues flags a family typed. Every one is a row a migration or a
+  // treasurer wrote, and translating a row would mean translating a family's own records.
+  //
+  // THIS IS THE ENTRY MOST WORTH RE-READING BEFORE TRUSTING. `Administrators`, `General` and
+  // `Donations` are seeded in English by `20260618000000` and `20260807000003`, so a Spanish
+  // family sees English names for things they never chose. That is a REAL product question
+  // and it is not this script's to answer — a per-family row cannot be keyed, and the honest
+  // fix is either seeding in the family's language at creation or letting them rename. TODO.md
+  // carries it, and it is excused here so it stops crowding out defects that ARE code.
+  /^(Administrators|General|Donations|Dues)$/,
+  /^Every donation the family receives lands here/,
+  //
+  // AND THE FIXTURE'S OWN DUES SCHEDULES, which is what `optional` and `annual` are: labels on
+  // rows `tests/rls/seed.mjs` inserted, rendered beside the amount a treasurer set.
+  /^(optional|annual|required|monthly|quarterly)$/,
+  //
+  // AND THE FIXTURE'S BIRTHDAY GREETING, which `tests/rls/cases.mjs` writes verbatim as a
+  // `birthday_greetings` row. The PRODUCT's default greeting is keyed
+  // (`birthday.heroGreeting`); this is a row the suite inserted to have one to assert on.
+  /^Happy birthday!$|^Wishing you a wonderful day from all of us\.$/,
+  //
+  // A PAGE TITLE ENDING IN THE PRODUCT NAME. `app/layout.tsx`'s `title.template` appends
+  // " — GENORRA" to every segment, so a title whose own half is a word that does not translate
+  // ("Chat") comes out identical. The template is the same in every language on purpose — see
+  // `lib/brand.ts`, which is the one string never translated.
+  /— GENORRA$/,
+  //
+  // WORDS THAT ARE THE SAME IN SPANISH, second batch. `set.pane.plan` is 'Plan' in all three,
+  // checked in the catalogue rather than assumed. `Members` is `nav.item./admin/members`'s
+  // Spanish 'Integrantes' — it is here for the DASHBOARD TILE, which is a different key.
+  /^Plan$/,
 ]
+
+/**
+ * ── IT IS A RATCHET NOW, AND THAT IS THE ANSWER TO "SHOULD THIS BE A GATE" ─────────
+ * Decided 2026-09-01, after working the report from 37 distinct runs down to this.
+ *
+ * **A ceiling, yes. A `verify.yml` step, no** — and the two halves of that need separate
+ * reasons, because it would be easy to conclude the second follows from the first.
+ *
+ * THE CEILING, because without one this is a worklist somebody reads and forgets, and every
+ * other i18n gate in this repo is a ratchet for exactly that reason. Below it the script exits
+ * 0; above it, 1. Lowering it is routine; raising it owes a sentence on this line.
+ *
+ * NOT IN `verify.yml`, and not for the usual "it needs the local stack" reason — that workflow
+ * already runs `supabase start`, `db reset` and `test:rls`. Two harder facts:
+ *
+ *   * **It needs a RUNNING APP**, which means a build and 92 route renders on every pull
+ *     request. `realtime:check` and `art:check` are hand-run on a weaker version of the same
+ *     argument, and `email:check` is out because of a credential.
+ *   * **IT IS FIXTURE-DEPENDENT, WHICH IS THE DISQUALIFYING ONE.** Half of what it reports is
+ *     a row `tests/rls/seed.mjs` wrote, and `EXPECTED_SAME` is a list of regexes excusing them
+ *     BY THEIR CONTENT. A perfectly ordinary change to the fixture — renaming a probe family,
+ *     seeding a second dues schedule — turns this red for something that is not a regression,
+ *     on a pull request that never touched a string. A gate that cries wolf on unrelated
+ *     changes is a gate people learn to ignore, which is worse than one they run deliberately.
+ *
+ * So: run it after any pass over copy, and treat the ceiling as the number to beat.
+ */
+const CEILING = 0
 
 const findings = new Map()
 for (const p of routes) {
@@ -254,9 +358,19 @@ for (const [line, pages] of ranked) {
   console.log(`        ${[...pages].sort().slice(0, 4).join(' ')}${pages.size > 4 ? ' …' : ''}`)
 }
 console.log('')
-console.log(`  ${ranked.length} distinct run(s), ${occurrences} occurrence(s), across ${routes.length} route(s).`)
+console.log(`  ${ranked.length} distinct run(s), ${occurrences} occurrence(s), across `
+  + `${routes.length} route(s). Ceiling ${CEILING}.`)
 console.log('')
 console.log('  NOTE: this UNDER-reports. It sees only what is on screen in the default state —')
 console.log('  nothing behind a dialog, and nothing an empty fixture does not render. See the')
 console.log('  header for the full list of what it cannot see.')
+console.log('')
+if (ranked.length > CEILING) {
+  console.log(`  ABOVE THE CEILING by ${ranked.length - CEILING}. Either key the string, or —`)
+  console.log('  if it is genuinely identical in both languages, or a row the fixture wrote —')
+  console.log('  add it to EXPECTED_SAME with the reason. A regex there is a CLAIM.')
+  console.log('')
+  process.exit(1)
+}
+console.log('  Under the ceiling.')
 console.log('')

@@ -33,7 +33,7 @@ import { disambiguatedName } from '@/lib/name-utils'
 import { formatDate } from '@/lib/date-utils'
 import { dollarsToCents } from '@/lib/currency-utils'
 import {
-  GATHERING_STATUSES, GATHERING_STATUS_LABEL, GATHERING_TASK_STATUS_LABEL, type GatheringStatus,
+  GATHERING_STATUSES, gatheringStatusLabel, gatheringTaskStatusLabel, type GatheringStatus,
 } from '@/lib/gatherings'
 import {
   updateGathering, deleteGathering, setGatheringPremier, setGatheringBudget,
@@ -112,7 +112,7 @@ import { useMoney } from '@/components/layout/MoneyProvider'
  * ── DENY DEMANDS NOTES; REOPEN DOES NOT ─────────────────────────────────────────────
  * `reviewGatheringTask` refuses a denial with no `reviewNotes`, because the notes ARE what the
  * member reads before submitting again — the whole loop the feature exists for, and the reason
- * `GATHERING_TASK_STATUS_LABEL.denied` reads "Needs another look" rather than "Denied". The
+ * `gatheringTaskStatusLabel.denied` reads "Needs another look" rather than "Denied". The
  * form requires them first and says why, so nobody is refused after committing to a decision.
  *
  * `reopenGatheringTask` makes its reason OPTIONAL, and the dialog follows the action rather than
@@ -528,7 +528,7 @@ export function AdminGatheringDetailClient({
     assignee: task => nameOf(task.assignee),
     due: task => task.dueOn,
     budget: task => task.budgetCents,
-    status: task => GATHERING_TASK_STATUS_LABEL[task.status],
+    status: task => gatheringTaskStatusLabel(task.status, t),
   }, 'authored')
 
   return (
@@ -562,7 +562,7 @@ export function AdminGatheringDetailClient({
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <GatheringStatusPill status={gathering.status} />
+            <GatheringStatusPill status={gathering.status} t={t} />
             {/* The marker, in the product's one styling for it — Warmth rather than gold, for
                 the reason `GATHERING_PREMIER_PILL` records: it sits BESIDE the status pill on
                 every screen that renders it, and gold is already what `scheduled` fills with. */}
@@ -628,7 +628,7 @@ export function AdminGatheringDetailClient({
                 {GATHERING_STATUSES
                   .filter(s => plansGatherings || s !== 'planning' || gathering.status === 'planning')
                   .map(s => (
-                    <option key={s} value={s}>{GATHERING_STATUS_LABEL[s]}</option>
+                    <option key={s} value={s}>{gatheringStatusLabel(s, t)}</option>
                   ))}
               </Select>
             </div>
@@ -1015,7 +1015,7 @@ export function AdminGatheringDetailClient({
                         </td>
                       )}
                       <td className="px-3 py-2.5">
-                        <TaskStatusPill status={task.status} />
+                        <TaskStatusPill status={task.status} t={t} />
                       </td>
                       <td className="w-px px-3 py-2.5">
                         <div className="flex items-center justify-end">
@@ -1531,7 +1531,7 @@ function TaskDialog({
     >
       <div className="mt-2 space-y-4">
         <div className="flex flex-wrap items-center gap-2">
-          <TaskStatusPill status={task.status} />
+          <TaskStatusPill status={task.status} t={t} />
           {task.required && (
             <span className={cn(GATHERING_PILL_SHAPE, 'bg-brand-soft text-brand-on-soft')}>
               {t('common.required')}

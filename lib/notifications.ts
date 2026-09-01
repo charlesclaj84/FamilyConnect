@@ -44,6 +44,32 @@ function reportFailure(where: string, message: string): void {
   console.error(`[notify] ${where} failed: ${message}. The event happened; nobody was told.`)
 }
 
+/**
+ * What a notification says, in a form the READER's language can be applied to.
+ *
+ * ── THE ENGLISH IS THE FALLBACK, NOT THE MESSAGE ──────────────────────────────────
+ * `20260901000004` argues it in full. A notification is composed at EVENT time and read later
+ * by somebody else, so English chosen by the writer is the language of whoever happened to
+ * trigger it — which is the same mistake `lib/i18n/locales.ts` warns about for mail.
+ *
+ * So every writer supplies BOTH: a key the bell renders in the reader's own language, and the
+ * English sentence as the row's fallback. `title` is NOT NULL and stays that way, because a
+ * key that fails to resolve renders as the key, and a bell entry reading
+ * `notify.taskSubmitted.title` is worse than one reading English.
+ */
+export interface NotificationText {
+  /** Catalogue key for the title. */
+  titleKey: string
+  /** Catalogue key for the body, where there is one. */
+  bodyKey?: string
+  /**
+   * Values for both keys. STRINGS ONLY — a CHECK on the column enforces it, because anything
+   * else interpolates as `[object Object]` on a bell entry somebody is relying on. A date is
+   * formatted by the writer before it gets here.
+   */
+  params?: Record<string, string>
+}
+
 export async function createNotification(opts: {
   familyCode: string
   recipientPersonId: string
@@ -51,7 +77,7 @@ export async function createNotification(opts: {
   title: string
   body?: string
   link?: string
-}): Promise<void> {
+} & NotificationText): Promise<void> {
   const admin = createAdminClient()
   const { error } = await admin.from('notifications').insert({
     family_code: opts.familyCode,
@@ -60,6 +86,9 @@ export async function createNotification(opts: {
     title: opts.title,
     body: opts.body ?? null,
     link: opts.link ?? null,
+    title_key: opts.titleKey,
+    body_key: opts.bodyKey ?? null,
+    params: opts.params ?? null,
   })
   if (error) reportFailure(`createNotification(${opts.type})`, error.message)
 }
@@ -72,7 +101,7 @@ export async function notifyAllMembers(opts: {
   title: string
   body?: string
   link?: string
-}): Promise<void> {
+} & NotificationText): Promise<void> {
   const admin = createAdminClient()
 
   // Approved members only. An applicant awaiting approval is not part of the family
@@ -98,6 +127,9 @@ export async function notifyAllMembers(opts: {
       title: opts.title,
       body: opts.body ?? null,
       link: opts.link ?? null,
+      title_key: opts.titleKey,
+      body_key: opts.bodyKey ?? null,
+      params: opts.params ?? null,
     }))
 
   if (!rows.length) return
@@ -146,6 +178,9 @@ export async function notifyMembershipRequest(opts: {
     type: 'membership_request',
     title: 'A new member is waiting for approval',
     body: `${describeApplicant(opts)} has asked to join ${opts.familyName}.`,
+    titleKey: 'notify.membershipRequest.title',
+    bodyKey: 'notify.membershipRequest.body',
+    params: { who: describeApplicant(opts), family: opts.familyName },
     link: APPROVALS_LINK,
   })
 }
@@ -178,6 +213,9 @@ export async function notifyMembershipAppeal(opts: {
     familyCode: opts.familyCode,
     type: 'membership_appeal',
     title: 'A declined request has been appealed',
+    titleKey: 'notify.membershipAppeal.title',
+    bodyKey: note ? 'notify.membershipAppeal.bodyNote' : 'notify.membershipAppeal.body',
+    params: note ? { who: describeApplicant(opts), note } : { who: describeApplicant(opts) },
     body: note
       ? `${who} has asked ${opts.familyName} to look at their request again: “${note}”`
       : `${who} has asked ${opts.familyName} to look at their request again.`,
@@ -254,7 +292,7 @@ export async function notifyGrantHolders(opts: {
   title: string
   body?: string
   link?: string
-}): Promise<void> {
+} & NotificationText): Promise<void> {
   const admin = createAdminClient()
   // One string, used by every log line below, so a reader of the server log can see which
   // grant was being resolved and not merely which event failed to be announced.
@@ -314,6 +352,9 @@ export async function notifyGrantHolders(opts: {
     title: opts.title,
     body: opts.body ?? null,
     link: opts.link ?? null,
+    title_key: opts.titleKey,
+    body_key: opts.bodyKey ?? null,
+    params: opts.params ?? null,
   })))
   if (error) reportFailure(`notifyGrantHolders(${opts.type})`, error.message)
 }
@@ -332,7 +373,7 @@ export async function notifyApprovers(opts: {
   title: string
   body?: string
   link?: string
-}): Promise<void> {
+} & NotificationText): Promise<void> {
   await notifyGrantHolders({ ...opts, resourceKey: 'admin/members/approvals', action: 'edit' })
 }
 
@@ -411,6 +452,12 @@ export async function notifyGatheringTaskAssigned(opts: {
     type: 'task_assigned',
     title: 'You have a new gathering task',
     body: due ? `${what}, due ${due}.` : `${what}.`,
+    titleKey: 'notify.taskAssigned.title',
+    // TWO KEYS FOR TWO SENTENCES, not one key with an optional clause: "due 3 October" is a
+    // trailing phrase in English and does not survive being bolted onto a sentence in every
+    // language. `due` is already a formatted string, which is why `params` may hold it.
+    bodyKey: due ? 'notify.taskAssigned.bodyDue' : 'notify.taskAssigned.body',
+    params: due ? { what, due } : { what },
     link: opts.link,
   })
 }
@@ -443,6 +490,9 @@ export async function notifyGatheringTaskSubmitted(opts: {
     type: 'task_submitted',
     title: 'A gathering task is waiting for review',
     body: `${who} has submitted “${clip(opts.taskLabel)}” for ${clip(opts.gatheringTitle)}.`,
+    titleKey: 'notify.taskSubmitted.title',
+    bodyKey: 'notify.taskSubmitted.body',
+    params: { who, task: clip(opts.taskLabel), gathering: clip(opts.gatheringTitle) },
     link: opts.link,
   })
 }
@@ -498,6 +548,14 @@ export async function notifyGatheringTaskReviewed(opts: {
     recipientPersonId: opts.assigneePersonId,
     type: approved ? 'task_approved' : 'task_denied',
     title: approved ? 'A gathering task was approved' : 'A gathering task needs another look',
+    titleKey: approved ? 'notify.taskApproved.title' : 'notify.taskDenied.title',
+    // FOUR BODIES, not two with an optional clause. "…: “notes”" is a trailing English
+    // construction, and a denial with notes is the message this whole feedback loop is built
+    // on — see the comment above about "sent back" rather than "denied".
+    bodyKey: approved
+      ? (notes ? 'notify.taskApproved.bodyNotes' : 'notify.taskApproved.body')
+      : (notes ? 'notify.taskDenied.bodyNotes' : 'notify.taskDenied.body'),
+    params: notes ? { what, notes } : { what },
     body,
     link: opts.link,
   })
@@ -553,6 +611,9 @@ export async function notifyGatheringTaskReopened(opts: {
     recipientPersonId: opts.assigneePersonId,
     type: 'task_reopened',
     title: 'A gathering task was reopened',
+    titleKey: 'notify.taskReopened.title',
+    bodyKey: reason ? 'notify.taskReopened.bodyReason' : 'notify.taskReopened.body',
+    params: reason ? { what, reason } : { what },
     // "was approved and has been reopened" in both branches, because the approval is the half
     // that makes this message make sense: without it the member has no idea why a finished task
     // is asking for something again. Their previous answer is still on it — `reopenGatheringTask`
@@ -610,6 +671,9 @@ export async function notifyMeetingScheduled(opts: {
     recipientPersonId,
     type: 'meeting_scheduled',
     title: 'You are expected at a meeting',
+    titleKey: 'notify.meeting.title',
+    bodyKey: when ? 'notify.meeting.bodyWhen' : 'notify.meeting.body',
+    params: when ? { title: clip(opts.title), when } : { title: clip(opts.title) },
     body: when
       ? `${clip(opts.title)} on ${when}. It is on your calendar.`
       : `${clip(opts.title)}. It is on your calendar.`,
@@ -662,6 +726,9 @@ export async function notifySafetyCheckIn(opts: {
     // already have seen elsewhere without realising their family wants an answer.
     title: 'Are you safe?',
     body: `${clip(opts.title)} — your family is asking you to check in.`,
+    titleKey: 'notify.safety.title',
+    bodyKey: 'notify.safety.body',
+    params: { title: clip(opts.title) },
     link: opts.link,
   })))
 }

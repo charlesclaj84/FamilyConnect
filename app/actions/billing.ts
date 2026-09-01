@@ -17,7 +17,7 @@ import {
   type BillingMode, type PlatformBillingRecord,
 } from '@/lib/platform-billing'
 import { signupPlanPrompt, type SignupPlanPrompt } from '@/lib/signup-plan'
-import { intentKey, stripeClient, stripeUnavailableReason } from '@/lib/stripe/client'
+import { intentKey, stripeClient, stripeUnavailableKey } from '@/lib/stripe/client'
 import {
   INTEGRATION_IDS, checkoutReturnUrls, platformBillingConfigured,
   platformPriceId,
@@ -222,7 +222,7 @@ export async function getPlatformBilling(): Promise<PlatformBilling | null> {
       today,
     }),
     today,
-    unavailable: stripeUnavailableReason(),
+    unavailable: stripeUnavailableKey(),
     delinquentSince: typeof (accountRes.data as { delinquent_since?: unknown } | null)?.delinquent_since === 'string'
       ? (accountRes.data as { delinquent_since: string }).delinquent_since
       : null,
@@ -331,8 +331,8 @@ export async function startPlanCheckout(input: {
   if (!TIER_IS_SOLD[tier]) {
     return { success: false, message: t('bill.notOnSale', { plan: TIER_LABEL[tier] }) }
   }
-  const unavailable = stripeUnavailableReason()
-  if (unavailable) return { success: false, message: unavailable }
+  const unavailable = stripeUnavailableKey()
+  if (unavailable) return { success: false, message: t(unavailable) }
   if (!platformBillingConfigured(tier, mode)) {
     return { success: false, message: t('bill.notBuyableThisWay', { plan: TIER_LABEL[tier] }) }
   }
@@ -767,8 +767,8 @@ export async function changePlanTier(
   if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
   if (!isFamilyTier(nextTier)) return { success: false, message: t('act.notPlan') }
 
-  const unavailable = stripeUnavailableReason()
-  if (unavailable) return { success: false, message: unavailable }
+  const unavailable = stripeUnavailableKey()
+  if (unavailable) return { success: false, message: t(unavailable) }
   const stripe = stripeClient()
   if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 

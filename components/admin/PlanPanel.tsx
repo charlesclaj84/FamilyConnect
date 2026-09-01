@@ -484,7 +484,15 @@ export function PlanPanel({ tier, canEdit, billing }: {
                   className="text-sm font-medium text-brand-accent underline-offset-4 hover:underline"
                 >
                   {t('plan.features')}
-                  <span className="sr-only"> in {TIER_LABEL[plan]}</span>
+                  {/* ── ONE KEY, NOT A KEYED WORD PLUS AN ENGLISH PREPOSITION ────────
+                      This was `<span className="sr-only"> in {TIER_LABEL[plan]}</span>` —
+                      a bare " in " concatenated onto a translated label, so a screen reader
+                      announced "Qué incluye in Plus" in Spanish and "in Plus" in French.
+                      English word order with an English preposition, which is the shape
+                      AGENTS.md's i18n rules name as untranslatable as written.
+                      Found by `npm run i18n:onscreen`: the static gates cannot see it,
+                      because `t('plan.features')` beside it is perfectly keyed. */}
+                  <span className="sr-only">{t('plan.featuresInPlan', { plan: TIER_LABEL[plan] })}</span>
                 </button>
 
                 {/* ── THE ACTION IS ON THE ROW, SINCE 2026-08-25 ─────────────────────

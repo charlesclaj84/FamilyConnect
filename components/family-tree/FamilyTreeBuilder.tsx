@@ -509,9 +509,14 @@ export function FamilyTreeBuilder({
       {canEdit && (
         <div className="flex flex-wrap items-center gap-3">
           <div className="inline-flex rounded-xl border p-0.5" role="group" aria-label={t('tree.mode')}>
+            {/* IDS AND KEYS, not ids and English. `perm.action.view` / `perm.action.edit`
+                exist and are translated ('Ver' / 'Editar'), so this rendered English beside a
+                grid that did not — `npm run i18n:onscreen` found it, and neither static gate
+                could: a lone capitalised word in a registry is deliberately not prose they
+                recognise. */}
             {([
-              { id: false, label: 'View' },
-              { id: true, label: 'Edit' },
+              { id: false, label: t('perm.action.view') },
+              { id: true, label: t('perm.action.edit') },
             ] as const).map(o => (
               <button
                 key={String(o.id)}

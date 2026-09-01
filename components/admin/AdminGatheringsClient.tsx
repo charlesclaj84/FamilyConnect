@@ -27,7 +27,7 @@ import { useServerState } from '@/lib/use-server-state'
 import { formatDate, todayLocal } from '@/lib/date-utils'
 import { dollarsToCents } from '@/lib/currency-utils'
 import { gatheringBudgetMath } from '@/lib/gathering-budget'
-import { GATHERING_STATUS_LABEL, type TaskProgress } from '@/lib/gatherings'
+import { gatheringStatusLabel, type TaskProgress } from '@/lib/gatherings'
 import {
   createGathering, deleteGathering, reviewGatheringTask,
   type AdminGatheringRow, type ReviewQueueRow, type GatheringBudgetView,
@@ -210,7 +210,7 @@ export function AdminGatheringsClient({
   const { rows, sortProps } = useTableSort(gatherings, {
     gathering: row => row.title,
     when: row => row.startsOn,
-    status: row => GATHERING_STATUS_LABEL[row.status],
+    status: row => gatheringStatusLabel(row.status, t),
     budget: row => row.budget?.budgetCents ?? null,
     tasks: row => row.taskCounts.total === 0
       ? null
@@ -365,7 +365,7 @@ export function AdminGatheringsClient({
                           {formatWhenBrief(row, intl, t) ?? '—'}
                         </td>
                         <td className="px-3 py-2.5">
-                          <GatheringStatusPill status={row.status} />
+                          <GatheringStatusPill status={row.status} t={t} />
                         </td>
                         {mayManageBudget && (
                           <td className={cn('px-3 py-2.5 text-end', COLLAPSING_CELL)}>

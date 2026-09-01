@@ -11,7 +11,7 @@ import { HelpLink } from '@/components/help/HelpLink'
 import { cn } from '@/lib/utils'
 import { formatDate } from '@/lib/date-utils'
 import { useServerState } from '@/lib/use-server-state'
-import { GATHERING_TASK_STATUS_LABEL, isCompleteAnswer } from '@/lib/gatherings'
+import { gatheringTaskStatusLabel, isCompleteAnswer } from '@/lib/gatherings'
 import { AnswerText } from '@/components/gatherings/AnswerText'
 import { TaskStatusPill } from '@/components/gatherings/StatusPill'
 import { AnswerInput, answerFromDraft, draftFromAnswer } from '@/components/gatherings/AnswerInput'
@@ -28,7 +28,7 @@ import { useMoney } from '@/components/layout/MoneyProvider'
  * is not a rejection, it is the task handed back WITH INSTRUCTIONS, and the member resubmits
  * as a new row so the notes and the answer they were about both stand. So a denied task
  * renders those notes FIRST, above its own form, in the largest treatment on the card — and
- * `GATHERING_TASK_STATUS_LABEL.denied` says "Needs another look" rather than "Denied", which
+ * `gatheringTaskStatusLabel.denied` says "Needs another look" rather than "Denied", which
  * is `lib/gatherings.ts`'s decision and must not be relabelled here.
  *
  * A denial with no notes is refused by `reviewGatheringTask`, so the empty case below should
@@ -236,7 +236,7 @@ function TaskCard({ task, today, onSubmitted }: {
             {task.templateName && <> · {task.templateName}</>}
           </p>
         </div>
-        <TaskStatusPill status={task.status} />
+        <TaskStatusPill status={task.status} t={t} />
       </div>
 
       {/* A META LINE, WHERE AN ABSENT VALUE IS SIMPLY NOT A LINE — no em-dash, because there
@@ -297,7 +297,7 @@ function TaskCard({ task, today, onSubmitted }: {
       {approved ? (
         <div className="space-y-1 rounded-lg border border-brand-affirm/40 bg-brand-affirm/10 p-3">
           <p className="text-xs font-medium text-brand-affirm">
-            {t('tasks.answerFinal', { status: GATHERING_TASK_STATUS_LABEL.approved })}
+            {t('tasks.answerFinal', { status: gatheringTaskStatusLabel('approved', t) })}
           </p>
           <div className="text-sm">
             <AnswerText kind={kind} answer={task.answer} money={money} />

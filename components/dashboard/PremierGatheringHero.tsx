@@ -91,8 +91,20 @@ import type { T } from '@/lib/i18n/t'
  *     altogether on 2026-08-22. See point 3 above; the reasoning about which EDGE it belonged
  *     to is kept because it is the argument for where the crest goes, which is unchanged.
  */
-export function PremierGatheringHero({ gathering, t }: {
+export function PremierGatheringHero({ gathering, intl, t }: {
   gathering: PremierGathering
+  /**
+   * The reader's `Intl` tag, for the date range.
+   *
+   * ── IT WAS MISSING, AND THE DATE WAS ENGLISH FOR EVERY READER ────────────────────
+   * `formatDateRange` was called with one argument, so the premier gathering across the top of
+   * the Dashboard read "October 1 – 3, 2026" to a Spanish reader — the single largest piece of
+   * text on the screen a member lands on. Found by `npm run i18n:onscreen`, which is the only
+   * thing that could find it: there is no string to key, the defect is an argument nobody
+   * passed, and `i18n:check`'s PINNED-FORMATTER count reads zero because the call HAS a second
+   * argument at every other site.
+   */
+  intl: string
   /**
    * The reader's language, bound. Threaded from the page rather than resolved here: a
    * Server Component cannot read `LocaleProvider` and has no `user` of its own. See
@@ -100,7 +112,7 @@ export function PremierGatheringHero({ gathering, t }: {
    */
   t: T
 }) {
-  const dates = formatDateRange(gathering.startsOn, gathering.endsOn)
+  const dates = formatDateRange(gathering.startsOn, gathering.endsOn, intl)
   const { total, approved } = gathering.taskCounts
 
   return (

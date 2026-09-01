@@ -513,7 +513,7 @@ function GatheringCard({ row }: { row: GatheringRow }) {
               {t('gath.happeningNow')}
             </span>
           )}
-          <GatheringStatusPill status={row.status} />
+          <GatheringStatusPill status={row.status} t={t} />
         </div>
       </div>
 

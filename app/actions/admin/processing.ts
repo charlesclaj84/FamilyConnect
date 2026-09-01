@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // read family data, which every query here does through the admin client with §3 by hand.
 import { requireEdit, requireRead } from '@/lib/auth/guard'
 import { SECTION_RESOURCE } from '@/components/admin/account-sections'
-import { intentKey, onAccount, stripeClient, stripeUnavailableReason } from '@/lib/stripe/client'
+import { intentKey, onAccount, stripeClient, stripeUnavailableKey } from '@/lib/stripe/client'
 import { connectConfigured } from '@/lib/stripe/config'
 import {
   DEFAULT_CONNECT_COUNTRY, isEnabledConnectCountry,
@@ -72,7 +72,13 @@ const PROCESSING = SECTION_RESOURCE.processing
 export interface ProcessorStatus {
   /** Whether this deployment can do Connect at all. False on every laptop by default. */
   available: boolean
-  /** Why not, for a sentence on screen. Null when it is available. */
+  /**
+   * Why not, as a CATALOGUE KEY. Null when it is available.
+   *
+   * A key rather than the sentence, since 2026-09-01: this crossed to the browser as English
+   * and `ProcessingPanel` printed it. See `stripeUnavailableKey` for the rename that made the
+   * type checker find every one of these.
+   */
   unavailable: string | null
   /** A row exists and has not been disconnected. */
   connected: boolean
@@ -183,8 +189,11 @@ export async function getProcessorStatus(): Promise<ProcessorStatus | null> {
   }
 
   const row = accountRes.data
-  const unavailable = stripeUnavailableReason()
-    ?? (connectConfigured() ? null : 'Online payments are not set up on this deployment yet.')
+  // A KEY, not a sentence — `stripeUnavailableKey`'s own header argues the rename, and this
+  // third reason had the same defect: a raw English string returned from an action and printed
+  // by `ProcessingPanel`.
+  const unavailable = stripeUnavailableKey()
+    ?? (connectConfigured() ? null : 'act.connectNotSetUpDeployment')
 
   return {
     available: unavailable == null,
@@ -365,8 +374,8 @@ export async function startProcessorOnboarding(
     return { success: false, message: t('act.countryNotAvailableForDues') }
   }
 
-  const unavailable = stripeUnavailableReason()
-  if (unavailable) return { success: false, message: unavailable }
+  const unavailable = stripeUnavailableKey()
+  if (unavailable) return { success: false, message: t(unavailable) }
   if (!connectConfigured()) {
     return { success: false, message: t('act.onlinePaymentsNotSetUp') }
   }

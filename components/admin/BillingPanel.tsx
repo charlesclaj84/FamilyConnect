@@ -255,8 +255,10 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
             developer laptop and every preview build is in this state by design. It sits here
             rather than replacing the pane, because what a family HAS paid is still worth
             showing on a deployment that cannot take a new payment. */}
+        {/* A KEY since 2026-09-01 — see `stripeUnavailableKey`. It printed as English to
+            every reader until then. */}
         {billing.unavailable && (
-          <p className="text-xs text-muted-foreground">{billing.unavailable}</p>
+          <p className="text-xs text-muted-foreground">{t(billing.unavailable)}</p>
         )}
       </div>
     </div>

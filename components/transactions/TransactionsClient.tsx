@@ -920,10 +920,10 @@ export function TransactionsClient({
                  was already carrying it. */
               <LedgerTable
                 columns={[
-                  { label: 'From', sort: 'from' },
-                  { label: 'Fund', collapse: true, sort: 'fund' },
-                  { label: 'Date', collapse: true, sort: 'date' },
-                  { label: 'Amount', atEnd: true, sort: 'amount' },
+                  { label: t('money.fromTo'), sort: 'from' },
+                  { label: t('money.fund'), collapse: true, sort: 'fund' },
+                  { label: t('money.date'), collapse: true, sort: 'date' },
+                  { label: t('money.amount'), atEnd: true, sort: 'amount' },
                 ]}
                 sortProps={contributionSort.sortProps}
               >
@@ -966,8 +966,8 @@ export function TransactionsClient({
                 columns={[
                   { label: t('tx.paid'), sort: 'paid' },
                   { label: t('tx.fundMilestone'), collapse: true, sort: 'fund' },
-                  { label: 'Date', collapse: true, sort: 'date' },
-                  { label: 'Amount', atEnd: true, sort: 'amount' },
+                  { label: t('money.date'), collapse: true, sort: 'date' },
+                  { label: t('money.amount'), atEnd: true, sort: 'amount' },
                 ]}
                 sortProps={disbursementSort.sortProps}
               >
@@ -1020,8 +1020,8 @@ export function TransactionsClient({
               <LedgerTable
                 columns={[
                   { label: t('tx.from'), sort: 'from' },
-                  { label: 'Date', collapse: true, sort: 'date' },
-                  { label: 'Amount', atEnd: true, sort: 'amount' },
+                  { label: t('money.date'), collapse: true, sort: 'date' },
+                  { label: t('money.amount'), atEnd: true, sort: 'amount' },
                 ]}
                 sortProps={transferSort.sortProps}
               >
@@ -1489,18 +1489,21 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
   return (
     <LedgerTable
       columns={[
-        { label: 'Member', sort: 'member' as const },
-        { label: isDonations ? 'Donation' : 'Schedule', collapse: true, sort: 'schedule' as const },
-        { label: 'Date', collapse: true, sort: 'date' as const },
+        { label: t('money.member'), sort: 'member' as const },
+        { label: isDonations ? t('money.donation') : t('money.schedule'),
+          collapse: true, sort: 'schedule' as const },
+        { label: t('money.date'), collapse: true, sort: 'date' as const },
         // Status collapses like the rest, but its pill is NOT restated as text in the
         // meta line — the pill itself moves there. It is the one collapsed value that
         // carries a colour, and "Reversed" in plain grey next to a struck-through
         // amount is the row's most important fact rendered as its least visible one.
-        ...(isDonations ? [] : [{ label: 'Status', collapse: true, sort: 'status' as const }]),
-        { label: 'Amount', atEnd: true, sort: 'amount' as const },
+        ...(isDonations
+          ? []
+          : [{ label: t('money.status'), collapse: true, sort: 'status' as const }]),
+        { label: t('money.amount'), atEnd: true, sort: 'amount' as const },
         // NO `sort`, deliberately: the reverse control is not a fact about the row and
         // there is nothing in this column to put in an order.
-        { label: 'Actions', srOnly: true },
+        { label: t('money.actions'), srOnly: true },
       ]}
       sortProps={paymentSort.sortProps}
     >
@@ -1572,7 +1575,7 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
                 <Button size="sm" variant="ghost" disabled={pending}
                   className="h-7 shrink-0 px-2 text-xs text-brand-accent hover:opacity-80"
                   onClick={e => { e.stopPropagation(); onReverse(p) }}>
-                  <Undo2 className="me-1 h-3.5 w-3.5" /> Reverse
+                  <Undo2 className="me-1 h-3.5 w-3.5" /> {t('tx.reverse')}
                 </Button>
               )}
             </td>

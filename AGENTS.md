@@ -4630,13 +4630,64 @@ one and diffs the visible text. It is not in `verify.yml` — it needs the local
 fixture and a dev server — and it is the only check with no false positives, because a string
 that did not change when the reader changed is by definition not translated.
 
+**IT IS A RATCHET AT ZERO SINCE 2026-09-01**, worked down from 37 distinct runs across 46
+routes. It exits 1 above the ceiling, and **it is deliberately NOT in `verify.yml`** — not for
+the usual "it needs the stack" reason (that workflow already runs `supabase start` and
+`test:rls`) but because it is FIXTURE-DEPENDENT: half of what it reports is a row
+`tests/rls/seed.mjs` wrote, and `EXPECTED_SAME` excuses those by content. Renaming a probe
+family turns it red on a pull request that never touched a string, and a gate that cries wolf
+on unrelated changes is one people learn to ignore.
+
+**FOUR CLASSES IT FOUND THAT NEITHER STATIC GATE COULD**, with both clean and both at zero:
+
+* **A formatter missing its locale.** There is no string to key — the defect is an argument
+  nobody passed — and `i18n:check`'s PINNED-FORMATTER count reads 0 because every OTHER call
+  site has one. `PremierGatheringHero` printed English dates in the largest text on the
+  Dashboard.
+* **A registry holding English.** `Record<K, string>` of captions. `i18n:literals` rejects a
+  lone capitalised word deliberately, so this is precisely its blind spot. The fix is the shape
+  this file already prescribes: `function(t)`, ids as the contract.
+* **A sentence returned from `lib/`.** Outside the literals sweep on purpose, because the
+  catalogues live there. Return a KEY — **and RENAME the function when you do**, or ten call
+  sites keep compiling and start rendering the key at readers, which is worse than the bug.
+* **Text stored in the DATABASE.** See below.
+
+**AND A NOTIFICATION IS THE ONE STRING THAT NEEDS A COLUMN.** Every other string is chosen at
+RENDER time, when the reader is known; a notification's is chosen at EVENT time and read later
+by somebody else — so even a perfectly translated writer composes it in the language of whoever
+triggered it, which is the mistake `lib/i18n/locales.ts` already warns about for mail.
+`20260901000004` stores `title_key`, `body_key` and `params`, and keeps the English as the
+fallback for three states: a row written before it, a `type` nobody has keyed, and **a key that
+fails to resolve** — `t` echoes an unknown key, and a bell reading `notify.taskSubmitted.title`
+is worse than one reading English.
+
+Two things from building it that generalise:
+
+* **A CHECK CONSTRAINT'S FUNCTION NEEDS ITS `EXECUTE` GRANT, exactly as a policy's does.** §2b
+  rule 2 names policies; the expression of a CHECK is evaluated as the WRITING role too.
+  Revoking it broke every authenticated write to `notifications` — and a direct
+  `SET LOCAL ROLE authenticated; UPDATE …` does not reproduce it, because with no `auth.uid()`
+  the policy matches zero rows and the CHECK is never reached. Found by the RLS suite's
+  POSITIVE CONTROL with every attack half green, because a function that errors refuses
+  everybody equally.
+* **COUNT THE RENDERERS BEFORE CALLING IT FIXED.** Fixing `NotificationBell` left the
+  Dashboard's Recent Updates card still printing English, because `toUpdateItem` read the
+  column directly. Half a fix looks exactly like a whole one, and the probe is what said so.
+
 **IT MUST BE RUN WITH THE DEV SERVER POINTED AT THE LOCAL STACK, and a clean run otherwise is
 worthless.** The probe forges a session cookie named for the Supabase project the APP is
 configured with, and `.env.local` points at HOSTED — so an ordinary `npm run dev` authenticates
 none of its requests, all 46 protected routes render the signed-out shell, and the run reports a
 tidy little list of page titles. That is `tests/rls`' positive-control lesson arriving in a
-tool: **an answer that looks clean because the question was never asked.** The invocation, and
-the tell that the session is live, are in TODO.md.
+tool: **an answer that looks clean because the question was never asked.**
+
+**`npm run dev:local` IS THE INVOCATION**, and it exists because the documented one was three
+`VAR=value` shell prefixes — which is bash, and fails outright in PowerShell with the keys
+written as `<local anon>`. An npm script could not fix it either: npm runs scripts through
+`cmd.exe` on Windows and `sh` elsewhere, so `FOO=bar next dev` in `package.json` is broken on
+exactly the platform this is developed on. `scripts/dev-local.mjs` discovers the local keys from
+`supabase status` — which describes the stack on this machine and has no route to a hosted
+project, so nothing there can point a probe or a dev server at production.
 
 Two things it finds that neither static gate can, and both are classes rather than strings:
 

@@ -1,4 +1,6 @@
 import type { Notification } from '@/app/actions/notifications'
+import { notificationText } from '@/lib/notification-text'
+import { type T } from '@/lib/i18n/t'
 import type { FeedAnnouncement } from '@/app/actions/announcements'
 
 /**
@@ -56,12 +58,26 @@ const time = (iso: string): number => new Date(iso).getTime()
 /** Newest first. */
 const byNewest = (a: UpdateItem, b: UpdateItem): number => time(b.at) - time(a.at)
 
-export function toUpdateItem(n: Notification): UpdateItem {
+/**
+ * A notification as a feed row, in the READER's language.
+ *
+ * ── IT TAKES `t`, BECAUSE THE ROW'S ENGLISH IS THE FALLBACK AND NOT THE MESSAGE ───
+ * `20260901000004`: a notification is composed at EVENT time by whoever triggered it and read
+ * later by somebody else, so `n.title` is the wrong reader's language. `notificationText`
+ * resolves the stored key and falls back to that English — see its own header for the three
+ * states that fallback covers.
+ *
+ * This card was the SECOND renderer of a notification, which is why the bell being fixed did
+ * not fix the Dashboard: `npm run i18n:onscreen` went on reporting all three seeded titles
+ * against `/dashboard` after `NotificationBell` was already correct. Two renderers of one row
+ * is exactly the shape that leaves half a fix in place looking finished.
+ */
+export function toUpdateItem(n: Notification, t: T): UpdateItem {
   return {
     kind: 'notification',
     id: n.id,
-    title: n.title,
-    body: n.body,
+    title: notificationText(n.title_key, n.title, n.params, t) ?? n.title,
+    body: notificationText(n.body_key, n.body, n.params, t),
     link: n.link,
     at: n.created_at,
     unread: !n.read_at,
@@ -115,10 +131,18 @@ export function announcementToUpdateItem(a: FeedAnnouncement): UpdateItem {
 export function mergeUpdates(
   notifications: Notification[],
   announcements: FeedAnnouncement[],
+  /**
+   * The reader's translator, for the notification half.
+   *
+   * BEFORE `limit`, and that is deliberate rather than tidy: `limit` has a default and is
+   * passed by exactly one test, so putting `t` after it would make every caller state a cap it
+   * does not care about. It is required, so `npm run typecheck` finds the call site.
+   */
+  t: T,
   limit: number = RECENT_UPDATES_LIMIT,
 ): UpdateItem[] {
   const items: UpdateItem[] = [
-    ...notifications.map(toUpdateItem),
+    ...notifications.map(n => toUpdateItem(n, t)),
     ...announcements.map(announcementToUpdateItem),
   ]
 

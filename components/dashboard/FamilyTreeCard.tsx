@@ -83,7 +83,14 @@ export function FamilyTreeCard({ summary, t }: {
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 space-y-3">
           <Figure value={generations} label={generations === 1 ? t('dash.tree.generationOne') : t('dash.tree.generationMany')} />
-          <Figure value={people} label={people === 1 ? 'Member' : 'Members'} />
+          {/* TWO KEYS, NOT A TERNARY OVER AN ENGLISH PLURAL. `people === 1 ? 'Member' : 'Members'`
+              renders English to every reader — and no catalogue can hold it, because the
+              plural rule is in the JSX rather than in the words. Found by
+              `npm run i18n:onscreen`. */}
+          <Figure
+            value={people}
+            label={t(people === 1 ? 'dash.tree.memberOne' : 'dash.tree.memberMany')}
+          />
           <Figure value={leaves} label={leaves === 1 ? t('dash.tree.leafOne') : t('dash.tree.leavesMany')} />
         </div>
 

@@ -1,4 +1,5 @@
 import { formatDate } from '@/lib/date-utils'
+import { type T } from '@/lib/i18n/t'
 
 /**
  * The vocabulary of Gatherings, and the one place that decides what an ANSWER is.
@@ -144,11 +145,37 @@ export type GatheringTemplateScheduler = typeof GATHERING_TEMPLATE_SCHEDULERS[nu
  * than something the clock knows. Anything the calendar genuinely decides — past, today,
  * upcoming — is derived by `gatheringTiming` below, from the dates and nothing else.
  */
-export const GATHERING_STATUS_LABEL: Record<GatheringStatus, string> = {
-  planning:  'Planning',
-  scheduled: 'Scheduled',
-  complete:  'Complete',
-  cancelled: 'Cancelled',
+/**
+ * What a gathering's status reads as on screen, in the READER's language.
+ *
+ * ── A REGISTRY OF IDS, AND THE WORDS ARE LOOKED UP ────────────────────────────────
+ * Both label tables here were `Record<K, string>` holding English, which is the shape
+ * AGENTS.md's i18n rules name: *"a module-level registry → `Record<K, {label}>` →
+ * `function(t)`. The ids are the contract; the words are looked up."*
+ *
+ * They rendered "Planning" and "Waiting for review" to every reader, on six screens. Found by
+ * `npm run i18n:onscreen` and invisible to both static gates: `i18n:check` only asks whether
+ * keys exist, and `i18n:literals` rejects a lone capitalised word deliberately — otherwise
+ * every id and enum member in the tree is a finding.
+ *
+ * ── THE IDS DID NOT MOVE, AND MUST NOT ───────────────────────────────────────────
+ * `GATHERING_STATUSES` is the column's vocabulary and is what the CHECK constraint, the
+ * pill-colour map and every query agree about. Only the WORDS became a lookup.
+ */
+export function gatheringStatusLabel(status: GatheringStatus, t: T): string {
+  return t(`gath.status.${status}`)
+}
+
+/**
+ * What a task's status reads as, in the reader's language.
+ *
+ * `denied` is "Needs another look" rather than "Denied", and that is a PRODUCT DECISION rather
+ * than softening — a denial is a request with the organizer's notes attached, and the whole
+ * loop is that the member reads them and submits again. **A translation must keep that
+ * reading.** "Rechazado" / "Refusé" would undo in one word what the feature is built around.
+ */
+export function gatheringTaskStatusLabel(status: GatheringTaskStatus, t: T): string {
+  return t(`gath.taskStatus.${status}`)
 }
 
 /**
@@ -160,12 +187,6 @@ export const GATHERING_STATUS_LABEL: Record<GatheringStatus, string> = {
  * those notes and submits again. A pill saying "Denied" beside a note saying "the caterer
  * needs a phone number" tells the member the wrong thing about what to do next.
  */
-export const GATHERING_TASK_STATUS_LABEL: Record<GatheringTaskStatus, string> = {
-  open:      'Not started',
-  submitted: 'Waiting for review',
-  approved:  'Approved',
-  denied:    'Needs another look',
-}
 
 // ── Answers ─────────────────────────────────────────────────────────────────────────
 

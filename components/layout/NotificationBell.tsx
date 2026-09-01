@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useTransition } from 'react'
 import { formatTimeAgo } from '@/lib/i18n/catalogues'
 import { useLocale, useT } from '@/components/layout/LocaleProvider'
+import { notificationText } from '@/lib/notification-text'
 import { useRouter } from 'next/navigation'
 import { Bell, UserCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -279,8 +280,22 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
                     <div className="flex items-start gap-2">
                       {!n.read_at && <span className="mt-1.5 shrink-0 h-1.5 w-1.5 rounded-full bg-primary" />}
                       <div className={!n.read_at ? '' : 'ps-3.5'}>
-                        <p className="text-xs font-medium leading-snug">{n.title}</p>
-                        {n.body && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>}
+                        {/* ── RENDERED FROM THE KEY, IN THE READER'S LANGUAGE ────────
+                            `20260901000004`: the row's English was composed at EVENT time by
+                            whoever triggered it, which is the wrong reader. `notificationText`
+                            resolves `title_key`/`body_key` with `params` and falls back to
+                            that English — for rows written before the migration, for a type
+                            nobody has keyed, and for a key that fails to resolve, where
+                            English beats a bell entry reading `notify.taskSubmitted.title`. */}
+                        <p className="text-xs font-medium leading-snug">
+                          {notificationText(n.title_key, n.title, n.params, t)}
+                        </p>
+                        {(() => {
+                          const text = notificationText(n.body_key, n.body, n.params, t)
+                          return text
+                            ? <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{text}</p>
+                            : null
+                        })()}
                         <p className="text-[10px] text-muted-foreground/60 mt-1">{formatTimeAgo(timeAgo(n.created_at), locale)}</p>
                       </div>
                     </div>

@@ -5,9 +5,9 @@ import {
   GATHERING_STEP_KIND_LABEL,
   GATHERING_TASK_KINDS,
   GATHERING_STATUSES,
-  GATHERING_STATUS_LABEL,
+  gatheringStatusLabel,
   GATHERING_TASK_STATUSES,
-  GATHERING_TASK_STATUS_LABEL,
+  gatheringTaskStatusLabel,
   describeAnswer,
   gatheringTiming,
   isCompleteAnswer,
@@ -19,6 +19,7 @@ import {
   type GatheringTaskKind,
   type GatheringTaskStatus,
 } from './gatherings'
+import { tFor } from '@/lib/i18n/catalogues'
 import { todayIn } from './tz'
 
 /**
@@ -161,20 +162,50 @@ describe('the vocabulary', () => {
     expect(isGatheringStepKind(0)).toBe(false)
   })
 
-  it('labels every gathering and task status', () => {
-    expect(Object.keys(GATHERING_STATUS_LABEL).sort()).toEqual([...GATHERING_STATUSES].sort())
-    expect(Object.keys(GATHERING_TASK_STATUS_LABEL).sort()).toEqual([...GATHERING_TASK_STATUSES].sort())
+  it('labels every gathering and task status, in every language', () => {
+    // ── THE ASSERTION MOVED FROM A TABLE TO THE CATALOGUES, AND GOT STRONGER ────────
+    // These were `Record<K, string>` holding English, and this test compared their KEY SETS
+    // to the id lists. The words are looked up now (`npm run i18n:onscreen` found them
+    // rendering "Planning" and "Waiting for review" to every reader), so what is worth
+    // asserting is that every id resolves in every language rather than that a table has the
+    // right keys.
+    //
+    // A missing key falls through to the English, so the test is that no label is the KEY —
+    // which is exactly what a fall-through looks like on screen.
+    for (const locale of ['en', 'es', 'fr']) {
+      const t = tFor(locale)
+      for (const status of GATHERING_STATUSES) {
+        const label = gatheringStatusLabel(status, t)
+        expect(label).not.toBe(`gath.status.${status}`)
+        expect(label.length).toBeGreaterThan(0)
+      }
+      for (const status of GATHERING_TASK_STATUSES) {
+        const label = gatheringTaskStatusLabel(status, t)
+        expect(label).not.toBe(`gath.taskStatus.${status}`)
+        expect(label.length).toBeGreaterThan(0)
+      }
+    }
   })
 
-  it('calls a denial "Needs another look", which is the product decision and not a nicety', () => {
-    // The key-set assertion above compares KEYS only, so every string in that table would
-    // pass it — including "Denied", which is what somebody will reach for the first time this
-    // file is edited. The whole feedback loop is that the member reads the organizer's notes
-    // and submits again, and `components/gatherings/StatusPill.tsx` renders this table rather
-    // than its own words, so the wording is the product behaviour and belongs in a test.
-    expect(GATHERING_TASK_STATUS_LABEL.denied).toBe('Needs another look')
-    expect(GATHERING_TASK_STATUS_LABEL.open).toBe('Not started')
-    expect(GATHERING_TASK_STATUS_LABEL.submitted).toBe('Waiting for review')
+  it('calls a denial "Needs another look" in every language, which is the product decision', () => {
+    // The key-set assertion above would pass with "Denied" in it, which is what somebody will
+    // reach for the first time this is edited. The whole feedback loop is that the member reads
+    // the organizer's notes and submits again, and `StatusPill` renders this lookup rather than
+    // its own words — so the wording IS the product behaviour and belongs in a test.
+    expect(gatheringTaskStatusLabel('denied', tFor('en'))).toBe('Needs another look')
+    expect(gatheringTaskStatusLabel('open', tFor('en'))).toBe('Not started')
+    expect(gatheringTaskStatusLabel('submitted', tFor('en'))).toBe('Waiting for review')
+
+    // AND THE TRANSLATIONS MUST NOT UNDO IT, which the English-only version could not check.
+    // "Rechazado" and "Refusé" are the natural words for `denied` and both throw the decision
+    // away in one word — a Spanish reader would be told their answer was rejected while the
+    // organizer's note beside it asks them to try again.
+    expect(gatheringTaskStatusLabel('denied', tFor('es')).toLowerCase())
+      .not.toContain('rechaz')
+    expect(gatheringTaskStatusLabel('denied', tFor('fr')).toLowerCase())
+      .not.toContain('refus')
+    expect(gatheringTaskStatusLabel('denied', tFor('es')).toLowerCase())
+      .not.toContain('deneg')
   })
 })
 

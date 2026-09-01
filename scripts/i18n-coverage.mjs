@@ -241,6 +241,25 @@ const FINGERPRINTS = join(ROOT, 'lib', 'i18n', 'translated-from.json')
  * still cannot invent a placeholder, and still cannot be an orphan.
  */
 const KNOWN_DYNAMIC = [
+  ['gath.status.', 'gatheringStatusLabel() maps a stored gathering status: '
+    + 't(`gath.status.${status}`). A REGISTRY OF IDS with the words looked up — the ids are the '
+    + 'column vocabulary the CHECK constraint and the pill-colour map both agree about, and '
+    + 'only the words became a lookup. It held English until 2026-09-01 and rendered '
+    + '"Planning" to every reader on six screens.'],
+  ['gath.taskStatus.', 'gatheringTaskStatusLabel(), the same shape one table over. NOTE that '
+    + '`denied` is "Needs another look" in every language and a translation must keep that — '
+    + '`lib/gatherings.test.ts` asserts it, because "Rechazado"/"Refusé" would undo in one word '
+    + 'what the whole submit-and-resubmit loop is built around.'],
+  ['notify.', 'A bell entry, rendered at READ time from `notifications.title_key` / `body_key` '
+    + '(20260901000004). The key is chosen by the writer and resolved by the reader, so no call '
+    + 'site names it literally — which is the entire point: a notification is composed when the '
+    + 'event happens and read later by somebody whose language may differ. '
+    + '`lib/notification-text.test.ts` asserts every one of these resolves in all three.'],
+  ['act.onlinePaymentsOffDeployment', 'stripeUnavailableKey() RETURNS this key and an action '
+    + 'hands it to `t`. It is never written at a call site — the whole reason that function was '
+    + 'renamed from `…Reason` is that it used to return the English sentence instead.'],
+  ['act.connectNotSetUpDeployment', 'The third reason from the same function, on '
+    + '`getProcessorStatus`. Same shape and same reason.'],
   ['email.dunning.day', 'dunningEmail() picks the rung: t(`email.dunning.${stage}.subject`), '
     + 'where `stage` is one of the five in 20260901000002 §A. ONE template rather than five, '
     + 'because every rung says the same three things and differs only in the middle paragraph '

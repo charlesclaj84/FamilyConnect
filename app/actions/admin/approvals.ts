@@ -320,6 +320,12 @@ async function decide(
         title: status === 'approved'
           ? 'You have been approved'
           : 'Your membership request was declined',
+        // KEYED, so the APPLICANT reads it in their own language rather than in the
+        // administrator's. `20260901000004` argues the whole shape: the message is composed
+        // when the decision is taken and read by somebody else afterwards.
+        titleKey: status === 'approved'
+          ? 'notify.membershipApproved.title'
+          : 'notify.membershipRejected.title',
         body: status === 'approved'
           ? 'Welcome to the family. Everything is now available to you.'
           : note?.trim() || undefined,

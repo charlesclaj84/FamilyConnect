@@ -149,7 +149,7 @@ function sectionGroups(t: T): {
       // adds nothing; this is the other case — the group IS the funds domain and its first page
       // IS the fund list, the same way the Gatherings rail section holds a Gatherings item. The
       // second page keeps its own name and still tells the reader where they are.
-      label: 'Funds',
+      label: t('acct.rail.funds'),
       icon: Landmark,
       items: [
         { sections: ['funds'], icon: PiggyBank },

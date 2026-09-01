@@ -8,7 +8,7 @@ import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collaps
 import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { AnswerText } from '@/components/gatherings/AnswerText'
 import { TaskStatusPill } from '@/components/gatherings/StatusPill'
-import { GATHERING_TASK_STATUSES, GATHERING_TASK_STATUS_LABEL, isCompleteAnswer, type GatheringTaskStatus, type TaskProgress } from '@/lib/gatherings'
+import { GATHERING_TASK_STATUSES, gatheringTaskStatusLabel, isCompleteAnswer, type GatheringTaskStatus, type TaskProgress } from '@/lib/gatherings'
 import { formatDate } from '@/lib/date-utils'
 import { normalizePersonSearch } from '@/lib/person-search'
 import { cn } from '@/lib/utils'
@@ -227,7 +227,7 @@ export function GatheringDetailClient({ tasks, taskCounts, showTaskBudgets, segm
               >
                 <option value="all">{t('gath.everyTask')}</option>
                 {GATHERING_TASK_STATUSES.map(s => (
-                  <option key={s} value={s}>{GATHERING_TASK_STATUS_LABEL[s]}</option>
+                  <option key={s} value={s}>{gatheringTaskStatusLabel(s, t)}</option>
                 ))}
               </Select>
             </div>
@@ -311,7 +311,7 @@ function TaskGroup({ heading, occursOn, location, tasks, showTaskBudgets }: {
     authored: task => task.position,
     task: task => task.label,
     assignee: task => task.assignee?.name ?? null,
-    status: task => GATHERING_TASK_STATUS_LABEL[task.status],
+    status: task => gatheringTaskStatusLabel(task.status, t),
     due: task => task.dueOn,
     budget: task => task.budgetCents,
   }, 'authored')
@@ -410,7 +410,7 @@ function TaskRow({ task, showTaskBudgets }: { task: GatheringTaskRow; showTaskBu
       </td>
 
       <td className="px-3 py-2.5">
-        <TaskStatusPill status={task.status} />
+        <TaskStatusPill status={task.status} t={t} />
       </td>
 
       {/* An em-dash is what a missing value looks like in a COLUMN — the cell has to hold the

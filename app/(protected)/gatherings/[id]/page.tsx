@@ -133,7 +133,7 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
                 <Star className="h-3 w-3" aria-hidden="true" /> Premier
               </span>
             )}
-            <GatheringStatusPill status={gathering.status} />
+            <GatheringStatusPill status={gathering.status} t={t} />
           </div>
         </div>
 

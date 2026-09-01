@@ -5,7 +5,7 @@ import { canAny, requireView } from '@/lib/auth/permissions'
 import { getGatheringsReport } from '@/app/actions/activity-reports'
 import { cn } from '@/lib/utils'
 import { formatDate } from '@/lib/date-utils'
-import { GATHERING_STATUS_LABEL } from '@/lib/gatherings'
+import { gatheringStatusLabel } from '@/lib/gatherings'
 import { PageShell } from '@/components/layout/PageShell'
 import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
@@ -138,7 +138,7 @@ export default async function GatheringsReportPage() {
                     <RowMeta>
                       <span>{formatDate(row.startsOn, intl)}</span>
                       <MetaDot />
-                      <span>{GATHERING_STATUS_LABEL[row.status]}</span>
+                      <span>{gatheringStatusLabel(row.status, t)}</span>
                       {row.overdue > 0 && (
                         <>
                           <MetaDot />
@@ -157,7 +157,7 @@ export default async function GatheringsReportPage() {
                     {formatDate(row.startsOn, intl)}
                   </td>
                   <td className={cn('px-3 py-2', COLLAPSING_CELL)}>
-                    {GATHERING_STATUS_LABEL[row.status]}
+                    {gatheringStatusLabel(row.status, t)}
                   </td>
                   <td className="px-3 py-2 text-end tabular-nums">
                     {row.tasks.approved} / {row.tasks.total}

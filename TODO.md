@@ -531,87 +531,91 @@ would make `setMyNotificationPref` refuse that withdrawal too.
 
 Recorded 2026-08-23.
 
-## The product is not finished being translated, and now there is a way to measure it
+## The render diff is a RATCHET now, and it found four classes nothing else could
 
-**Action:** work `npm run i18n:onscreen` down, and decide whether the render diff becomes a gate.
+**Action:** run `npm run i18n:onscreen` after any pass over copy, and keep the ceiling at 0.
+It is not in `verify.yml` and the reason is below — that is a decision rather than a gap.
 
-`npm run i18n:check` and `npm run i18n:literals` were both CLEAN, with the literal gate's
-ceiling at zero, while **399 runs of text were still identical in English and Spanish across
-43 routes**. Neither could see it, and the reason is structural rather than a bug in either:
-the first asks only about keys that exist, and the second can only recognise the SHAPES it was
-taught. `scripts/i18n-onscreen.mjs` asks the product instead — it renders every route as a
-Spanish-reading member and again as an English one and diffs the visible text.
+Worked down 2026-09-01, from **37 distinct runs across 46 routes to 0**. About half were
+genuine false positives that now sit in `EXPECTED_SAME` with a stated reason each; the rest
+were real, and every one of them was invisible to `i18n:check` and `i18n:literals` with both
+clean and both ceilings at zero.
 
-### RUN IT LIKE THIS, or it measures nothing
+### Running it
 
-The probe forges a session cookie named for the Supabase project the APP is pointed at, and
-`.env.local` points at HOSTED. So a dev server started the ordinary way authenticates none of
-the probe's requests, every protected route renders the signed-out shell, and the run reports a
-tidy 38 findings that are all `<title>` tags — a clean-looking answer to a question it never
-asked. That cost an hour on 2026-08-31 and is the reason this block exists:
-
-```bash
-npx supabase start && npm run test:rls        # seeds the fixture the probe signs in as
-NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 \
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<local anon> \
-SUPABASE_SERVICE_ROLE_KEY=<local service> \
-  npm run dev                                 # the APP must point at LOCAL
-APP_URL=http://localhost:3000 NEXT_PUBLIC_SUPABASE_ANON_KEY=<local anon> \
-SUPABASE_SERVICE_ROLE_KEY=<local service> node scripts/i18n-onscreen.mjs
+```
+npx supabase start
+npm run test:rls          # seeds the two-family fixture
+npm run dev:local         # NOT `npm run dev` — see below
+npm run i18n:onscreen
+npm run i18n:onscreen -- --force-rtl
 ```
 
-**The tell that it is authenticated** is real screen content in the output — fund names, a
-member's chapter, "Online payments are not set up yet." If every finding is a page title plus
-`Menu` / `Loading…` / the brand motto on 39 routes, the session is not working and the run is
-worthless. Worth teaching the script to refuse rather than report: one authenticated fetch of
-`/dashboard` and a check for something only a member sees.
+**`dev:local` IS NEW AND IT IS NOT A CONVENIENCE.** The documented invocation was three
+`VAR=value` prefixes, which is bash — PowerShell reads the first as a command name and says so
+— and the keys were written `<local anon>`, which a shell treats as a redirection. The syntax
+error was the harmless half: `npm run dev` on its own uses `.env.local`, which points at
+HOSTED, so the probe's forged session cookie matches nothing, every protected route renders
+the signed-out shell, and the run reports a short tidy meaningless list. `scripts/dev-local.mjs`
+discovers the local keys from `supabase status` so that cannot happen.
 
-### 2026-08-31: 413 STATIC FINDINGS CLOSED, AND THE GATE LEARNED THREE SHAPES
-
-`i18n:literals` read 0 and was measuring four shapes out of seven. Three more went in, and
-between them they found **413 strings the first four could not see** — every one keyed since:
-
-| shape | found | what it is |
-|---|---|---|
-| 5, a template literal | 279 | `aria-label={`Actions for ${x}`}`, confirm dialogs, `message:` with a count in it |
-| 6, a MIXED JSX text node | 134 | prose with `{amount}` in the middle — shape 1's regex forbids `{` in the run |
-| 2, the caption PROPS | 30 | `<Figure label="Expected this year">`, `hint=`, `prefix=` |
-| 3, `error:` beside `message:` | 62 | half of `app/actions/admin/**` answers with `error` |
-
-Two of those were not merely untranslated. `{n} member{n === 1 ? '' : 's'}` rendered
-**"14 member s"** — JSX keeps the space and the `'s'` arrives as its own child — and
-`lib/gathering-when.ts` formatted every gathering's dates with no `intl`, so
-"September 30 – October 2, 2026" was English for every reader. Both fixed.
-
-The lesson for the next shape somebody thinks of is in the script's header: the four original
-shapes were chosen because each is unambiguous, which is the right test — but "unambiguous" was
-doing double duty as "complete", and it is not. Every one of these four had been looked at once
-and judged too noisy to check.
-
-### WHAT IS LEFT: 37 runs, 51 occurrences, and about a third are correct
-
-`npm run i18n:onscreen`, 2026-08-31, authenticated. **Twelve are right as they are** and the
-list should not be worked blindly:
-
-* fixture and database content — the family's name, a fund a family named (`Donations`, `Dues`,
-  `Planning`), a permission template's name (`General`, `Administrators`), the seeded
-  Family Donations description, and the birthday announcement the RLS control posts
-* `Chat`, which is the same word in all three languages, and `India (IST)`, which is the same
-  in Spanish
-
-**The ~14 real ones, and each is a class rather than a string:**
+### The four classes it found, and why the static gates cannot
 
 | | |
 |---|---|
-| column headings | `Total`, `Member`, `Schedule`, `Date`, `Status`, `Amount`, `Actions`, `Reverse`, `View`, `Edit`, `Plan`, `Funds`, `Members`, `optional`. One instance of each was keyed; they appear on several screens and the rest are still bare. `col.*` is the namespace now. **`i18n:literals` will never find these** — a single capitalised word fails its prose test, deliberately, or every `id` in the tree would be a finding. |
-| three notification titles | `A new member is waiting for approval` and its two siblings are STORED in `notifications` at write time, so they are in the SENDER's language for ever. That is a decision to make (store a key and interpolate at read time?) rather than a string to fix — the same shape as the auth-email locale problem, and the reason `lib/email/auth-mail.ts` exists. |
-| `in Free` / `in Standard` / `in Plus` / `in Premium` | the plan words around a tier name, on `/admin/settings`. |
-| `stripeUnavailableReason()` | `lib/stripe/client.ts` returns the English sentence. The key exists (`act.onlinePaymentsNotSetUp2`); the module is pure, so it should return a KEY and let the caller translate it — the `LOCKOUT_SUBJECT` pattern. |
-| a raw `annual` | one `dues_schedules.frequency` still rendered straight out of the column. `dues.freq.*` is the namespace. |
-| one date site | `September 30 – October 2, 2026` on a screen `formatWhen`/`formatWhenBrief` do not reach. |
-| `China (CST)` | French should be `Chine (CST)`; Spanish is correctly identical. |
+| **A formatter missing its locale** | `PremierGatheringHero` called `formatDateRange` with one argument, so the largest text on the Dashboard read "October 1 – 3, 2026" to every reader. There is no string to key — the defect is an argument nobody passed — and `i18n:check`'s PINNED-FORMATTER count reads 0 because every OTHER call site has a second argument. |
+| **A registry holding English** | `GATHERING_STATUS_LABEL` and `GATHERING_TASK_STATUS_LABEL`, on six screens. `i18n:literals` rejects a lone capitalised word deliberately — otherwise every id and enum member in the tree is a finding — so a `Record<K, string>` of them is exactly its blind spot. Both are `function(t)` now. |
+| **A sentence returned from `lib/`** | `stripeUnavailableReason()` returned English to ten actions. `lib/` is outside the literals sweep on purpose: the catalogues live there and their English IS the source. It returns a KEY now, and was RENAMED to `stripeUnavailableKey` so `typecheck` had to find all ten — changing the return value alone would have left them rendering `act.onlinePaymentsNotSetUp2` on screen, which is worse than the bug. |
+| **Text stored in the database** | Every bell entry. See below — it needed a migration. |
 
-Recorded 2026-08-29, rewritten 2026-08-31.
+Plus the two shapes the header already warned about: a bare `" in "` concatenated onto a
+translated label inside an `sr-only` span, and `people === 1 ? 'Member' : 'Members'` on the
+Dashboard, which no catalogue can hold because the plural rule is in the JSX.
+
+### A NOTIFICATION IS THE ONE STRING THAT NEEDED A COLUMN
+
+`20260901000004`. Every other string is chosen at RENDER time, when the reader is known. A
+notification's text is chosen at EVENT time and read later by somebody else — so even a
+perfectly translated writer composes it in the language of whoever triggered it. The row now
+carries `title_key`, `body_key` and `params`, and the English stays as the fallback.
+
+**Two things worth carrying forward from it:**
+
+* **A CHECK constraint's function needs its `EXECUTE` grant, exactly as a policy's does.** The
+  first draft revoked it and every authenticated write to `notifications` began failing. AGENTS.md
+  §2b rule 2 names policies and not CHECKs; it is the same rule. Found — again — by the RLS
+  suite's POSITIVE CONTROL, with every attack half green, because a function that errors refuses
+  everybody equally.
+* **There were TWO renderers of a notification.** Fixing `NotificationBell` left the Dashboard's
+  Recent Updates card still reporting all three seeded titles, because `toUpdateItem` read
+  `n.title` directly. Half a fix looks exactly like a whole one.
+
+### Why it is a ceiling and NOT a `verify.yml` step
+
+The ceiling, because without one this is a worklist somebody reads and forgets — every other
+i18n gate here is a ratchet for that reason. Above 0 it exits 1.
+
+Not in CI, and **not** for the usual "it needs the local stack" reason: that workflow already
+runs `supabase start`, `db reset` and `test:rls`. Two harder facts:
+
+* It needs a RUNNING APP — a build plus 92 route renders on every pull request.
+* **It is fixture-dependent, which is the disqualifying one.** Half of what it reports is a row
+  `tests/rls/seed.mjs` wrote, and `EXPECTED_SAME` excuses those BY CONTENT. Renaming a probe
+  family or seeding a second dues schedule turns it red on a pull request that never touched a
+  string, and a gate that cries wolf on unrelated changes is one people learn to ignore.
+
+### What it still cannot see, and what that leaves owed
+
+Its own header lists the limits; the two that matter are that **nothing behind a control is in
+the markup** — every dialog's field labels, every confirm — and **nothing an empty fixture does
+not render**. A clean run means the default state of 46 routes is clean, and no more than that.
+
+**And one class it will never reach:** the seeded English in the DATABASE.
+`Administrators`, `General`, the built-in `Donations` fund and its description are written in
+English by `20260618000000` and `20260807000003`, so a Spanish family sees English names for
+things they never chose. They are excused in `EXPECTED_SAME` because a per-family row cannot be
+keyed — the honest fixes are seeding in the family's language at creation, or letting a family
+rename them, and both are product decisions nobody has taken.
 
 ## Stripe fees: the two halves that are NOT built
 
@@ -645,25 +649,6 @@ only fees for charges this product posted (no matching `dues_payments` row, no f
 is deliberate — a family's own unrelated charges on their account must not become an expense on
 a P&L that never counted the income — but it means the figure is GENORRA's view of their fees
 and not their whole Stripe bill. The panel's caption should probably say so.
-
-Recorded 2026-08-31.
-
-## Staff console: sorting orders one page, not the list
-
-**Action:** push sorting into `listStaffFamilies`, or accept the page-local behaviour forever.
-
-Families and Accounts both sort client-side over a server-paged list, so pressing a heading
-orders the twenty-five rows in hand rather than the platform. `PageScopedSortNote` says so under
-both tables, and only when there is more than one page — so today, with every platform fitting
-on one page, the caveat is invisible and the sort is complete.
-
-**The two screens are not equally fixable, which is why both were left page-local.**
-`listStaffFamilies` already builds an `.order()` chain over a Postgres query and could take a
-sort parameter tomorrow. Accounts cannot: it pages GoTrue's admin `listUsers`, which offers no
-ordering at all, so sorting the whole set there means listing the whole set. Fixing one and not
-the other would put two different meanings behind the same control on two adjacent screens of
-one console, which is worse than one limitation stated plainly in both — but it is worth
-revisiting the moment either list outgrows a page.
 
 Recorded 2026-08-31.
 

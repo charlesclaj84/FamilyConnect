@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { requireMember } from '@/lib/auth/guard'
 import { getDonationProgress, getMyDuesSummary, type DuesSummary } from '@/app/actions/dues'
-import { intentKey, onAccount, stripeClient, stripeUnavailableReason } from '@/lib/stripe/client'
+import { intentKey, onAccount, stripeClient, stripeUnavailableKey } from '@/lib/stripe/client'
 import { INTEGRATION_IDS, checkoutReturnUrls } from '@/lib/stripe/config'
 import { formatMoney } from '@/lib/currency-utils'
 import { familyCurrencyOrFail } from '@/lib/auth/currency'
@@ -112,7 +112,7 @@ export async function getDuesOnlineStatus(): Promise<DuesOnlineStatus> {
   const empty: DuesOnlineStatus = { chargesReady: false, autopay: [] }
   const g = await requireMember()
   if (!g.ok || !g.familyCode || !g.personId) return empty
-  if (stripeUnavailableReason()) return empty
+  if (stripeUnavailableKey()) return empty
 
   const admin = createAdminClient()
   const [accountRes, autopayRes] = await Promise.all([
@@ -246,8 +246,8 @@ export async function startDuesCheckout(input: {
     return { success: false, message: t('act.sameDueListedTwice') }
   }
 
-  const unavailable = stripeUnavailableReason()
-  if (unavailable) return { success: false, message: unavailable }
+  const unavailable = stripeUnavailableKey()
+  if (unavailable) return { success: false, message: t(unavailable) }
   const stripe = stripeClient()
   if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
@@ -438,8 +438,8 @@ export async function startDuesAutopay(input: { scheduleId: string }): Promise<P
   const { t } = g
   if (!g.familyCode || !g.personId) return { success: false, message: t('act.profileNotFound2') }
 
-  const unavailable = stripeUnavailableReason()
-  if (unavailable) return { success: false, message: unavailable }
+  const unavailable = stripeUnavailableKey()
+  if (unavailable) return { success: false, message: t(unavailable) }
   const stripe = stripeClient()
   if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
@@ -651,8 +651,8 @@ export async function startDonationCheckout(input: {
   const { intl } = await callerI18n(g.userId)
   if (!g.familyCode || !g.personId) return { success: false, message: t('act.profileNotFound2') }
 
-  const unavailable = stripeUnavailableReason()
-  if (unavailable) return { success: false, message: unavailable }
+  const unavailable = stripeUnavailableKey()
+  if (unavailable) return { success: false, message: t(unavailable) }
   const stripe = stripeClient()
   if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 

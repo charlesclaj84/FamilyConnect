@@ -61,18 +61,31 @@ export function stripeClient(): Stripe | null {
 }
 
 /**
- * Why this deployment cannot transact, in one sentence, or null when it can.
+ * Why this deployment cannot transact, as a CATALOGUE KEY, or null when it can.
  *
- * For an ACTION to return to a caller. Deliberately vague about which variable is missing:
- * this string reaches a browser, and enumerating the environment is the "never build an
- * endpoint that dumps environment variables" rule arriving through an error message.
+ * For an ACTION to hand to `t`. Deliberately vague about which variable is missing: the
+ * sentence reaches a browser, and enumerating the environment is the "never build an endpoint
+ * that dumps environment variables" rule arriving through an error message.
+ *
+ * ── IT RETURNED THE SENTENCE UNTIL 2026-09-01, AND THAT WAS UNTRANSLATED ──────────
+ * Ten actions returned it straight to the caller, so "Online payments are not set up yet."
+ * reached every reader in English. Neither static gate could see it: `lib/` is outside
+ * `i18n:literals`' sweep on purpose — the catalogues live there and their English IS the
+ * source — and `i18n:check` only asks whether keys exist. `npm run i18n:onscreen` found it on
+ * `/admin/settings`.
+ *
+ * ── AND IT WAS RENAMED, WHICH IS THE POINT ───────────────────────────────────────
+ * `stripeUnavailableKey` → `stripeUnavailableKey`. Changing the return value without
+ * changing the name would have left ten call sites compiling perfectly and rendering
+ * `act.onlinePaymentsNotSetUp2` on screen — a worse failure than the one being fixed, and one
+ * no gate would catch either. The rename makes `npm run typecheck` the thing that finds them.
  */
-export function stripeUnavailableReason(): string | null {
+export function stripeUnavailableKey(): string | null {
   if (liveKeyOnNonProduction()) {
-    return 'Online payments are switched off on this deployment.'
+    return 'act.onlinePaymentsOffDeployment'
   }
   if (!stripeSecretKey()) {
-    return 'Online payments are not set up yet.'
+    return 'act.onlinePaymentsNotSetUp2'
   }
   return null
 }

@@ -591,7 +591,7 @@ export default async function DashboardPage() {
             photoUrl={premierGathering.photoUrl}
             ground="page"
           />
-          <PremierGatheringHero gathering={premierGathering} t={t} />
+          <PremierGatheringHero gathering={premierGathering} intl={intl} t={t} />
         </div>
       ) : (
         <WelcomeHero
@@ -729,7 +729,7 @@ export default async function DashboardPage() {
               feature — "pinned stays at the top, unpinned falls into natural order" —
               and it should be readable without a browser. */}
           <RecentUpdates
-            items={mergeUpdates(notifications, announcements)}
+            items={mergeUpdates(notifications, announcements, t)}
             mayViewArchive={mayViewUpdates}
           />
         </div>
