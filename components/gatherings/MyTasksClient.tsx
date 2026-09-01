@@ -9,7 +9,6 @@ import { Textarea } from '@/components/ui/textarea'
 import { FieldError, FormError } from '@/components/ui/form-message'
 import { HelpLink } from '@/components/help/HelpLink'
 import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { useServerState } from '@/lib/use-server-state'
 import { GATHERING_TASK_STATUS_LABEL, isCompleteAnswer } from '@/lib/gatherings'
@@ -19,6 +18,7 @@ import { AnswerInput, answerFromDraft, draftFromAnswer } from '@/components/gath
 import { submitGatheringTask, type MyTaskRow } from '@/app/actions/gatherings'
 import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
+import { useMoney } from '@/components/layout/MoneyProvider'
 /**
  * `/gatherings/my-tasks` — every gathering task assigned to the caller, with the form to
  * answer it and the organizer's notes when it came back.
@@ -147,6 +147,7 @@ function TaskCard({ task, today, onSubmitted }: {
   onSubmitted: (taskId: string, answer: unknown, note: string) => void
 }) {
   const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   const uid = useId()
   // The stored answer, in the field. `useServerState` over a STRING adopts by value, so a
@@ -249,7 +250,7 @@ function TaskCard({ task, today, onSubmitted }: {
             </span>
           )}
           {dueDate && hasBudgetLine && <> · </>}
-          {hasBudgetLine && <>Budget {formatCurrency(task.budgetCents, intl)}</>}
+          {hasBudgetLine && <>Budget {money(task.budgetCents)}</>}
         </p>
       )}
 
@@ -299,7 +300,7 @@ function TaskCard({ task, today, onSubmitted }: {
             {t('tasks.answerFinal', { status: GATHERING_TASK_STATUS_LABEL.approved })}
           </p>
           <div className="text-sm">
-            <AnswerText kind={kind} answer={task.answer} />
+            <AnswerText kind={kind} answer={task.answer} money={money} />
           </div>
           <p className="text-xs text-muted-foreground">
             {t('tasks.askReopen')}
@@ -318,7 +319,7 @@ function TaskCard({ task, today, onSubmitted }: {
                 {formatDate(task.latest.createdAt, intl) && ` · ${formatDate(task.latest.createdAt, intl)}`}
               </p>
               <div className="mt-1">
-                <AnswerText kind={kind} answer={task.answer} />
+                <AnswerText kind={kind} answer={task.answer} money={money} />
               </div>
               {task.latest.note && (
                 <p className="mt-1 text-xs whitespace-pre-wrap text-muted-foreground">
@@ -362,7 +363,7 @@ function TaskCard({ task, today, onSubmitted }: {
 
           <div className="flex flex-wrap items-center gap-2">
             <Button variant="affirm" size="sm" disabled={isPending} onClick={handleSubmit}>
-              <Send aria-hidden="true" className="mr-1 h-4 w-4" />
+              <Send aria-hidden="true" className="me-1 h-4 w-4" />
               {isPending
                 ? 'Sending…'
                 : denied ? 'Send it again' : task.status === 'submitted' ? 'Replace my answer' : 'Send for review'}

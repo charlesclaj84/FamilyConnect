@@ -175,7 +175,7 @@ export function MarketingHeader() {
                     onClick={() => setOpen(false)}
                     aria-current={active ? 'page' : undefined}
                     className={cn(
-                      'flex items-center border-l-2 py-2.5 pl-3 text-sm font-medium transition-colors',
+                      'flex items-center border-s-2 py-2.5 ps-3 text-sm font-medium transition-colors',
                       active
                         ? 'border-brand-legacy text-brand-ink'
                         : 'border-transparent text-brand-ink/70 hover:text-brand-ink',
@@ -190,7 +190,7 @@ export function MarketingHeader() {
               <Link
                 href={localizedHref(ACCOUNT_ROUTES.login, locale)}
                 onClick={() => setOpen(false)}
-                className="flex items-center border-l-2 border-transparent py-2.5 pl-3 text-sm font-medium text-brand-ink/70 transition-colors hover:text-brand-ink"
+                className="flex items-center border-s-2 border-transparent py-2.5 ps-3 text-sm font-medium text-brand-ink/70 transition-colors hover:text-brand-ink"
               >
                 {t('mkt.signIn')}
               </Link>
@@ -198,7 +198,7 @@ export function MarketingHeader() {
             {/* The language picker's only home below `sm`. Inside the disclosure it has room
                 for the endonym beside the code, which is what a reader actually scans for. */}
             <li className="mt-2 border-t pt-3 sm:hidden">
-              <MarketingLanguagePicker className="pl-3" withEndonym />
+              <MarketingLanguagePicker className="ps-3" withEndonym />
             </li>
           </ul>
         </nav>

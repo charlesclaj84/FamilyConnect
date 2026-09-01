@@ -42,7 +42,7 @@ export default async function MeetingPage({ params }: { params: Promise<{ id: st
     <PageShell className="space-y-6">
       <Link href="/library/meeting-minutes"
         className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ChevronLeft className="h-3.5 w-3.5" />{t('lib.allMeetings')}</Link>
+        <ChevronLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />{t('lib.allMeetings')}</Link>
       <MeetingDetailClient zone={zone} meeting={meeting} />
     </PageShell>
   )

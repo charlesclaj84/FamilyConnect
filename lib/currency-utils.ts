@@ -128,25 +128,71 @@ export function formatMoney(
 }
 
 /**
- * Format an integer number of cents as USD, e.g. `123456` → `"$1,234.56"`.
+ * A formatter with the currency and the reader already bound. `money(cents)`.
  *
- * KEPT AS THE NAME EVERY CALL SITE ALREADY USES. There are well over a hundred of them and
- * sweeping them all in the same commit that changes the implementation would make the diff
- * impossible to review for the thing that matters — whether any figure changed. It is a thin
- * alias, not a deprecated path: a caller with no reader-locale in hand is the ordinary case
- * on a server component today, and `formatMoney` is what a caller WITH one uses.
+ * ── THIS REPLACED `formatCurrency`, WHICH TOOK A LOCALE AND ASSUMED A CURRENCY ──────
+ * That alias was half-localised in a way that read as finished: it threaded the reader's `Intl`
+ * tag and hard-coded USD, so a French reader looking at a US family's books got `1 234,56 $` —
+ * the reader's conventions around an unstated currency, which is the worst of both. It is
+ * DELETED rather than deprecated, so that `npm run typecheck` is the gate and no script has to
+ * be. TODO.md asked for the currency to "stop being optional"; a required parameter every call
+ * site fills in with a default is not that, and a binder is.
+ *
+ * ── WHY A BOUND FUNCTION RATHER THAN A SECOND ARGUMENT ─────────────────────────────
+ * Because the currency is a fact about the FAMILY and the locale is a fact about the READER,
+ * and both are resolved once per request, far from the hundred and fifty places that print a
+ * figure. Threading two strings to each of them is two chances to drop one; threading a
+ * formatter is none, and a component that has one cannot format money wrongly with it.
+ *
+ * A client component gets one from `useMoney()` (`components/layout/MoneyProvider.tsx`); a
+ * server component that renders from either side takes it as a PROP, exactly as it takes `t`;
+ * a server action builds one from the guard with `moneyFor(g.currency, g.intl)`.
+ *
+ * ── IT IS THE FAMILY'S MONEY. GENORRA'S OWN PRICES USE `formatPlatformMoney` ────────
+ * AGENTS.md's "MONEY HAS TWO DIRECTIONS", expressed as two functions so a call site says which
+ * ledger it is printing. A plan price rendered with a family binder would read `MX$10.00` for a
+ * Mexican family on a card that charges them ten dollars.
  */
-export function formatCurrency(
+export type Money = (
   cents: number | null | undefined,
-  /**
-   * The reader's `Intl` tag. A SECOND POSITIONAL ARGUMENT rather than `formatMoney`'s
-   * options object, so this alias reads exactly like `formatDate(value, intl)` and the
-   * whole family of formatters is threaded the same way — which is what `i18n:check`'s
-   * PINNED-FORMATTER count is counting.
-   */
+  opts?: { fractionDigits?: number },
+) => string
+
+/** Bind a currency and a reader together. Cheap — it closes over two strings. */
+export function moneyFor(
+  currency: string | null | undefined,
+  locale: string | null | undefined,
+): Money {
+  const c = (currency ?? DEFAULT_CURRENCY).toLowerCase()
+  const l = locale || DEFAULT_MONEY_LOCALE
+  return (cents, opts) => formatMoney(cents, {
+    currency: c,
+    locale: l,
+    fractionDigits: opts?.fractionDigits,
+  })
+}
+
+/**
+ * Format one of GENORRA's OWN figures — a plan price, a platform payment, MRR.
+ *
+ * ALWAYS USD, and the literal is the statement rather than a default: `platform_payments`
+ * defaults to `'usd'`, `app/actions/billing.ts` refuses a price that is not, and
+ * `20260901000000` §D asserts the platform side did not follow the family side. A staff
+ * console summing MRR across families depends on it — a sum across currencies is meaningless
+ * without a dated rate from a source, which is a thing this product does not have.
+ *
+ * It takes the reader's `Intl` tag, because HOW a figure is grouped is still the reader's.
+ */
+export function formatPlatformMoney(
+  cents: number | null | undefined,
   locale?: string,
+  opts?: { fractionDigits?: number },
 ): string {
-  return formatMoney(cents, locale ? { locale } : undefined)
+  return formatMoney(cents, {
+    currency: DEFAULT_CURRENCY,
+    locale: locale || DEFAULT_MONEY_LOCALE,
+    fractionDigits: opts?.fractionDigits,
+  })
 }
 
 /**
@@ -170,4 +216,110 @@ export function formatCurrency(
 export function dollarsToCents(input: string | number | null | undefined): number {
   const n = typeof input === 'number' ? input : parseFloat(String(input ?? ''))
   return Number.isFinite(n) ? Math.round(n * 100) : 0
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════
+ * THE MINIMUM CHARGE, WHICH IS A FACT ABOUT THE SETTLEMENT CURRENCY
+ * ═══════════════════════════════════════════════════════════════════════════════════
+ *
+ * Stripe refuses a charge below a per-currency floor so its own fee cannot exceed the
+ * charge. Three things about it are easy to get wrong and all three are load-bearing:
+ *
+ * ── 1. IT IS THE SETTLEMENT CURRENCY, NOT THE PRESENTMENT CURRENCY ─────────────────
+ * Measured against Stripe's own documentation (docs.stripe.com/currencies, read
+ * 2026-09-01): *"The minimum amount you can charge depends on the payout bank account
+ * settlement currency … Charges requiring conversion into your account's default
+ * settlement currency must meet the equivalent minimum of the settlement currency."*
+ *
+ * So this function is asked about the currency the family's CONNECTED ACCOUNT settles in —
+ * which is `families.connect_country`'s currency and, since `20260901000000` constrains the
+ * pair to agree, the same value as `families.currency`. Those two being one number is
+ * exactly why the currency is derived from the country rather than chosen independently: a
+ * family presenting MXN into a USD-settling account would have to clear the USD minimum
+ * AFTER conversion, which is a floor that moves with the exchange rate and which no
+ * function here could answer.
+ *
+ * ── 2. THERE IS NO API FOR IT. IT IS A DOCS TABLE ──────────────────────────────────
+ * Nothing on the Stripe API returns these figures, so they are transcribed, and a
+ * transcribed table goes stale silently. Hence the date above and the deliberate NARROWNESS
+ * below: only the currencies this product can actually collect in, which is the enabled
+ * `CONNECT_COUNTRIES` set. An exhaustive ISO table would be thirty rows nobody checks
+ * against thirty countries nobody has enabled — `minorUnitsPerMajor` above makes the same
+ * argument for the same reason.
+ *
+ * ── 3. TWO CURRENCIES ON STRIPE'S OWN ROADMAP ARE NOT ON ITS OWN LIST ──────────────
+ * **NGN and KES are absent from Stripe's minimum-charge table entirely**, and both are high
+ * on TODO.md's country list. That is a finding rather than a gap here: a country whose
+ * minimum Stripe does not publish cannot be enabled until somebody establishes it, because
+ * the alternative is a member choosing a small payment and meeting a hosted page that fails
+ * at the till. `UNKNOWN_MINIMUM_CENTS` is what this function answers for such a currency,
+ * and it is deliberately high.
+ */
+
+/**
+ * Stripe's published minimum, in the currency's MINOR UNIT, keyed by lowercase ISO 4217.
+ *
+ * Transcribed from docs.stripe.com/currencies#minimum-and-maximum-charge-amounts on
+ * 2026-09-01. The three enabled currencies first, then the ones TODO.md's country list would
+ * need next — recorded now so enabling a country is a flag rather than a research task, and
+ * so the two gaps in the previous paragraph are visible on the row.
+ *
+ * ZERO-DECIMAL CURRENCIES ARE WRITTEN IN THEIR OWN UNIT. `jpy: 50` is fifty yen, not fifty
+ * sen — Stripe's `amount` for JPY is whole yen, which is `minorUnitsPerMajor('JPY') === 1`.
+ * Reading this table without that function is how a JPY minimum becomes a hundredfold error.
+ */
+const STRIPE_MINIMUM_BY_CURRENCY: Readonly<Record<string, number>> = {
+  // ── The three enabled today ───────────────────────────────────────────────────────
+  usd: 50,      // 0.50 USD
+  cad: 50,      // 0.50 CAD
+  mxn: 1000,    // 10 MXN — TWENTY TIMES the USD floor in minor units, and the reason this
+                // function exists rather than a shared constant. `MINIMUM_FIRST_CHARGE_CENTS`
+                // is $5 in cents and means nothing here.
+  // ── Next on TODO.md's list, unenabled ────────────────────────────────────────────
+  gbp: 30,      // 0.30 GBP — the one figure BELOW 0.50
+  eur: 50,
+  brl: 50,
+  php: 50,
+  inr: 50,
+  aud: 50,
+  zar: 50,
+  aed: 200,     // 2.00 AED
+  // ── NOT PUBLISHED BY STRIPE. See the header: these cannot be enabled on a guess ──
+  // ngn: ?
+  // kes: ?
+}
+
+/**
+ * The smallest charge Stripe will accept, in the currency's minor unit — or `null` where
+ * Stripe publishes no figure.
+ *
+ * ── `null` RATHER THAN A FALLBACK NUMBER, AND THAT WAS A CORRECTION ────────────────
+ * The first version of this answered a "deliberately high" 500 for an unknown currency, and
+ * the test written to assert that it WAS high failed on its first run. **There is no number
+ * that is safely high in a currency you do not know.** 500 minor units is five units in a
+ * two-decimal currency, half a unit in a three-decimal one and five hundred whole yen in a
+ * zero-decimal one — and even knowing the scale does not help, because there is no exchange
+ * rate here: five naira is about a third of a US cent, which is the opposite of cautious.
+ *
+ * So this refuses instead. A currency Stripe publishes no floor for is a currency this product
+ * cannot quote one in, and the caller's job is to say so rather than charge against a guess —
+ * the same shape as `familyCurrencyOrFail` refusing rather than defaulting on the one path
+ * that moves money.
+ *
+ * IT IS UNREACHABLE TODAY, and asserted to be: `families_currency_check` admits three
+ * currencies, all three are in the table above, and `lib/currency-utils.test.ts` checks that
+ * COUPLING — widening the CHECK without widening the table is exactly what it catches.
+ *
+ * `currency` is the SETTLEMENT currency — the family's, from `families.currency`. See the
+ * section header for why it is not the presentment currency and why there is no API to ask.
+ */
+export function stripeMinimumCents(currency: string | null | undefined): number | null {
+  const code = (currency ?? DEFAULT_CURRENCY).toLowerCase()
+  return STRIPE_MINIMUM_BY_CURRENCY[code] ?? null
+}
+
+/** Does Stripe publish a minimum for this currency? `stripeMinimumCents` answers `null` if not. */
+export function hasPublishedStripeMinimum(currency: string | null | undefined): boolean {
+  return ((currency ?? DEFAULT_CURRENCY).toLowerCase()) in STRIPE_MINIMUM_BY_CURRENCY
 }

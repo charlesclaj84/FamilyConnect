@@ -89,7 +89,7 @@ export default async function ElectionsPage() {
                       <span className={`text-xs px-2.5 py-1 rounded-full shrink-0 ${ELECTION_PHASE_PILL[e.phase]}`}>
                         {ELECTION_PHASE_LABEL[e.phase]}
                       </span>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                      <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 rtl:-scale-x-100" />
                     </div>
                   </Link>
                 ))}
@@ -111,7 +111,7 @@ export default async function ElectionsPage() {
                       <span className={`text-xs px-2.5 py-1 rounded-full shrink-0 ${ELECTION_PHASE_PILL[e.phase]}`}>
                         {ELECTION_PHASE_LABEL[e.phase]}
                       </span>
-                      <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0" />
+                      <ChevronRight className="h-4 w-4 text-muted-foreground/40 shrink-0 rtl:-scale-x-100" />
                     </div>
                   </Link>
                 ))}

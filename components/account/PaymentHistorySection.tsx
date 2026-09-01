@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { formatCurrency, formatMoney } from '@/lib/currency-utils'
+import { formatMoney } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { formatInstantDate } from '@/lib/tz'
 import { paymentStatusLabel } from '@/lib/dues-utils'
@@ -17,6 +17,7 @@ import { PaidThisYearCard } from '@/components/account/PaidThisYearCard'
 import { SortTh, type SortDir } from '@/components/ui/sortable-header'
 import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
+import { useMoney } from '@/components/layout/MoneyProvider'
 type HistCol = 'schedule' | 'date' | 'amount'
 
 // TAKES `intl` — a module-scope helper cannot read a hook. Threading it is what puts this
@@ -89,6 +90,7 @@ function viewOfMyPayment(p: DuesPayment, zone: string, t: T, intl: string): {
 export function PaymentHistorySection({ history, zone }: { history: DuesPayment[]; zone: string }) {
   const t = useT()
   const intl = useIntlTag()
+  const money = useMoney()
   // Which payment's detail dialog is open. Held as an ID rather than as the row itself,
   // for the reason TransactionsClient holds one: the dialog then re-derives from live
   // props, so a reversal posted while it is open updates the entry being read instead of
@@ -124,7 +126,7 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
       {/* `sm:max-w-sm` rather than a half-width grid cell: it is the only card on this
           screen, and a single stat card stretched across a 6xl measure reads as a banner
           rather than as a figure. */}
-      <PaidThisYearCard history={history} className="sm:max-w-sm" intl={intl} t={t} />
+      <PaidThisYearCard history={history} className="sm:max-w-sm" money={money} t={t} />
 
       <div>
         <div className="mb-3 flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
@@ -133,8 +135,8 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
           </p>
           {history.length > 0 && (
             <div className="relative w-full sm:w-44">
-              <Search className="absolute left-2.5 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input aria-label={t('history.filter')} placeholder={t('history.filterPh')} value={histSearch} onChange={e => setHistSearch(e.target.value)} className="pl-7 h-8 text-xs" />
+              <Search className="absolute start-2.5 top-1.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input aria-label={t('history.filter')} placeholder={t('history.filterPh')} value={histSearch} onChange={e => setHistSearch(e.target.value)} className="ps-7 h-8 text-xs" />
             </div>
           )}
         </div>
@@ -154,9 +156,9 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
                 <tr className="border-b">
                   <SortTh label={t('money.schedule')} active={histSort.col === 'schedule'} dir={histSort.dir} onClick={() => sortHist('schedule')} />
                   <SortTh label={t('money.date')} active={histSort.col === 'date'} dir={histSort.dir} onClick={() => sortHist('date')} className={COLLAPSING_CELL} />
-                  <SortTh label={t('money.amount')} active={histSort.col === 'amount'} dir={histSort.dir} onClick={() => sortHist('amount')} align="right" />
-                  <th className={cn('py-2 pr-3 text-xs font-medium text-muted-foreground text-left', COLLAPSING_CELL)}>{t('money.method')}</th>
-                  <th className={cn('py-2 text-xs font-medium text-muted-foreground text-left', COLLAPSING_CELL)}>{t('money.status')}</th>
+                  <SortTh label={t('money.amount')} active={histSort.col === 'amount'} dir={histSort.dir} onClick={() => sortHist('amount')} align="end" />
+                  <th className={cn('py-2 pe-3 text-xs font-medium text-muted-foreground text-start', COLLAPSING_CELL)}>{t('money.method')}</th>
+                  <th className={cn('py-2 text-xs font-medium text-muted-foreground text-start', COLLAPSING_CELL)}>{t('money.status')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -182,14 +184,14 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
                     onClick={() => setViewingId(p.id)}
                     className="cursor-pointer border-b align-top transition-colors last:border-0 hover:bg-muted/30 sm:align-middle"
                   >
-                    <td className="py-2.5 pr-3">
+                    <td className="py-2.5 pe-3">
                       <p className="flex flex-wrap items-center gap-2 font-medium">
                         {/* stopPropagation, or this click opens the dialog twice on its
                             way up through the row. */}
                         <button
                           type="button"
                           onClick={e => { e.stopPropagation(); setViewingId(p.id) }}
-                          className="text-left font-medium hover:underline focus-visible:underline focus-visible:outline-none"
+                          className="text-start font-medium hover:underline focus-visible:underline focus-visible:outline-none"
                         >
                           {p.schedule_label ?? t('cards.generalPayment')}
                         </button>
@@ -215,7 +217,7 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
                         {statusPill}
                       </RowMeta>
                     </td>
-                    <td className={cn('py-2.5 pr-3 whitespace-nowrap text-muted-foreground text-xs', COLLAPSING_CELL)}>{fmtDate(p.payment_date, intl)}</td>
+                    <td className={cn('py-2.5 pe-3 whitespace-nowrap text-muted-foreground text-xs', COLLAPSING_CELL)}>{fmtDate(p.payment_date, intl)}</td>
                     {/* TWO ARMS, NOT THREE. Waived used to be blue here and pending
                         muted; both are now muted, because neither is money that moved
                         and the figure's colour should say only that. The third arm
@@ -225,7 +227,7 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
                         pending are DIFFERENT statuses that deliberately share a colour,
                         and the pill beside the figure is what separates them (muted
                         there too, matching TransactionsClient). */}
-                    <td className={`py-2.5 pr-3 text-right font-semibold whitespace-nowrap ${
+                    <td className={`py-2.5 pe-3 text-end font-semibold whitespace-nowrap ${
                       p.status === 'paid' ? 'text-brand-affirm' : 'text-muted-foreground'
                     }`}>
                       {/* The figure, on a waived row too. It used to read "Waived"
@@ -235,9 +237,9 @@ export function PaymentHistorySection({ history, zone }: { history: DuesPayment[
                           number the member cannot check. The status is not lost:
                           the pill says it, in this row's own Status column and on
                           the meta line below `sm`. */}
-                      {formatCurrency(p.amount_cents, intl)}
+                      {money(p.amount_cents)}
                     </td>
-                    <td className={cn('py-2.5 pr-3 text-muted-foreground text-xs', COLLAPSING_CELL)}>{p.payment_method ?? '—'}</td>
+                    <td className={cn('py-2.5 pe-3 text-muted-foreground text-xs', COLLAPSING_CELL)}>{p.payment_method ?? '—'}</td>
                     <td className={cn('py-2.5', COLLAPSING_CELL)}>
                       {statusPill}
                     </td>

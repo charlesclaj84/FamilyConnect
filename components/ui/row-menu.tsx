@@ -152,7 +152,7 @@ export function RowMenuItem({ icon: Icon, destructive, disabled, onClick, childr
   return (
     <button type="button" disabled={disabled} onClick={onClick}
       className={cn(
-        'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors',
+        'flex w-full items-center gap-2 px-3 py-1.5 text-start text-sm transition-colors',
         'hover:bg-brand-soft disabled:opacity-40 disabled:hover:bg-transparent',
         destructive && 'text-destructive',
       )}>

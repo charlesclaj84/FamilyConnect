@@ -4,6 +4,7 @@ import { getFamilySettings } from '@/app/actions/admin/family'
 import { getPlatformBilling } from '@/app/actions/billing'
 import { FAMILY_RESOURCE, resolveSettingsPane } from '@/components/admin/family-settings'
 import { FamilySettingsClient } from '@/components/admin/FamilySettingsClient'
+import { getRetentionView } from '@/app/actions/admin/retention'
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
 import { currentUser } from '@/lib/auth/current-user'
@@ -65,8 +66,12 @@ export default async function FamilySettingsPage({ searchParams }: Props) {
   // choosing a plan and paying for it are one job on one screen, so billing rides
   // `admin/settings` rather than inventing a key an administrator would have to find and set
   // before the pane they were already looking at would work.
-  const [settings, billing, params] = await Promise.all([
-    getFamilySettings(), getPlatformBilling(), searchParams,
+  // `getRetentionView` joins the same batch and behind the same grant, for the reason one
+  // line up: the sixty-day window is a fact about what the family is paying for, and its
+  // figure is priced by the same arithmetic the plan rows use. It answers null for every
+  // family that has not downgraded, which is nearly all of them.
+  const [settings, billing, retention, params] = await Promise.all([
+    getFamilySettings(), getPlatformBilling(), getRetentionView(), searchParams,
   ])
   const pane = resolveSettingsPane(params.pane)
 
@@ -77,7 +82,14 @@ export default async function FamilySettingsPage({ searchParams }: Props) {
       </div>
 
       {settings
-        ? <FamilySettingsClient settings={settings} initialPane={pane} billing={billing} />
+        ? (
+          <FamilySettingsClient
+            settings={settings}
+            initialPane={pane}
+            billing={billing}
+            retention={retention}
+          />
+        )
         : (
           <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">{t('adm.weCouldNotLoad')}</p>
         )}

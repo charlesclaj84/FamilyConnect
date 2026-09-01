@@ -5,12 +5,13 @@ import { canAny, requireView } from '@/lib/auth/permissions'
 import { getGatheringsReport } from '@/app/actions/activity-reports'
 import { cn } from '@/lib/utils'
 import { formatDate } from '@/lib/date-utils'
-import { formatCurrency } from '@/lib/currency-utils'
 import { GATHERING_STATUS_LABEL } from '@/lib/gatherings'
 import { PageShell } from '@/components/layout/PageShell'
 import { ReportEmpty, ReportStats } from '@/components/reports/ReportStats'
 import { COLLAPSING_CELL, MetaDot, RowMeta } from '@/components/ui/table-collapse'
 import { callerI18n } from '@/lib/i18n/server'
+import { moneyFor } from '@/lib/currency-utils'
+import { getMyFamilyCurrency } from '@/lib/auth/currency'
 import { currentUser } from '@/lib/auth/current-user'
 import { docTitle } from '@/lib/i18n/page-metadata'
 
@@ -45,6 +46,9 @@ export default async function GatheringsReportPage() {
   await requireView(user.id, 'reporting/gatherings')
 
   const { t, intl } = await callerI18n(user.id)
+  // The family's own currency, bound with the reader's conventions. A REPORT prints the
+  // family's money, so it must not use `formatPlatformMoney` — see `lib/currency-utils.ts`.
+  const money = moneyFor(await getMyFamilyCurrency(user.id), intl)
   if (!(await canAny(user.id, 'reporting/gatherings', 'view'))) notFound()
 
   const report = await getGatheringsReport()
@@ -106,16 +110,16 @@ export default async function GatheringsReportPage() {
           <table className="w-full border-collapse text-sm">
             <caption className="sr-only">{t('rep.everyGatheringItsTask')}</caption>
             <thead>
-              <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <th scope="col" className="px-3 py-2">Gathering</th>
                 <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Starts</th>
                 <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>
                   {t('col.status')}
                 </th>
-                <th scope="col" className="px-3 py-2 text-right">Tasks</th>
-                <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>Overdue</th>
+                <th scope="col" className="px-3 py-2 text-end">Tasks</th>
+                <th scope="col" className={cn('px-3 py-2 text-end', COLLAPSING_CELL)}>Overdue</th>
                 {showMoney && (
-                  <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>
+                  <th scope="col" className={cn('px-3 py-2 text-end', COLLAPSING_CELL)}>
                     Allocated
                   </th>
                 )}
@@ -144,7 +148,7 @@ export default async function GatheringsReportPage() {
                       {row.allocatedCents !== null && (
                         <>
                           <MetaDot />
-                          <span>{formatCurrency(row.allocatedCents, intl)} allocated</span>
+                          <span>{money(row.allocatedCents)} allocated</span>
                         </>
                       )}
                     </RowMeta>
@@ -155,7 +159,7 @@ export default async function GatheringsReportPage() {
                   <td className={cn('px-3 py-2', COLLAPSING_CELL)}>
                     {GATHERING_STATUS_LABEL[row.status]}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  <td className="px-3 py-2 text-end tabular-nums">
                     {row.tasks.approved} / {row.tasks.total}
                     {row.unassigned > 0 && (
                       <span className="block text-xs text-brand-withheld">
@@ -163,12 +167,12 @@ export default async function GatheringsReportPage() {
                       </span>
                     )}
                   </td>
-                  <td className={cn('px-3 py-2 text-right tabular-nums', COLLAPSING_CELL,
+                  <td className={cn('px-3 py-2 text-end tabular-nums', COLLAPSING_CELL,
                     row.overdue > 0 && 'text-brand-withheld')}>
                     {row.overdue}
                   </td>
                   {showMoney && (
-                    <td className={cn('px-3 py-2 text-right tabular-nums', COLLAPSING_CELL)}>
+                    <td className={cn('px-3 py-2 text-end tabular-nums', COLLAPSING_CELL)}>
                       {/* BOTH FIGURES OR NEITHER — the action nulls them together. An
                           over-allocated gathering is marked `--brand-withheld` and not
                           `--destructive`: task lines claiming more than the gathering budgeted
@@ -177,13 +181,13 @@ export default async function GatheringsReportPage() {
                           over-FUND, which this report does not compute. */}
                       {row.allocatedCents === null ? '—' : (
                         <>
-                          {formatCurrency(row.allocatedCents, intl)}
+                          {money(row.allocatedCents)}
                           {row.budgetCents !== null && (
                             <span className={cn('block text-xs',
                               row.allocatedCents > row.budgetCents
                                 ? 'text-brand-withheld'
                                 : 'text-muted-foreground')}>
-                              of {formatCurrency(row.budgetCents, intl)}
+                              of {money(row.budgetCents)}
                             </span>
                           )}
                         </>

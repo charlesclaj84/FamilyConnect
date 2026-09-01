@@ -13,7 +13,6 @@ import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { PersonMultiSelect, type SelectablePerson } from '@/components/ui/person-multi-select'
 import { FormError } from '@/components/ui/form-message'
 import { cn } from '@/lib/utils'
-import { formatCurrency as formatDollars } from '@/lib/currency-utils'
 import { formatDate, todayLocal, latestDate } from '@/lib/date-utils'
 import { disambiguatedName } from '@/lib/name-utils'
 import { APP_NAME } from '@/lib/brand'
@@ -51,6 +50,7 @@ import {
   isIncomeSection, type AccountSection, type AccountRights,
 } from '@/components/admin/account-sections'
 import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import { useMoney } from '@/components/layout/MoneyProvider'
 import type { T } from '@/lib/i18n/t'
 
 interface Props {
@@ -615,6 +615,7 @@ export function AdminIncomeClient({
   hasBloodline, scopeOptions,
 }: Props) {
   const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   // The section on screen decides which grant applies: a Dues row is governed by
   // admin/account/dues, a Donation row by admin/account/donations.
@@ -765,11 +766,11 @@ export function AdminIncomeClient({
       title: `Save ${kindCopy(t)[editKind].noun}`,
       description: isDonation
         ? t('inc.applyEditsDonation', {
-            label: editForm.label, goal: formatDollars(goalCents ?? 0),
+            label: editForm.label, goal: money(goalCents ?? 0),
           })
         : t('inc.applyEditsDues', {
             label: editForm.label,
-            amount: formatDollars(amountCents),
+            amount: money(amountCents),
             frequency: t(`dues.freq.${editForm.frequency}`),
           }),
       confirmLabel: t('action.saveChanges'),
@@ -896,7 +897,7 @@ export function AdminIncomeClient({
         ? t('inc.deleteNamedBody', {
             noun,
             label: schedule.label,
-            amount: formatDollars(schedule.amount_cents),
+            amount: money(schedule.amount_cents),
             frequency: t(`dues.freq.${schedule.frequency}`),
           })
         : t('inc.deleteThisBody', { noun }),
@@ -1023,13 +1024,13 @@ export function AdminIncomeClient({
             <div className="overflow-visible rounded-xl border">
               <table className="w-full border-collapse text-sm">
                 <thead>
-                  <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <SortTh label={t('field.name')} {...sortProps('name')} className="px-3 py-2 font-semibold" />
                     {kind === 'donation' ? (
-                      <SortTh label={t('inc.goal')} align="right" {...sortProps('goal')} className="px-3 py-2 font-semibold" />
+                      <SortTh label={t('inc.goal')} align="end" {...sortProps('goal')} className="px-3 py-2 font-semibold" />
                     ) : (
                       <>
-                        <SortTh label={t('inc.dueAmount')} align="right" {...sortProps('amount')} className="px-3 py-2 font-semibold" />
+                        <SortTh label={t('inc.dueAmount')} align="end" {...sortProps('amount')} className="px-3 py-2 font-semibold" />
                         <SortTh label={t('inc.frequency')} {...sortProps('frequency')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                         <SortTh label={t('inc.payment')} {...sortProps('payment')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                       </>
@@ -1065,7 +1066,7 @@ export function AdminIncomeClient({
                             every row of a family that has no chapters is noise on every row,
                             and National is what a due means when it says nothing. */}
                         {scopeCaption(s, scopeOptions, t) && (
-                          <span className="ml-2 inline-block whitespace-nowrap rounded-full bg-brand-warm px-2 py-0.5 text-[11px] font-medium text-brand-on-warm">
+                          <span className="ms-2 inline-block whitespace-nowrap rounded-full bg-brand-warm px-2 py-0.5 text-[11px] font-medium text-brand-on-warm">
                             {scopeCaption(s, scopeOptions, t)}
                           </span>
                         )}
@@ -1106,13 +1107,13 @@ export function AdminIncomeClient({
                         </RowMeta>
                       </td>
                       {s.kind === 'donation' ? (
-                        <td className="px-3 py-2.5 text-right font-medium whitespace-nowrap">
-                          {formatDollars(s.goal_cents ?? 0)}
+                        <td className="px-3 py-2.5 text-end font-medium whitespace-nowrap">
+                          {money(s.goal_cents ?? 0)}
                         </td>
                       ) : (
                         <>
-                          <td className="px-3 py-2.5 text-right font-medium whitespace-nowrap">
-                            {formatDollars(s.amount_cents)}
+                          <td className="px-3 py-2.5 text-end font-medium whitespace-nowrap">
+                            {money(s.amount_cents)}
                           </td>
                           <td className={cn('px-3 py-2.5 capitalize text-muted-foreground', COLLAPSING_CELL)}>{s.frequency}</td>
                           <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>

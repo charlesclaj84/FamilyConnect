@@ -277,7 +277,7 @@ export function PlanLadder({ plans }: { plans: readonly MarketingPlan[] }) {
         >
           <span
             aria-hidden="true"
-            className="absolute inset-y-1 left-1 rounded-full bg-brand-legacy transition-transform duration-300 ease-out motion-reduce:transition-none"
+            className="absolute inset-y-1 start-1 rounded-full bg-brand-legacy transition-transform duration-300 ease-out motion-reduce:transition-none"
             style={{
               width: `calc((100% - 0.5rem) / ${plans.length})`,
               transform: `translateX(${active * 100}%)`,

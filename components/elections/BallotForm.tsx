@@ -185,7 +185,7 @@ export function BallotForm({
                         key={nom.id}
                         onClick={() => handleVote(pos.id, nom.nominee_id)}
                         disabled={isPending}
-                        className={`w-full flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors ${myVote === nom.nominee_id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+                        className={`w-full flex items-center gap-3 rounded-lg border px-4 py-3 text-start transition-colors ${myVote === nom.nominee_id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
                       >
                         <div className={`h-4 w-4 rounded-full border-2 flex items-center justify-center ${myVote === nom.nominee_id ? 'border-primary' : 'border-muted-foreground/40'}`}>
                           {myVote === nom.nominee_id && <div className="h-2 w-2 rounded-full bg-primary" />}

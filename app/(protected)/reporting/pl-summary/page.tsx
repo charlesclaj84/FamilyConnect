@@ -6,6 +6,8 @@ import { AccountPnLCard } from '@/components/account/AccountPnLCard'
 import { FundsSection } from '@/components/account/FundsSection'
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
+import { moneyFor } from '@/lib/currency-utils'
+import { getMyFamilyCurrency } from '@/lib/auth/currency'
 import { currentUser } from '@/lib/auth/current-user'
 import { docTitle } from '@/lib/i18n/page-metadata'
 
@@ -46,6 +48,10 @@ export default async function FamilyFinancesPage() {
   await requireView(user.id, 'reporting/pl-summary')
 
   const { t, intl } = await callerI18n(user.id)
+  // The FAMILY's currency, bound with the reader's conventions. A page printing the
+  // family's own figures uses this; GENORRA's own prices use `formatPlatformMoney`.
+  // See `lib/currency-utils.ts` — the two ledgers must never meet.
+  const money = moneyFor(await getMyFamilyCurrency(user.id), intl)
   if (!(await canAny(user.id, 'reporting/pl-summary', 'view'))) notFound()
 
   const [pnlData, funds] = await Promise.all([
@@ -65,7 +71,7 @@ export default async function FamilyFinancesPage() {
       </div>
 
       <section className="space-y-3">
-        <AccountPnLCard data={pnlData} intl={intl} t={t} />
+        <AccountPnLCard data={pnlData} money={money} t={t} />
       </section>
 
       <section>

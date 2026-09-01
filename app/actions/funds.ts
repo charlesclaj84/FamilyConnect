@@ -9,9 +9,10 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { moneyAttachedTo, moneyAttachedMessage } from '@/lib/money-attached'
 import { effectiveAllocations } from '@/lib/fund-routing'
 import { embedMany } from '@/lib/supabase/embed'
-import { formatCurrency } from '@/lib/currency-utils'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
+import { moneyFor } from '@/lib/currency-utils'
+import { getMyFamilyCurrency } from '@/lib/auth/currency'
 
 export interface Fund {
   id: string
@@ -1076,6 +1077,10 @@ export async function transferBetweenFunds(input: {
   if (!(await canAny(user.id, 'accounting/transactions/fund-transfers', 'create'))) {
     return { success: false, message: t('act.notAuthorized') }
   }
+  // The FAMILY's currency for the one figure this action quotes back. It is a message rather
+  // than a charge, so the display fallback in `getMyFamilyCurrency` is the right resolver —
+  // `familyCurrencyOrFail` is for `app/actions/pay-dues.ts`, which moves money.
+  const money = moneyFor(await getMyFamilyCurrency(user.id), intl)
 
   // WHO MOVED IT. Checked rather than assumed: getMyPersonId returns '' when it cannot
   // resolve a row, the database refuses an unattributed transfer, and an empty string
@@ -1118,7 +1123,7 @@ export async function transferBetweenFunds(input: {
     return {
       success: false,
       message: t('fnd.holdsTransferLess', {
-        name: from.name, amount: formatCurrency(available, intl),
+        name: from.name, amount: money(available),
       }),
     }
   }

@@ -71,7 +71,7 @@ function Dialog({ open, onClose, title, description, children, className }: Dial
           // panel inside an `overflow` ancestor. That would end inheritance of everything
           // rather than of one property, and it is a change to every dialog in the product;
           // TODO.md carries it.
-          "relative z-10 flex w-full max-w-md flex-col overflow-hidden rounded-xl bg-card text-card-foreground text-left shadow-lg",
+          "relative z-10 flex w-full max-w-md flex-col overflow-hidden rounded-xl bg-card text-card-foreground text-start shadow-lg",
           // Underscores are Tailwind's escape for the spaces `calc()` requires around
           // a `-` — `calc(100dvh-2rem)` is not valid CSS and silently drops the rule.
           "max-h-[calc(100dvh_-_1.5rem)] sm:max-h-[calc(100dvh_-_2rem)]",
@@ -89,7 +89,7 @@ function Dialog({ open, onClose, title, description, children, className }: Dial
           </div>
           <button
             onClick={onClose}
-            className="-mr-1 shrink-0 rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            className="-me-1 shrink-0 rounded-md p-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             aria-label="Close"
           >
             <X className="h-4 w-4" />

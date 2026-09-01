@@ -1042,7 +1042,7 @@ export function FamilyTreeBuilder({
                 onClick={() => setFocusId(p.id)}
                 aria-current={isFocus ? 'true' : undefined}
                 className={cn(
-                  'rounded-lg border px-2.5 py-1.5 text-left text-sm transition-colors',
+                  'rounded-lg border px-2.5 py-1.5 text-start text-sm transition-colors',
                   isFocus
                     ? 'border-brand-legacy bg-brand-soft text-brand-on-soft'
                     : 'hover:border-brand-primary/50 hover:bg-brand-soft/40',
@@ -1362,7 +1362,7 @@ function PersonCard({ person, name, caption, highlight, inBloodline, onFocus, on
           disabled={busy}
           title={t('tree.editOrInvite')}
           aria-label={t('tree.editRecordAria', { name })}
-          className="absolute -left-1.5 -top-1.5 rounded-full border bg-card p-1 text-muted-foreground shadow-sm transition-colors hover:text-brand-accent disabled:opacity-50"
+          className="absolute -start-1.5 -top-1.5 rounded-full border bg-card p-1 text-muted-foreground shadow-sm transition-colors hover:text-brand-accent disabled:opacity-50"
         >
           <Pencil className="h-3 w-3" aria-hidden="true" />
         </button>
@@ -1375,7 +1375,7 @@ function PersonCard({ person, name, caption, highlight, inBloodline, onFocus, on
           disabled={busy}
           title={t('tree.removeConnection')}
           aria-label={t('tree.removeConnectionAria', { name })}
-          className="absolute -right-1.5 -top-1.5 rounded-full border bg-card p-1 text-muted-foreground shadow-sm transition-colors hover:text-destructive disabled:opacity-50"
+          className="absolute -end-1.5 -top-1.5 rounded-full border bg-card p-1 text-muted-foreground shadow-sm transition-colors hover:text-destructive disabled:opacity-50"
         >
           <Unlink className="h-3 w-3" aria-hidden="true" />
         </button>

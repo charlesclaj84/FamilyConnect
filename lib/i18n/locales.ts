@@ -50,7 +50,35 @@ export interface Locale {
   endonym: string
   /** The BCP-47 tag for `Intl` — the ONLY thing ever handed to a formatter. */
   intl: string
+  /**
+   * Which way the language is READ. `'ltr'` or `'rtl'`, and it is the `dir` attribute verbatim.
+   *
+   * ── A THIRD CODE, AND IT IS NOT DERIVABLE FROM THE OTHER TWO ────────────────────
+   * The header above says two codes per locale and that conflating them is a real bug. This is
+   * a third fact about the same locale and it is neither of them: `code` is an identity,
+   * `intl` decides how digits are grouped, and this decides which side of the page everything
+   * starts on. `Intl.Locale.prototype.getTextInfo()` can answer it at runtime — and is not used
+   * here, deliberately: it is stated rather than computed so that the whole registry can be read
+   * as data, `proxy.ts` can consult it at the edge without constructing an `Intl.Locale`, and
+   * `lib/i18n/direction.ts` stays a pure module `npm test` can exercise.
+   *
+   * ── IT IS REQUIRED RATHER THAN OPTIONAL, AND THAT IS THE POINT ──────────────────
+   * An optional `dir` would default to `'ltr'` and the first right-to-left language somebody
+   * added would be silently laid out backwards — which is precisely the failure mode
+   * `FEATURES.tier` having no default exists to prevent, in a different costume. Adding a
+   * locale is a decision about direction, so the type makes it one.
+   *
+   * ── AND IT IS NOT A FLAG, FOR THE SAME REASON THERE ARE NO FLAGS ────────────────
+   * Direction belongs to a SCRIPT rather than to a language: Kurdish is written in both
+   * directions depending on where it is spoken, and Azerbaijani has been written in three
+   * alphabets in one century. A locale that ever needs to distinguish those is a locale that
+   * needs its own row here, not a cleverer function.
+   */
+  dir: TextDirection
 }
+
+/** Which way a language is read. The `dir` attribute's two values, and nothing else. */
+export type TextDirection = 'ltr' | 'rtl'
 
 /**
  * Every locale, in the order the switcher lists them.
@@ -59,9 +87,22 @@ export interface Locale {
  * code, which is stable and needs no decision when a fourth arrives.
  */
 export const LOCALES: readonly Locale[] = [
-  { code: 'en', endonym: 'English',  intl: 'en-US' },
-  { code: 'es', endonym: 'Español',  intl: 'es-MX' },
-  { code: 'fr', endonym: 'Français', intl: 'fr-FR' },
+  { code: 'en', endonym: 'English',  intl: 'en-US', dir: 'ltr' },
+  { code: 'es', endonym: 'Español',  intl: 'es-MX', dir: 'ltr' },
+  { code: 'fr', endonym: 'Français', intl: 'fr-FR', dir: 'ltr' },
+  // ── NO RIGHT-TO-LEFT LOCALE IS SHIPPED, AND THE LAYOUT IS READY FOR ONE ─────────
+  // Added 2026-09-01. TODO.md's language list puts Arabic seventh and says, in as many words,
+  // that *"THE FIRST RTL LANGUAGE IS NOT A CATALOGUE, IT IS A LAYOUT PASS"* and *"do not let
+  // Arabic be the language somebody adds on a Friday."* The layout pass is done and this row is
+  // deliberately NOT here: a locale in this array is a locale the switcher offers, and offering
+  // Arabic over 5,682 English keys would tell a reader their language counts and then not speak
+  // it — which is the same failure the Haitian Creole entry in that list is about.
+  //
+  // WHAT ADDING ONE NOW COSTS: four catalogue files and one row. `dir: 'rtl'` is honoured by
+  // `<html dir>`, by the boot script, by `LocaleSync`, and by every layout utility in `app/`
+  // and `components/`, which `npm run i18n:rtl` holds at zero physical direction properties.
+  // `npm run i18n:onscreen -- --force-rtl` renders every route mirrored today, with no such
+  // locale existing, which is how any of this was checked at all.
 ] as const
 
 /**

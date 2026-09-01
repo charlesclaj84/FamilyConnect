@@ -1,9 +1,9 @@
 import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/currency-utils'
 import { HelpLink } from '@/components/help/HelpLink'
 import { gatheringBudgetMath } from '@/lib/gathering-budget'
 import type { GatheringBudgetView, GatheringBudgetState } from '@/app/actions/gatherings'
 import { type T } from '@/lib/i18n/t'
+import type { Money } from '@/lib/currency-utils'
 
 /**
  * A gathering's money, and the red line.
@@ -100,9 +100,21 @@ export interface BudgetBandProps {
    * The reader's `Intl` tag, for the dates and figures below. A PROP rather than
    * `useIntlTag()`, because this is a Server Component. See lib/i18n/server.ts.
    */
-  intl: string
   /**
-   * The reader's translator. A PROP for `intl`'s reason, one line up — and this band SHIPPED
+   * The family's money formatter — its currency and the reader's conventions, already bound.
+   *
+   * A PROP RATHER THAN `useMoney()`, because this component has no `'use client'` directive and
+   * a Server Component importing that hook gets a client REFERENCE and throws at render (see
+   * AGENTS.md, `audit:client-hooks`). It crosses server-to-server by reference and a missing one
+   * is a type error.
+   *
+   * It replaced an `intl: string` prop, which is why several of these components no longer take
+   * one: formatting money was their only use for the reader's tag, and the binder carries both
+   * facts. See `lib/currency-utils.ts` for why the currency is bound rather than passed.
+   */
+  money: Money
+  /**
+   * The reader's translator. A PROP for `money`'s reason, one line up — and this band SHIPPED
    * with `useT()` in its body instead, which is the whole of the crash.
    *
    * `useT` comes from `components/layout/LocaleProvider.tsx`, which is `'use client'`, so a
@@ -127,7 +139,7 @@ export interface BudgetBandProps {
   className?: string
 }
 
-export function BudgetBand({ budget, state, className, intl, t }: BudgetBandProps) {
+export function BudgetBand({ budget, state, className, money, t }: BudgetBandProps) {
   // The caller is entitled and the figures did not come back. Say it, once, in the space the
   // band would have occupied — see the header on why this is neither nothing nor a FormError.
   if (state === 'unavailable') {
@@ -202,12 +214,12 @@ export function BudgetBand({ budget, state, className, intl, t }: BudgetBandProp
       <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <Figure
           label={t('budget.budgeted')}
-          value={hasBudget ? formatCurrency(math.budgetCents, intl) : '—'}
+          value={hasBudget ? money(math.budgetCents) : '—'}
           caption={hasBudget ? t('budget.plansToSpend') : t('budget.notSet')}
         />
         <Figure
           label={t('budget.claimed')}
-          value={formatCurrency(math.linesTotalCents, intl)}
+          value={money(math.linesTotalCents)}
           caption={lines === 0
             ? t('budget.noLines')
             : `${lines} ${lines === 1 ? 'task line' : 'task lines'}`}
@@ -218,7 +230,7 @@ export function BudgetBand({ budget, state, className, intl, t }: BudgetBandProp
              its meaning. The magnitude comes from `overAllocatedByCents`, which floors at zero,
              so this never prints "over -$450". */
           value={hasBudget
-            ? formatCurrency(math.overAllocated ? math.overAllocatedByCents : math.unallocatedCents, intl)
+            ? money(math.overAllocated ? math.overAllocatedByCents : math.unallocatedCents)
             : '—'}
           caption={!hasBudget
             ? t('budget.setToSee')
@@ -229,11 +241,11 @@ export function BudgetBand({ budget, state, className, intl, t }: BudgetBandProp
         />
         <Figure
           label={t('budget.inTheFund')}
-          value={knowBalance ? formatCurrency(math.fundBalanceCents, intl) : '—'}
+          value={knowBalance ? money(math.fundBalanceCents) : '—'}
           caption={knowBalance
             ? (budget.otherCommittedCents > 0
                 ? t('budget.claimedByOthers', {
-                    amount: formatCurrency(budget.otherCommittedCents, intl),
+                    amount: money(budget.otherCommittedCents),
                   })
                 : t('budget.nothingElse'))
             : budget.fundName
@@ -253,8 +265,8 @@ export function BudgetBand({ budget, state, className, intl, t }: BudgetBandProp
           {/* ONE SENTENCE, ONE KEY. The figures were three JSX children with English word
               order between them, which no translation can reorder. */}
           {t('budget.overFundSentence', {
-            budget: formatCurrency(math.budgetCents, intl),
-            over: formatCurrency(math.overFundByCents, intl),
+            budget: money(math.budgetCents),
+            over: money(math.overFundByCents),
             fund: budget.fundName ?? t('budget.theFund'),
           })}
         </p>
@@ -273,10 +285,10 @@ export function BudgetBand({ budget, state, className, intl, t }: BudgetBandProp
           math.overFund ? 'mt-2' : 'mt-4',
         )}>
           {t('budget.overWithOthersSentence', {
-            others: formatCurrency(budget.otherCommittedCents, intl),
-            total: formatCurrency(math.totalCommittedCents, intl),
+            others: money(budget.otherCommittedCents),
+            total: money(math.totalCommittedCents),
             fund: budget.fundName ?? t('budget.theFund'),
-            over: formatCurrency(math.overFundWithOthersByCents, intl),
+            over: money(math.overFundWithOthersByCents),
           })}
         </p>
       )}
@@ -287,8 +299,8 @@ export function BudgetBand({ budget, state, className, intl, t }: BudgetBandProp
       {math.overAllocated && (
         <p className="mt-2 rounded-xl border border-brand-withheld/40 bg-brand-withheld/5 px-4 py-3 text-sm text-brand-withheld">
           {t('budget.overAllocatedSentence', {
-            lines: formatCurrency(math.linesTotalCents, intl),
-            over: formatCurrency(math.overAllocatedByCents, intl),
+            lines: money(math.linesTotalCents),
+            over: money(math.overAllocatedByCents),
           })}
         </p>
       )}

@@ -82,13 +82,13 @@ export function NewAnnouncementForm({ canPin, chapters }: { canPin: boolean; cha
     return (
       <button
         onClick={() => setOpen(true)}
-        className="group w-full flex items-center gap-3 rounded-2xl border bg-card px-4 py-3.5 text-left shadow-sm transition-all hover:shadow-md hover:border-primary/40"
+        className="group w-full flex items-center gap-3 rounded-2xl border bg-card px-4 py-3.5 text-start shadow-sm transition-all hover:shadow-md hover:border-primary/40"
       >
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary transition-transform group-hover:scale-105">
           <Megaphone className="h-5 w-5" />
         </span>
         <span className="text-muted-foreground">{t('ann.new.prompt')}</span>
-        <span className="ml-auto hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
+        <span className="ms-auto hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
           <Send className="h-3.5 w-3.5" /> {t('action.post')}
         </span>
       </button>
@@ -105,7 +105,7 @@ export function NewAnnouncementForm({ canPin, chapters }: { canPin: boolean; cha
           <Megaphone className="h-5 w-5" />
         </span>
         <h2 className="text-base font-semibold">{t('ann.new.heading')}</h2>
-        <button onClick={reset} className="ml-auto rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" aria-label={t('action.close')}>
+        <button onClick={reset} className="ms-auto rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors" aria-label={t('action.close')}>
           <X className="h-4 w-4" />
         </button>
       </div>
@@ -168,7 +168,7 @@ export function NewAnnouncementForm({ canPin, chapters }: { canPin: boolean; cha
             {t('ann.new.pin')}
           </label>
           {pinned && (
-            <div className="ml-6 space-y-1.5">
+            <div className="ms-6 space-y-1.5">
               <div className="flex items-center gap-2">
                 <Label htmlFor="ann-pinned-until" className="whitespace-nowrap text-xs text-muted-foreground">
                   {t('ann.new.unpinOn')}

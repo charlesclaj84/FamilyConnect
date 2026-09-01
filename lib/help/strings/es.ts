@@ -735,9 +735,12 @@ export const helpEs: Catalogue = {
     + 'algo que podría tener esta tarde sería peor.',
   'help.plans.data.heading': 'Cambiar de plan nunca elimina datos',
   'help.plans.data.b0':
-    'Un plan decide qué pantallas puede abrir una familia, y nada más. Una familia que pasa '
-    + 'a un plan más barato conserva todos los registros que haya introducido: las páginas '
-    + 'que los leen simplemente dejan de abrirse. Volver los trae de vuelta de inmediato.',
+    'Un plan decide qué pantallas puede abrir una familia. Una familia que pasa a un plan más '
+    + 'barato conserva todos los registros que haya introducido durante **sesenta días**: las '
+    + 'páginas que los leen dejan de abrirse, y volver dentro de esos sesenta días los trae de '
+    + 'vuelta de inmediato. Después de sesenta días se elimina lo que el plan más barato no '
+    + 'incluye. Antes llegan cuatro recordatorios, y [Facturación](/admin/settings) muestra la '
+    + 'fecha en todo momento.',
   'help.troubleshooting.title': 'Si algo parece estar mal',
   'help.troubleshooting.summary':
     'Las pocas cosas que sorprenden a la gente, y qué está pasando de verdad.',
@@ -1413,8 +1416,13 @@ export const helpEs: Catalogue = {
   'help.family-settings.billing.b9':
     '**Para dejar de pagar, baje a Gratis en la sección [Plan](/admin/settings).** Eso '
     + 'termina un plan mensual al final del periodo ya pagado, nunca de inmediato. Todas las '
-    + 'páginas siguen abiertas hasta entonces y todos los registros se conservan después: '
-    + 'volver a subir más adelante lo encuentra todo donde estaba.',
+    + 'páginas siguen abiertas hasta entonces.',
+  'help.family-settings.billing.b10':
+    '**Lo que el plan más barato no incluye se conserva después durante sesenta días, y luego '
+    + 'se elimina.** Nada desaparece el día en que baja. Se le recuerda treinta, quince, cinco '
+    + 'y un día antes, y volver a subir dentro de esos sesenta días lo encuentra todo '
+    + 'exactamente donde estaba: vea [qué pasa con sus '
+    + 'registros](/help/family-settings#retention).',
   'help.family-settings.removal.heading': 'Quitar la familia',
   'help.family-settings.removal.b0':
     '**Quitar esta familia**, al final de la sección **Familia**, desactiva la familia '
@@ -2207,26 +2215,38 @@ export const helpEs: Catalogue = {
     + '**Conectar una cuenta de Stripe** y Stripe recoge todo lo que necesita en sus propias '
     + 'páginas; cuando vuelva, este panel dice si los pagos con tarjeta están activados.',
   'help.accounting.processing.b1':
+    '**El país que elija decide en qué moneda cobra su familia.** El control **País** de '
+    + 'este panel fija ambas cosas: elija Canadá y sus cuotas, sus fondos y los presupuestos '
+    + 'de sus encuentros se registran en dólares canadienses, y a los familiares se les cobra '
+    + 'en dólares canadienses. Es una sola decisión y no dos, así que el dinero que su '
+    + 'familia pide y el dinero que llega a su banco son siempre la misma cifra.',
+  'help.accounting.processing.b2':
+    '**Ambas quedan fijadas en cuanto se registra un pago o se crea la cuenta de Stripe, y '
+    + 'ninguna se puede deshacer.** Stripe no puede trasladar una cuenta conectada a otro '
+    + 'país, y el libro contable de su familia no se puede volver a denominar después: cien '
+    + 'filas que dicen $40 tendrían que significar dos cosas distintas. El panel dice cuál de '
+    + 'las dos lo fijó. Elija el país antes de registrar su primer pago.',
+  'help.accounting.processing.b3':
     '**La cuenta pertenece a su familia, no a GENORRA.** El dinero va directamente al banco '
     + 'de su familia, las comisiones de procesamiento de Stripe salen del lado de su familia, '
     + 'y su familia conserva su propio panel de Stripe, su propio calendario de pagos y sus '
     + 'propios reembolsos. GENORRA no se lleva ninguna parte de lo que su familia recauda.',
-  'help.accounting.processing.b2':
+  'help.accounting.processing.b4':
     '**Nunca se le pedirá una clave de Stripe, y usted no debería dar ninguna a nadie.** '
     + 'GENORRA guarda solo el identificador de su cuenta: suficiente para enviarle un pago, e '
     + 'inútil por sí solo para cualquiera. Si alguna pantalla le pide que pegue una clave que '
     + 'empieza por `sk_`, no es este producto.',
-  'help.accounting.processing.b3':
+  'help.accounting.processing.b5':
     'Un pago con tarjeta se registra en los libros de la familia en el momento en que se '
     + 'liquida y se reparte entre sus fondos según la misma tabla de **Asignación** que sigue '
     + 'un pago teclado a mano. Nadie tiene que introducirlo después, y aparece en '
     + '[Transacciones](/accounting/transactions) junto a todo lo demás.',
-  'help.accounting.processing.b4':
+  'help.accounting.processing.b6':
     '**Comprobar con Stripe** le pregunta a Stripe por el estado actual de la cuenta, lo '
     + 'cual vale la pena pulsar si acaba de terminar algo de su lado. Hasta que diga que los '
     + 'pagos con tarjeta están activados, los integrantes no ven ninguna sección de **Pagar '
     + 'en línea**, que es mejor que un botón que falla una vez que alguien ha decidido pagar.',
-  'help.accounting.processing.b5':
+  'help.accounting.processing.b7':
     '**Desconectar detiene también todos los pagos automáticos de los integrantes, y esos '
     + 'no se pueden reiniciar.** Volver a conectar trae de vuelta la misma cuenta de Stripe '
     + 'con su historial y sus datos bancarios exactamente como estaban, pero cada familiar '
@@ -2234,7 +2254,7 @@ export const helpEs: Catalogue = {
     + 'canceló en Stripe y no se puso en pausa. El panel dice a cuántas personas afecta antes '
     + 'de que usted confirme. Nada de lo ya registrado se quita, y la propia cuenta de Stripe '
     + 'de su familia no se toca: esto solo hace que GENORRA deje de usarla.',
-  'help.accounting.processing.b6':
+  'help.accounting.processing.b8':
     '**Por eso mismo, desconectar pide dos cosas.** Primero su contraseña de inicio de '
     + 'sesión, para que no pueda ocurrir por accidente ni por alguien sentado ante una '
     + 'pantalla desbloqueada. Después un código de seis dígitos enviado a la dirección con la '
@@ -2242,7 +2262,7 @@ export const helpEs: Catalogue = {
     + 'dura quince minutos, funciona una vez, y se cancela solo tras cinco intentos fallidos. '
     + 'Es la misma barrera que [quitar una familia](/help/family-settings#removal), y está '
     + 'ahí por el mismo motivo: la parte que se puede deshacer esconde una parte que no.',
-  'help.accounting.processing.b7':
+  'help.accounting.processing.b9':
     'Si su familia se ha desconectado, el panel lo dice y el botón dice **Reconectar '
     + 'Stripe** en vez de **Conectar una cuenta de Stripe**, porque de verdad es la misma '
     + 'cuenta volviendo y no una nueva que se crea.',
@@ -4418,4 +4438,69 @@ export const helpEs: Catalogue = {
     'El recuento de usos se imprime en la tarjeta al lado del control de eliminar, así que '
     + 'el rechazo rara vez es una sorpresa. Llegó con la página, eso sí, y una reunión '
     + 'programada desde entonces no estará en él: el rechazo en sí es lo que decide.',
+
+  // ── Family Settings · What happens to your records (20260901000002) ──────────────
+  'help.family-settings.retention.heading': 'Qué pasa con sus registros',
+  'help.family-settings.retention.b0':
+    '**Bajar a un plan más barato no elimina nada el día en que lo hace.** Las pantallas que '
+    + 'ese plan incluía dejan de abrirse, y todo lo que hay detrás se conserva durante '
+    + '**sesenta días**. Si vuelve a subir dentro de esos sesenta días, cada registro está '
+    + 'exactamente donde lo dejó.',
+  'help.family-settings.retention.b1':
+    '**Facturación** muestra la fecha en todo momento, y se envían cuatro recordatorios a '
+    + 'quien se encarga de la facturación: treinta días antes, quince, cinco y uno.',
+  'help.family-settings.retention.b2.i0.term': 'Conservarlo',
+  'help.family-settings.retention.b2.i0.text':
+    'Vuelva al plan que dejó. Eso cubre los meses que estuvo fuera y también el mes que viene, '
+    + 'para que el plan no quede con un hueco, y la cifra aparece en la sección Facturación '
+    + 'antes de que se comprometa a nada.',
+  'help.family-settings.retention.b2.i1.term': 'Dejarlo ir',
+  'help.family-settings.retention.b2.i1.text':
+    'No haga nada y se elimina en la fecha indicada, sin costo adicional. Si ya lo decidió, '
+    + '**Eliminar estos registros…** en la sección Facturación lo hace hoy en vez de recordárselo '
+    + 'tres veces más; primero le pide un código de seis dígitos enviado por correo, y enumera '
+    + 'exactamente qué se va a quitar.',
+  'help.family-settings.retention.b3':
+    '**Los registros eliminados no se pueden recuperar.** Ni usted, ni el soporte de GENORRA, '
+    + 'ni desde una copia de seguridad. Por eso existen los sesenta días y los cuatro '
+    + 'recordatorios, y es la única frase de esta página que vale la pena leer dos veces.',
+  'help.family-settings.retention.b4':
+    '**Lo que nunca se elimina:** sus familiares, el Directorio, los anuncios, el chat, el '
+    + 'calendario y todo lo demás que incluye el plan Gratis. Una familia que deja de pagar por '
+    + 'completo conserva todo eso.',
+
+  // ── Family Settings · If a payment fails ─────────────────────────────────────────
+  'help.family-settings.overdue.heading': 'Si un pago falla',
+  'help.family-settings.overdue.b0':
+    'Una tarjeta se rechaza por motivos corrientes: venció, el banco la marcó, cambió la '
+    + 'dirección de facturación. Nada cambia el día en que ocurre, y actualizar la tarjeta en '
+    + '**Facturación** lo resuelve.',
+  'help.family-settings.overdue.b1':
+    'Si sigue sin pagarse, el acceso se limita por etapas para que quien pueda arreglarlo '
+    + 'siempre pueda:',
+  'help.family-settings.overdue.b2.i0.term': 'A los 5 días',
+  'help.family-settings.overdue.b2.i0.text':
+    'Se envía un correo a todos los que se encargan de la facturación. Nada se limita y todos '
+    + 'siguen como siempre.',
+  'help.family-settings.overdue.b2.i1.term': 'A los 10 días',
+  'help.family-settings.overdue.b2.i1.text':
+    'Los familiares ya no pueden usar el sitio. Los administradores conservan el acceso '
+    + 'completo, y pagar lo restaura para todos a la vez.',
+  'help.family-settings.overdue.b2.i2.term': 'A los 30 días',
+  'help.family-settings.overdue.b2.i2.text':
+    'Solo queda abierta la sección de Facturación, también para los administradores. No se ha '
+    + 'quitado nada y todo se vuelve a abrir al pagar.',
+  'help.family-settings.overdue.b2.i3.term': 'A los 60 días',
+  'help.family-settings.overdue.b2.i3.text':
+    'La familia pasa al plan Gratis y se elimina lo que el plan Gratis no incluye. Antes se '
+    + 'envían dos avisos: a los 45 días y el día anterior.',
+  'help.family-settings.overdue.b3':
+    '**No se elimina nada antes del día 60, y tampoco cambia nada del plan antes de esa fecha.** '
+    + 'Si paga el día 59, cada pantalla y cada registro están exactamente donde estaban. Lo que '
+    + 'se elimina el día 60 no se puede recuperar.',
+  'help.family-settings.overdue.b4':
+    'A un integrante que ve «no está disponible temporalmente» se le dice todo el mensaje a '
+    + 'propósito: lo que una familia le debe a GENORRA no es asunto de cada familiar. Se le pide '
+    + 'que se comunique con quien lleva la contabilidad de la familia, que es quien puede '
+    + 'resolverlo de verdad.',
 }

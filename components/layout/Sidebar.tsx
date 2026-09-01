@@ -684,7 +684,7 @@ function NavLink({ href, icon: Icon, active, beta, onClick, t }: {
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
       className={cn(
-        'group relative -ml-3 flex items-center gap-3 rounded-l-none rounded-r-full py-2 pl-7 pr-3 text-sm transition-colors',
+        'group relative -ms-3 flex items-center gap-3 rounded-s-none rounded-e-full py-2 ps-7 pe-3 text-sm transition-colors',
         active
           ? 'bg-brand-legacy font-semibold text-brand-on-legacy shadow-sm'
           : 'text-brand-on-hero/75 hover:bg-brand-primary hover:text-brand-on-primary',
@@ -700,7 +700,7 @@ function NavLink({ href, icon: Icon, active, beta, onClick, t }: {
           be wrong half the time, and borrowing one across pairs is what AGENTS.md forbids.
           Both branches above already set the correct partner as the text colour, so a
           `currentColor` badge is right on both without knowing which it is on. */}
-      {beta && <BetaBadge variant="outline" className="ml-auto" />}
+      {beta && <BetaBadge variant="outline" className="ms-auto" />}
     </Link>
   )
 }
@@ -1003,7 +1003,7 @@ export function Sidebar({ viewable }: {
           of flow and cannot inherit the width of the box it fills. */}
       <div
         aria-hidden="true"
-        className="fixed inset-y-0 left-0 w-56 bg-brand-hero"
+        className="fixed inset-y-0 start-0 w-56 bg-brand-hero"
         style={{ borderTopLeftRadius: RAIL_CORNER_REM }}
       />
       {/* THE PADDING IS ASYMMETRIC, AND THE RIGHT NUMBER IS FROM THE KIT.
@@ -1018,11 +1018,11 @@ export function Sidebar({ viewable }: {
           rail runs through the rightmost ~14px, so a 212px pill overlapped the bite and
           cut it off just where it is deepest.
 
-          `pr-9` is 36px. The kit's motto card arrives at the same answer independently
+          `pe-9` is 36px. The kit's motto card arrives at the same answer independently
           (`x=30..217`, a 37px right inset), which is the check that this is the rail's
-          real margin and not one shape's quirk. `pl-3` stays, because NavLink cancels it
-          with `-ml-3` to bleed the pill off the left edge exactly as the kit does. */}
-      <div className="sticky top-0 z-10 flex max-h-screen flex-col overflow-y-auto overscroll-contain py-3 pl-3 pr-9">
+          real margin and not one shape's quirk. `ps-3` stays, because NavLink cancels it
+          with `-ms-3` to bleed the pill off the left edge exactly as the kit does. */}
+      <div className="sticky top-0 z-10 flex max-h-screen flex-col overflow-y-auto overscroll-contain py-3 ps-3 pe-9">
         <RailBrand />
         <nav className="mt-4 flex flex-col">
           <NavTree groups={navGroups} pathname={pathname} t={t} />
@@ -1091,11 +1091,11 @@ export function MobileNav({ viewable }: {
               it would be two `position` declarations fighting over one element.
               `overflow-hidden` is forbidden here for the same reason as the desktop rail:
               the nav below scrolls. */}
-          <div className="md:hidden fixed inset-y-0 left-0 w-64 bg-brand-hero z-50 flex flex-col">
+          <div className="md:hidden fixed inset-y-0 start-0 w-64 bg-brand-hero z-50 flex flex-col">
             {/* The drawer leads with the same brand block the desktop rail does, so
                 opening the menu on a phone lands somewhere that is recognisably the same
                 rail rather than a plain strip that belongs to no product. */}
-            <div className="shrink-0 flex items-start justify-between gap-2 pr-2">
+            <div className="shrink-0 flex items-start justify-between gap-2 pe-2">
               <RailBrand />
               <button
                 onClick={() => setMobileOpen(false)}
@@ -1109,7 +1109,7 @@ export function MobileNav({ viewable }: {
                 three reasons — a pill that stops short of the edge reads as sitting on
                 the rail. The drawer has no swoosh to protect, so this is proportion
                 alone. */}
-            <nav className="relative z-10 flex flex-col overflow-y-auto py-3 pl-3 pr-9">
+            <nav className="relative z-10 flex flex-col overflow-y-auto py-3 ps-3 pe-9">
               <NavTree groups={navGroups} pathname={pathname} onNavClick={() => setMobileOpen(false)} t={t} />
               <RailMotto t={t} />
             </nav>

@@ -251,4 +251,69 @@ export const emailEs: Catalogue = {
   'email.staffDelete.p2': 'Esto destruye todos los registros de esa familia y no hay forma de restaurarlos. Si usted no lo pidió, no use el código, y considere que su sesión en la consola está comprometida.',
   'email.staffDelete.fine': 'El código dura {minutes} minutos, funciona una vez y permite cinco intentos.',
   'email.staffDelete.footnote': 'Se envía porque una sesión de la consola de personal lo pidió. Nadie de la familia recibe este mensaje.',
+
+  'email.dunning.day5.subject': 'Un pago de {family} no se procesó',
+  'email.dunning.day5.preheader': 'Actualice la tarjeta y todo sigue igual.',
+  'email.dunning.day5.heading': 'Un pago no se procesó',
+  'email.dunning.day5.p1':
+    'La tarjeta registrada para {family} fue rechazada. Todavía no ha cambiado nada y todos '
+    + 'pueden seguir usando el sitio como siempre: actualizar la tarjeta lo resuelve.',
+  'email.dunning.day10.subject': '{family} tiene el acceso limitado hasta que se pague',
+  'email.dunning.day10.preheader': 'Los integrantes no pueden entrar. Los administradores sí.',
+  'email.dunning.day10.heading': 'El acceso está limitado',
+  'email.dunning.day10.p1':
+    'El pago de {family} sigue pendiente, así que los familiares ya no pueden usar el sitio. '
+    + 'Los administradores conservan el acceso completo, y pagar lo restaura para todos a la '
+    + 'vez: no se ha eliminado nada.',
+  'email.dunning.day30.subject': 'Solo queda abierta la facturación de {family}',
+  'email.dunning.day30.preheader': 'Las demás pantallas están cerradas hasta que se pague.',
+  'email.dunning.day30.heading': 'Solo queda abierta la facturación',
+  'email.dunning.day30.p1':
+    'La cuenta de {family} lleva treinta días de atraso, así que todas las pantallas excepto '
+    + 'esta están ahora cerradas también para los administradores. Todo lo que la familia ha '
+    + 'registrado sigue ahí, y pagar lo vuelve a abrir.',
+  'email.dunning.day45.subject': 'Acción necesaria: {family} pierde sus registros en 15 días',
+  'email.dunning.day45.preheader': 'En 15 días esto no se podrá deshacer.',
+  'email.dunning.day45.heading': 'Quedan quince días',
+  'email.dunning.day45.p1':
+    'La cuenta de {family} lleva cuarenta y cinco días sin pagar. En {days} días la familia '
+    + 'pasa al plan Gratis y se elimina todo lo que el plan Gratis no incluye: el árbol '
+    + 'genealógico, el libro de cuotas, los fondos y las fotografías.',
+  'email.dunning.day59.subject': 'Mañana: {family} pierde sus registros',
+  'email.dunning.day59.preheader': 'Este es el último día para evitarlo.',
+  'email.dunning.day59.heading': 'Mañana',
+  'email.dunning.day59.p1':
+    'Mañana, si no se recibe el pago, {family} pasa al plan Gratis y se elimina todo lo que '
+    + 'el plan Gratis no incluye: el árbol genealógico, el libro de cuotas, los fondos y las '
+    + 'fotografías.',
+  'email.dunning.amount': 'Para poner la cuenta al día: {amount}. Eso cubre lo pendiente y el '
+    + 'mes que viene, así que no vuelve a atrasarse de inmediato.',
+  'email.dunning.button': 'Pagar ahora',
+  'email.dunning.fine':
+    'Recibe este mensaje porque usted se encarga de la facturación de esta familia.',
+  'email.dunning.fineWarn':
+    'Los registros eliminados no se pueden recuperar. Esto no lo puede revertir ni nosotros '
+    + 'ni nadie más.',
+  'email.dunning.footnote':
+    'Si ya pagó, puede ignorar este mensaje: puede tardar unos minutos en llegarnos.',
+
+  'email.retention.subject': 'Sus registros de {tier} se conservan {days} días más',
+  'email.retention.preheader': 'Quedan {days} días para decidir.',
+  'email.retention.heading': 'Quedan {days} días para decidir',
+  'email.retention.p1':
+    '{family} bajó de {tier}, y todo lo que ese plan incluía se ha conservado desde entonces '
+    + 'en vez de eliminarse. En {days} días se elimina.',
+  'email.retention.p2':
+    'Para conservarlo, vuelva a {tier}. Eso cubre los meses que estuvo fuera y también el mes '
+    + 'que viene — {amount} — así el plan no queda con un hueco y todo está exactamente donde '
+    + 'lo dejó.',
+  'email.retention.p3':
+    'Si prefiere empezar de cero, no haga nada. Los registros se eliminan en la fecha '
+    + 'indicada y la familia sigue con el plan que tiene ahora, sin costo adicional.',
+  'email.retention.button': 'Volver a {tier}',
+  'email.retention.fine':
+    'Los registros eliminados no se pueden recuperar. Esto no lo puede revertir ni nosotros '
+    + 'ni nadie más.',
+  'email.retention.footnote':
+    'Recibe este mensaje porque usted se encarga de la facturación de esta familia.',
 }

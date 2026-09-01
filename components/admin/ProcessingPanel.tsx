@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { CreditCard, ExternalLink, RefreshCw, Unplug } from 'lucide-react'
 
@@ -11,20 +11,20 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import {
-  DEFAULT_CONNECT_COUNTRY, enabledConnectCountries, hasConnectCountryChoice,
+  DEFAULT_CONNECT_COUNTRY, connectCountry, enabledConnectCountries, hasConnectCountryChoice,
 } from '@/lib/stripe/connect-countries'
 import { EmailedCodeField, PasswordReauthField } from '@/components/ui/challenge-fields'
 // THE THROWAWAY CLIENT, deliberately — never the app's own. Signing in on the app's client
 // would replace the session, and a new session's `created_at` resets GoTrue's 24-hour
 // reauthentication window. AGENTS.md states that rule where the Password panel lives.
 import { verifyCurrentPassword } from '@/lib/supabase/client'
-import { formatCurrency } from '@/lib/currency-utils'
 import { grossUpCents } from '@/lib/stripe-fees'
 import {
   disconnectProcessor, refreshProcessorStatus, requestProcessorDisconnectCode,
-  startProcessorOnboarding, setProcessingFeePolicy, type ProcessorStatus,
+  startProcessorOnboarding, setProcessingFeePolicy, setProcessorCountry, type ProcessorStatus,
 } from '@/app/actions/admin/processing'
-import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import { useT } from '@/components/layout/LocaleProvider'
+import { useMoney } from '@/components/layout/MoneyProvider'
 import type { T } from '@/lib/i18n/t'
 
 /**
@@ -175,27 +175,63 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
   }, [canManage, router, t])
 
   /**
-   * Which country a NEW connected account is created in.
+   * Which country the family's account is created in — and, since 2026-09-01, the currency its
+   * BOOKS are kept in.
    *
-   * ── LOCAL, AND ONLY EVER READ WHEN THERE IS NO ACCOUNT YET ───────────────────────
-   * `identity.country` cannot be changed after creation, so this decides something
-   * permanent — and a family RECONNECTING has already decided it. The picker is rendered
-   * only on the no-account branch below, and `startProcessorOnboarding` ignores the argument
-   * when `ensureConnectedAccount` finds an existing row.
+   * ── IT IS SEEDED FROM THE FAMILY NOW, NOT FROM A CONSTANT ───────────────────────
+   * This said *"NOT SEEDED FROM `status.country`: on the branch where this is rendered there is
+   * no account and therefore no country"* — true while the only place a country lived was the
+   * Stripe row. `families.connect_country` exists from the moment the family does, because a
+   * family recording cash dues has a currency before it has a merchant account. So the seed is
+   * `status.country`, which is `'us'` for every family created before the column existed —
+   * genuinely American rather than merely unasked, which is what `DEFAULT_CONNECT_COUNTRY`
+   * already said.
    *
-   * NOT SEEDED FROM `status.country`: on the branch where this is rendered there is no
-   * account and therefore no country. `DEFAULT_CONNECT_COUNTRY` is the preselection, and it
-   * is the US for the reason that constant states — every account created before the picker
-   * existed is genuinely American rather than merely unasked.
+   * ── CHANGING IT SAVES IMMEDIATELY, RATHER THAN WAITING FOR ONBOARDING ───────────
+   * Because it decides the family's currency and not only Stripe's paperwork. Leaving it as an
+   * argument to `startProcessorOnboarding` would leave every family that never connects Stripe
+   * on dollars with no way to say otherwise — a family in Monterrey keeping its books in pesos
+   * must not have to open a merchant account to do it.
+   *
+   * `useServerState` so a save landing elsewhere (or a family switch) re-syncs it, and so the
+   * optimistic value survives the `router.refresh()` the save fires.
    *
    * ── DECLARED HERE, ABOVE THE TWO EARLY RETURNS ──────────────────────────────────
    * Not beside the picker it feeds. This component returns early when `status` is null and
-   * again when the deployment cannot take payments, so a `useState` below either of those
-   * is called conditionally — `react-hooks/rules-of-hooks` caught it, and it is a real
-   * defect: the hook order would differ between a render that has a status and one that
-   * does not.
+   * again when the deployment cannot take payments, so a hook below either of those is called
+   * conditionally — `react-hooks/rules-of-hooks` caught it, and it is a real defect: the hook
+   * order would differ between a render that has a status and one that does not.
    */
-  const [country, setCountry] = useState(DEFAULT_CONNECT_COUNTRY)
+  const [country, setCountry] = useState(status?.country ?? DEFAULT_CONNECT_COUNTRY)
+
+  /**
+   * Save the country, and with it the currency.
+   *
+   * The action re-checks both locks (an account exists; a payment has been recorded) because
+   * the control in front of it is a convenience and not a gate — and `families_guard_currency`
+   * refuses the write regardless. What this adds is a sentence a treasurer can act on instead
+   * of a 42501.
+   *
+   * ON FAILURE THE SELECT SNAPS BACK, which matters more here than it usually would: leaving a
+   * picker showing a country the family is not in would misstate which currency their figures
+   * are in on every screen.
+   */
+  const chooseCountry = useCallback((next: string) => {
+    const previous = country
+    setCountry(next)
+    setError('')
+    setNotice('')
+    startTransition(async () => {
+      const result = await setProcessorCountry(next)
+      if (!result.success) {
+        setCountry(previous)
+        setError(result.message)
+        return
+      }
+      setNotice(result.message)
+      router.refresh()
+    })
+  }, [country, router, setCountry])
 
   // Null means the read was refused or failed — NOT "no processor" (§8). Saying so is the
   // point: the alternative invites a treasurer to connect a second account on top of a working
@@ -388,21 +424,47 @@ export function ProcessingPanel({ status }: { status: ProcessorStatus | null }) 
                   A NATIVE `<select>`, per AGENTS.md's rule about member pickers: three
                   options, no icons, no per-row actions, and the platform gives keyboard
                   handling, mobile presentation and type-ahead for free. */}
-              {!returning && hasConnectCountryChoice() && (
-                <div className="mx-auto max-w-xs space-y-1.5 text-left">
+              {hasConnectCountryChoice() && !status.countryLocked && (
+                <div className="mx-auto max-w-xs space-y-1.5 text-start">
                   <Label htmlFor="connect-country" required>{t('proc.countryLabel')}</Label>
                   <Select
                     id="connect-country"
                     value={country}
-                    onChange={e => setCountry(e.target.value)}
+                    onChange={e => chooseCountry(e.target.value)}
                     disabled={pending || busy}
                   >
                     {enabledConnectCountries().map(c => (
                       <option key={c.code} value={c.code}>{t(`country.${c.code}`)}</option>
                     ))}
                   </Select>
+                  {/* WHAT IT DECIDES, IN THE SAME BREATH. The currency is derived from the
+                      country and a treasurer choosing Canada is choosing to keep the family's
+                      books in Canadian dollars — which is a bigger consequence than the
+                      paperwork, and one nothing else on this screen would tell them. */}
+                  <p className="text-xs text-muted-foreground">
+                    {t('proc.countryDecidesCurrency', {
+                      currency: (connectCountry(country)?.currency ?? 'usd').toUpperCase(),
+                    })}
+                  </p>
                   <p className="text-xs text-brand-withheld">{t('proc.countryPermanent')}</p>
                 </div>
+              )}
+
+              {/* LOCKED, AND IT SAYS WHICH LOCK. Two independent reasons — Stripe cannot move
+                  `identity.country` after creation, and the ledger is append-only and carries
+                  no currency of its own — and a treasurer looking for the control needs to
+                  know which of them applies to them. Absent rather than disabled would leave
+                  somebody hunting for a setting that is not missing, it is settled. */}
+              {status.countryLocked && (
+                <p className="mx-auto max-w-md text-xs text-muted-foreground">
+                  {t(status.countryLockedBy === 'payments'
+                    ? 'proc.currencyFixedByPayments'
+                    : 'proc.currencyFixedByAccount',
+                    {
+                      country: t(`country.${status.country}`),
+                      currency: status.currency.toUpperCase(),
+                    })}
+                </p>
               )}
               <Button onClick={() => go(() => startProcessorOnboarding(country))} disabled={pending || busy}>
                 <CreditCard className="h-4 w-4" />
@@ -555,7 +617,7 @@ function Panel({ children }: { children: React.ReactNode }) {
  */
 function FeePolicyFields({ status }: { status: ProcessorStatus }) {
   const t = useT()
-  const intl = useIntlTag()
+  const money = useMoney()
   const router = useRouter()
   const [pending, startTransition] = useTransition()
 
@@ -650,15 +712,15 @@ function FeePolicyFields({ status }: { status: ProcessorStatus }) {
           ? t('proc.feeExplainFamily')
           : example != null
             ? t('proc.feeExplainMember', {
-                owed: formatCurrency(EXAMPLE_OWED_CENTS, intl),
-                charged: formatCurrency(example, intl),
+                owed: money(EXAMPLE_OWED_CENTS),
+                charged: money(example),
               })
             : t('proc.feeRateUnusable')}
       </p>
 
       {status.feesPaidCents > 0 && (
         <p className="text-xs text-muted-foreground">
-          {t('proc.feesPaidSoFar', { amount: formatCurrency(status.feesPaidCents, intl) })}
+          {t('proc.feesPaidSoFar', { amount: money(status.feesPaidCents) })}
         </p>
       )}
 

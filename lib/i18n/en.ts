@@ -281,7 +281,49 @@ export const en: Catalogue = {
   // names the missing one rather than letting the picker print a key.
   'proc.countryLabel': 'Where the family banks',
   'proc.countryPermanent': 'Stripe cannot change this after the account is created, so it decides the payout currency and which documents you will be asked for.',
+  'proc.countryDecidesCurrency': 'Your family’s dues, funds and budgets will be recorded in {currency}.',
+  'proc.currencyFixedByAccount': 'Your family collects in {currency} ({country}). Stripe cannot move a connected account to another country, so this is settled.',
+  'proc.currencyFixedByPayments': 'Your family collects in {currency} ({country}). Payments have already been recorded, and the ledger cannot be re-denominated, so this is settled.',
   'act.countryNotAvailableForDues': 'Online dues collection is not available in that country yet.',
+  'act.nothingWithheldToLetGo': 'There are no withheld records to let go.',
+  'act.couldNotDeleteRecordsPlease': 'Could not delete those records. Please try again.',
+  'act.thatCodeNotRight': 'That code is not right.',
+  'act.enterSixDigitCode': 'Enter the six-digit code from your email.',
+  'ret.heading': 'Records from your old plan',
+  'ret.p1': 'Your family moved down from {tier}. Everything that plan included has been kept rather than removed, and it is deleted in {days} days.',
+  'ret.p1One': 'Your family moved down from {tier}. Everything that plan included has been kept rather than removed, and it is deleted tomorrow.',
+  'ret.p1Today': 'Your family moved down from {tier}. Everything that plan included is due to be deleted today.',
+  'ret.overdue': 'The deletion is overdue by {days} days and is waiting on a reminder that has not been sent. Nothing has been removed.',
+  'ret.keep': 'Move back to {tier} to keep it. That covers the {months} month(s) you have been away and the coming month — {amount}.',
+  'ret.freshHeading': 'Or let it go now',
+  'ret.fresh': 'If you have decided, you can delete it today rather than waiting and being reminded four more times.',
+  'ret.freshButton': 'Let these records go…',
+  'ret.irreversible': 'Deleted records cannot be recovered. This cannot be reversed by us or by anybody else.',
+  'ret.willDelete': 'This will delete:',
+  'ret.rows': '{n} row(s) in {table}',
+  'ret.codeSent': 'A six-digit code has been sent to {email}. It lasts {minutes} minutes.',
+  'ret.codeLabel': 'Code from your email',
+  'ret.confirmButton': 'Delete these records permanently',
+  'ret.done': 'Those records have been deleted.',
+  'lock.admin.heading': 'Your family’s payment is overdue',
+  'lock.admin.p1Members': 'The last payment for {family} did not go through, so relatives can no longer use the site. You still have full access, and paying restores everybody at once.',
+  'lock.admin.p1All': 'The last payment for {family} did not go through, so every screen except billing is closed. Paying opens all of them again.',
+  'lock.admin.nothingLost': 'Nothing has been removed. Everything the family has entered is exactly where it was.',
+  'lock.admin.warnOne': 'Tomorrow the family moves to the Free plan and everything the Free plan does not include is deleted. That cannot be reversed.',
+  'lock.admin.warnMany': 'In {days} days the family moves to the Free plan and everything the Free plan does not include — the family tree, the dues ledger, the funds and the photographs — is deleted. That cannot be reversed.',
+  'lock.admin.button': 'Go to billing',
+  'lock.member.heading': '{family} is temporarily unavailable',
+  'lock.member.p1': 'There is an accounting issue on this family’s account. Please contact your family administrator.',
+  'lock.member.p2': 'Nothing has been removed, and everything comes back as soon as it is resolved.',
+  'lock.otherFamilies': 'Your other families are unaffected —',
+  'lock.myFamilies': 'My Families',
+  'act.chooseKeepOrStartFresh': 'Choose whether to keep the records from your old plan or start fresh before continuing.',
+  'act.nothingWithheldToKeep': 'There are no withheld records for this plan to bring back.',
+  'bill.catchUpLine': '{plan} — {months} month(s) you were away, plus the coming month',
+  'act.countryAndCurrencySaved': 'Saved. Your family collects in this country’s currency.',
+  'act.couldNotReadFamilyCurrency': 'We could not tell which currency your family collects in, so this payment was not started. Please try again.',
+  'act.currencyFixedByPayments': 'Your family has already recorded payments, so its country and currency cannot be changed.',
+  'act.currencyFixedByAccount': 'Your family’s payment account has already been created, so its country and currency cannot be changed.',
   'country.us': 'United States',
   'country.ca': 'Canada',
   'country.mx': 'Mexico',
@@ -398,7 +440,8 @@ export const en: Catalogue = {
   'bill.effectOnceDifferencePaid':
     '{plan} takes effect as soon as the extra amount is paid. Stripe is charging the difference for the rest of this period now.',
   'bill.planStopsOn':
-    'The plan stops on {on}. Every page stays open until then, and every record is kept afterwards.',
+    'The plan stops on {on}. Every page stays open until then. What the cheaper plan does not '
+    + 'include is kept for sixty days after that, and deleted if you have not moved back.',
   'bill.startsOnNoRefund':
     '{plan} starts on {on}. Nothing changes before then, and there is no refund for the term already paid for.',
   'bill.activeNowCredit':
@@ -3008,15 +3051,18 @@ export const en: Catalogue = {
   'plan.downgradeBilledWithDate':
     'Nothing changes today. {current} stays open until the end of the period you have already '
     + 'paid for, and {next} starts on {date}. There is no refund for the rest of this period — '
-    + 'that is what keeps the pages open until it ends. Nothing is deleted, whichever plan you '
-    + 'finish on.',
+    + 'that is what keeps the pages open until it ends. Nothing is deleted then, and what the '
+    + 'cheaper plan does not include is kept for sixty days afterwards.',
   'plan.downgradeBilled':
     'Nothing changes today. {current} stays open until the end of the period you have already '
     + 'paid for. There is no refund for the rest of this period — that is what keeps the pages '
-    + 'open until it ends. Nothing is deleted, whichever plan you finish on.',
+    + 'open until it ends. Nothing is deleted then, and what the cheaper plan does not include '
+    + 'is kept for sixty days afterwards.',
   'plan.downgradeUnbilled':
     'Pages that are part of {current} stop opening. Nothing is deleted: every record stays '
-    + 'exactly where it is, and moving back up brings the pages back with their data intact.',
+    + 'exactly where it is for sixty days, and moving back up inside those sixty days brings the '
+    + 'pages back with their data intact. After sixty days it is deleted — you are reminded four '
+    + 'times first.',
   'proc.consequenceBase':
     'Members will no longer be able to pay online. Every payment already recorded is kept, '
     + 'and the family’s own Stripe account is untouched.',

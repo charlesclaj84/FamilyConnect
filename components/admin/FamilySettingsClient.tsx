@@ -21,6 +21,8 @@ import {
 } from '@/components/admin/family-settings'
 import { PlanPanel } from '@/components/admin/PlanPanel'
 import { BillingPanel } from '@/components/admin/BillingPanel'
+import { RetentionPanel } from '@/components/admin/RetentionPanel'
+import type { RetentionView } from '@/app/actions/admin/retention'
 import type { PlatformBilling } from '@/app/actions/billing'
 import { HelpLink } from '@/components/help/HelpLink'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
@@ -71,7 +73,7 @@ const PANE_ICON: Record<SettingsPane, typeof Crown> = {
   family: Home,
 }
 
-export function FamilySettingsClient({ settings, initialPane, billing }: {
+export function FamilySettingsClient({ settings, initialPane, billing, retention }: {
   settings: FamilySettings
   /**
    * Resolved from `?pane=` on the SERVER, so the first paint is already the right pane and a
@@ -88,6 +90,14 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
    * to start a second one.
    */
   billing: PlatformBilling | null
+  /**
+   * The open sixty-day retention window, or null — which is the state of nearly every family.
+   *
+   * RESOLVED ON THE PAGE, like `billing` beside it and for §5's reason: it names a figure and a
+   * deadline, so a caller without `admin/settings:edit` must never receive it. `RetentionPanel`
+   * renders nothing at all for null.
+   */
+  retention: RetentionView | null
 }) {
   const intl = useIntlTag()
   const t = useT()
@@ -268,8 +278,14 @@ export function FamilySettingsClient({ settings, initialPane, billing }: {
           so nothing in here can charge anybody. `BillingPanel`'s header argues the split, and
           `family-settings.ts` argues why it is a pane rather than a band. */}
       <div hidden={pane !== 'billing'} className="overflow-hidden rounded-xl border bg-card">
-        <div className="p-5 sm:p-6">
+        <div className="space-y-5 p-5 sm:p-6">
           <BillingPanel billing={billing} />
+          {/* ── THE RETENTION WINDOW, ONLY WHILE ONE IS OPEN ────────────────────────
+              Renders null for every family that has not downgraded, which is nearly all of
+              them. It sits under the record rather than over it because the record is what
+              somebody opening this pane came for; the window is a thing that happened to them.
+              See its own header for why "start fresh" is a button here and "keep it" is not. */}
+          <RetentionPanel view={retention} />
         </div>
         <div className="border-t px-5 py-4 sm:px-6">
           <HelpLink

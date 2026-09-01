@@ -237,6 +237,11 @@ async function onCheckoutSession(
   if (error) return { handled: false, detail: `could not extend the term: ${error.message}` }
 
   await promoteTier(admin, familyCode, priced.tier)
+  // AFTER the tier, so a `'fresh'` purge runs at what the family is on NOW rather than at what
+  // they were on a moment ago — which is the difference between losing one tier's data and
+  // losing two.
+  await settleWithheldData(admin, familyCode, session.metadata?.genorra_withheld)
+  await cancelPendingDunning(admin, familyCode)
   await announceToMeta(admin, {
     familyCode, tier: priced.tier,
     transactionId: ref,
@@ -341,6 +346,8 @@ async function onUpgradePaid(
   if (error) return { handled: false, detail: `could not apply the upgrade: ${error.message}` }
 
   await promoteTier(admin, familyCode, tier)
+  await settleWithheldData(admin, familyCode, session.metadata?.genorra_withheld)
+  await cancelPendingDunning(admin, familyCode)
   await announceToMeta(admin, {
     familyCode, tier,
     transactionId: ref,
@@ -463,6 +470,22 @@ async function onInvoicePaid(admin: AdminClient, invoice: Stripe.Invoice): Promi
   if (error) return { handled: false, detail: `could not record the paid period: ${error.message}` }
 
   await promoteTier(admin, familyCode, priced.tier)
+  // ── THE FIRST INVOICE OF A RETURNING SUBSCRIPTION CARRIES THE CHOICE TOO ──────────
+  // A monthly return lands here rather than on the session path — the session opens a trial
+  // and the money arrives as an invoice — so the same settlement has to run from both, or a
+  // family that came back monthly would keep being reminded about data they had paid to keep.
+  // `subscription_data.metadata` is what carries it; `meta` is already that merged object.
+  await settleWithheldData(
+    admin, familyCode,
+    // The subscription's own metadata, which is where `subscription_data.metadata` on the
+    // Checkout Session lands and what every renewal invoice carries forward. `invoice.metadata`
+    // is the invoice's OWN and is empty for a subscription renewal — reading only that would
+    // make this branch silently never fire, which is exactly the shape a returning monthly
+    // family would present as "the reminders never stopped".
+    invoice.parent?.subscription_details?.metadata?.genorra_withheld
+      ?? invoice.metadata?.genorra_withheld,
+  )
+  await cancelPendingDunning(admin, familyCode)
   await announceToMeta(admin, {
     familyCode, tier: priced.tier,
     transactionId: ref,
@@ -612,6 +635,125 @@ async function promoteTier(admin: AdminClient, familyCode: string, tier: FamilyT
     // is guarded against the `authenticated` role only (20260813000003), so the service role
     // is not what refused this — something else did, and somebody has to look.
     console.error(`[stripe/platform] PAID BUT NOT GRANTED: ${familyCode} -> ${tier}: ${writeError.message}`)
+  }
+}
+
+/**
+ * Settle a family's withheld data, once their payment has actually landed.
+ *
+ * ── IT RUNS AFTER THE MONEY, NEVER BEFORE — WHICH IS THE WHOLE POINT ──────────────
+ * `app/actions/billing.ts` may create a Checkout Session and may not decide that a family has
+ * paid (AGENTS.md, "THE BUTTON PRESS IS NOT THE PAYMENT"). That rule is sharper here than
+ * anywhere else in the product: `'fresh'` DESTROYS a family tree, so acting on the button
+ * press would delete a family's records for somebody who abandoned the hosted page.
+ *
+ * ── TWO CHOICES, AND AN ABSENT ONE MEANS LEAVE IT ALONE ───────────────────────────
+ *
+ *   'keep'    They paid for the months they were away. The window closes and every row stays.
+ *   'fresh'   They paid the ordinary price and let the data go. It is deleted NOW, on the
+ *             strength of a decision they made on a screen that said so — rather than in
+ *             sixty days by a clock, which is the only other way it goes.
+ *   absent    Nothing was withheld, or this purchase does not cover the withheld tier. The
+ *             clock keeps running and the reminders keep arriving.
+ *
+ * ── THE PURGE IS THE SAME ONE PATH AS EVERY OTHER, WHICH THE BRIEF INSISTED ON ────
+ * *"ONE HARD-DELETE PATH, THREE CALLERS."* This is the third — `delete_family_data_above_tier`
+ * — and it is called at the tier the family is on AFTER the promotion, so a family returning
+ * to Plus while Premium was withheld keeps Plus's data and loses Premium's.
+ *
+ * FAILURES ARE LOGGED AND NEVER THROWN. The payment has landed and the tier has been granted;
+ * a window that failed to close is a family being reminded about data they have already paid
+ * to keep, which is a nuisance. Throwing here would answer Stripe 500 and have the whole event
+ * redelivered, re-running a DELETION.
+ */
+async function settleWithheldData(
+  admin: AdminClient,
+  familyCode: string,
+  choice: string | undefined,
+): Promise<void> {
+  if (choice !== 'keep' && choice !== 'fresh') return
+
+  const { data, error } = await admin
+    .from('platform_billing_accounts')
+    .select('withheld_since, withheld_from_tier')
+    .eq('family_code', familyCode)
+    .maybeSingle()
+  if (error) {
+    console.error(`[stripe/platform] could not read the retention window for ${familyCode}: ${error.message}`)
+    return
+  }
+  // ALREADY CLOSED IS NOT AN ERROR. Stripe redelivers, and this handler has to be safe to
+  // reach twice — a second `'fresh'` would otherwise purge again at whatever tier the family
+  // is on by then.
+  const row = (data ?? {}) as { withheld_since?: string | null }
+  if (!row.withheld_since) return
+
+  if (choice === 'fresh') {
+    const { data: famRow } = await admin
+      .from('families').select('tier').eq('family_code', familyCode).maybeSingle()
+    const tier = isFamilyTier((famRow as { tier?: string } | null)?.tier)
+      ? (famRow as { tier: FamilyTier }).tier
+      : 'free'
+    const { data: counts, error: purgeError } = await admin
+      .rpc('delete_family_data_above_tier', {
+        p_family_code: familyCode, p_tier: tier, p_dry_run: false,
+      })
+    if (purgeError) {
+      console.error(`[stripe/platform] start-fresh purge failed for ${familyCode}: ${purgeError.message}`)
+      return
+    }
+    // THE AUDIT ROW, for `genorra_staff_deletions`' reason: a destruction nobody can account
+    // for afterwards is worse than one nobody can undo.
+    await admin.from('platform_data_deletions').insert({
+      family_code: familyCode,
+      reason: 'start_fresh',
+      tier_kept: tier,
+      deleted: counts ?? {},
+    })
+  }
+
+  const { error: closeError } = await admin
+    .from('platform_billing_accounts')
+    .update({ withheld_since: null, withheld_from_tier: null })
+    .eq('family_code', familyCode)
+  if (closeError) {
+    console.error(`[stripe/platform] could not close the retention window for ${familyCode}: ${closeError.message}`)
+  }
+}
+
+/**
+ * A family has paid, so stop telling them they have not.
+ *
+ * ── THE QUEUE OUTLIVES THE PROBLEM IT IS ABOUT, WHICH IS THE BUG THIS CLOSES ──────
+ * `sweep_platform_billing()` enqueues day 5 through day 59 the moment each falls due, and
+ * `delinquent_since` being cleared does not touch a row already sitting in the queue. Without
+ * this, a family that pays on day 46 would still receive *"tomorrow, unless payment is
+ * received"* on day 59 — about a debt they settled a fortnight earlier, in the most alarming
+ * wording the product has.
+ *
+ * ── `cancelled`, NOT DELETED ─────────────────────────────────────────────────────
+ * `platform_billing_notices` is the evidence that a family was warned, and both deletion paths
+ * read it. A cancelled row says the warning was owed and then was not needed; a deleted one
+ * says nothing at all, and would let a LATER cycle's day-60 sweep find a gap it could not
+ * explain. The state exists on the CHECK for exactly this.
+ *
+ * ── ONLY `pending`, NEVER `sent` ─────────────────────────────────────────────────
+ * A notice that has gone has gone. Rewriting its state would make the record of what the
+ * family was actually told disagree with their inbox — and it is that record the sweep trusts.
+ *
+ * Logged and never thrown: the payment has landed and the tier has been granted, and a queue
+ * that failed to quieten is a nuisance rather than a reason to have Stripe redeliver the whole
+ * event.
+ */
+async function cancelPendingDunning(admin: AdminClient, familyCode: string): Promise<void> {
+  const { error } = await admin
+    .from('platform_billing_notices')
+    .update({ state: 'cancelled' })
+    .eq('family_code', familyCode)
+    .eq('kind', 'dunning')
+    .in('state', ['pending', 'sending'])
+  if (error) {
+    console.error(`[stripe/platform] could not quieten the dunning queue for ${familyCode}: ${error.message}`)
   }
 }
 

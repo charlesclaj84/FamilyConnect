@@ -38,8 +38,8 @@ export function MessageBubble({ message, senderName, isOwn, zone, intl }: Props)
         className={cn(
           'rounded-2xl px-4 py-2 text-sm break-words',
           isOwn
-            ? 'bg-brand-primary text-brand-on-primary rounded-br-sm'
-            : 'bg-muted text-foreground rounded-bl-sm',
+            ? 'bg-brand-primary text-brand-on-primary rounded-ee-sm'
+            : 'bg-muted text-foreground rounded-es-sm',
         )}
       >
         {message.body}

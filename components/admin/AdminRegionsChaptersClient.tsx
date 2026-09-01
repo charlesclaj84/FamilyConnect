@@ -354,9 +354,9 @@ export function AdminRegionsChaptersClient({
           <div className="overflow-visible rounded-xl border">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <SortTh label={t('dir.region')} {...regionSort.sortProps('region')} className="px-3 py-2 font-semibold" />
-                  <SortTh label={t('rep.chapters')} align="right" {...regionSort.sortProps('chapters')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('rep.chapters')} align="end" {...regionSort.sortProps('chapters')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   <SortTh label={t('org.attached')} {...regionSort.sortProps('attached')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                 </tr>
@@ -375,7 +375,7 @@ export function AdminRegionsChaptersClient({
                           <MetaIf value={attachedCaption(attached, t)} />
                         </RowMeta>
                       </td>
-                      <td className={cn('px-3 py-2.5 text-right tabular-nums text-muted-foreground', COLLAPSING_CELL)}>{count}</td>
+                      <td className={cn('px-3 py-2.5 text-end tabular-nums text-muted-foreground', COLLAPSING_CELL)}>{count}</td>
                       <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
                         {attachedCaption(attached, t) ?? '—'}
                       </td>
@@ -439,10 +439,10 @@ export function AdminRegionsChaptersClient({
           <div className="overflow-visible rounded-xl border">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <SortTh label={t('field.chapter')} {...chapterSort.sortProps('chapter')} className="px-3 py-2 font-semibold" />
                   <SortTh label={t('dir.region')} {...chapterSort.sortProps('region')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                  <SortTh label={t('rep.members')} align="right" {...chapterSort.sortProps('members')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('rep.members')} align="end" {...chapterSort.sortProps('members')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   <SortTh label={t('org.attached')} {...chapterSort.sortProps('attached')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                 </tr>
@@ -487,7 +487,7 @@ export function AdminRegionsChaptersClient({
                         </RowMeta>
                       </td>
                       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>{regionSelect}</td>
-                      <td className={cn('px-3 py-2.5 text-right tabular-nums text-muted-foreground', COLLAPSING_CELL)}>{attached.members}</td>
+                      <td className={cn('px-3 py-2.5 text-end tabular-nums text-muted-foreground', COLLAPSING_CELL)}>{attached.members}</td>
                       <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
                         {attachedCaption({ ...attached, members: 0 }, t) ?? '—'}
                       </td>

@@ -12,6 +12,7 @@ import {
 import type { DuesSummary, DonationSummary } from '@/app/actions/dues'
 import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
+import { useMoney } from '@/components/layout/MoneyProvider'
 /**
  * WHERE A MEMBER STANDS — what they owe, and what the family is asking them to give to.
  *
@@ -67,6 +68,7 @@ export function DuesAndDonationsShell({
 }) {
   const t = useT()
   const intl = useIntlTag()
+  const money = useMoney()
   const [pane, setPane] = useState<MoneyPane>(initialPane)
 
   const items: MainRailItem<MoneyPane>[] = MONEY_PANES.map(id => ({
@@ -112,7 +114,7 @@ export function DuesAndDonationsShell({
           </div>
         ) : (
           <div className="space-y-4">
-            <DonationsSection donations={donations} chargesReady={online.chargesReady} intl={intl} t={t} />
+            <DonationsSection donations={donations} chargesReady={online.chargesReady} intl={intl} money={money} t={t} />
             {/* Said ONCE under the list, not as a greyed-out Give on every drive. It is the
                 same judgement the dues pane makes about its own totals card: a promise about
                 a capability is a property of the SCREEN, and repeating it per row makes the

@@ -12,6 +12,8 @@ import { DuesBalanceKpi } from '@/components/dues/DuesBalanceKpi'
 import { PageShell } from '@/components/layout/PageShell'
 import { cn } from '@/lib/utils'
 import { callerI18n } from '@/lib/i18n/server'
+import { moneyFor } from '@/lib/currency-utils'
+import { getMyFamilyCurrency } from '@/lib/auth/currency'
 import { currentUser } from '@/lib/auth/current-user'
 import { docTitle } from '@/lib/i18n/page-metadata'
 
@@ -64,6 +66,10 @@ export default async function AccountSummaryPage() {
   await requireView(user.id, 'accounting/summary')
 
   const { t, intl } = await callerI18n(user.id)
+  // The FAMILY's currency, bound with the reader's conventions. A page printing the
+  // family's own figures uses this; GENORRA's own prices use `formatPlatformMoney`.
+  // See `lib/currency-utils.ts` — the two ledgers must never meet.
+  const money = moneyFor(await getMyFamilyCurrency(user.id), intl)
 
   const [canDues, canHistory, canDonations, canFunds] = await Promise.all([
     can(user.id, 'accounting/dues-and-donations', 'view'),
@@ -133,9 +139,9 @@ export default async function AccountSummaryPage() {
               until the next edit to one of them. No `showViewLink`: the section heading
               below carries the way through to /dues, so a button here would be a second
               one saying the same thing. */}
-          {canDues && <DuesBalanceKpi summary={duesSummary} intl={intl} t={t} />}
-          {canDues && <NextInstallmentsCard summary={duesSummary} intl={intl} t={t} />}
-          {canHistory && <PaidThisYearCard history={paymentHistory} intl={intl} t={t} />}
+          {canDues && <DuesBalanceKpi summary={duesSummary} money={money} t={t} />}
+          {canDues && <NextInstallmentsCard summary={duesSummary} intl={intl} money={money} t={t} />}
+          {canHistory && <PaidThisYearCard history={paymentHistory} money={money} t={t} />}
         </div>
       )}
 
@@ -168,7 +174,7 @@ export default async function AccountSummaryPage() {
               [Dues & Donations](/accounting/dues-and-donations?pane=donations). A digest that
               shows the ask and cannot take the gift sends somebody to another screen to press
               the same button. */}
-          <DonationsSection donations={openDrives} chargesReady={online.chargesReady} intl={intl} t={t} />
+          <DonationsSection donations={openDrives} chargesReady={online.chargesReady} intl={intl} money={money} t={t} />
           {closedCount > 0 && (
             <p className="text-xs text-muted-foreground">
               {t(closedCount === 1 ? 'acct.closedDrivesOne' : 'acct.closedDrivesMany',

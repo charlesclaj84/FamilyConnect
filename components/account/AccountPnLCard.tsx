@@ -1,17 +1,29 @@
 import { TrendingUp, TrendingDown, Scale, ArrowRightLeft, Wallet, Landmark } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatCurrency } from '@/lib/currency-utils'
 import type { PnLData } from '@/app/actions/dues'
 import { type T } from '@/lib/i18n/t'
+import type { Money } from '@/lib/currency-utils'
 
 interface Props {
   /**
    * The reader's `Intl` tag, for the dates and figures below. A PROP rather than
    * `useIntlTag()`, because this is a Server Component. See lib/i18n/server.ts.
    */
-  intl: string
   /**
-   * The reader's translator. A PROP for `intl`'s reason above, and this card SHIPPED with
+   * The family's money formatter — its currency and the reader's conventions, already bound.
+   *
+   * A PROP RATHER THAN `useMoney()`, because this component has no `'use client'` directive and
+   * a Server Component importing that hook gets a client REFERENCE and throws at render (see
+   * AGENTS.md, `audit:client-hooks`). It crosses server-to-server by reference and a missing one
+   * is a type error.
+   *
+   * It replaced an `intl: string` prop, which is why several of these components no longer take
+   * one: formatting money was their only use for the reader's tag, and the binder carries both
+   * facts. See `lib/currency-utils.ts` for why the currency is bound rather than passed.
+   */
+  money: Money
+  /**
+   * The reader's translator. A PROP for `money`'s reason above, and this card SHIPPED with
    * `useT()` in its body instead — a client hook in a module with no `'use client'`, which
    * throws when a Server Component renders it. `npm run audit:client-hooks` is the gate.
    */
@@ -43,7 +55,7 @@ interface Props {
  * number ends up in a board pack under the wrong heading. Naming the period is the honest
  * minimum; a period selector is a feature, and this is not it.
  */
-export function AccountPnLCard({ data, intl, t }: Props) {
+export function AccountPnLCard({ data, money, t }: Props) {
   const net = data.netCents
   const isPositive = net >= 0
   const unrouted = data.unroutedIncomeCents
@@ -61,12 +73,12 @@ export function AccountPnLCard({ data, intl, t }: Props) {
             <div className="p-1.5 rounded-full bg-brand-affirm"><TrendingUp className="h-4 w-4 text-brand-on-affirm" /></div>
             <span className="text-sm text-muted-foreground font-medium">{t('money.income')}</span>
           </div>
-          <p className="text-3xl font-bold">{formatCurrency(data.totalCollectedCents, intl)}</p>
+          <p className="text-3xl font-bold">{money(data.totalCollectedCents)}</p>
           <div className="text-xs text-muted-foreground space-y-0.5">
             {/* Dues AND donations: both are dues_payments rows, so both are in this
                 total. Labelling it "Dues" alone understated what came in. */}
-            <p className="flex items-center justify-between gap-2"><span>{t('pnl.duesAndDonations')}</span><span className="font-medium text-foreground">{formatCurrency(data.totalIncomeCents, intl)}</span></p>
-            <p className="flex items-center justify-between gap-2"><span>{t('pnl.direct')}</span><span className="font-medium text-foreground">{formatCurrency(data.totalContributionsCents, intl)}</span></p>
+            <p className="flex items-center justify-between gap-2"><span>{t('pnl.duesAndDonations')}</span><span className="font-medium text-foreground">{money(data.totalIncomeCents)}</span></p>
+            <p className="flex items-center justify-between gap-2"><span>{t('pnl.direct')}</span><span className="font-medium text-foreground">{money(data.totalContributionsCents)}</span></p>
           </div>
         </div>
 
@@ -78,7 +90,7 @@ export function AccountPnLCard({ data, intl, t }: Props) {
             <div className="p-1.5 rounded-full bg-brand-warm"><TrendingDown className="h-4 w-4 text-brand-on-warm" /></div>
             <span className="text-sm text-muted-foreground font-medium">{t('money.expenses')}</span>
           </div>
-          <p className="text-3xl font-bold">{formatCurrency(data.totalExpenseCents, intl)}</p>
+          <p className="text-3xl font-bold">{money(data.totalExpenseCents)}</p>
           {/* IT COUNTED EVENT SPEND UNTIL 2026-08-19 and counts DISBURSEMENTS now — money
               that actually left a fund, which is the only outgoing this product records since
               the Events tables were dropped. The caption says which, because a figure whose
@@ -98,13 +110,13 @@ export function AccountPnLCard({ data, intl, t }: Props) {
               <p className="flex items-center justify-between gap-2">
                 <span>{t('pnl.disbursements')}</span>
                 <span className="font-medium text-foreground">
-                  {formatCurrency(data.totalExpenseCents - data.totalFeesCents, intl)}
+                  {money(data.totalExpenseCents - data.totalFeesCents)}
                 </span>
               </p>
               <p className="flex items-center justify-between gap-2">
                 <span>{t('pnl.processingFees')}</span>
                 <span className="font-medium text-foreground">
-                  {formatCurrency(data.totalFeesCents, intl)}
+                  {money(data.totalFeesCents)}
                 </span>
               </p>
             </div>
@@ -125,7 +137,7 @@ export function AccountPnLCard({ data, intl, t }: Props) {
             </span>
           </div>
           <p className={`text-3xl font-bold ${isPositive ? 'text-brand-affirm' : 'text-destructive'}`}>
-            {isPositive ? '+' : ''}{formatCurrency(net, intl)}
+            {isPositive ? '+' : ''}{money(net)}
           </p>
           <p className="text-xs text-muted-foreground">{t('pnl.netLine')}</p>
         </div>
@@ -148,7 +160,7 @@ export function AccountPnLCard({ data, intl, t }: Props) {
           {unrouted < 0 ? t('pnl.routedBeyond') : t('pnl.notYetRouted')}
         </span>
         <span className={`text-xl font-semibold tabular-nums ${unrouted === 0 ? '' : 'text-brand-withheld'}`}>
-          {formatCurrency(Math.abs(unrouted), intl)}
+          {money(Math.abs(unrouted))}
         </span>
         <p className="w-full text-xs text-muted-foreground">
           {unrouted === 0
@@ -175,13 +187,13 @@ export function AccountPnLCard({ data, intl, t }: Props) {
                 <details key={r.fundId} className="px-4 py-2.5">
                   <summary className="flex items-center justify-between cursor-pointer">
                     <span className="text-sm font-medium">{r.fundName}</span>
-                    <span className="text-sm font-semibold text-brand-affirm">{formatCurrency(r.contributedCents, intl)}</span>
+                    <span className="text-sm font-semibold text-brand-affirm">{money(r.contributedCents)}</span>
                   </summary>
-                  <ul className="mt-2 space-y-0.5 pl-1">
+                  <ul className="mt-2 space-y-0.5 ps-1">
                     {r.bySource.map((s, i) => (
                       <li key={i} className="flex justify-between text-xs text-muted-foreground px-1 py-0.5">
                         <span>{s.label}</span>
-                        <span className="ml-4 shrink-0">{formatCurrency(s.cents, intl)}</span>
+                        <span className="ms-4 shrink-0">{money(s.cents)}</span>
                       </li>
                     ))}
                   </ul>
@@ -216,11 +228,11 @@ export function AccountPnLCard({ data, intl, t }: Props) {
                       {/* TWO TERMS, NOT THREE. `expensedCents` was event spend and went with
                           the tables; a third figure reading $0.00 on every fund forever is
                           worse than one fewer figure. */}
-                      In {formatCurrency(f.contributedCents, intl)} · Disbursed {formatCurrency(f.disbursedCents, intl)}
+                      In {money(f.contributedCents)} · Disbursed {money(f.disbursedCents)}
                     </p>
                   </div>
                   <span className={`text-sm font-semibold shrink-0 ${f.balanceCents >= 0 ? 'text-brand-affirm' : 'text-destructive'}`}>
-                    {formatCurrency(f.balanceCents, intl)}
+                    {money(f.balanceCents)}
                   </span>
                 </div>
               ))}

@@ -24,6 +24,7 @@
     "audit:client-hooks": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/client-hooks.mjs",
     "i18n:onscreen": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/i18n-onscreen.mjs",
     "i18n:literals": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/i18n-literals.mjs",
+    "i18n:rtl": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/rtl-check.mjs",
     "auth-email:check": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --env-file=.env.local scripts/auth-email-check.mjs",
     "i18n:accept": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/i18n-coverage.mjs accept",
     "email:check": "node scripts/auth-templates.mjs check",

@@ -185,7 +185,7 @@ export function PersonMultiSelect({
 
           <div className="relative">
             <Search
-              className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+              className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
               aria-hidden="true"
             />
             <Input
@@ -195,7 +195,7 @@ export function PersonMultiSelect({
               onChange={e => setQuery(e.target.value)}
               disabled={disabled}
               placeholder={t('pms.searchMembers', { n: String(people.length) })}
-              className="h-9 pl-8 text-sm"
+              className="h-9 ps-8 text-sm"
             />
           </div>
 

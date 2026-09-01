@@ -277,7 +277,7 @@ export function RailMotto({ t }: { t: T }) {
       <svg
         aria-hidden="true"
         viewBox="145 838 50 45"
-        className="pointer-events-none absolute -bottom-1 right-1 h-10 w-10 stroke-brand-legacy/40"
+        className="pointer-events-none absolute -bottom-1 end-1 h-10 w-10 stroke-brand-legacy/40"
       >
         <path
           d="M169 852 C176 840 189 842 189 853 C189 864 177 871 169 879 C161 871 149 864 149 853 C149 842 162 840 169 852Z"

@@ -1,8 +1,8 @@
 import { CheckCircle2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/currency-utils'
 import type { DuesPayment } from '@/app/actions/dues'
 import { type T } from '@/lib/i18n/t'
+import type { Money } from '@/lib/currency-utils'
 
 /**
  * The payment history in one figure, with what it is the sum of.
@@ -23,11 +23,11 @@ import { type T } from '@/lib/i18n/t'
  * them on its own — a schedule is one kind or the other — so the lines need no
  * Dues/Donation tag to be readable.
  */
-export function PaidThisYearCard({ history, className, intl, t }: {
+export function PaidThisYearCard({ history, className, money, t }: {
   /** The reader's `Intl` tag. A prop — this is a Server Component. */
-  intl: string
+  money: Money
   /**
-   * The reader's translator. A PROP for the same reason `intl` beside it is one, and this
+   * The reader's translator. A PROP for the same reason `money` beside it is one, and this
    * component SHIPPED with `useT()` in its body instead — a client hook in a module with no
    * `'use client'`, which throws *"Attempted to call useT() from the server"* and renders the
    * error boundary over the whole page. `npm run audit:client-hooks` is the gate.
@@ -56,7 +56,7 @@ export function PaidThisYearCard({ history, className, intl, t }: {
         <div className="p-1.5 rounded-full bg-brand-affirm"><CheckCircle2 className="h-4 w-4 text-brand-on-affirm" /></div>
         <span className="text-sm text-muted-foreground font-medium">{t('cards.paidThisYear')}</span>
       </div>
-      <p className="text-3xl font-bold">{formatCurrency(totalPaidCents, intl)}</p>
+      <p className="text-3xl font-bold">{money(totalPaidCents)}</p>
       <p className="text-xs text-muted-foreground">
         {paidPayments.length === 0
           ? t('cards.noPayments')
@@ -73,7 +73,7 @@ export function PaidThisYearCard({ history, className, intl, t }: {
           {paidBySchedule.map(g => (
             <li key={g.name} className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">
               <span className="min-w-0 truncate" title={g.name}>{g.name}</span>
-              <span className="shrink-0 font-medium text-foreground">{formatCurrency(g.cents, intl)}</span>
+              <span className="shrink-0 font-medium text-foreground">{money(g.cents)}</span>
             </li>
           ))}
         </ul>

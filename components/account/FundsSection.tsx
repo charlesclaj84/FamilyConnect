@@ -6,9 +6,9 @@ import { ChevronDown, ChevronRight, Target, Award } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { type FundWithStats } from '@/app/actions/funds'
-import { formatCurrency as fmt } from '@/lib/currency-utils'
 import { useT } from '@/components/layout/LocaleProvider'
 
+import { useMoney } from '@/components/layout/MoneyProvider'
 // Member-initiated "open contributions" was removed along with the contributeToFund
 // server action it called. The action was live, unpermissioned service-role code that
 // happened to be unreachable because this flag was false — and a boolean hiding a
@@ -35,6 +35,7 @@ function pctLabel(bps: number) {
 
 export function FundsSection({ funds, canManage }: Props) {
   const t = useT()
+  const money = useMoney()
   const [expanded, setExpanded] = useState<string | null>(null)
 
   // Nothing to show and nothing to do about it. Somebody who CAN set funds up still
@@ -87,7 +88,7 @@ export function FundsSection({ funds, canManage }: Props) {
               <div key={fund.id} className="rounded-lg border overflow-hidden">
                 <button
                   onClick={() => setExpanded(isOpen ? null : fund.id)}
-                  className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-muted/50 transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2.5 text-start hover:bg-muted/50 transition-colors"
                 >
                   <Target className="h-4 w-4 text-primary shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -104,12 +105,12 @@ export function FundsSection({ funds, canManage }: Props) {
                       </div>
                     )}
                   </div>
-                  <div className="text-right shrink-0 text-xs text-muted-foreground">
-                    <p className="font-medium text-sm text-foreground">{fmt(fund.balance_cents)}</p>
+                  <div className="text-end shrink-0 text-xs text-muted-foreground">
+                    <p className="font-medium text-sm text-foreground">{money(fund.balance_cents)}</p>
                     <p>{t('fnd.balanceWord')}</p>
-                    {target && <p>{t('fnd.ofMinimum', { amount: fmt(target) })}</p>}
+                    {target && <p>{t('fnd.ofMinimum', { amount: money(target) })}</p>}
                   </div>
-                  {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                  {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0 rtl:-scale-x-100" />}
                 </button>
                 {isOpen && (
                   <div className="border-t bg-muted/20 px-3 py-3 space-y-2">
@@ -117,7 +118,7 @@ export function FundsSection({ funds, canManage }: Props) {
                       Receives {pctLabel(fund.allocation_bps)} of routed dues.
                       {fund.minimum_cents > 0
                         && t('fnd.minimumBalanceIs', {
-                          amount: fmt(fund.minimum_cents),
+                          amount: money(fund.minimum_cents),
                         })}
                     </p>
                     {/* Transferred appears only when there is one, and it has to appear
@@ -126,11 +127,11 @@ export function FundsSection({ funds, canManage }: Props) {
                         from an arithmetic bug. Signed, because it is the one figure here
                         that can point either way. */}
                     <p className="text-xs text-muted-foreground">
-                      Contributed {fmt(fund.total_contributed_cents)} · Disbursed {fmt(fund.total_disbursed_cents)}
+                      Contributed {money(fund.total_contributed_cents)} · Disbursed {money(fund.total_disbursed_cents)}
                       {fund.net_transfers_cents !== 0 && (
-                        <> · Transferred {fund.net_transfers_cents < 0 ? '−' : '+'}{fmt(Math.abs(fund.net_transfers_cents))}</>
+                        <> · Transferred {fund.net_transfers_cents < 0 ? '−' : '+'}{money(Math.abs(fund.net_transfers_cents))}</>
                       )}
-                      {' '}· Balance {fmt(fund.balance_cents)}
+                      {' '}· Balance {money(fund.balance_cents)}
                     </p>
                   </div>
                 )}

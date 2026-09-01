@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { formatCurrency } from '@/lib/currency-utils'
+import { formatPlatformMoney } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import {
   MAX_PREPAY_MONTHS, PREPAY_PRESET_MONTHS, addDays, initialChargeOptions, isPrepayMonths,
@@ -110,7 +110,7 @@ export function BuyDialog({
             <h4 className="text-sm font-semibold">{t('chk.monthly')}</h4>
             <p className="text-sm text-muted-foreground">
               {t('chk.monthlyBlurb', {
-                amount: monthly != null ? formatCurrency(monthly, intl) : '—',
+                amount: monthly != null ? formatPlatformMoney(monthly, intl) : '—',
               })}
             </p>
 
@@ -135,7 +135,7 @@ export function BuyDialog({
                       {t(options.daysLeft === 1
                         ? 'chk.payRemainderOne'
                         : 'chk.payRemainderMany', {
-                        amount: formatCurrency(options.remainderOnly, intl),
+                        amount: formatPlatformMoney(options.remainderOnly, intl),
                         days: String(options.daysLeft),
                       })}
                     </Button>
@@ -148,7 +148,7 @@ export function BuyDialog({
                     <CreditCard className="h-4 w-4" />
                     {t('chk.payRestAndNext', {
                       amount: options.remainderPlusNext != null
-                        ? formatCurrency(options.remainderPlusNext, intl)
+                        ? formatPlatformMoney(options.remainderPlusNext, intl)
                         : '',
                     })}
                   </Button>
@@ -214,7 +214,7 @@ export function BuyDialog({
               >
                 <CreditCard className="h-4 w-4" />
                 {t('chk.payNowSimple', {
-                  amount: prepaid ? formatCurrency(prepaid.totalCents, intl) : '',
+                  amount: prepaid ? formatPlatformMoney(prepaid.totalCents, intl) : '',
                 })}
               </Button>
             </div>
@@ -225,9 +225,9 @@ export function BuyDialog({
                 {t(options.daysLeft === 1
                   ? 'chk.prorationBreakdownOne'
                   : 'chk.prorationBreakdownMany', {
-                  proration: formatCurrency(prepaid.prorationCents, intl),
+                  proration: formatPlatformMoney(prepaid.prorationCents, intl),
                   days: String(options.daysLeft),
-                  months: formatCurrency(prepaid.monthsCents, intl),
+                  months: formatPlatformMoney(prepaid.monthsCents, intl),
                   n: String(prepaid.months),
                 })}
               </p>
@@ -344,7 +344,7 @@ export function UpgradeDialog({
             onSelect={() => setIncludeNext(false)}
             title={leave.dueNowCents === 0
               ? t('chk.payNothing')
-              : t('chk.payNowAmount', { amount: formatCurrency(leave.dueNowCents, intl) })}
+              : t('chk.payNowAmount', { amount: formatPlatformMoney(leave.dueNowCents, intl) })}
             summary={t('chk.throughEndOfThisMonth', { plan: TIER_LABEL[toTier] })}
             quote={leave}
           />
@@ -355,7 +355,7 @@ export function UpgradeDialog({
             title={take.dueNowCents === 0
               ? t('chk.coverNext')
               : t('chk.coverNextTooAmount', {
-                  amount: formatCurrency(take.dueNowCents, intl),
+                  amount: formatPlatformMoney(take.dueNowCents, intl),
                 })}
             summary={t('chk.throughEndOfNextMonth', { plan: TIER_LABEL[toTier] })}
             quote={take}
@@ -371,22 +371,22 @@ export function UpgradeDialog({
             <dt className="text-muted-foreground">
               {includeNext ? t('chk.thisAndNext') : t('chk.restOfMonth')} at {TIER_LABEL[toTier]}
             </dt>
-            <dd>{formatCurrency(chosen.neededCents, intl)}</dd>
+            <dd>{formatPlatformMoney(chosen.neededCents, intl)}</dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted-foreground">
               {t('chk.yourTermUnused', { plan: fromLabel })}
             </dt>
-            <dd>&minus;{formatCurrency(chosen.creditCents, intl)}</dd>
+            <dd>&minus;{formatPlatformMoney(chosen.creditCents, intl)}</dd>
           </div>
           <div className="flex justify-between gap-4 border-t pt-1 font-medium">
             <dt>{t('chk.dueNow')}</dt>
-            <dd>{formatCurrency(chosen.dueNowCents, intl)}</dd>
+            <dd>{formatPlatformMoney(chosen.dueNowCents, intl)}</dd>
           </div>
           {chosen.creditLeftCents > 0 && (
             <div className="flex justify-between gap-4 text-muted-foreground">
               <dt>{t('chk.leftOver')}</dt>
-              <dd>{formatCurrency(chosen.creditLeftCents, intl)}</dd>
+              <dd>{formatPlatformMoney(chosen.creditLeftCents, intl)}</dd>
             </div>
           )}
         </dl>
@@ -401,7 +401,7 @@ export function UpgradeDialog({
             ? t('chk.upgradeNothingToPay', { plan: TIER_LABEL[toTier] })
             : t('chk.upgradePayAmount', {
                 plan: TIER_LABEL[toTier],
-                amount: formatCurrency(chosen.dueNowCents, intl),
+                amount: formatPlatformMoney(chosen.dueNowCents, intl),
               })}
         </Button>
 

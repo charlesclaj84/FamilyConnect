@@ -272,7 +272,49 @@ export const es: Catalogue = {
   // names the missing one rather than letting the picker print a key.
   'proc.countryLabel': 'Dónde tiene la familia su banco',
   'proc.countryPermanent': 'Stripe no puede cambiar esto después de crear la cuenta, así que decide la moneda de los pagos y qué documentos le pedirán.',
+  'proc.countryDecidesCurrency': 'Las cuotas, los fondos y los presupuestos de su familia se registrarán en {currency}.',
+  'proc.currencyFixedByAccount': 'Su familia cobra en {currency} ({country}). Stripe no puede trasladar una cuenta conectada a otro país, así que esto ya está definido.',
+  'proc.currencyFixedByPayments': 'Su familia cobra en {currency} ({country}). Ya se registraron pagos y el libro contable no se puede volver a denominar, así que esto ya está definido.',
   'act.countryNotAvailableForDues': 'Todavía no se puede cobrar cuotas en línea en ese país.',
+  'act.nothingWithheldToLetGo': 'No hay registros conservados que se puedan eliminar.',
+  'act.couldNotDeleteRecordsPlease': 'No se pudieron eliminar esos registros. Inténtelo de nuevo.',
+  'act.thatCodeNotRight': 'Ese código no es correcto.',
+  'act.enterSixDigitCode': 'Escriba el código de seis dígitos de su correo.',
+  'ret.heading': 'Registros de su plan anterior',
+  'ret.p1': 'Su familia bajó de {tier}. Todo lo que ese plan incluía se ha conservado en vez de eliminarse, y se elimina en {days} días.',
+  'ret.p1One': 'Su familia bajó de {tier}. Todo lo que ese plan incluía se ha conservado en vez de eliminarse, y se elimina mañana.',
+  'ret.p1Today': 'Su familia bajó de {tier}. Todo lo que ese plan incluía está previsto para eliminarse hoy.',
+  'ret.overdue': 'La eliminación lleva {days} días de retraso y está esperando un recordatorio que no se ha enviado. No se ha eliminado nada.',
+  'ret.keep': 'Vuelva a {tier} para conservarlo. Eso cubre los {months} mes(es) que estuvo fuera y el mes que viene: {amount}.',
+  'ret.freshHeading': 'O elimínelo ahora',
+  'ret.fresh': 'Si ya lo decidió, puede eliminarlo hoy en vez de esperar y recibir cuatro recordatorios más.',
+  'ret.freshButton': 'Eliminar estos registros…',
+  'ret.irreversible': 'Los registros eliminados no se pueden recuperar. Esto no lo puede revertir ni nosotros ni nadie más.',
+  'ret.willDelete': 'Esto eliminará:',
+  'ret.rows': '{n} fila(s) en {table}',
+  'ret.codeSent': 'Se envió un código de seis dígitos a {email}. Dura {minutes} minutos.',
+  'ret.codeLabel': 'Código de su correo',
+  'ret.confirmButton': 'Eliminar estos registros permanentemente',
+  'ret.done': 'Esos registros se han eliminado.',
+  'lock.admin.heading': 'El pago de su familia está vencido',
+  'lock.admin.p1Members': 'El último pago de {family} no se procesó, así que los familiares ya no pueden usar el sitio. Usted conserva el acceso completo, y pagar lo restaura para todos a la vez.',
+  'lock.admin.p1All': 'El último pago de {family} no se procesó, así que todas las pantallas excepto la de facturación están cerradas. Pagar las vuelve a abrir todas.',
+  'lock.admin.nothingLost': 'No se ha eliminado nada. Todo lo que la familia ha registrado sigue exactamente donde estaba.',
+  'lock.admin.warnOne': 'Mañana la familia pasa al plan Gratis y se elimina todo lo que el plan Gratis no incluye. Eso no se puede revertir.',
+  'lock.admin.warnMany': 'En {days} días la familia pasa al plan Gratis y se elimina todo lo que el plan Gratis no incluye: el árbol genealógico, el libro de cuotas, los fondos y las fotografías. Eso no se puede revertir.',
+  'lock.admin.button': 'Ir a facturación',
+  'lock.member.heading': '{family} no está disponible temporalmente',
+  'lock.member.p1': 'Hay un asunto contable en la cuenta de esta familia. Comuníquese con el administrador de su familia.',
+  'lock.member.p2': 'No se ha eliminado nada, y todo vuelve en cuanto se resuelva.',
+  'lock.otherFamilies': 'Sus otras familias no se ven afectadas:',
+  'lock.myFamilies': 'Mis familias',
+  'act.chooseKeepOrStartFresh': 'Elija si desea conservar los registros de su plan anterior o empezar de cero antes de continuar.',
+  'act.nothingWithheldToKeep': 'No hay registros conservados que este plan pueda recuperar.',
+  'bill.catchUpLine': '{plan}: {months} mes(es) que estuvo fuera, más el mes que viene',
+  'act.countryAndCurrencySaved': 'Guardado. Su familia cobra en la moneda de este país.',
+  'act.couldNotReadFamilyCurrency': 'No pudimos determinar en qué moneda cobra su familia, por lo que este pago no se inició. Inténtelo de nuevo.',
+  'act.currencyFixedByPayments': 'Su familia ya registró pagos, por lo que no se pueden cambiar su país ni su moneda.',
+  'act.currencyFixedByAccount': 'La cuenta de pagos de su familia ya fue creada, por lo que no se pueden cambiar su país ni su moneda.',
   'country.us': 'Estados Unidos',
   'country.ca': 'Canadá',
   'country.mx': 'México',
@@ -389,7 +431,8 @@ export const es: Catalogue = {
   'bill.effectOnceDifferencePaid':
     '{plan} surte efecto en cuanto se pague el importe adicional. Stripe está cobrando la diferencia por el resto de este periodo.',
   'bill.planStopsOn':
-    'El plan termina el {on}. Todas las páginas siguen abiertas hasta entonces, y después se conservan todos los registros.',
+    'El plan termina el {on}. Todas las páginas siguen abiertas hasta entonces. Lo que el plan '
+    + 'más barato no incluye se conserva sesenta días después, y se elimina si no ha vuelto a subir.',
   'bill.startsOnNoRefund':
     '{plan} comienza el {on}. Nada cambia antes, y no hay reembolso por el periodo ya pagado.',
   'bill.activeNowCredit':
@@ -2926,16 +2969,18 @@ export const es: Catalogue = {
   'plan.downgradeBilledWithDate':
     'Nada cambia hoy. {current} sigue abierto hasta el final del período que ya pagó, y '
     + '{next} empieza el {date}. No hay reembolso por el resto de este período: eso es lo que '
-    + 'mantiene las pantallas abiertas hasta que termine. No se borra nada, en cualquier plan '
-    + 'que termine.',
+    + 'mantiene las pantallas abiertas hasta que termine. No se borra nada entonces, y lo que '
+    + 'el plan más barato no incluye se conserva sesenta días después.',
   'plan.downgradeBilled':
     'Nada cambia hoy. {current} sigue abierto hasta el final del período que ya pagó. No hay '
     + 'reembolso por el resto de este período: eso es lo que mantiene las pantallas abiertas '
-    + 'hasta que termine. No se borra nada, en cualquier plan que termine.',
+    + 'hasta que termine. No se borra nada entonces, y lo que el plan más barato no incluye se '
+    + 'conserva sesenta días después.',
   'plan.downgradeUnbilled':
-    'Las pantallas que forman parte de {current} dejan de abrirse. No se borra nada: cada '
-    + 'registro queda exactamente donde está, y al volver a subir las pantallas regresan con '
-    + 'sus datos intactos.',
+    'Las pantallas que forman parte de {current} dejan de abrirse. No se borra nada hoy: cada '
+    + 'registro queda exactamente donde está durante sesenta días, y si vuelve a subir dentro de '
+    + 'esos sesenta días las pantallas regresan con sus datos intactos. Después de sesenta días '
+    + 'se elimina, con cuatro recordatorios antes.',
   'proc.consequenceBase':
     'Los integrantes ya no podrán pagar en línea. Todos los pagos ya registrados se '
     + 'conservan, y la cuenta de Stripe de la familia queda intacta.',

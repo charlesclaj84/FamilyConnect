@@ -263,7 +263,7 @@ export function AdminBoardPositionsClient({
             <CardTitle className="text-base">
               Positions
               {positions.length > 0 && (
-                <span className="ml-2 text-xs font-normal text-muted-foreground">
+                <span className="ms-2 text-xs font-normal text-muted-foreground">
                   {positions.length} {positions.length === 1 ? 'position' : 'positions'}
                 </span>
               )}
@@ -292,13 +292,13 @@ export function AdminBoardPositionsClient({
           ) : (
             <div className="overflow-hidden rounded-lg border">
               <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                <thead className="bg-muted/50 text-start text-xs uppercase tracking-wide text-muted-foreground">
                   <tr>
                     <SortTh label={t('pos.position')} {...sortProps('position')} className="px-3 py-2" />
                     <SortTh label={t('common.category')} {...sortProps('category')} className={cn('px-3 py-2', COLLAPSING_CELL)} />
                     <SortTh label={t('common.scope')} {...sortProps('scope')} className={cn('px-3 py-2', COLLAPSING_CELL)} />
                     {(mayEdit || mayDelete) && (
-                      <th scope="col" className="px-3 py-2 text-right"><span className="sr-only">{t('money.actions')}</span></th>
+                      <th scope="col" className="px-3 py-2 text-end"><span className="sr-only">{t('money.actions')}</span></th>
                     )}
                   </tr>
                 </thead>

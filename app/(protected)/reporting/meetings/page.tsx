@@ -90,17 +90,17 @@ export default async function MeetingsReportPage() {
               <table className="w-full border-collapse text-sm">
                 <caption className="sr-only">{t('rep.everyMeetingMostRecent')}</caption>
                 <thead>
-                  <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <th scope="col" className="px-3 py-2">Meeting</th>
                     <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>
                       {t('col.date')}
                     </th>
                     <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>{t('rep.minutes')}</th>
-                    <th scope="col" className="px-3 py-2 text-right">{t('rep.room')}</th>
-                    <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>
+                    <th scope="col" className="px-3 py-2 text-end">{t('rep.room')}</th>
+                    <th scope="col" className={cn('px-3 py-2 text-end', COLLAPSING_CELL)}>
                       Topics
                     </th>
-                    <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>
+                    <th scope="col" className={cn('px-3 py-2 text-end', COLLAPSING_CELL)}>
                       Votes
                     </th>
                   </tr>
@@ -114,7 +114,7 @@ export default async function MeetingsReportPage() {
                           {row.title}
                         </Link>
                         {row.minuted && (
-                          <span className="ml-2 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft">
+                          <span className="ms-2 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft">
                             Minuted
                           </span>
                         )}
@@ -138,8 +138,8 @@ export default async function MeetingsReportPage() {
                       <td className={cn('px-3 py-2', COLLAPSING_CELL)}>
                         {row.secretaryName ?? <span className="text-muted-foreground">—</span>}
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums">{row.inTheRoom}</td>
-                      <td className={cn('px-3 py-2 text-right tabular-nums', COLLAPSING_CELL)}>
+                      <td className="px-3 py-2 text-end tabular-nums">{row.inTheRoom}</td>
+                      <td className={cn('px-3 py-2 text-end tabular-nums', COLLAPSING_CELL)}>
                         {row.topics}
                         {row.voted > 0 && (
                           <span className="block text-xs text-muted-foreground">
@@ -147,7 +147,7 @@ export default async function MeetingsReportPage() {
                           </span>
                         )}
                       </td>
-                      <td className={cn('px-3 py-2 text-right tabular-nums', COLLAPSING_CELL)}>
+                      <td className={cn('px-3 py-2 text-end tabular-nums', COLLAPSING_CELL)}>
                         {row.ballots}
                       </td>
                     </tr>
@@ -165,11 +165,11 @@ export default async function MeetingsReportPage() {
               <table className="w-full border-collapse text-sm">
                 <caption className="sr-only">{t('rep.everyRelativeWhoBeen')}</caption>
                 <thead>
-                  <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <th scope="col" className="px-3 py-2">Relative</th>
-                    <th scope="col" className="px-3 py-2 text-right">{t('rep.asked')}</th>
-                    <th scope="col" className="px-3 py-2 text-right">{t('rep.voted')}</th>
-                    <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>
+                    <th scope="col" className="px-3 py-2 text-end">{t('rep.asked')}</th>
+                    <th scope="col" className="px-3 py-2 text-end">{t('rep.voted')}</th>
+                    <th scope="col" className={cn('px-3 py-2 text-end', COLLAPSING_CELL)}>
                       Minuted
                     </th>
                   </tr>
@@ -183,12 +183,12 @@ export default async function MeetingsReportPage() {
                           <span>{person.minuted} minuted</span>
                         </RowMeta>
                       </td>
-                      <td className="px-3 py-2 text-right tabular-nums">{person.invited}</td>
-                      <td className={cn('px-3 py-2 text-right tabular-nums',
+                      <td className="px-3 py-2 text-end tabular-nums">{person.invited}</td>
+                      <td className={cn('px-3 py-2 text-end tabular-nums',
                         person.invited > 0 && person.votedIn === 0 && 'text-brand-withheld')}>
                         {person.votedIn}
                       </td>
-                      <td className={cn('px-3 py-2 text-right tabular-nums', COLLAPSING_CELL)}>
+                      <td className={cn('px-3 py-2 text-end tabular-nums', COLLAPSING_CELL)}>
                         {person.minuted}
                       </td>
                     </tr>

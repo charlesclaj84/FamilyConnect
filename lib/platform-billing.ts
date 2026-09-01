@@ -60,6 +60,7 @@
  */
 
 import { APP_NAME } from '@/lib/brand'
+import { stripeMinimumCents } from '@/lib/currency-utils'
 import { monthLabel } from '@/lib/calendar'
 import { TIER_PRICE } from '@/lib/plans'
 import { DEFAULT_TIER, TIER_LABEL, TIER_RANK, isFamilyTier, type FamilyTier } from '@/lib/tiers'
@@ -143,11 +144,29 @@ export const MINIMUM_FIRST_CHARGE_CENTS = 500
  * above has to stay above it — a bound is only checkable if both numbers are in one place.
  *
  * 50¢ is Stripe's USD minimum, and it is genuinely reachable rather than theoretical: one day
- * of Standard in a 31-day month is `ceil(1000 / 31)` = 33¢. A family billing in another
- * currency would need its own figure, which is one of several reasons nothing in this product
- * is multi-currency yet.
+ * of Standard in a 31-day month is `ceil(1000 / 31)` = 33¢.
+ *
+ * ── IT IS DERIVED, AND `'usd'` HERE IS A STATEMENT RATHER THAN A DEFAULT ────────────
+ * This said *"a family billing in another currency would need its own figure, which is one of
+ * several reasons nothing in this product is multi-currency yet"* until 2026-09-01. A family's
+ * BOOKS are multi-currency now (`families.currency`) and GENORRA's own prices deliberately are
+ * not — AGENTS.md's "MONEY HAS TWO DIRECTIONS", and `20260901000000` §D asserts the platform
+ * side did not move. So the literal `'usd'` is the whole point: this constant is about OUR
+ * revenue, and hard-coding the currency is what stops it following a family's.
+ *
+ * `stripeMinimumCents` is the one table (see `lib/currency-utils.ts`), so the family-side floor
+ * and this one cannot disagree about what Stripe accepts in dollars — and the per-currency
+ * figures a family needs are not a second copy of this number.
+ *
+ * ── THE `?? 50` IS AN UNREACHABLE BRANCH ANSWERED HONESTLY ─────────────────────────
+ * `stripeMinimumCents` returns `number | null` because a currency Stripe publishes no floor
+ * for cannot be quoted one, and `'usd'` is in its table — asserted by
+ * `lib/currency-utils.test.ts`. TypeScript cannot know that, and a `!` here would assert
+ * something a future edit to that table could silently falsify. This is `grossUpCents`'
+ * precedent: the unreachable branch written out rather than asserted away, taking the value
+ * that changes no behaviour if it ever fires.
  */
-export const STRIPE_MINIMUM_CHARGE_CENTS = 50
+export const STRIPE_MINIMUM_CHARGE_CENTS = stripeMinimumCents('usd') ?? 50
 
 /**
  * The shortest trial Stripe will accept, in days.
@@ -995,4 +1014,184 @@ export function tierFromMetadata(value: unknown): FamilyTier | null {
 export function monthsFromQuantity(value: unknown): number | null {
   const n = typeof value === 'string' ? Number(value) : value
   return isPrepayMonths(n) ? n : null
+}
+
+/**
+ * ═══════════════════════════════════════════════════════════════════════════════════
+ * THE DELINQUENCY LADDER AND THE SIXTY-DAY RETENTION WINDOW
+ * ═══════════════════════════════════════════════════════════════════════════════════
+ *
+ * The arithmetic half of `20260901000002`. Every function below takes `today` as a PARAMETER
+ * for this module's stated reason — the whole value of it is that `npm test` can check a
+ * boundary, and day 9 versus day 10 is a member locked out or not.
+ *
+ * ── THE STAGES ARE DERIVED, NEVER STORED ───────────────────────────────────────────
+ * There is no `lockout_stage` column and there must not be. It is a function of one date and
+ * the clock, so a stored copy is wrong the moment nobody writes to it — the `is_minor` trap
+ * (AGENTS.md §4b) applied to a thing that changes every single day rather than once a year.
+ *
+ * The database agrees by construction: `sweep_platform_billing()` reads `delinquent_since` and
+ * writes no stage anywhere.
+ */
+
+/** Where a family is on the delinquency ladder. See `20260901000002` §A for the table. */
+export type DelinquencyStage =
+  /** Paying, or inside the first five days. Nothing is withheld. */
+  | 'current'
+  /** Day 5–9. Administrators have been told; nothing is withheld yet. */
+  | 'notified'
+  /** Day 10–29. Members are locked out; administrators keep full access. */
+  | 'members-locked'
+  /** Day 30–59. Administrators keep the billing screen and nothing else. */
+  | 'admins-locked'
+  /** Day 60+. The sweep has not run yet, or is waiting on a warning to be sent. */
+  | 'due-for-drop'
+
+/** The rungs, in days from `delinquent_since`. The one place these five numbers are written. */
+export const DELINQUENCY_DAYS = {
+  notify: 5,
+  lockMembers: 10,
+  lockAdmins: 30,
+  warnDeletion: 45,
+  warnTomorrow: 59,
+  drop: 60,
+} as const
+
+/**
+ * How far down the ladder a family is.
+ *
+ * `null` in, `'current'` out — a family with no failed payment is not on the ladder at all, and
+ * that is the overwhelmingly common case this is asked about on every page load.
+ *
+ * ── THE BOUNDARIES ARE INCLUSIVE, AND DAY 10 IS THE DAY IT HAPPENS ────────────────
+ * `delinquent_since + 10 <= today` locks members out ON day 10, not on day 11. That matches the
+ * SQL sweep's `delinquent_since + v_offset > CURRENT_DATE` skip exactly, and the two agreeing is
+ * what stops a member being locked out a day before or after the email that explains it.
+ */
+export function delinquencyStage(
+  delinquentSince: string | null | undefined,
+  today: string,
+): DelinquencyStage {
+  if (!delinquentSince) return 'current'
+  const days = daysBetween(delinquentSince, today)
+  // A date in the FUTURE is not a ladder position. Stripe cannot send one, but a hand-edited
+  // row can, and treating a negative as day 0 is the safe reading of a value that makes no
+  // sense — locking somebody out over a typo is not.
+  if (days < DELINQUENCY_DAYS.notify) return 'current'
+  if (days < DELINQUENCY_DAYS.lockMembers) return 'notified'
+  if (days < DELINQUENCY_DAYS.lockAdmins) return 'members-locked'
+  if (days < DELINQUENCY_DAYS.drop) return 'admins-locked'
+  return 'due-for-drop'
+}
+
+/**
+ * Is an ORDINARY MEMBER shut out of the family's screens?
+ *
+ * True from day 10. `'due-for-drop'` is included deliberately: a family past day 60 whose sweep
+ * has not landed — because a warning email has not been sent — is still delinquent, and
+ * un-locking them while they wait would reward the outage.
+ */
+export function membersLockedOut(stage: DelinquencyStage): boolean {
+  return stage === 'members-locked' || stage === 'admins-locked' || stage === 'due-for-drop'
+}
+
+/** Is an ADMINISTRATOR down to the billing screen alone? True from day 30. */
+export function adminsLockedOut(stage: DelinquencyStage): boolean {
+  return stage === 'admins-locked' || stage === 'due-for-drop'
+}
+
+/**
+ * How many days until the family drops to Free, for the copy on the lockout screen.
+ *
+ * Never negative and never null while they are on the ladder: `0` means today. A screen that
+ * printed "-3 days" would be worse than one that printed nothing.
+ */
+export function daysUntilDrop(delinquentSince: string, today: string): number {
+  return Math.max(0, DELINQUENCY_DAYS.drop - daysBetween(delinquentSince, today))
+}
+
+/** The days-before-deletion a retention reminder is sent on. Counted from `withheld_since`. */
+export const RETENTION_DAYS = 60
+export const RETENTION_REMINDERS = [30, 15, 5, 1] as const
+
+/**
+ * Days left before a withheld tier's data is deleted, or `null` when nothing is withheld.
+ *
+ * `0` is the last day, and NEGATIVE IS NOT CLAMPED here — unlike `daysUntilDrop`. The
+ * difference is what the caller does with it: a lockout screen prints a number and must not
+ * print a negative one, while this feeds a sweep-is-overdue banner where "-2" is exactly the
+ * fact somebody needs (the deletion is waiting on a reminder that never sent).
+ */
+export function daysUntilDataDeleted(
+  withheldSince: string | null | undefined,
+  today: string,
+): number | null {
+  if (!withheldSince) return null
+  return RETENTION_DAYS - daysBetween(withheldSince, today)
+}
+
+/**
+ * What it costs to keep the withheld data — the months the family was away, plus the coming one.
+ *
+ * ── ONE FUNCTION FOR BOTH LADDERS, WHICH THE BRIEF ASKED FOR IN THOSE WORDS ───────
+ * *"It is the same shape as the delinquency arrears figure above and should be ONE function
+ * with one set of tests, not two that agree today."* So it is, and the two callers differ only
+ * in which date they hand it:
+ *
+ *   DELINQUENCY   `from = delinquent_since`, at the tier they are still on. "Pay all arrears
+ *                 plus the next month" — decided 2026-08-23, and it is what reactivating costs.
+ *   RETENTION     `from = withheld_since`, at the tier they are RETURNING to. "Pay for the
+ *                 months you were away, so the tier's billing has no hole in it."
+ *
+ * ── PRICED AT THE TIER PASSED IN, AND THE CALLER CHOOSES WHICH ───────────────────
+ * That is the whole of the difference and it is deliberately not decided here: a delinquent
+ * family never left their tier, so it is the one they hold; a returning family is buying back a
+ * tier they had, so it is `withheld_from_tier`. A function that guessed would be wrong for one
+ * of them.
+ *
+ * ── INCLUSIVE OF THE COMING MONTH, ALWAYS ────────────────────────────────────────
+ * "Plus the next month" in both briefs. A family that pays only its arrears is level today and
+ * delinquent again on the 1st, which is a second failed payment and a second ladder for money
+ * they thought they had settled.
+ *
+ * ZERO for Free — there is nothing to buy back and no rate to buy it at — which is what makes
+ * this safe to call before knowing whether there is anything owed.
+ */
+export interface CatchUpQuote {
+  /** Whole months from `from` up to and including the current month. */
+  monthsBehind: number
+  /** Those months at the tier's rate. */
+  arrearsCents: number
+  /** The coming month, always one. */
+  comingMonthCents: number
+  /** What the family pays to be level and stay level. */
+  totalCents: number
+}
+
+export function catchUpQuote(input: {
+  tier: FamilyTier
+  /** `delinquent_since` or `withheld_since`. */
+  from: string
+  today: string
+}): CatchUpQuote {
+  const { tier, from, today } = input
+  const price = TIER_PRICE[tier]
+  if (!price) {
+    return { monthsBehind: 0, arrearsCents: 0, comingMonthCents: 0, totalCents: 0 }
+  }
+  // WHOLE CALENDAR MONTHS, INCLUSIVE OF BOTH ENDS — `wholeMonthsInclusive`'s contract, and the
+  // right unit here for the reason `duesPlanMath` gives about rungs: the family bills on the
+  // 1st, so what they missed is a count of 1sts and not a count of days.
+  //
+  // A `from` in the future counts as zero rather than as a negative, which `wholeMonthsInclusive`
+  // already floors — a clock that has not started owes nothing.
+  const monthsBehind = daysBetween(from, today) < 0 ? 0 : wholeMonthsInclusive(from, today)
+  const arrearsCents = monthsBehind * price.monthlyCents
+  const comingMonthCents = price.monthlyCents
+  return {
+    monthsBehind,
+    arrearsCents,
+    comingMonthCents,
+    totalCents: arrearsCents + comingMonthCents,
+  }
 }

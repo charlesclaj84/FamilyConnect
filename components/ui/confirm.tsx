@@ -238,7 +238,7 @@ function ConfirmPanel({
           // table, which sits in a `text-right` cell — the same cell that right-aligned the
           // delete dialog beside it. Both panels assert it, because both are reachable from
           // there and a fix in one would have left the other looking like a separate bug.
-          'relative z-10 flex w-full flex-col overflow-hidden rounded-xl bg-card text-card-foreground text-left shadow-lg',
+          'relative z-10 flex w-full flex-col overflow-hidden rounded-xl bg-card text-card-foreground text-start shadow-lg',
           'max-h-[calc(100dvh_-_2rem)]',
           pending.wide ? 'max-w-2xl' : 'max-w-sm'
         )}

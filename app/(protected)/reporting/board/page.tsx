@@ -100,7 +100,7 @@ export default async function BoardReportPage() {
               <table className="w-full border-collapse text-sm">
                 <caption className="sr-only">{t('rep.everyBoardPositionFamily')}</caption>
                 <thead>
-                  <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <th scope="col" className="px-3 py-2">Office</th>
                     <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Level</th>
                     <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Kind</th>
@@ -155,7 +155,7 @@ export default async function BoardReportPage() {
                 {multiHolders.map(person => (
                   <li key={person.personId} className="px-3 py-2">
                     <span className="font-medium">{person.name}</span>
-                    <span className="ml-2 text-sm text-muted-foreground">
+                    <span className="ms-2 text-sm text-muted-foreground">
                       {person.offices.join(' · ')}
                     </span>
                   </li>

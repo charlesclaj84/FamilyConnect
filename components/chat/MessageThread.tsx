@@ -176,7 +176,7 @@ export function MessageThread({ room, currentUserId, onBack, onParticipantsChang
       {/* Thread header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b shrink-0 bg-background">
         <button onClick={onBack} className="md:hidden p-1 rounded hover:bg-muted transition-colors" aria-label={t('action.back')}>
-          <ChevronLeft className="h-5 w-5" />
+          <ChevronLeft className="h-5 w-5 rtl:-scale-x-100" />
         </button>
         <h2 className="text-sm font-semibold truncate flex-1">{threadTitle}</h2>
 

@@ -94,12 +94,28 @@ DECLARE
   -- array, because the names are needed on their own in §2 and slicing a
   -- text[][] to get them back is more code than the duplication saves. Keep them
   -- the same length and in the same order; the loop below asserts it.
+  -- `tier_data_tables` and `tier_data_keep` JOINED THIS LIST ON 2026-09-01, and they are the
+  -- sharpest instance of what it is for. They say which of a family's tables belong to which
+  -- tier, `delete_family_data_above_tier` reads them, and they are seeded by exactly one
+  -- migration — so on a database that has already recorded that migration as applied, nothing
+  -- in the chain and no `db reset` would ever put them back.
+  --
+  -- EMPTYING THEM IS SILENT AND IN BOTH DIRECTIONS. An empty `tier_data_tables` makes every
+  -- purge delete NOTHING, which looks like a feature that quietly stopped working; an empty
+  -- `tier_data_keep` makes the completeness assertion in `20260901000001` §5 fire on the next
+  -- migration, which is loud but only ever on the next deploy. §2 below would have caught both
+  -- anyway (measured: emptying `tier_data_tables` reports it by name), and naming them here is
+  -- what the rule asks for and what gives the report its sentence.
   lookup_names CONSTANT text[] := ARRAY[
     'relationship_types',
     'permission_resources',
-    'permission_table_map'
+    'permission_table_map',
+    'tier_data_tables',
+    'tier_data_keep'
   ];
   lookup_where CONSTANT text[] := ARRAY[
+    'true',
+    'true',
     'true',
     'true',
     'true'

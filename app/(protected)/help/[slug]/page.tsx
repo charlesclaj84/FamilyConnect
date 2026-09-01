@@ -85,7 +85,7 @@ export default async function HelpChapterPage({ params }: Props) {
           href="/help"
           className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" />{t('hlp.allHelp')}</Link>
+          <ChevronLeft className="h-4 w-4 rtl:-scale-x-100" aria-hidden="true" />{t('hlp.allHelp')}</Link>
 
         {part && (
           <p className="mb-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
@@ -129,7 +129,7 @@ export default async function HelpChapterPage({ params }: Props) {
               href={`/help/${previous.slug}`}
               className="group flex flex-1 basis-64 items-center gap-2 rounded-xl border bg-card px-4 py-3"
             >
-              <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <ChevronLeft className="h-4 w-4 shrink-0 text-muted-foreground rtl:-scale-x-100" aria-hidden="true" />
               <span className="min-w-0">
                 <span className="block text-xs text-muted-foreground">Previous</span>
                 {/* Explicit colour: the unscoped `a { color: var(--brand-accent) }` in
@@ -141,13 +141,13 @@ export default async function HelpChapterPage({ params }: Props) {
           {next && (
             <Link
               href={`/help/${next.slug}`}
-              className="group flex flex-1 basis-64 items-center justify-end gap-2 rounded-xl border bg-card px-4 py-3 text-right"
+              className="group flex flex-1 basis-64 items-center justify-end gap-2 rounded-xl border bg-card px-4 py-3 text-end"
             >
               <span className="min-w-0">
                 <span className="block text-xs text-muted-foreground">Next</span>
                 <span className="block truncate font-medium text-foreground">{next.title}</span>
               </span>
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground rtl:-scale-x-100" aria-hidden="true" />
             </Link>
           )}
         </nav>

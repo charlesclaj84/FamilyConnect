@@ -1,10 +1,10 @@
 import { DollarSign } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { isOutstanding } from '@/lib/dues-utils'
 import type { DuesSummary } from '@/app/actions/dues'
 import { type T } from '@/lib/i18n/t'
+import type { Money } from '@/lib/currency-utils'
 
 /**
  * What the member pays next, across every schedule that has a date.
@@ -28,9 +28,10 @@ import { type T } from '@/lib/i18n/t'
  * one date and had to infer that the other two existed. It lists each schedule's own
  * next date, and says "Installments" when it means more than one.
  */
-export function NextInstallmentsCard({ summary, className, intl, t }: {
+export function NextInstallmentsCard({ summary, className, intl, money, t }: {
   /** The reader's `Intl` tag. A prop — this is a Server Component. */
   intl: string
+  money: Money
   /**
    * The reader's translator. A PROP for the same reason `intl` beside it is one, and this
    * component SHIPPED with `useT()` in its body instead — a client hook in a module with no
@@ -74,7 +75,7 @@ export function NextInstallmentsCard({ summary, className, intl, t }: {
         </span>
       </div>
       <p className="text-2xl font-bold leading-tight">
-        {upcoming.length > 0 ? formatCurrency(upcomingTotalCents, intl) : '—'}
+        {upcoming.length > 0 ? money(upcomingTotalCents) : '—'}
       </p>
       {upcoming.length === 0 ? (
         <p className="text-xs text-muted-foreground">{t('cards.noUpcoming')}</p>
@@ -94,7 +95,7 @@ export function NextInstallmentsCard({ summary, className, intl, t }: {
               <p className="text-muted-foreground">
                 due {fmtDate(s.nextInstallmentDate!)}
                 {' · '}
-                <span className="font-medium text-foreground">{formatCurrency(s.nextInstallmentCents, intl)}</span>
+                <span className="font-medium text-foreground">{money(s.nextInstallmentCents)}</span>
               </p>
               {/* THE SECOND LINE IS THE ANSWER TO "why is this more than my
                   installment". A catch-up figure with nothing explaining it reads as an
@@ -108,7 +109,7 @@ export function NextInstallmentsCard({ summary, className, intl, t }: {
                     ? 'plan.coversEarlierOne'
                     : 'plan.coversEarlierMany', { n: String(s.periodsElapsed) })}
                   {' · then '}
-                  {formatCurrency(s.followingInstallmentCents, intl)} from {fmtDate(s.followingInstallmentDate)}
+                  {money(s.followingInstallmentCents)} from {fmtDate(s.followingInstallmentDate)}
                 </p>
               )}
             </li>

@@ -7,7 +7,8 @@ import { requireMember } from '@/lib/auth/guard'
 import { getDonationProgress, getMyDuesSummary, type DuesSummary } from '@/app/actions/dues'
 import { intentKey, onAccount, stripeClient, stripeUnavailableReason } from '@/lib/stripe/client'
 import { INTEGRATION_IDS, checkoutReturnUrls } from '@/lib/stripe/config'
-import { formatCurrency } from '@/lib/currency-utils'
+import { formatMoney } from '@/lib/currency-utils'
+import { familyCurrencyOrFail } from '@/lib/auth/currency'
 import type { PayCadence } from '@/lib/dues-utils'
 import { grossUpCents, type FeeRate } from '@/lib/stripe-fees'
 import { currentUser } from '@/lib/auth/current-user'
@@ -51,7 +52,30 @@ import { callerI18n } from '@/lib/i18n/server'
  * `20260806000001` closed at the policy layer, reopened one level up.
  */
 
-const CURRENCY = 'usd'
+/**
+ * THE CURRENCY OF A CHARGE IS THE FAMILY'S, AND IT IS NEVER GUESSED HERE.
+ *
+ * This was `const CURRENCY = 'usd'` until 2026-09-01, and it was the sharpest instance of the
+ * mismatch `families.currency` was added to close: a Canadian family set a $40 due, the member
+ * was charged 40 USD, and the family received about 54 CAD less Stripe's conversion. Three
+ * numbers and nobody typed any of them.
+ *
+ * ── IT USES `familyCurrencyOrFail` AND NOT `g.currency`, WHICH IS THE POINT ─────────
+ * The guard carries a currency and it FALLS BACK to dollars, which is right for a screen
+ * printing a figure and wrong here. A charge composed against a guessed denomination is money
+ * moving in the wrong currency, and no log recovers it — so a read that could not answer
+ * refuses before the member ever sees a hosted page. AGENTS.md §8's rule with the stakes moved
+ * from reading to charging.
+ *
+ * ── AND IT IS THE SETTLEMENT CURRENCY, WHICH IS WHY IT IS ALSO THE MINIMUM'S ───────
+ * `20260901000000` constrains `families.currency` to agree with `families.connect_country`, so
+ * this one value is both what the member is charged in and what Stripe's per-currency minimum
+ * is measured in (`stripeMinimumCents`). Presenting one currency into an account settling
+ * another would have made those two different questions with an exchange rate between them.
+ */
+async function chargeCurrency(familyCode: string): Promise<string | null> {
+  return familyCurrencyOrFail(familyCode)
+}
 
 export interface DuesAutopayView {
   scheduleId: string
@@ -203,6 +227,9 @@ export async function startDuesCheckout(input: {
   // `input?.items`, not `input.items`. A server action is a public HTTP endpoint and its
   // argument is whatever was deserialised off the wire — the TypeScript signature is erased
   // at runtime, so a POST carrying `null` would throw here rather than be refused.
+  const currency = await chargeCurrency(g.familyCode)
+  if (!currency) return { success: false, message: t('act.couldNotReadFamilyCurrency') }
+
   const items = Array.isArray(input?.items) ? input.items : []
   if (items.length === 0) return { success: false, message: t('act.chooseLeastOneDuePay') }
   if (items.length > MAX_PAY_ITEMS) {
@@ -264,7 +291,7 @@ export async function startDuesCheckout(input: {
       return {
         success: false,
         message: t('pay.moreThanOwed', {
-          schedule: row.schedule.label, amount: formatCurrency(owed, intl),
+          schedule: row.schedule.label, amount: formatMoney(owed, { currency, locale: intl }),
         }),
       }
     }
@@ -310,7 +337,7 @@ export async function startDuesCheckout(input: {
         ...resolved.map(({ row, amount }) => ({
           quantity: 1,
           price_data: {
-            currency: CURRENCY,
+            currency,
             unit_amount: amount,
             product_data: {
               name: row.schedule.label,
@@ -334,7 +361,7 @@ export async function startDuesCheckout(input: {
           ? [{
               quantity: 1,
               price_data: {
-                currency: CURRENCY,
+                currency,
                 unit_amount: surchargeCents,
                 product_data: {
                   name: t('pay.feeLineName'),
@@ -421,6 +448,9 @@ export async function startDuesAutopay(input: { scheduleId: string }): Promise<P
     return { success: false, message: t('act.familyNotSetUpTake') }
   }
 
+  const currency = await chargeCurrency(g.familyCode)
+  if (!currency) return { success: false, message: t('act.couldNotReadFamilyCurrency') }
+
   const summary = (await getMyDuesSummary()).find(s => s.schedule.id === input.scheduleId)
   if (!summary) return { success: false, message: t('act.dueNotOneYours') }
   if (summary.schedule.kind !== 'dues') {
@@ -465,7 +495,7 @@ export async function startDuesAutopay(input: { scheduleId: string }): Promise<P
       line_items: [{
         quantity: 1,
         price_data: {
-          currency: CURRENCY,
+          currency,
           unit_amount: amount,
           recurring,
           product_data: { name: `${summary.schedule.label} (automatic)` },
@@ -631,6 +661,9 @@ export async function startDonationCheckout(input: {
     return { success: false, message: t('act.familyNotSetUpTake') }
   }
 
+  const currency = await chargeCurrency(g.familyCode)
+  if (!currency) return { success: false, message: t('act.couldNotReadFamilyCurrency') }
+
   const drive = (await getDonationProgress()).find(d => d.schedule.id === input?.scheduleId)
   if (!drive) return { success: false, message: t('act.driveNotOneYourFamily') }
   if (drive.closed) {
@@ -651,7 +684,7 @@ export async function startDonationCheckout(input: {
     return {
       success: false,
       message: t('pay.maxCharge', {
-        amount: formatCurrency(MAX_CHARGE_CENTS, intl),
+        amount: formatMoney(MAX_CHARGE_CENTS, { currency, locale: intl }),
       }),
     }
   }
@@ -662,7 +695,7 @@ export async function startDonationCheckout(input: {
       line_items: [{
         quantity: 1,
         price_data: {
-          currency: CURRENCY,
+          currency,
           unit_amount: amount,
           product_data: {
             name: drive.schedule.label,

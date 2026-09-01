@@ -81,12 +81,12 @@ export function MembershipBreakdownLegend({
                   in their own cells so each is still announced with its column heading.
 
                   `aria-haspopup="dialog"` is honest about what it opens. */}
-              <td className="py-1.5 pr-2">
+              <td className="py-1.5 pe-2">
                 <button
                   type="button"
                   onClick={() => setOpenSlice(s)}
                   aria-haspopup="dialog"
-                  className="group flex w-full items-center gap-2 text-left hover:underline underline-offset-4"
+                  className="group flex w-full items-center gap-2 text-start hover:underline underline-offset-4"
                 >
                   <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full border"
                         style={colorByKey.has(s.key)
@@ -94,13 +94,13 @@ export function MembershipBreakdownLegend({
                           : { borderColor: 'var(--border)' }} />
                   <span className="min-w-0 flex-1 truncate">{s.label}</span>
                   <ChevronRight
-                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+                    className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100 rtl:-scale-x-100"
                     aria-hidden="true"
                   />
                 </button>
               </td>
-              <td className="py-1.5 pr-2 text-right font-medium tabular-nums">{s.count}</td>
-              <td className="py-1.5 text-right tabular-nums text-muted-foreground">{s.percent}%</td>
+              <td className="py-1.5 pe-2 text-end font-medium tabular-nums">{s.count}</td>
+              <td className="py-1.5 text-end tabular-nums text-muted-foreground">{s.percent}%</td>
             </tr>
           ))}
         </tbody>

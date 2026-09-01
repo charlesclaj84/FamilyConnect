@@ -119,9 +119,9 @@ export function BylawsClient({ initialBylaws, rights }: {
         <div className="min-w-0 flex-1 space-y-1">
           <Label htmlFor="bylaw-search" className="text-xs">{t('bylaws.searchLabel')}</Label>
           <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input id="bylaw-search" value={query} onChange={e => setQuery(e.target.value)}
-              placeholder={t('bylaws.searchPh')} className="pl-8" />
+              placeholder={t('bylaws.searchPh')} className="ps-8" />
           </div>
         </div>
         <Button type="submit" variant="secondary" disabled={isPending}>{t('action.search')}</Button>

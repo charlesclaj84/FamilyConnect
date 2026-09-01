@@ -171,7 +171,7 @@ function AvatarUpload({ initials, existingUrl, allowed }: {
         type="button"
         onClick={() => fileRef.current?.click()}
         disabled={isPending}
-        className="absolute -bottom-1 -right-1 rounded-full bg-muted border border-border p-1 hover:bg-accent transition-colors disabled:opacity-50"
+        className="absolute -bottom-1 -end-1 rounded-full bg-muted border border-border p-1 hover:bg-accent transition-colors disabled:opacity-50"
         aria-label={t('profile.photo.upload')}
       >
         {isPending
@@ -199,7 +199,7 @@ function AvatarUpload({ initials, existingUrl, allowed }: {
           wraps into a block rather than stretching the row, and `z-10` to sit above the card
           edge it overhangs. It renders nothing at all when there is no message, which is what
           `FormError` guarantees and is why there is no `{error && …}` here. */}
-      <div className="absolute left-0 top-full z-10 w-max max-w-[16rem] pt-2">
+      <div className="absolute start-0 top-full z-10 w-max max-w-[16rem] pt-2">
         <FormError message={error} />
       </div>
     </div>
@@ -972,7 +972,7 @@ export function PersonalInfoForm({
           <Button size="sm" variant="ghost"
             onClick={() => setEditingSection(section)}
             aria-label={t('profile.editSection', { section: profileSectionLabel(t, section) })}>
-            <Pencil className="mr-1 h-3.5 w-3.5" />
+            <Pencil className="me-1 h-3.5 w-3.5" />
             {t('action.edit')}
           </Button>
         )}

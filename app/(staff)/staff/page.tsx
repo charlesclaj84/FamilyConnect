@@ -152,7 +152,7 @@ function ConsoleCard({
         <Icon className="h-5 w-5 shrink-0 text-brand-ink" aria-hidden="true" />
         <h2 className="text-lg font-semibold text-brand-ink">{title}</h2>
         <ArrowRight
-          className="ml-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+          className="ms-auto h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 rtl:-scale-x-100"
           aria-hidden="true"
         />
       </div>

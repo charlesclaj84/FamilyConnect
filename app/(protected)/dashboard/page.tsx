@@ -1,9 +1,13 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { callerI18n } from '@/lib/i18n/server'
+import { moneyFor } from '@/lib/currency-utils'
+import { getMyFamilyCurrency } from '@/lib/auth/currency'
 import { requireViewOrPending, can, canAny } from '@/lib/auth/permissions'
 import { PendingApproval } from '@/components/membership/PendingApproval'
 import { FamilyRemoved } from '@/components/membership/FamilyRemoved'
+import { BillingLocked } from '@/components/membership/BillingLocked'
+import { billingLockout } from '@/lib/auth/billing-lockout'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { getMyFamilies, getMyFamilyCode, isActiveFamily } from '@/lib/auth/family'
 import { getMyRoles } from '@/app/actions/admin/users'
@@ -130,6 +134,10 @@ export default async function DashboardPage() {
   // rather than serialized. The client ones (RecentUpdates, QuickActions, the three
   // banners) take nothing and call `useT()`. See lib/i18n/server.ts.
   const { t, intl } = await callerI18n(user.id)
+  // The FAMILY's currency, bound with the reader's conventions. A page printing the
+  // family's own figures uses this; GENORRA's own prices use `formatPlatformMoney`.
+  // See `lib/currency-utils.ts` — the two ledgers must never meet.
+  const money = moneyFor(await getMyFamilyCurrency(user.id), intl)
 
   // requireViewOrPending, not requireView: a pending member must be able to LAND
   // somewhere that tells them what is happening. The early return is above every fetch
@@ -158,6 +166,20 @@ export default async function DashboardPage() {
   const viewing = myFamilies.find(f => f.isActive) ?? myFamilies[0]
   if (viewing && !isActiveFamily(viewing.familyStatus)) {
     return <FamilyRemoved membership={viewing} families={myFamilies} t={t} />
+  }
+
+  // ── AND THE BILLING LOCKOUT, FOR THE SAME REASON ONE LINE UP ─────────────────────
+  // `requireBillingCurrent` redirects every OTHER page here; this is where the redirect is
+  // explained, exactly as `FamilyRemoved` explains its own. Below the removal branch, because
+  // a removed family's unpaid bill is not the fact worth leading with.
+  //
+  // `billingLockout` is cache()d per request and the guard above has already warmed it, so
+  // this costs nothing. It renders NO family data at all — the stage, the days and the
+  // caller's own grant are the whole of it, which is right for a screen shown to somebody
+  // whose family's screens are closed.
+  const lock = await billingLockout(user.id)
+  if (viewing && lock.locked) {
+    return <BillingLocked membership={viewing} lock={lock} families={myFamilies} t={t} />
   }
 
   const firstName = user.user_metadata?.first_name || user.email?.split('@')[0] || 'Member'
@@ -698,8 +720,8 @@ export default async function DashboardPage() {
               order here is the order they appear in: what you owe, then what you are being
               asked to give. */}
           <AtAGlance tiles={tiles} t={t}>
-            <DuesBalanceKpi summary={duesSummary} showViewLink intl={intl} t={t} />
-            <DonationDrivesCard donations={donations} t={t} intl={intl} />
+            <DuesBalanceKpi summary={duesSummary} showViewLink money={money} t={t} />
+            <DonationDrivesCard donations={donations} t={t} intl={intl} money={money} />
           </AtAGlance>
           {/* Merged and ordered on the server: pinned announcements first, then
               notifications and dismissed announcements interleaved by date. The rule is
@@ -719,7 +741,7 @@ export default async function DashboardPage() {
               and it was the one tile whose figure grew without bound and set the width of
               every tile beside it. It renders nothing at all when the caller holds neither
               ledger grant — `null` is "not entitled" and `0` is a real zero. */}
-          <FamilyDuesCollectedCard collectedCents={duesCollectedCents} t={t} intl={intl} />
+          <FamilyDuesCollectedCard collectedCents={duesCollectedCents} t={t} money={money} />
           {/* THE KIT'S "Family Tree Highlights", finally answerable — see the header of
               this file, which listed it among four omitted panels because the tree was a
               scaffold and nothing computed a generation depth. Both are now false.

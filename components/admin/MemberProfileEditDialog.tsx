@@ -488,8 +488,8 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
               <p className="text-sm text-muted-foreground">{t('adm.cannotSeeSetMember')}</p>
               <Button variant="outline" onClick={handleReset} disabled={resetting || saving}>
                 {resetting
-                  ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
-                  : <KeyRound className="mr-1.5 h-4 w-4" aria-hidden="true" />}
+                  ? <Loader2 className="me-1.5 h-4 w-4 animate-spin" aria-hidden="true" />
+                  : <KeyRound className="me-1.5 h-4 w-4" aria-hidden="true" />}
                 Send a password reset
               </Button>
               {/* NOT `FormError` — nothing failed. It is also not `role="alert"`: the
@@ -511,7 +511,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
           <div className="flex flex-col-reverse gap-2 border-t pt-4 sm:flex-row sm:justify-end">
             <Button variant="outline" onClick={onClose} disabled={saving}>{t('action.cancel')}</Button>
             <Button onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="mr-1.5 h-4 w-4 animate-spin" aria-hidden="true" />}
+              {saving && <Loader2 className="me-1.5 h-4 w-4 animate-spin" aria-hidden="true" />}
               Save changes
             </Button>
           </div>

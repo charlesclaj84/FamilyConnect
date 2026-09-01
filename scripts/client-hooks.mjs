@@ -85,6 +85,12 @@ const SKIP_DIRS = new Set(['node_modules', '.next', 'design', '__snapshots__'])
 const CLIENT_HOOKS = [
   // components/layout/LocaleProvider.tsx — the three the outage came through
   'useT', 'useLocale', 'useIntlTag',
+  // components/layout/MoneyProvider.tsx — the money pair, added 2026-09-01 with
+  // `families.currency`. THEY BELONG HERE ON THE DAY THEY ARE WRITTEN rather than after the
+  // first outage: `useMoney` reads `useIntlTag` and is exported from a `'use client'` module,
+  // so it fails in exactly the way the three above did — and eleven components that render
+  // money take a `money` PROP precisely because they must not reach for it.
+  'useMoney', 'useCurrency',
   // components/marketing/MarketingLocale.tsx — the same three for the public site
   'useMarketingT', 'useMarketingLocale', 'useMarketingIntl',
   // The rest of the client-only surface. None of these has ever been called from a Server

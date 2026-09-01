@@ -317,7 +317,7 @@ export function EventPhoto({
 
           {/* THE FRAME, AND IT IS THE CROP'S BOX RATHER THAN THE HERO'S — which is the whole
               of "fit the image to the frame". This wrapper used to be `inset-0`, so the
-              `<img>` covered the entire hero and the clip then revealed the right-hand third
+              `<img>` covered the entire hero and the clip then revealed the end-hand third
               of it: a photograph scaled to a 1650x224 box, of which you saw a slice whose
               content depended on the window width rather than on the picture. Sized to the
               crop instead, `object-cover` scales the photograph to the shape it is actually
@@ -327,7 +327,7 @@ export function EventPhoto({
               and the mask's measured bottom is 303.42, so the frame stops where the shape does
               rather than 20 units below it. */}
           <div
-            className="absolute right-0 top-0 bottom-[8.772%]"
+            className="absolute end-0 top-0 bottom-[8.772%]"
             style={{ left: `${CROP_LEFT_PCT}%`, clipPath: `url(#${HERO_SWOOP_CLIP})` }}
           >
             {/* `object-cover` and not `contain`: the frame is an organic crop, so letterboxing

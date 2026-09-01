@@ -162,7 +162,7 @@ export default async function WhyUsPage() {
                   </div>
                   <h3 className="text-xl">{alt.what}</h3>
                   <p className="mt-3 leading-relaxed text-muted-foreground">{alt.problem}</p>
-                  <p className="mt-4 border-l-2 border-destructive/40 pl-3 text-sm font-medium">
+                  <p className="mt-4 border-s-2 border-destructive/40 ps-3 text-sm font-medium">
                     {alt.cost}
                   </p>
                 </div>

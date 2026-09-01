@@ -132,7 +132,7 @@ export function JoinFamilyDialog() {
                 disabled={isPending || !code.trim()}
                 className="inline-flex items-center gap-1 rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
               >
-                {isPending ? t('fam.checking') : <>{t('action.continue')} <ArrowRight className="h-3.5 w-3.5" /></>}
+                {isPending ? t('fam.checking') : <>{t('action.continue')} <ArrowRight className="h-3.5 w-3.5 rtl:-scale-x-100" /></>}
               </button>
             </div>
           </form>

@@ -451,7 +451,7 @@ export function AdminAccountShell({
             // it was written when Dues & Donations put two side by side, and the layout it
             // produces for one button is identical. Re-simplifying it would have to be undone
             // by the next item that spans two sections, and the wrap costs nothing.
-            <div className="ml-auto flex flex-wrap justify-end gap-2 xl:ml-0 xl:mt-3 xl:w-full xl:flex-col xl:border-t xl:pt-3">
+            <div className="ms-auto flex flex-wrap justify-end gap-2 xl:ms-0 xl:mt-3 xl:w-full xl:flex-col xl:border-t xl:pt-3">
               {createTargets.map(target => (
                 /* CirclePlus, not a bare Plus: the glyph carries weight against the
                    green fill, and it is not the Pencil this page already uses for
@@ -462,7 +462,7 @@ export function AdminAccountShell({
                   variant="affirm"
                   onClick={() => setCreating(target)}
                 >
-                  <CirclePlus className="h-4 w-4 mr-1" /> {createActions(t)[target]}
+                  <CirclePlus className="h-4 w-4 me-1" /> {createActions(t)[target]}
                 </Button>
               ))}
             </div>

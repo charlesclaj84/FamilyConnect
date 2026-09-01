@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { Users } from 'lucide-react'
 import { useMarketingIntl, useMarketingT } from '@/components/marketing/MarketingLocale'
-import { formatCurrency } from '@/lib/currency-utils'
+import { formatPlatformMoney } from '@/lib/currency-utils'
 import { type T } from '@/lib/i18n/t'
 import { cn } from '@/lib/utils'
 
@@ -89,7 +89,7 @@ function perRelative(
   if (monthlyCents === null) return t('mkt.slider.nothing')
   const each = monthlyCents / members
   if (each < 1) return t('mkt.slider.underCent')
-  const amount = formatCurrency(Math.round(each), intl) ?? ''
+  const amount = formatPlatformMoney(Math.round(each), intl) ?? ''
   if (each < 100) return t('mkt.slider.cents', { n: Math.round(each), amount })
   return amount
 }
@@ -179,7 +179,7 @@ export function FamilySizeSlider({ plans }: { plans: readonly SizedPlan[] }) {
             The totals are fixed and the per-relative figures are not, which is the
             whole demonstration: the left column never moves however far the thumb
             travels, and the right column falls away to nothing. */}
-        <div className="lg:border-l lg:pl-10">
+        <div className="lg:border-s lg:ps-10">
           <p className="flex items-center gap-2 text-sm font-semibold">
             <Users className="h-4 w-4 text-brand-accent" aria-hidden="true" />
             {t('mkt.slider.yourBill', { n: members })}
@@ -192,7 +192,7 @@ export function FamilySizeSlider({ plans }: { plans: readonly SizedPlan[] }) {
                 className="flex items-baseline justify-between gap-4 rounded-xl bg-brand-soft/50 px-4 py-3"
               >
                 <dt className="text-sm font-medium">{plan.name}</dt>
-                <dd className="text-right">
+                <dd className="text-end">
                   <span className="block font-semibold text-brand-ink">{plan.amount}</span>
                   <span className="block text-xs text-muted-foreground">
                     {t('mkt.slider.each', {

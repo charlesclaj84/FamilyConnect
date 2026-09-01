@@ -31,8 +31,21 @@ import type { createAdminClient } from '@/lib/supabase/admin'
  * it deliberately does not verify.
  */
 
-/** Which irreversible act a code is for. Mirrors the CHECK on `purpose`. */
-export type ChallengePurpose = 'family_removal' | 'processor_disconnect'
+/**
+ * Which irreversible act a code is for. Mirrors the CHECK on `purpose`.
+ *
+ * ── THREE, SINCE 2026-09-01 ───────────────────────────────────────────────────────
+ * `data_start_fresh` is a family choosing to let a downgraded tier's data go NOW rather than
+ * waiting out the sixty days. It earned a code for the reason the other two have one and a
+ * confirm dialog does not: it is the one act in the retention window that brings an
+ * irreversible deletion forward, at a person's request, with no reminders in front of it.
+ *
+ * ADDING A FOURTH IS THREE EDITS, and `20260825000000` names them: this union, the CHECK on
+ * the column, and `consume_family_action_challenge`'s own hardcoded list. Missing the third
+ * admits the row and then refuses to spend it, which reports "there is no code waiting" for a
+ * code that exists.
+ */
+export type ChallengePurpose = 'family_removal' | 'processor_disconnect' | 'data_start_fresh'
 
 /**
  * How long a code lasts, in minutes.

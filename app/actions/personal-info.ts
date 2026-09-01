@@ -1,5 +1,6 @@
 'use server'
 
+import { cookies } from 'next/headers'
 import { revalidatePath } from 'next/cache'
 import { propagateChapterToChildren } from '@/lib/chapter-propagation'
 import { confirmWrite } from '@/lib/confirmed-write'
@@ -10,6 +11,7 @@ import { pickProfileColumns } from '@/lib/profile-columns'
 import { isSupportedLocale } from '@/lib/i18n/locales'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
+import { LOCALE_PICK_COOKIE, LOCALE_PICK_MAX_AGE } from '@/lib/i18n/route-locale'
 
 /**
  * The extensions the `avatars` bucket accepts, keyed by the MIME type that goes with each.
@@ -286,6 +288,29 @@ export async function setMyLocale(
   }
   if (!data || data.length === 0) {
     return { success: false, message: t('act.notAuthorized') }
+  }
+
+  // ── MIRROR THE CHOICE INTO THE COOKIE, FOR THE DIRECTION BOOT SCRIPT ─────────────
+  // `people.locale` is the authority and this changes nothing about that. What the cookie buys
+  // is the ONE thing a database column cannot: `DIRECTION_BOOT_SCRIPT` runs in `<head>` before
+  // any session exists, so without it a member whose language is read right-to-left would get a
+  // left-to-right first paint and a flip on hydration — on every single page load, forever.
+  //
+  // It is the same cookie `LocaleSwitcher` writes on Home and `proxy.ts` reads at the edge, so
+  // the direction, the routing and the stored choice cannot disagree.
+  //
+  // BEST EFFORT AND NEVER A FAILURE. A member who has changed their language HAS changed it;
+  // a cookie that could not be written costs one flash on the next load and nothing else, and
+  // reporting it would be reporting a failure over a success. `rememberLocalePick`'s own
+  // header makes the same argument for the browser-side write.
+  try {
+    ;(await cookies()).set(LOCALE_PICK_COOKIE, locale, {
+      path: '/',
+      maxAge: LOCALE_PICK_MAX_AGE,
+      sameSite: 'lax',
+    })
+  } catch (e) {
+    console.error(`[personal-info] could not mirror the locale cookie: ${String(e)}`)
   }
 
   // THE WHOLE LAYOUT, not this route: the rail, the top bar, the account menu and every caption

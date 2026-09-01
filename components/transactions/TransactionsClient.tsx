@@ -20,13 +20,14 @@ import { Select } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useConfirm } from '@/components/ui/confirm'
 import { disambiguatedName } from '@/lib/name-utils'
-import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
+import { dollarsToCents } from '@/lib/currency-utils'
 import { formatDate, todayLocal } from '@/lib/date-utils'
 import { formatInstantDate } from '@/lib/tz'
 import { PAYMENT_METHODS } from '@/lib/payment-methods'
 import { paymentStatusLabel, type ScheduleKind } from '@/lib/dues-utils'
 import type { T } from '@/lib/i18n/t'
 import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import { useMoney } from '@/components/layout/MoneyProvider'
 import { useServerState } from '@/lib/use-server-state'
 import { recordPayment, reversePayment, type DuesSchedule, type DuesPayment } from '@/app/actions/dues'
 import {
@@ -38,6 +39,7 @@ import { MainRail } from '@/components/layout/MainRail'
 import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
 import { SortTh, useTableSort, type SortDir } from '@/components/ui/sortable-header'
 import { FormError } from '@/components/ui/form-message'
+import type { Money } from '@/lib/currency-utils'
 
 interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null; date_of_birth?: string | null }
 interface FundOption { id: string; name: string }
@@ -190,7 +192,7 @@ const recorderField = (name: string | null, t: T) => ({
   value: name ?? t('tx.noLongerInFamily'),
 })
 
-function viewOfPayment(p: DuesPayment | undefined, zone: string, t: T, intl: string): TransactionView | null {
+function viewOfPayment(p: DuesPayment | undefined, zone: string, t: T, intl: string, money: Money): TransactionView | null {
   if (!p) return null
   const isReversal = Boolean(p.reverses_id)
   const kindWord = p.schedule_kind === 'donation' ? t('tx.donationPayment') : t('tx.duesPayment')
@@ -198,7 +200,7 @@ function viewOfPayment(p: DuesPayment | undefined, zone: string, t: T, intl: str
     title: p.person_name ?? t('tx.unknownMember'),
     subtitle: isReversal ? t('tx.correctingEntry', { kind: kindWord }) : kindWord,
     fields: [
-      { label: t('tx.amount'), value: fmt(p.amount_cents) },
+      { label: t('tx.amount'), value: money(p.amount_cents) },
       { label: t('money.status'), value: paymentStatusLabel(t, p.status) },
       { label: p.schedule_kind === 'donation' ? t('acct.section.donations') : t('tx.schedule'), value: p.schedule_label ?? t('tx.noSchedule') },
       { label: t('money.date'), value: formatDate(p.payment_date, intl) },
@@ -215,13 +217,13 @@ function viewOfPayment(p: DuesPayment | undefined, zone: string, t: T, intl: str
   }
 }
 
-function viewOfContribution(c: FundContribution | undefined, zone: string, t: T, intl: string): TransactionView | null {
+function viewOfContribution(c: FundContribution | undefined, zone: string, t: T, intl: string, money: Money): TransactionView | null {
   if (!c) return null
   return {
     title: c.contributor_name ?? t('tx.routedFromPayment'),
     subtitle: t('tx.fundContribution', { source: sourceLabel(t, c.source) }),
     fields: [
-      { label: t('tx.amount'), value: fmt(c.amount_cents) },
+      { label: t('tx.amount'), value: money(c.amount_cents) },
       { label: t('fnd.fund'), value: c.fund_name ?? t('tx.unknownFund') },
       { label: t('money.date'), value: formatDate(c.contributed_date, intl) },
       { label: t('tx.paymentMethod2'), value: c.payment_method },
@@ -233,13 +235,13 @@ function viewOfContribution(c: FundContribution | undefined, zone: string, t: T,
   }
 }
 
-function viewOfDisbursement(d: FundDisbursement | undefined, zone: string, t: T, intl: string): TransactionView | null {
+function viewOfDisbursement(d: FundDisbursement | undefined, zone: string, t: T, intl: string, money: Money): TransactionView | null {
   if (!d) return null
   return {
     title: d.person_name ?? t('tx.unknownMember'),
     subtitle: t('tx.fundDisbursement'),
     fields: [
-      { label: t('tx.amount'), value: fmt(d.amount_cents) },
+      { label: t('tx.amount'), value: money(d.amount_cents) },
       { label: t('fnd.fund'), value: d.fund_name ?? t('tx.unknownFund') },
       { label: t('tx.milestone'), value: d.milestone_name },
       { label: t('money.date'), value: formatDate(d.disbursed_date, intl) },
@@ -255,13 +257,13 @@ function viewOfDisbursement(d: FundDisbursement | undefined, zone: string, t: T,
  * A transfer has no counterparty to head the row with, so the two funds do the job:
  * the title is the movement itself and the subtitle says it changed no total.
  */
-function viewOfTransfer(tr: FundTransfer | undefined, zone: string, t: T, intl: string): TransactionView | null {
+function viewOfTransfer(tr: FundTransfer | undefined, zone: string, t: T, intl: string, money: Money): TransactionView | null {
   if (!tr) return null
   return {
     title: `${tr.from_fund_name ?? t('tx.unknownFund')} → ${tr.to_fund_name ?? t('tx.unknownFund')}`,
     subtitle: t('tx.fundTransfer'),
     fields: [
-      { label: t('tx.amount'), value: fmt(tr.amount_cents) },
+      { label: t('tx.amount'), value: money(tr.amount_cents) },
       { label: t('tx.fromLabel'), value: tr.from_fund_name ?? t('tx.unknownFund') },
       { label: t('tx.toLabel'), value: tr.to_fund_name ?? t('tx.unknownFund') },
       { label: t('money.date'), value: formatDate(tr.transferred_date, intl) },
@@ -296,14 +298,16 @@ function viewOfTransfer(tr: FundTransfer | undefined, zone: string, t: T, intl: 
  */
 function LedgerTable<K extends string>({ columns, sortProps, children }: {
   /**
-   * `right: true` for a figures column, so the heading sits over its own numbers.
+   * `atEnd: true` for a figures column, so the heading sits over its own numbers. Named for
+   * the END of the row rather than for its RIGHT, because in a right-to-left language that is
+   * the left — the same rename `SortTh`'s `align` took on 2026-09-01.
    * `collapse: true` folds the column away below `sm` — the row is then responsible
    * for restating it in a `<RowMeta>`.
    *
    * `sort` is the key in the caller's `useTableSort` map that this column orders by. A
    * column that names one is drawn as a `SortTh`; one that does not stays a plain `<th>`.
    */
-  columns: { label: string; right?: boolean; srOnly?: boolean; collapse?: boolean; sort?: K }[]
+  columns: { label: string; atEnd?: boolean; srOnly?: boolean; collapse?: boolean; sort?: K }[]
   /**
    * `sortProps` straight off the caller's `useTableSort`. Optional so a ledger can be drawn
    * unsorted, and TypeScript ties `K` to that hook's key union — so a `sort` naming a column
@@ -316,7 +320,7 @@ function LedgerTable<K extends string>({ columns, sortProps, children }: {
     <div className="overflow-hidden rounded-xl border">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {/* ── SORTING FOUR LEDGERS THROUGH ONE HEADER ────────────────────────────
                 Added 2026-08-31. The other tables in that pass each own their own `<th>`s
                 and grew a `SortTh` apiece; these four share this component, so the choice
@@ -332,7 +336,7 @@ function LedgerTable<K extends string>({ columns, sortProps, children }: {
                 <SortTh
                   key={c.label}
                   label={c.label}
-                  align={c.right ? 'right' : 'left'}
+                  align={c.atEnd ? 'end' : 'start'}
                   {...sortProps(c.sort)}
                   className={cn('px-3 py-2 font-semibold', c.collapse && COLLAPSING_CELL)}
                 />
@@ -340,7 +344,7 @@ function LedgerTable<K extends string>({ columns, sortProps, children }: {
                 <th key={c.label} scope="col"
                   className={cn(
                     'px-3 py-2 font-semibold',
-                    c.right && 'text-right',
+                    c.atEnd && 'text-end',
                     c.collapse && COLLAPSING_CELL,
                   )}>
                   {c.srOnly ? <span className="sr-only">{c.label}</span> : c.label}
@@ -389,7 +393,7 @@ function LedgerRowTrigger({ onOpen, children }: { onOpen: () => void; children: 
     <button
       type="button"
       onClick={e => { e.stopPropagation(); onOpen() }}
-      className="text-left font-medium hover:underline focus-visible:underline focus-visible:outline-none"
+      className="text-start font-medium hover:underline focus-visible:underline focus-visible:outline-none"
     >
       {children}
     </button>
@@ -443,6 +447,7 @@ export function TransactionsClient({
   zone,
 }: Props) {
   const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
@@ -621,9 +626,9 @@ export function TransactionsClient({
       // ONE KEY, not a chain of concatenated clauses: a sentence spliced around two figures
       // and a name hard-codes English word order, and no catalogue can hold a third of it.
       description: t('tx.reverseConfirm', {
-        credit: fmt(-payment.amount_cents),
+        credit: money(-payment.amount_cents),
         member: payment.person_name ?? t('tx.thisMember'),
-        amount: fmt(payment.amount_cents),
+        amount: money(payment.amount_cents),
       }),
       confirmLabel: t('tx.postReversal'),
       destructive: true,
@@ -799,7 +804,7 @@ export function TransactionsClient({
     // the gate — this list is as fresh as the last server render.
     if (tfFrom && cents > tfFrom.balance_cents) {
       setError(t('fnd.holdsTransferLess', {
-        name: tfFrom.name, amount: fmt(tfFrom.balance_cents),
+        name: tfFrom.name, amount: money(tfFrom.balance_cents),
       }))
       return
     }
@@ -846,12 +851,12 @@ export function TransactionsClient({
   const viewed: TransactionView | null = !viewing
     ? null
     : viewing.ledger === 'contributions'
-      ? viewOfContribution(contributions.find(c => c.id === viewing.id), zone, t, intl)
+      ? viewOfContribution(contributions.find(c => c.id === viewing.id), zone, t, intl, money)
       : viewing.ledger === 'disbursements'
-        ? viewOfDisbursement(disbursements.find(d => d.id === viewing.id), zone, t, intl)
+        ? viewOfDisbursement(disbursements.find(d => d.id === viewing.id), zone, t, intl, money)
         : viewing.ledger === 'transfers'
-          ? viewOfTransfer(transfers.find(row => row.id === viewing.id), zone, t, intl)
-          : viewOfPayment(payments.find(p => p.id === viewing.id), zone, t, intl)
+          ? viewOfTransfer(transfers.find(row => row.id === viewing.id), zone, t, intl, money)
+          : viewOfPayment(payments.find(p => p.id === viewing.id), zone, t, intl, money)
 
   // Reachable: `transactions:view` opens the page, but each ledger is its own grant
   // since 20260808000000, so a caller can hold the page and none of its contents.
@@ -887,7 +892,7 @@ export function TransactionsClient({
             variant="affirm"
             onClick={() => { setError(''); setRecording(ledger) }}
           >
-            <CirclePlus className="h-4 w-4 mr-1" /> {recordLabels(t)[ledger]}
+            <CirclePlus className="h-4 w-4 me-1" /> {recordLabels(t)[ledger]}
           </Button>
         )}
       />
@@ -918,7 +923,7 @@ export function TransactionsClient({
                   { label: 'From', sort: 'from' },
                   { label: 'Fund', collapse: true, sort: 'fund' },
                   { label: 'Date', collapse: true, sort: 'date' },
-                  { label: 'Amount', right: true, sort: 'amount' },
+                  { label: 'Amount', atEnd: true, sort: 'amount' },
                 ]}
                 sortProps={contributionSort.sortProps}
               >
@@ -939,7 +944,7 @@ export function TransactionsClient({
                     </td>
                     <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{c.fund_name ?? t('tx.unknownFund')}</td>
                     <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{formatDate(c.contributed_date, intl)}</td>
-                    <td className="px-3 py-2.5 text-right align-top font-medium text-brand-affirm whitespace-nowrap sm:align-middle">{fmt(c.amount_cents)}</td>
+                    <td className="px-3 py-2.5 text-end align-top font-medium text-brand-affirm whitespace-nowrap sm:align-middle">{money(c.amount_cents)}</td>
                   </LedgerRow>
                 ))}
               </LedgerTable>
@@ -962,7 +967,7 @@ export function TransactionsClient({
                   { label: t('tx.paid'), sort: 'paid' },
                   { label: t('tx.fundMilestone'), collapse: true, sort: 'fund' },
                   { label: 'Date', collapse: true, sort: 'date' },
-                  { label: 'Amount', right: true, sort: 'amount' },
+                  { label: 'Amount', atEnd: true, sort: 'amount' },
                 ]}
                 sortProps={disbursementSort.sortProps}
               >
@@ -993,7 +998,7 @@ export function TransactionsClient({
                         a disbursement is money OUT. Both ledgers painted the same
                         green before the tokens landed, which made the colour mean
                         "a currency figure" rather than a direction. */}
-                    <td className="px-3 py-2.5 text-right align-top font-medium text-foreground whitespace-nowrap sm:align-middle">{fmt(d.amount_cents)}</td>
+                    <td className="px-3 py-2.5 text-end align-top font-medium text-foreground whitespace-nowrap sm:align-middle">{money(d.amount_cents)}</td>
                   </LedgerRow>
                 ))}
               </LedgerTable>
@@ -1016,7 +1021,7 @@ export function TransactionsClient({
                 columns={[
                   { label: t('tx.from'), sort: 'from' },
                   { label: 'Date', collapse: true, sort: 'date' },
-                  { label: 'Amount', right: true, sort: 'amount' },
+                  { label: 'Amount', atEnd: true, sort: 'amount' },
                 ]}
                 sortProps={transferSort.sortProps}
               >
@@ -1041,7 +1046,7 @@ export function TransactionsClient({
                         Nothing came out either — the family holds exactly what it held
                         a moment ago — so a direction colour would be claiming something
                         that did not happen. */}
-                    <td className="px-3 py-2.5 text-right align-top font-medium text-foreground whitespace-nowrap sm:align-middle">{fmt(t.amount_cents)}</td>
+                    <td className="px-3 py-2.5 text-end align-top font-medium text-foreground whitespace-nowrap sm:align-middle">{money(t.amount_cents)}</td>
                   </LedgerRow>
                 ))}
               </LedgerTable>
@@ -1269,7 +1274,7 @@ export function TransactionsClient({
                 }
               }}>
                 <option value="">{t('tx.selectNone')}</option>
-                {filteredMilestones.map(m => <option key={m.id} value={m.id}>{m.name} ({fmt(m.amount_cents)})</option>)}
+                {filteredMilestones.map(m => <option key={m.id} value={m.id}>{m.name} ({money(m.amount_cents)})</option>)}
               </Select>
             </div>
           )}
@@ -1325,7 +1330,7 @@ export function TransactionsClient({
             <Select value={tfFromId} onChange={e => setTfFromId(e.target.value)} autoFocus>
               <option value="">{t('tx.selectFund')}</option>
               {transferFunds.map(f => (
-                <option key={f.id} value={f.id}>{f.name} ({fmt(f.balance_cents)})</option>
+                <option key={f.id} value={f.id}>{f.name} ({money(f.balance_cents)})</option>
               ))}
             </Select>
           </div>
@@ -1338,7 +1343,7 @@ export function TransactionsClient({
             <Select value={tfToId} onChange={e => setTfToId(e.target.value)}>
               <option value="">{t('tx.selectFund')}</option>
               {transferFunds.filter(f => f.id !== tfFromId).map(f => (
-                <option key={f.id} value={f.id}>{f.name} ({fmt(f.balance_cents)})</option>
+                <option key={f.id} value={f.id}>{f.name} ({money(f.balance_cents)})</option>
               ))}
             </Select>
           </div>
@@ -1350,7 +1355,7 @@ export function TransactionsClient({
                 value={tfAmount} onChange={e => setTfAmount(e.target.value)}
               />
               {tfFrom && (
-                <p className="text-xs text-muted-foreground">{tfFrom.name} holds {fmt(tfFrom.balance_cents)}.</p>
+                <p className="text-xs text-muted-foreground">{tfFrom.name} holds {money(tfFrom.balance_cents)}.</p>
               )}
             </div>
             <div className="space-y-1.5">
@@ -1444,6 +1449,7 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
 }) {
   const t = useT()
   const intl = useIntlTag()
+  const money = useMoney()
   const isDonations = kind === 'donations'
 
   // ── ABOVE THE EMPTY-STATE RETURN, WHICH IS NOT A STYLE CHOICE ─────────────────────
@@ -1491,7 +1497,7 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
         // carries a colour, and "Reversed" in plain grey next to a struck-through
         // amount is the row's most important fact rendered as its least visible one.
         ...(isDonations ? [] : [{ label: 'Status', collapse: true, sort: 'status' as const }]),
-        { label: 'Amount', right: true, sort: 'amount' as const },
+        { label: 'Amount', atEnd: true, sort: 'amount' as const },
         // NO `sort`, deliberately: the reverse control is not a fact about the row and
         // there is nothing in this column to put in an order.
         { label: 'Actions', srOnly: true },
@@ -1543,7 +1549,7 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
               </td>
             )}
             <td className={cn(
-              'px-3 py-2.5 text-right align-top font-medium whitespace-nowrap sm:align-middle',
+              'px-3 py-2.5 text-end align-top font-medium whitespace-nowrap sm:align-middle',
               // In step with PaymentStatusPill, one role apart by necessity: the pill's
               // attention arms are the gold SURFACE, and gold cannot carry text on a pale
               // ground, so the figure states the same thing as accent text.
@@ -1557,16 +1563,16 @@ function PaymentLedger({ rows, kind, canReverse, onReverse, onOpen, pending }: {
                   on the one status that is hard to audit was the wrong place to be
                   terse. PaymentStatusPill still says "Waived", in the Status column
                   and on the meta line below `sm`. */}
-              {fmt(p.amount_cents)}
+              {money(p.amount_cents)}
             </td>
-            <td className="w-px px-3 py-2.5 text-right align-top sm:align-middle">
+            <td className="w-px px-3 py-2.5 text-end align-top sm:align-middle">
               {reversible && (
                 // stopPropagation, or this click opens the detail dialog on its way up
                 // through the row. See LedgerRow.
                 <Button size="sm" variant="ghost" disabled={pending}
                   className="h-7 shrink-0 px-2 text-xs text-brand-accent hover:opacity-80"
                   onClick={e => { e.stopPropagation(); onReverse(p) }}>
-                  <Undo2 className="mr-1 h-3.5 w-3.5" /> Reverse
+                  <Undo2 className="me-1 h-3.5 w-3.5" /> Reverse
                 </Button>
               )}
             </td>

@@ -188,7 +188,7 @@ export function DistributionsClient({ initialDistributions, audiences, rights }:
             onClick={() => { setError(''); setComposing(true) }}
             className="bg-brand-affirm text-brand-on-affirm hover:bg-brand-affirm/90"
           >
-            <Send className="mr-2 h-4 w-4" aria-hidden="true" />{t('dist.newDistribution')}</Button>
+            <Send className="me-2 h-4 w-4" aria-hidden="true" />{t('dist.newDistribution')}</Button>
         )}
       </header>
 
@@ -203,7 +203,7 @@ export function DistributionsClient({ initialDistributions, audiences, rights }:
           aria-live="polite"
         >
           {sendingLabel || 'Sending…'}
-          <span className="ml-2 text-brand-on-soft/70">{t('dist.canLeavePageSend')}</span>
+          <span className="ms-2 text-brand-on-soft/70">{t('dist.canLeavePageSend')}</span>
         </div>
       )}
 
@@ -275,7 +275,7 @@ function DistributionTable({ rows, rights, busy, onOpen, onStop, onRetry, onRemo
      * `RowMeta` inside the first cell. */
     <div className="overflow-hidden rounded-xl border bg-card">
       <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-left">
+        <thead className="bg-muted/50 text-start">
           <tr>
             <th scope="col" className="px-3 py-2 font-medium">Subject</th>
             <th scope="col" className={cn('px-3 py-2 font-medium', COLLAPSING_CELL)}>{t('dist.sent')}</th>
@@ -299,7 +299,7 @@ function DistributionTable({ rows, rights, busy, onOpen, onStop, onRetry, onRemo
                   type="button"
                   onClick={() => onOpen(row.id)}
                   aria-haspopup="dialog"
-                  className="text-left font-medium text-brand-accent hover:underline"
+                  className="text-start font-medium text-brand-accent hover:underline"
                 >
                   {row.subject}
                 </button>
@@ -345,7 +345,7 @@ function DistributionTable({ rows, rights, busy, onOpen, onStop, onRetry, onRemo
                   {rights.send && row.progress.sending && (
                     <Button size="sm" variant="outline" disabled={busy}
                       onClick={() => onStop(row)}>
-                      <CircleSlash className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
+                      <CircleSlash className="me-1.5 h-3.5 w-3.5" aria-hidden="true" />
                       Stop
                     </Button>
                   )}
@@ -353,7 +353,7 @@ function DistributionTable({ rows, rights, busy, onOpen, onStop, onRetry, onRemo
                     && (row.counts.failed > 0 || row.counts.pending > 0) && (
                     <Button size="sm" variant="outline" disabled={busy}
                       onClick={() => onRetry(row.id)}>
-                      <RotateCcw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />{t('dist.tryAgain')}</Button>
+                      <RotateCcw className="me-1.5 h-3.5 w-3.5" aria-hidden="true" />{t('dist.tryAgain')}</Button>
                   )}
                   {rights.remove && !row.progress.sending && (
                     <Button size="sm" variant="ghost" disabled={busy}
@@ -499,7 +499,7 @@ function ComposeDialog({ audiences, onClose, onSent }: {
           disabled={isPending || mailable === 0}
           className="bg-brand-affirm text-brand-on-affirm hover:bg-brand-affirm/90"
         >
-          <Mail className="mr-2 h-4 w-4" aria-hidden="true" />
+          <Mail className="me-2 h-4 w-4" aria-hidden="true" />
           {isPending
             ? t('dist.preparing')
             : t('dist.sendToCount', { n: String(mailable) })}
@@ -577,7 +577,7 @@ function DetailDialog({ detail, onClose }: {
             )}
             <div className="max-h-72 overflow-y-auto rounded-lg border">
               <table className="w-full text-sm">
-                <thead className="sticky top-0 bg-muted/50 text-left">
+                <thead className="sticky top-0 bg-muted/50 text-start">
                   <tr>
                     <th scope="col" className="px-3 py-2 font-medium">Relative</th>
                     <th scope="col" className={cn('px-3 py-2 font-medium', COLLAPSING_CELL)}>

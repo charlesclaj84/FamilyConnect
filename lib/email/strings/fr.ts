@@ -273,4 +273,75 @@ export const emailFr: Catalogue = {
   'email.staffDelete.p2': 'Cela détruit chaque enregistrement de cette famille, et il n’y a pas de restauration. Si vous n’avez pas demandé cela, n’utilisez pas le code — et considérez votre session de console comme compromise.',
   'email.staffDelete.fine': 'Le code dure {minutes} minutes, fonctionne une fois et autorise cinq tentatives.',
   'email.staffDelete.footnote': 'Envoyé parce qu’une session de la console du personnel l’a demandé. Personne dans la famille ne reçoit ce message.',
+
+  'email.dunning.day5.subject': 'Un paiement pour {family} n’a pas abouti',
+  'email.dunning.day5.preheader': 'Mettez la carte à jour et tout continue normalement.',
+  'email.dunning.day5.heading': 'Un paiement n’a pas abouti',
+  'email.dunning.day5.p1':
+    'La carte enregistrée pour {family} a été refusée. Rien n’a encore changé et chacun peut '
+    + 'continuer à utiliser le site comme d’habitude : mettre la carte à jour règle la '
+    + 'situation.',
+  'email.dunning.day10.subject': 'L’accès à {family} est limité jusqu’au paiement',
+  'email.dunning.day10.preheader':
+    'Les proches ne peuvent plus se connecter. Les administrateurs, si.',
+  'email.dunning.day10.heading': 'L’accès est limité',
+  'email.dunning.day10.p1':
+    'Le paiement pour {family} est toujours en attente : les proches ne peuvent donc plus '
+    + 'utiliser le site. Les administrateurs conservent l’accès complet, et le paiement le '
+    + 'rétablit pour tout le monde d’un coup — rien n’a été supprimé.',
+  'email.dunning.day30.subject': 'Seule la facturation reste ouverte pour {family}',
+  'email.dunning.day30.preheader':
+    'Tous les autres écrans sont fermés jusqu’au règlement du compte.',
+  'email.dunning.day30.heading': 'Seule la facturation reste ouverte',
+  'email.dunning.day30.p1':
+    'Le compte de {family} a trente jours de retard : tous les écrans sauf celui-ci sont '
+    + 'désormais fermés aux administrateurs également. Tout ce que la famille a saisi est '
+    + 'toujours là, et le paiement rouvre l’ensemble.',
+  'email.dunning.day45.subject':
+    'Action requise : {family} perd ses données dans 15 jours',
+  'email.dunning.day45.preheader': 'Dans 15 jours, ce sera irréversible.',
+  'email.dunning.day45.heading': 'Quinze jours restants',
+  'email.dunning.day45.p1':
+    'Le compte de {family} est impayé depuis quarante-cinq jours. Dans {days} jours, la '
+    + 'famille passe à l’offre Gratuite et tout ce que l’offre Gratuite n’inclut pas — '
+    + 'l’arbre généalogique, le registre des cotisations, les fonds et les photographies — '
+    + 'est supprimé.',
+  'email.dunning.day59.subject': 'Demain : {family} perd ses données',
+  'email.dunning.day59.preheader': 'C’est le dernier jour pour l’empêcher.',
+  'email.dunning.day59.heading': 'Demain',
+  'email.dunning.day59.p1':
+    'Demain, sauf réception du paiement, {family} passe à l’offre Gratuite et tout ce que '
+    + 'l’offre Gratuite n’inclut pas — l’arbre généalogique, le registre des cotisations, les '
+    + 'fonds et les photographies — est supprimé.',
+  'email.dunning.amount': 'Pour remettre le compte à jour : {amount}. Cela couvre l’impayé et '
+    + 'le mois à venir, afin que le retard ne reprenne pas aussitôt.',
+  'email.dunning.button': 'Payer maintenant',
+  'email.dunning.fine':
+    'Vous recevez ce message parce que vous vous occupez de la facturation de cette famille.',
+  'email.dunning.fineWarn':
+    'Les données supprimées ne peuvent pas être récupérées. Cela ne peut être annulé ni par '
+    + 'nous ni par personne d’autre.',
+  'email.dunning.footnote':
+    'Si vous avez déjà payé, vous pouvez ignorer ce message : cela peut prendre quelques '
+    + 'minutes pour nous parvenir.',
+
+  'email.retention.subject': 'Vos données {tier} sont conservées encore {days} jours',
+  'email.retention.preheader': 'Il reste {days} jours pour décider.',
+  'email.retention.heading': 'Il reste {days} jours pour décider',
+  'email.retention.p1':
+    '{family} est passée sous {tier}, et tout ce que cette offre incluait a été conservé '
+    + 'depuis plutôt que supprimé. Dans {days} jours, ce sera supprimé.',
+  'email.retention.p2':
+    'Pour le conserver, revenez à {tier}. Cela couvre les mois d’absence ainsi que le mois à '
+    + 'venir — {amount} — de sorte que l’offre n’ait aucun trou et que tout soit exactement où '
+    + 'vous l’avez laissé.',
+  'email.retention.p3':
+    'Si vous préférez repartir de zéro, ne faites rien. Les données seront supprimées à la '
+    + 'date indiquée et la famille continue avec l’offre actuelle, sans frais supplémentaires.',
+  'email.retention.button': 'Revenir à {tier}',
+  'email.retention.fine':
+    'Les données supprimées ne peuvent pas être récupérées. Cela ne peut être annulé ni par '
+    + 'nous ni par personne d’autre.',
+  'email.retention.footnote':
+    'Vous recevez ce message parce que vous vous occupez de la facturation de cette famille.',
 }

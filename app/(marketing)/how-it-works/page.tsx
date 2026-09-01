@@ -139,7 +139,7 @@ export default async function HowItWorksPage() {
                   {i < STEPS.length - 1 && (
                     <span
                       aria-hidden="true"
-                      className="absolute left-6 top-14 h-[calc(100%+1rem)] w-px bg-brand-primary/15"
+                      className="absolute start-6 top-14 h-[calc(100%+1rem)] w-px bg-brand-primary/15"
                     />
                   )}
                   <div className="relative z-10 flex size-12 shrink-0 items-center justify-center rounded-2xl border bg-card shadow-[var(--shadow-card)]">
@@ -154,7 +154,7 @@ export default async function HowItWorksPage() {
                     <h3 className="mt-1 text-xl">{step.title}</h3>
                     <p className="mt-2 leading-relaxed text-muted-foreground">{step.detail}</p>
                     {step.aside && (
-                      <p className="mt-2 rounded-lg border-l-2 border-brand-legacy bg-brand-soft/50 px-3 py-2 text-sm">
+                      <p className="mt-2 rounded-lg border-s-2 border-brand-legacy bg-brand-soft/50 px-3 py-2 text-sm">
                         {step.aside}
                       </p>
                     )}

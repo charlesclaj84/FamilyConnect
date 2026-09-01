@@ -124,9 +124,9 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
           <div className="space-y-1">
             <Label htmlFor="doc-search" className="text-xs">{t('action.search')}</Label>
             <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+              <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
               <Input id="doc-search" value={query} onChange={e => setQuery(e.target.value)}
-                placeholder={t('docs.searchPh')} className="w-56 pl-8" />
+                placeholder={t('docs.searchPh')} className="w-56 ps-8" />
             </div>
           </div>
           <div className="space-y-1">
@@ -168,7 +168,7 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
       ) : (
         <div className="overflow-hidden rounded-xl border">
           <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-left">
+            <thead className="bg-muted/40 text-start">
               <tr className="border-b">
                 <th scope="col" className="px-3 py-2 font-semibold">{t('docs.document')}</th>
                 <th scope="col" className={`px-3 py-2 font-semibold ${COLLAPSING_CELL}`}>{t('common.category')}</th>
@@ -188,7 +188,7 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
                         itself honestly — the same reasoning `MainRail` gives for refusing
                         `role="tablist"`. */}
                     <button type="button" onClick={() => handleDownload(doc)}
-                      className="text-left font-medium text-foreground hover:underline">
+                      className="text-start font-medium text-foreground hover:underline">
                       {doc.name}
                     </button>
                     {doc.description && (
@@ -213,7 +213,7 @@ export function DocumentList({ initialDocuments, canUpload, canDeleteAny, myPers
                       <span className="block text-xs">by {doc.uploaded_by_name}</span>
                     )}
                   </td>
-                  <td className="px-3 py-2.5 text-right">
+                  <td className="px-3 py-2.5 text-end">
                     <span className="flex justify-end gap-1">
                       <button type="button" onClick={() => handleDownload(doc)}
                         aria-label={`Download ${doc.name}`} title={t('action.download')}

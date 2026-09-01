@@ -193,7 +193,7 @@ export default async function RegisterPage({
               else — `TIER_TAGLINE.standard`, the help chapter and `lib/features.ts` all
               say "who is doing what" — so this now claims the thing Gatherings actually
               answers. */}
-          <ul className="list-disc space-y-1 pl-5">
+          <ul className="list-disc space-y-1 ps-5">
             <li>{t('auth.aside.can1')}</li>
             <li>{t('auth.aside.can2')}</li>
             <li>{t('auth.aside.can3')}</li>
@@ -201,7 +201,7 @@ export default async function RegisterPage({
           </ul>
 
           <p className="font-medium text-foreground">{t('auth.aside.nextHeading')}</p>
-          <ol className="list-decimal space-y-1.5 pl-5">
+          <ol className="list-decimal space-y-1.5 ps-5">
             <li>
               <AsideTerm>{t('auth.aside.confirmTerm')}</AsideTerm>{' '}
               {t('auth.aside.confirmBody')}

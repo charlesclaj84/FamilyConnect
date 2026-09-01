@@ -253,8 +253,8 @@ export function WelcomeHero({
             hairline, so the seam is complete without this. */}
         <EventPhoto photoUrl={photoUrl} className="pointer-events-none absolute inset-x-0 -bottom-24 hidden h-56 w-full text-brand-soft sm:block" />
 
-        {/* `sm:pr-[42%]` keeps the name clear of the crop. It tracks `CROP_LEFT_PCT` in
-            `curves.tsx` — 62%, so the crop takes the right-hand 38% — plus four points, because
+        {/* `sm:pe-[42%]` keeps the name clear of the crop. It tracks `CROP_LEFT_PCT` in
+            `curves.tsx` — 62%, so the crop takes the end-hand 38% — plus four points, because
             the shape's widest point is partway down and a name stopping exactly at its edge
             reads as a collision. It was 58% while the crop sat at the kit's own 43.5%; the crop
             is slimmer now and the name has the room back.
@@ -264,7 +264,7 @@ export function WelcomeHero({
             does. Taller than this and the crop begins partway down; shorter and it starts above
             the section. It also matters most for the member who holds no board position and no
             chapter, where the greeting is two lines. */}
-        <div className="relative flex min-h-32 flex-wrap items-center gap-5 py-2 sm:pr-[42%]">
+        <div className="relative flex min-h-32 flex-wrap items-center gap-5 py-2 sm:pe-[42%]">
           {greeting}
         </div>
       </section>
@@ -276,7 +276,7 @@ export function WelcomeHero({
       {/* Behind everything, bleeding off the right edge the way the kit's does. Low
           opacity is required, not stylistic — see tree-watermark-path.ts on why this
           artwork must never be shown large and crisp. */}
-      <TreeWatermark className="pointer-events-none absolute -right-8 -top-6 h-[125%] w-auto opacity-[0.07]" />
+      <TreeWatermark className="pointer-events-none absolute -end-8 -top-6 h-[125%] w-auto opacity-[0.07]" />
 
       <div className="relative flex flex-wrap items-center gap-5 px-6 pb-20 pt-8 sm:px-10 sm:pt-10">
         {greeting}

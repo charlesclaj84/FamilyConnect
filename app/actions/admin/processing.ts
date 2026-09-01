@@ -21,6 +21,7 @@ import { resolveLocale } from '@/lib/auth/locale'
 import { hashChallengeCode, mintChallenge } from '@/lib/action-challenge'
 import { SITE_URL } from '@/lib/site'
 import { currentUser } from '@/lib/auth/current-user'
+import { getFamilyMoney } from '@/lib/auth/currency'
 
 /**
  * Connecting a family's OWN Stripe account, so its members can pay dues with a card.
@@ -115,6 +116,29 @@ export interface ProcessorStatus {
    * actually uses.
    */
   feesPaidCents: number
+  /**
+   * Which country the family's connected account is, or will be, created in — and the currency
+   * that derives from it (`families.connect_country` / `families.currency`).
+   *
+   * ── ONE FACT, READ OFF THE FAMILY AND NOT OFF THE STRIPE ROW ─────────────────────
+   * `family_stripe_accounts.country` records what Stripe echoed back and exists only once an
+   * account does. This pair exists from the moment the family does, because a family recording
+   * cash dues has a currency before it has a merchant account — which is the case
+   * `families.currency NOT NULL DEFAULT 'usd'` is for.
+   */
+  country: string
+  currency: string
+  /**
+   * May the pair still be changed?
+   *
+   * FALSE FOR TWO INDEPENDENT REASONS, and the screen says which: an account exists (Stripe's
+   * `identity.country` cannot be changed after creation) or a payment has been recorded (the
+   * ledger is append-only and carries no currency of its own — `families_guard_currency`).
+   * Either one alone is enough, and a family can be in both states at once.
+   */
+  countryLocked: boolean
+  /** Which of the two locked it, for the sentence on screen. Null when it is still open. */
+  countryLockedBy: 'account' | 'payments' | null
 }
 
 export async function getProcessorStatus(): Promise<ProcessorStatus | null> {
@@ -122,7 +146,8 @@ export async function getProcessorStatus(): Promise<ProcessorStatus | null> {
   if (!g.ok || !g.familyCode) return null
 
   const admin = createAdminClient()
-  const [accountRes, autopayRes, feesRes, editable] = await Promise.all([
+  const [accountRes, autopayRes, feesRes, editable, familyMoney, paymentsRes]
+    = await Promise.all([
     admin.from('family_stripe_accounts')
       .select('stripe_account_id, card_payments_status, details_submitted, connected_at, disconnected_at, fee_payer, fee_percent_bps, fee_fixed_cents')
       .eq('family_code', g.familyCode)
@@ -138,6 +163,16 @@ export async function getProcessorStatus(): Promise<ProcessorStatus | null> {
       .select('fee_cents')
       .eq('family_code', g.familyCode),
     requireEdit(PROCESSING).then(r => r.ok),
+    // The family's own country/currency pair. §3 by hand — the code comes from the caller's
+    // own membership through the guard, never from an argument.
+    getFamilyMoney(g.familyCode),
+    // HEAD-ONLY COUNT, because the question is "is there one" and the answer must not depend
+    // on the reader's grants: `dues_payments` has a policy, and this runs on the admin client
+    // for the same reason the fee total does — a lock that appears for one administrator and
+    // not another would be unexplainable on screen.
+    admin.from('dues_payments')
+      .select('id', { count: 'exact', head: true })
+      .eq('family_code', g.familyCode),
   ])
 
   // §8: a refused read must not render as "no processor connected" — that sentence invites a
@@ -175,7 +210,96 @@ export async function getProcessorStatus(): Promise<ProcessorStatus | null> {
     feesPaidCents: feesRes.error
       ? 0
       : (feesRes.data ?? []).reduce((sum, r) => sum + (Number(r.fee_cents) || 0), 0),
+    // The display fallback, deliberately — this is a figure on a screen rather than a charge.
+    // `startProcessorOnboarding` below re-reads it and REFUSES on a failed read, because that
+    // one writes a country to Stripe that can never be changed.
+    country: familyMoney?.country ?? 'us',
+    currency: familyMoney?.currency ?? 'usd',
+    // §8: a REFUSED payments count must lock the control rather than unlock it. `count` is null
+    // both for "no rows" and for a query that failed, so the error is read — an unlocked picker
+    // over a family that has taken money is a refusal from the trigger with no explanation.
+    countryLocked: (row != null && row.disconnected_at == null)
+      || paymentsRes.error != null
+      || (paymentsRes.count ?? 0) > 0,
+    countryLockedBy: (row != null && row.disconnected_at == null)
+      ? 'account'
+      : (paymentsRes.error != null || (paymentsRes.count ?? 0) > 0) ? 'payments' : null,
   }
+}
+
+/**
+ * Choose the country the family's account will be created in — and, with it, the currency its
+ * books are kept in.
+ *
+ * ── ONE CONTROL FOR TWO FACTS, BECAUSE THEY ARE ONE DECISION ───────────────────────
+ * `20260901000000` constrains `families.currency` to agree with `families.connect_country` and
+ * `set_family_connect_country` writes them together, so this action never sends a currency:
+ * it sends the country and the database derives the rest. AGENTS.md §2b rule 3's shape — a
+ * caller that could send both could send a mismatched pair.
+ *
+ * ── IT IS SEPARATE FROM `startProcessorOnboarding`, AND THAT IS THE POINT ──────────
+ * A family recording cash dues has a currency long before it has a merchant account, and a
+ * family in Monterrey must be able to keep its books in pesos whether or not it ever connects
+ * Stripe. Leaving this to onboarding would have left every un-connected family on dollars with
+ * no way to say otherwise.
+ *
+ * ── THE TWO LOCKS ARE CHECKED HERE AND ENFORCED IN THE DATABASE ────────────────────
+ * The screen in front of this is a convenience (AGENTS.md §2), and the trigger is what makes
+ * the answer true — but a 42501 is not a sentence anybody can act on, so this asks first and
+ * says which lock applies. `families_guard_currency` refuses the change regardless.
+ */
+export async function setProcessorCountry(country: string): Promise<ProcessorActionResult> {
+  const g = await requireEdit(PROCESSING)
+  if (!g.ok) return { success: false, message: g.message }
+  const { t } = g
+  if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
+
+  // The same guard `startProcessorOnboarding` applies, for the same reason: an unrecognised
+  // country is REFUSED rather than defaulted to the US.
+  if (!isEnabledConnectCountry(country)) {
+    return { success: false, message: t('act.countryNotAvailableForDues') }
+  }
+
+  const admin = createAdminClient()
+
+  // LOCK 1 — Stripe. `identity.country` cannot be changed after the account is created, so a
+  // family whose account exists is fixed there whatever this column says.
+  const { data: account, error: accountError } = await admin
+    .from('family_stripe_accounts')
+    .select('disconnected_at')
+    .eq('family_code', g.familyCode)
+    .maybeSingle()
+  if (accountError) {
+    return { success: false, message: t('act.couldNotReadFamilyCurrency') }
+  }
+  if (account && account.disconnected_at == null) {
+    return { success: false, message: t('act.currencyFixedByAccount') }
+  }
+
+  // LOCK 2 — the ledger. `dues_payments` is append-only and carries no currency of its own, so
+  // the family's currency is what says what every historical row MEANT.
+  const { count, error: paymentsError } = await admin
+    .from('dues_payments')
+    .select('id', { count: 'exact', head: true })
+    .eq('family_code', g.familyCode)
+  // A REFUSED COUNT REFUSES THE CHANGE. §8 with the stakes on the destructive side: treating an
+  // unreadable ledger as an empty one would re-denominate a family's books on a transient
+  // PostgREST failure.
+  if (paymentsError || (count ?? 0) > 0) {
+    return { success: false, message: t('act.currencyFixedByPayments') }
+  }
+
+  const { error } = await admin.rpc('set_family_connect_country', {
+    p_family_code: g.familyCode,
+    p_country: country,
+  })
+  if (error) {
+    console.error(`[processing] could not set the country for ${g.familyCode}: ${error.message}`)
+    return { success: false, message: t('act.currencyFixedByPayments') }
+  }
+
+  revalidatePath('/admin/accounting')
+  return { success: true, message: t('act.countryAndCurrencySaved') }
 }
 
 export type ProcessorLinkResult =
@@ -226,7 +350,17 @@ export async function startProcessorOnboarding(
   const { t } = g
   if (!g.familyCode) return { success: false, message: t('act.youDoNotBelongFamily') }
 
-  const wanted = country ?? DEFAULT_CONNECT_COUNTRY
+  // ── THE STORED PAIR WINS OVER THE ARGUMENT, SINCE 2026-09-01 ─────────────────────
+  // `families.connect_country` is set by `setProcessorCountry` above and is what the family's
+  // BOOKS are already denominated in. Creating the Stripe account in a different country would
+  // settle the family's dues in a currency their own figures are not in — and `identity.country`
+  // cannot be changed afterwards, so it would be permanent.
+  //
+  // The parameter is kept because the picker still sends it and a RECONNECTING family has no
+  // choice to make (`ensureConnectedAccount` returns the existing row). It is now a fallback
+  // for a family whose stored pair could not be read, never an override.
+  const stored = await getFamilyMoney(g.familyCode)
+  const wanted = stored?.country ?? country ?? DEFAULT_CONNECT_COUNTRY
   if (!isEnabledConnectCountry(wanted)) {
     return { success: false, message: t('act.countryNotAvailableForDues') }
   }

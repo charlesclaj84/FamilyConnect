@@ -45,14 +45,14 @@ function Block({ block }: { block: HelpBlock }) {
 
     case 'steps':
       return (
-        <ol className="list-outside list-decimal space-y-2 pl-6 marker:font-semibold marker:text-brand-accent">
+        <ol className="list-outside list-decimal space-y-2 ps-6 marker:font-semibold marker:text-brand-accent">
           {block.items.map((item, i) => <li key={i}><HelpText text={item} /></li>)}
         </ol>
       )
 
     case 'bullets':
       return (
-        <ul className="list-outside list-disc space-y-2 pl-6 marker:text-brand-accent">
+        <ul className="list-outside list-disc space-y-2 ps-6 marker:text-brand-accent">
           {block.items.map((item, i) => <li key={i}><HelpText text={item} /></li>)}
         </ul>
       )

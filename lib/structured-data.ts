@@ -1,5 +1,5 @@
 import {
-  APP_NAME, APP_LEAD, APP_SEO_DESCRIPTION, APP_PUBLISHER,
+  APP_NAME, APP_LEAD, APP_SEO_DESCRIPTION,
   APP_VALUES, BRAND_APP_ICON_SRC, BRAND_SOCIAL_PROFILES,
 } from '@/lib/brand'
 import { SITE_URL } from '@/lib/site'
@@ -10,8 +10,9 @@ import { TIERS, TIER_LABEL, type FamilyTier } from '@/lib/tiers'
  * Schema.org structured data — what the pages say about themselves to a machine.
  *
  * `<meta>` tags describe a DOCUMENT: this page has this title, this picture. They
- * cannot say that GENORRA is a thing, that ClearPath Digital publishes it, or that
- * the two are related. Structured data is the only channel that carries that, and
+ * cannot say that GENORRA is a THING, that it publishes this site, or that a
+ * software application and an organisation are the same brand. Structured data is
+ * the only channel that carries that, and
  * it is what a search engine uses to decide whether a brand is an entity it knows
  * or three unconnected pages that happen to share a word.
  *
@@ -57,12 +58,23 @@ const WEBSITE_ID = `${SITE_URL}/#website`
 /**
  * The brand as an entity.
  *
- * GENORRA is the `Organization` and ClearPath Digital is its `parentOrganization`,
- * which is the honest shape: the site, the product and the name people would search
- * for are all GENORRA, while the company in the copyright line is the publisher.
- * Modelling it the other way round — ClearPath Digital as the organisation — would
- * attach the logo and any future knowledge panel to a name that appears nowhere on
- * the site except one line of small print.
+ * GENORRA is the `Organization`, and there is no `parentOrganization`.
+ *
+ * ── IT HAD ONE UNTIL 2026-09-01, AND DROPPING IT WENT WITH THE PUBLISHER ──────
+ * The publisher was a separate company, so the honest shape was GENORRA as the
+ * organisation with that company as its parent: the site, the product and the name
+ * people would search for are all GENORRA, while the company in the copyright line
+ * is the publisher. `APP_PUBLISHER` is now GENORRA itself, and
+ * `parentOrganization: { name: 'GENORRA' }` on an organisation called GENORRA is a
+ * claim that the brand is its own subsidiary — noise in an entity graph rather than
+ * a fact, and the sort of thing a knowledge panel resolves badly.
+ *
+ * OMITTED RATHER THAN EMITTED AS THE SAME NAME, which is the same judgement
+ * `sameAs` makes two fields down: absence says nothing, and saying nothing is the
+ * truth here.
+ *
+ * If the publisher ever becomes a different company again, put it back — that is
+ * one line, and `APP_PUBLISHER` is where the fact lives either way.
  */
 function organization() {
   return {
@@ -79,7 +91,6 @@ function organization() {
       height: 512,
     },
     description: APP_SEO_DESCRIPTION,
-    parentOrganization: { '@type': 'Organization', name: APP_PUBLISHER },
     // Omitted while empty rather than emitted as []. An empty array is a positive
     // claim that the brand has no profiles anywhere; absence says nothing, which
     // is the truth. See BRAND_SOCIAL_PROFILES.

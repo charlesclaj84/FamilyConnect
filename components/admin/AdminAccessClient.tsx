@@ -793,7 +793,7 @@ function MemberTable({ rows, templates, rights, board, busy, run, onView, onEdit
     <div className="overflow-visible rounded-xl border">
       <table className="w-full border-collapse text-sm">
         <thead>
-          <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             <SortTh label={t('field.name')} {...sortProps('name')} className="px-3 py-2 font-semibold" />
             {/* ── POSITION REPLACED REGION ON 2026-08-20 ──────────────────────────────
                 Region was DERIVED from the member's chapter (`people.chapter_id ->
@@ -926,7 +926,7 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
           {member.templateName ?? t('access.noTemplate')}
         </span>
       </td>
-      <td className="w-10 px-3 py-2.5 text-right">
+      <td className="w-10 px-3 py-2.5 text-end">
       <RowMenu label={t('access.actionsFor', { name: member.name })} disabled={!rights.edit || busy}>
         {close => (
           <>
@@ -952,7 +952,7 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
               const current = tpl.id === member.templateId
               return (
                 <button key={tpl.id} type="button"
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft"
+                  className="flex w-full items-center gap-2 px-3 py-1.5 text-start text-sm transition-colors hover:bg-brand-soft"
                   onClick={() => {
                     close()
                     if (current) return
@@ -1009,7 +1009,7 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
                 </p>
                 {rights.edit && (
                   <button type="button"
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft"
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-start text-sm transition-colors hover:bg-brand-soft"
                     onClick={() => { close(); onEdit(member.personId) }}>
                     <Pencil className="h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 flex-1 truncate">{t('dir.editProfile')}</span>
@@ -1017,7 +1017,7 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
                 )}
                 {board && (
                   <button type="button"
-                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft"
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-start text-sm transition-colors hover:bg-brand-soft"
                     onClick={() => { close(); onPosition(member) }}>
                     <Network className="h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 flex-1 truncate">
@@ -1034,7 +1034,7 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
 
             {member.status === 'pending' ? (
               <Link href="/admin/members?tab=approvals" onClick={close}
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft">
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-start text-sm transition-colors hover:bg-brand-soft">
                 <UserCheck className="h-3.5 w-3.5 shrink-0" />
                 {t('access.reviewInApprovals')}
               </Link>
@@ -1045,7 +1045,7 @@ function MemberRow({ member, templates, rights, board, busy, run, onView, onEdit
             ) : (
               <button type="button"
                 className={cn(
-                  'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm transition-colors hover:bg-brand-soft',
+                  'flex w-full items-center gap-2 px-3 py-1.5 text-start text-sm transition-colors hover:bg-brand-soft',
                   !disabled && 'text-destructive',
                 )}
                 onClick={() => {
@@ -1371,7 +1371,7 @@ function TemplatesTab({
                     ? 'bg-brand-primary text-brand-on-primary'
                     : 'bg-brand-soft text-brand-on-soft hover:opacity-90',
                 )}>
-                  <button type="button" onClick={() => onSelect(tpl.id)} className="min-w-0 flex-1 text-left">
+                  <button type="button" onClick={() => onSelect(tpl.id)} className="min-w-0 flex-1 text-start">
                     <span className="flex items-center gap-1.5 font-medium">
                       {tpl.isSystem && <ShieldCheck className="h-3.5 w-3.5 shrink-0 opacity-70" />}
                       <span className="truncate">{tpl.name}</span>
@@ -1524,7 +1524,7 @@ function TemplatesTab({
                           aria-expanded={!collapsed}
                           aria-controls={sectionId}
                           onClick={() => toggleSection(category)}
-                          className="flex w-full items-center gap-2 rounded-t-xl px-3 py-2 text-left hover:bg-muted/50"
+                          className="flex w-full items-center gap-2 rounded-t-xl px-3 py-2 text-start hover:bg-muted/50"
                         >
                           <ChevronDown
                             aria-hidden="true"
@@ -1573,7 +1573,7 @@ function TemplatesTab({
                                 └ {header}
                               </li>
                             )}
-                            <li className={cn(nested && 'pl-4')}>
+                            <li className={cn(nested && 'ps-4')}>
                               {/* THE SUMMARY IS ON THE CLOSED ROW, and that is what makes
                                   collapsing them safe. Without it an administrator would have
                                   to open every feature to find out what a template grants,
@@ -1583,7 +1583,7 @@ function TemplatesTab({
                                 aria-expanded={open}
                                 aria-controls={panelId}
                                 onClick={() => setOpenResource(open ? null : r.key)}
-                                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted/50"
+                                className="flex w-full items-center gap-2 px-3 py-2.5 text-start text-sm hover:bg-muted/50"
                               >
                                 <ChevronDown
                                   aria-hidden="true"
@@ -1606,7 +1606,7 @@ function TemplatesTab({
                                   naming a missing id is worse than no `aria-controls` at all.
                                   The switches inside are not focusable while it is hidden,
                                   which is the property that matters. */}
-                              <div id={panelId} hidden={!open} className="space-y-2 px-3 pb-3 pl-9">
+                              <div id={panelId} hidden={!open} className="space-y-2 px-3 pb-3 ps-9">
                                 {actionable.length === 0 ? (
                                   // A resource with no actions at all. It exists so the
                                   // feature can be REGISTERED (see AGENTS.md on why a page

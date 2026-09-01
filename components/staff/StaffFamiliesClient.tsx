@@ -215,10 +215,10 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
         <div className="overflow-hidden rounded-xl border">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <SortTh label={t('staff.family')} {...sortProps('family')} className="px-3 py-2 font-semibold" />
                 <SortTh label={t('set.pane.plan')} {...sortProps('plan')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                <SortTh label={t('rep.members')} align="right" {...sortProps('members')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                <SortTh label={t('rep.members')} align="end" {...sortProps('members')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                 <SortTh label={t('staff.created')} {...sortProps('created')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                 <SortTh label={t('money.status')} {...sortProps('status')} className="px-3 py-2 font-semibold" />
                 {/* A column with no caption to give still owes one — without it a screen
@@ -235,7 +235,7 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
                   <tr key={row.familyCode} className="border-b align-top last:border-0 sm:align-middle">
                     <td className="px-3 py-2.5">
                       <span className="font-medium">{row.familyName}</span>
-                      <span className="ml-2 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                      <span className="ms-2 rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
                         {row.familyCode}
                       </span>
                       <RowMeta>
@@ -256,7 +256,7 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
                     <td className={cn('px-3 py-2.5 whitespace-nowrap', COLLAPSING_CELL)}>
                       {TIER_LABEL[row.tier]}
                     </td>
-                    <td className={cn('px-3 py-2.5 text-right tabular-nums', COLLAPSING_CELL)}>
+                    <td className={cn('px-3 py-2.5 text-end tabular-nums', COLLAPSING_CELL)}>
                       {row.memberCount}
                     </td>
                     <td className={cn('px-3 py-2.5 whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
@@ -279,7 +279,7 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
                         </p>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-right">
+                    <td className="px-3 py-2.5 text-end">
                       {removed ? (
                         <Button
                           type="button"
@@ -305,7 +305,7 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
                           a button that does not work. Same call `AccountMenu` makes about
                           the staff link itself. */}
                       {isOwner && (
-                        <span className="ml-2 inline-block">
+                        <span className="ms-2 inline-block">
                           <StaffDeleteFamilyDialog
                             familyCode={row.familyCode}
                             familyName={row.familyName}

@@ -114,7 +114,7 @@ export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false 
         onClick={() => setOpen(o => !o)}
         aria-expanded={open ? 'true' : 'false'}
         aria-haspopup="menu"
-        className="flex items-center gap-1 rounded-full p-0.5 pr-1 text-brand-ink transition-colors hover:bg-brand-soft/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex items-center gap-1 rounded-full p-0.5 pe-1 text-brand-ink transition-colors hover:bg-brand-soft/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         aria-label={t('account.menuFor', { name })}
       >
         <Avatar url={avatarUrl} initials={initials} size="sm" className="h-9 w-9" />
@@ -221,7 +221,7 @@ export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false 
                 type="button"
                 role="menuitem"
                 onClick={handleSignOut}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-sm text-destructive transition-colors hover:bg-destructive/10"
+                className="flex w-full items-center gap-2.5 px-3 py-2 text-start text-sm text-destructive transition-colors hover:bg-destructive/10"
               >
                 <LogOut className="h-4 w-4 shrink-0" /> {t('account.signOut')}
               </button>

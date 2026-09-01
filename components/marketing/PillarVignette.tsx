@@ -109,8 +109,8 @@ export function PillarVignette({
       {/* The same two atmospheric pools the marketing bands use, so a vignette reads
           as part of the site rather than as clip art dropped into it. */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute -right-10 -top-12 h-40 w-40 rounded-full bg-brand-legacy/10 blur-3xl" />
-        <div className="absolute -bottom-14 -left-10 h-44 w-44 rounded-full bg-brand-accent/10 blur-3xl" />
+        <div className="absolute -end-10 -top-12 h-40 w-40 rounded-full bg-brand-legacy/10 blur-3xl" />
+        <div className="absolute -bottom-14 -start-10 h-44 w-44 rounded-full bg-brand-accent/10 blur-3xl" />
       </div>
       {/* `justify-between` rather than a stack: the panels are shorter than the frame
           at the wide size, and spreading the three groups to the edges reads as a
@@ -269,7 +269,7 @@ function Gatherings({ t }: { t: T }) {
             <span className={cn('truncate', task.done && 'text-muted-foreground line-through')}>
               {task.label}
             </span>
-            <span className="ml-auto shrink-0 text-muted-foreground">{task.who}</span>
+            <span className="ms-auto shrink-0 text-muted-foreground">{task.who}</span>
           </li>
         ))}
       </ul>
@@ -330,7 +330,7 @@ function Treasury({ t }: { t: T }) {
               <div className={cn('flex items-center gap-2', ROW)}>
                 <span className="truncate">{fund.name}</span>
                 {fund.full && (
-                  <span className="gn-pop gn-pop-1 ml-auto inline-flex size-4 items-center justify-center rounded-full bg-brand-affirm text-brand-on-affirm @[26rem]:size-5">
+                  <span className="gn-pop gn-pop-1 ms-auto inline-flex size-4 items-center justify-center rounded-full bg-brand-affirm text-brand-on-affirm @[26rem]:size-5">
                     <Check className="size-2.5 @[26rem]:size-3" strokeWidth={3} />
                   </span>
                 )}
@@ -437,7 +437,7 @@ function FamilyRecord({ t }: { t: T }) {
       <div className="flex items-center gap-2 rounded-xl border bg-background px-2.5 py-2 @[26rem]:px-3 @[26rem]:py-2.5">
         <Search className="size-3.5 shrink-0 text-muted-foreground @[26rem]:size-4" />
         <span className={cn('text-muted-foreground', ROW)}>jose</span>
-        <span className={cn('ml-auto flex items-center gap-1.5', ROW)}>
+        <span className={cn('ms-auto flex items-center gap-1.5', ROW)}>
           <Initials tone="bg-brand-warm text-brand-on-warm">JO</Initials>
           José
         </span>

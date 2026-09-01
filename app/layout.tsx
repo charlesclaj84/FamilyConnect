@@ -6,6 +6,7 @@ import { SpeedInsights } from '@vercel/speed-insights/next'
 import { APP_NAME, APP_SEO_DESCRIPTION, APP_LEAD, BRAND_THEME_COLOR } from '@/lib/brand'
 import { SITE_ORIGIN } from '@/lib/site'
 import { THEME_BOOT_SCRIPT } from '@/lib/theme'
+import { DIRECTION_BOOT_SCRIPT, directionFor } from '@/lib/i18n/direction'
 import { BASE_LOCALE, isSupportedLocale, negotiateLocale } from '@/lib/i18n/locales'
 import { LOCALE_HEADER } from '@/lib/i18n/route-locale'
 import { consentDefault, metaClientConfig } from '@/lib/meta/config'
@@ -178,6 +179,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     // this element's own attributes only — it does not silence the tree beneath.
     <html
       lang={lang}
+      // ── `dir` COMES FROM THE SAME RESOLVED LOCALE AS `lang`, AND MUST ─────────────
+      // Every argument on `lang` above applies here word for word: the address bar first, then
+      // the browser's own request, then English. What is different is the COST of being wrong.
+      // A wrong `lang` mispronounces a page for a screen reader; a wrong `dir` lays the whole
+      // page out backwards, which every sighted reader sees at once.
+      //
+      // That is also why this is not enough on its own. On the Dashboard a member's STORED
+      // language wins over both sources here, and it is applied one level down after hydration
+      // — invisible for `lang`, and a full-page flip for `dir`. `DIRECTION_BOOT_SCRIPT` in
+      // <head> is what closes that, from the cookie `setMyLocale` mirrors the choice into.
+      dir={directionFor(lang)}
       suppressHydrationWarning
       className={`${inter.variable} ${cormorant.variable} ${geistMono.variable} h-full antialiased`}
     >
@@ -186,6 +198,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             an external file, it would run after the first paint and reintroduce
             the white flash it exists to prevent. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        {/* The reading direction, decided before the first paint from the reader's own choice.
+            Same rule as the theme script one line up and for a sharper reason — see
+            `lib/i18n/direction.ts`. It is INERT while no end-to-left locale is shipped
+            (`RTL_LOCALES` is empty and it returns immediately), and it is deployed anyway,
+            because a `dir` attribute nobody set looks exactly like one set correctly until the
+            day it does not. */}
+        <script dangerouslySetInnerHTML={{ __html: DIRECTION_BOOT_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col bg-background text-foreground">
         {children}

@@ -306,4 +306,74 @@ export const emailEn: Catalogue = {
   'email.staffDelete.p2': 'This destroys every record that family holds, and there is no restore. If you did not ask for this, do not use the code — and treat your console session as compromised.',
   'email.staffDelete.fine': 'The code lasts {minutes} minutes, works once, and allows five attempts.',
   'email.staffDelete.footnote': 'Sent because a staff console session asked for it. Nobody in the family receives this message.',
+
+  // ── THE DUNNING LADDER (20260901000002 §A) ────────────────────────────────────────
+  // Five rungs, one template. The middle paragraph is the only thing that moves; the amount,
+  // the button and the footnote are shared, which is what stops five messages disagreeing
+  // about what the family owes.
+  'email.dunning.day5.subject': 'A payment for {family} did not go through',
+  'email.dunning.day5.preheader': 'Update the card and everything carries on as normal.',
+  'email.dunning.day5.heading': 'A payment did not go through',
+  'email.dunning.day5.p1':
+    'The card on file for {family} was declined. Nothing has changed yet and everybody can '
+    + 'carry on as usual — updating the card settles it.',
+  'email.dunning.day10.subject': '{family} is now limited until payment is made',
+  'email.dunning.day10.preheader': 'Members cannot sign in. Administrators still can.',
+  'email.dunning.day10.heading': 'Access is limited',
+  'email.dunning.day10.p1':
+    'The payment for {family} is still outstanding, so relatives can no longer use the site. '
+    + 'Administrators keep full access, and paying restores everybody at once — nothing has '
+    + 'been removed.',
+  'email.dunning.day30.subject': 'Only billing is left open for {family}',
+  'email.dunning.day30.preheader': 'Every other screen is closed until the account is paid.',
+  'email.dunning.day30.heading': 'Only billing is left open',
+  'email.dunning.day30.p1':
+    'The account for {family} is thirty days behind, so every screen except this one is now '
+    + 'closed to administrators as well. Everything the family has entered is still there, '
+    + 'and paying opens it all again.',
+  'email.dunning.day45.subject': 'Action needed: {family} loses its records in 15 days',
+  'email.dunning.day45.preheader': 'In 15 days this cannot be undone.',
+  'email.dunning.day45.heading': 'Fifteen days left',
+  'email.dunning.day45.p1':
+    'The account for {family} has been unpaid for forty-five days. In {days} days the family '
+    + 'moves to the Free plan and everything the Free plan does not include — the family '
+    + 'tree, the dues ledger, the funds and the photographs — is deleted.',
+  'email.dunning.day59.subject': 'Tomorrow: {family} loses its records',
+  'email.dunning.day59.preheader': 'This is the last day it can be stopped.',
+  'email.dunning.day59.heading': 'Tomorrow',
+  'email.dunning.day59.p1':
+    'Tomorrow, unless payment is received, {family} moves to the Free plan and everything the '
+    + 'Free plan does not include — the family tree, the dues ledger, the funds and the '
+    + 'photographs — is deleted.',
+  'email.dunning.amount': 'To bring the account up to date: {amount}. That covers what is '
+    + 'outstanding and the coming month, so nothing falls behind again straight away.',
+  'email.dunning.button': 'Pay now',
+  'email.dunning.fine': 'You are receiving this because you look after billing for this family.',
+  // THE SENTENCE THE BRIEF ASKS FOR TWICE. In the fine print, where it cannot be skimmed past.
+  'email.dunning.fineWarn':
+    'Deleted records cannot be recovered. This cannot be reversed by us or by anybody else.',
+  'email.dunning.footnote':
+    'If you have already paid, you can ignore this — it can take a few minutes to reach us.',
+
+  // ── THE RETENTION WINDOW ─────────────────────────────────────────────────────────
+  // A family in GOOD STANDING who chose a cheaper plan. Nobody owes anything, so the tone is
+  // a reminder of a choice rather than a demand.
+  'email.retention.subject': 'Your {tier} records are kept for {days} more days',
+  'email.retention.preheader': '{days} days left to decide.',
+  'email.retention.heading': '{days} days left to decide',
+  'email.retention.p1':
+    '{family} moved down from {tier}, and everything that plan included has been kept safe '
+    + 'since then rather than removed. In {days} days it is deleted.',
+  'email.retention.p2':
+    'To keep it, move back to {tier}. That covers the months you have been away as well as '
+    + 'the coming one — {amount} — so the plan has no gap in it and everything is exactly '
+    + 'where you left it.',
+  'email.retention.p3':
+    'If you would rather start fresh, do nothing. The records go on the date above and the '
+    + 'family carries on with the plan it is on now, at no extra cost.',
+  'email.retention.button': 'Move back to {tier}',
+  'email.retention.fine':
+    'Deleted records cannot be recovered. This cannot be reversed by us or by anybody else.',
+  'email.retention.footnote':
+    'You are receiving this because you look after billing for this family.',
 }

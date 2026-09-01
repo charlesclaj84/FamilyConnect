@@ -244,8 +244,8 @@ function EntryBar({ bar, t }: { bar: CalendarBar; t: T }) {
       className={cn(
         'relative flex h-5 items-center gap-1 overflow-hidden px-1.5 text-xs hover:opacity-90',
         ENTRY_TONE[tone],
-        bar.continuesBefore ? 'rounded-l-none' : 'rounded-l',
-        bar.continuesAfter ? 'rounded-r-none' : 'rounded-r',
+        bar.continuesBefore ? 'rounded-s-none' : 'rounded-s',
+        bar.continuesAfter ? 'rounded-e-none' : 'rounded-e',
       )}
       title={bar.entry.timeLabel
         ? `${bar.entry.title} · ${bar.entry.timeLabel}`
@@ -292,7 +292,7 @@ function EntryChip({ entry, t }: { entry: CalendarEntry; t: T }) {
     >
       {/* Wrapped so it is not an empty margin for a plain gathering, which has no glyph. */}
       {tone !== 'gathering' && (
-        <span className="mr-1 inline-flex align-[-2px]"><ToneIcon tone={tone} /></span>
+        <span className="me-1 inline-flex align-[-2px]"><ToneIcon tone={tone} /></span>
       )}
       {/* Says in words what the colour says in colour. */}
       <span className="sr-only">{entryKindWord(t, tone)}: </span>
@@ -303,7 +303,7 @@ function EntryChip({ entry, t }: { entry: CalendarEntry; t: T }) {
           (AGENTS.md, "the pairs are load-bearing") and dimming the one that IS checked is the
           way to make it secondary without leaving the pair. */}
       {entry.timeLabel && (
-        <span className="ml-1 opacity-80">· {entry.timeLabel}</span>
+        <span className="ms-1 opacity-80">· {entry.timeLabel}</span>
       )}
     </Link>
   )
@@ -341,7 +341,7 @@ export function MonthCalendar({ month, className, t, intl }: MonthCalendarProps)
             aria-label={t('cal.goToMonth', { month: monthLabel(month.prevMonth, intl) })}
             className="inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-sm text-foreground hover:bg-muted"
           >
-            <ChevronLeft aria-hidden="true" className="h-4 w-4" />
+            <ChevronLeft aria-hidden="true" className="h-4 w-4 rtl:-scale-x-100" />
             <span className="hidden sm:inline">{monthLabel(month.prevMonth, intl)}</span>
           </Link>
           {/* No `month` at all, so the page falls back to the current month. That is one
@@ -358,7 +358,7 @@ export function MonthCalendar({ month, className, t, intl }: MonthCalendarProps)
             className="inline-flex h-8 items-center gap-1 rounded-lg border px-2.5 text-sm text-foreground hover:bg-muted"
           >
             <span className="hidden sm:inline">{monthLabel(month.nextMonth, intl)}</span>
-            <ChevronRight aria-hidden="true" className="h-4 w-4" />
+            <ChevronRight aria-hidden="true" className="h-4 w-4 rtl:-scale-x-100" />
           </Link>
         </div>
       </div>
@@ -378,7 +378,7 @@ export function MonthCalendar({ month, className, t, intl }: MonthCalendarProps)
           <thead>
             <tr className="border-b bg-muted/40 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {weekdays.map(weekday => (
-                <th key={weekday.long} scope="col" className="px-2 py-2 text-left font-semibold">
+                <th key={weekday.long} scope="col" className="px-2 py-2 text-start font-semibold">
                   <span aria-hidden="true">{weekday.short}</span>
                   <span className="sr-only">{weekday.long}</span>
                 </th>
@@ -408,7 +408,7 @@ export function MonthCalendar({ month, className, t, intl }: MonthCalendarProps)
                       // grows its row instead of clipping them — which is why nothing here
                       // caps the stack at three with a "+2 more" that has nowhere to lead.
                       className={cn(
-                        'h-24 border-r p-1 align-top last:border-r-0',
+                        'h-24 border-e p-1 align-top last:border-e-0',
                         !day.inMonth && 'bg-muted/30',
                         day.isToday && 'bg-brand-soft/30',
                       )}

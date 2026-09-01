@@ -3,7 +3,7 @@
 import { AlertTriangle, TrendingUp } from 'lucide-react'
 import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
 import { SortTh, useTableSort } from '@/components/ui/sortable-header'
-import { formatCurrency } from '@/lib/currency-utils'
+import { formatPlatformMoney } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { TIERS, TIER_LABEL, type FamilyTier } from '@/lib/tiers'
 import { cn } from '@/lib/utils'
@@ -61,13 +61,13 @@ export function StaffSubscriptionFigures({ summary }: { summary: StaffSubscripti
       <Figure label={t('stf.subPaying')} value={String(summary.paying)} tone="affirm" />
       <Figure
         label={t('stf.subMrr')}
-        value={formatCurrency(summary.mrrCents, intl)}
+        value={formatPlatformMoney(summary.mrrCents, intl)}
         hint={t('stf.subMrrHint')}
         tone="affirm"
       />
       <Figure
         label={t('stf.subLifetime')}
-        value={formatCurrency(summary.lifetimeCents, intl)}
+        value={formatPlatformMoney(summary.lifetimeCents, intl)}
         tone="plain"
       />
       {/* Withheld rather than destructive: a failed card is not an error in this product,
@@ -155,7 +155,7 @@ function TierMix({ byTier, t }: { byTier: Record<FamilyTier, number>; t: T }) {
               />
               <dt className="min-w-0 flex-1 truncate">{slice.label}</dt>
               <dd className="shrink-0 tabular-nums font-medium">{slice.count}</dd>
-              <dd className="w-12 shrink-0 text-right tabular-nums text-xs text-muted-foreground">
+              <dd className="w-12 shrink-0 text-end tabular-nums text-xs text-muted-foreground">
                 {slice.percent}%
               </dd>
             </div>
@@ -219,12 +219,12 @@ export function StaffSubscriptionsClient({ data }: { data: StaffSubscriptionPage
         <div className="overflow-hidden rounded-lg border">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b bg-muted/40 text-left">
+              <tr className="border-b bg-muted/40 text-start">
                 <SortTh label={t('stf.subFamily')} {...sortProps('family')} className="px-3 py-2 text-xs font-medium" />
                 <SortTh label={t('stf.subPlan')} {...sortProps('plan')} className={cn('px-3 py-2 text-xs font-medium', COLLAPSING_CELL)} />
                 <SortTh label={t('stf.subPaidThrough')} {...sortProps('paidThrough')} className={cn('px-3 py-2 text-xs font-medium', COLLAPSING_CELL)} />
                 <SortTh label={t('stf.subStanding')} {...sortProps('standing')} className="px-3 py-2 text-xs font-medium" />
-                <SortTh label={t('stf.subLifetimeShort')} align="right" {...sortProps('lifetime')} className="px-3 py-2 text-xs font-medium" />
+                <SortTh label={t('stf.subLifetimeShort')} align="end" {...sortProps('lifetime')} className="px-3 py-2 text-xs font-medium" />
               </tr>
             </thead>
             <tbody>
@@ -276,8 +276,8 @@ export function StaffSubscriptionsClient({ data }: { data: StaffSubscriptionPage
                   <td className="px-3 py-2.5">
                     <Standing row={row} />
                   </td>
-                  <td className="px-3 py-2.5 text-right whitespace-nowrap font-medium">
-                    {formatCurrency(row.lifetimeCents, intl)}
+                  <td className="px-3 py-2.5 text-end whitespace-nowrap font-medium">
+                    {formatPlatformMoney(row.lifetimeCents, intl)}
                     {row.lastPaidAt && (
                       <p className="text-xs font-normal text-muted-foreground">
                         {formatDate(row.lastPaidAt.slice(0, 10), intl)}

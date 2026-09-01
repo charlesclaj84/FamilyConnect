@@ -14,6 +14,9 @@ import { ShellWatcher } from '@/components/layout/ShellWatcher'
 import { ZoneHint } from '@/components/layout/ZoneHint'
 import { LocaleSync } from '@/components/layout/LocaleSync'
 import { LocaleProvider } from '@/components/layout/LocaleProvider'
+import { CurrencyProvider } from '@/components/layout/MoneyProvider'
+import { DEFAULT_CURRENCY } from '@/lib/currency-utils'
+import { getMyFamilyCurrency } from '@/lib/auth/currency'
 import { resolveLocale } from '@/lib/auth/locale'
 import { BASE_LOCALE } from '@/lib/i18n/locales'
 import { ShellSwoop, ShellHill } from '@/components/layout/ShellDecor'
@@ -59,6 +62,16 @@ export default async function ProtectedLayout({ children }: { children: React.Re
    * place rather than overwriting it with a guess.
    */
   let locale = ''
+  /**
+   * The FAMILY's currency, for `CurrencyProvider` at the bottom of this file.
+   *
+   * DOLLARS UNTIL RESOLVED, not empty — unlike `locale`, which LocaleSync correctly does
+   * nothing with when it is blank. There is no equivalent no-op for money: every figure on
+   * the page needs a symbol, so the fallback has to be a real currency. USD is what every
+   * family created before `20260901000000` genuinely is, and `lib/auth/currency.ts` carries
+   * why that is a statement rather than a safe default.
+   */
+  let currency = DEFAULT_CURRENCY.toLowerCase()
   /**
    * What this shell was built from, and whether the caller is sitting in front of a
    * reduced version of it waiting for that to change. Both feed ShellWatcher — see its
@@ -113,7 +126,8 @@ export default async function ProtectedLayout({ children }: { children: React.Re
       //
       // getMyFamilyCode costs nothing here: it reads getMyFamilies(), which is
       // cache()-wrapped, and TopBar calls it again in this same request.
-      const [resources, code, shell, membership, staff, resolvedLocale] = await Promise.all([
+      const [resources, code, shell, membership, staff, resolvedLocale, resolvedCurrency]
+        = await Promise.all([
         viewableResources(user.id),
         getMyFamilyCode(user.id),
         // Costs one extra round of the same cache()-wrapped reads the three above
@@ -128,8 +142,13 @@ export default async function ProtectedLayout({ children }: { children: React.Re
         // The member's chosen language, or their browser's, or English. One `people` read,
         // cache()-wrapped like the rest, feeding LocaleSync at the bottom of this file.
         resolveLocale(user.id),
+        // The FAMILY's currency, feeding CurrencyProvider below. One `families` read, and it
+        // is the same one `getMyFamilyTier` already made through its own `cache()` — see
+        // `lib/auth/currency.ts`, which is deliberately shaped like `lib/auth/tier.ts`.
+        getMyFamilyCurrency(user.id),
       ])
       locale = resolvedLocale
+      currency = resolvedCurrency
       // ── A REMOVED FAMILY GETS THE PERSONAL PAGES AND NOTHING ELSE ─────────────────
       // Navigation, not authorization, and the distinction is written out at length on
       // REMOVED_FAMILY_RESOURCES. Every page still gates on `requireView`, which knows
@@ -183,6 +202,12 @@ export default async function ProtectedLayout({ children }: { children: React.Re
     // cannot see a context and call `callerI18n()` instead; `LocaleProvider`'s header carries the
     // argument for both.
     <LocaleProvider locale={locale || BASE_LOCALE}>
+    {/* The FAMILY's currency, INSIDE the locale provider because `useMoney()` reads both.
+        Unlike the locale it belongs to the family rather than to the person — but it is still
+        mounted out here rather than inside `<main key={familyCode}>`, because a switch already
+        re-runs this layout through `router.refresh()` and remounts everything below the key.
+        Putting it inside would key it twice for the same effect. See its own header. */}
+    <CurrencyProvider currency={currency}>
     <ConfirmProvider>
       {/* ONE ROW, NO HEADER ABOVE IT. There used to be a full-width `bg-brand-hero`
           Navbar here carrying the mark, the wordmark and four controls. The Golden
@@ -192,7 +217,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
           the rail run to the very top of the shell with the logo in it.
 
           THE ROW'S GROUND IS THE PAGE'S, not Heritage. It was `bg-brand-hero` back when
-          the cut was a `rounded-l-[2rem]` on <main> and the row had to supply the colour
+          the cut was a `rounded-s-[2rem]` on <main> and the row had to supply the colour
           showing through it; ShellSwoop paints both sides of that boundary itself now, so
           the burgundy here was doing nothing — the rail and <main> between them cover this
           element completely. Nothing, that is, except the ONE place it is visible: the
@@ -242,7 +267,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
               full width of <main> and was painting out the only part of that shape which
               reaches into the workspace. Its own comment carries the arithmetic.
 
-              This replaced a `rounded-l-[2rem]` on this element, which was wrong in the
+              This replaced a `rounded-s-[2rem]` on this element, which was wrong in the
               way the kit's PATCH 01 describes: a curve at the top AND the bottom, running
               the full height, is the "narrow sidebar carried down the page" it corrects.
               The bite belongs to the logo area and the rail is straight below it.
@@ -319,6 +344,7 @@ export default async function ProtectedLayout({ children }: { children: React.Re
           looking at. Renders nothing. */}
       {signedIn && <LocaleSync locale={locale} />}
     </ConfirmProvider>
+    </CurrencyProvider>
     </LocaleProvider>
   )
 }

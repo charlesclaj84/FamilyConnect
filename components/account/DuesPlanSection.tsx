@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Dialog } from '@/components/ui/dialog'
 import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import {
   currentPeriodStart, duesPlanMath, isOutstanding,
@@ -30,6 +29,7 @@ import { NextInstallmentsCard } from '@/components/account/NextInstallmentsCard'
 import { SortTh, type SortDir } from '@/components/ui/sortable-header'
 import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
+import { useMoney } from '@/components/layout/MoneyProvider'
 type DuesCol = 'schedule' | 'amount' | 'due_date'
 
 // TAKES `intl` — a module-scope helper cannot read a hook. Threading it is what puts this
@@ -111,6 +111,7 @@ export function DuesPlanSection({ summary, online }: {
   online: DuesOnlineStatus
 }) {
   const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
@@ -210,7 +211,7 @@ export function DuesPlanSection({ summary, online }: {
         ? t('plan.optionalHint')
         : t('plan.optBackInHint', {
             schedule: row.schedule.label,
-            amount: formatCurrency(row.installmentCents, intl),
+            amount: money(row.installmentCents),
             cadence: t(`dues.cadWord.${row.cadence}`),
           }),
       confirmLabel: optOut ? t('plan.optOut') : t('plan.optBackIn'),
@@ -295,8 +296,8 @@ export function DuesPlanSection({ summary, online }: {
           DuesBalanceKpi is the dashboard's Account card, unchanged — see its header for
           why there is exactly one of it. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <DuesBalanceKpi summary={rows} intl={intl} t={t} />
-        <NextInstallmentsCard summary={rows} intl={intl} t={t} />
+        <DuesBalanceKpi summary={rows} money={money} t={t} />
+        <NextInstallmentsCard summary={rows} intl={intl} money={money} t={t} />
       </div>
 
       {/* THE ONE QUESTION THIS SCREEN RELIABLY RAISES, answered where it is raised.
@@ -469,12 +470,12 @@ function DuesTable({ title, rows, ...handlers }: {
           <thead>
             <tr className="border-b">
               <SortTh label={t('money.schedule')} active={sort.col === 'schedule'} dir={sort.dir} onClick={() => sortBy('schedule')} />
-              <SortTh label={t('plan.nextPayment')} active={sort.col === 'amount'} dir={sort.dir} onClick={() => sortBy('amount')} align="right" className="w-28 sm:w-36" />
+              <SortTh label={t('plan.nextPayment')} active={sort.col === 'amount'} dir={sort.dir} onClick={() => sortBy('amount')} align="end" className="w-28 sm:w-36" />
               <SortTh label={t('plan.nextDue')} active={sort.col === 'due_date'} dir={sort.dir} onClick={() => sortBy('due_date')} className={cn(COLLAPSING_CELL, 'sm:w-28')} />
-              <th className={cn('py-2 pr-3 text-xs font-medium text-muted-foreground text-right', COLLAPSING_CELL, 'sm:w-28')}>{t('money.remaining')}</th>
+              <th className={cn('py-2 pe-3 text-xs font-medium text-muted-foreground text-end', COLLAPSING_CELL, 'sm:w-28')}>{t('money.remaining')}</th>
               {/* `sr-only` like every other action column here: the cell holds controls that
                   name themselves, and a visible "Actions" heading over two icons is noise. */}
-              <th className="w-20 py-2 text-xs font-medium text-muted-foreground text-right sm:w-24">
+              <th className="w-20 py-2 text-xs font-medium text-muted-foreground text-end sm:w-24">
                 <span className="sr-only">{t('money.actions')}</span>
               </th>
             </tr>
@@ -494,6 +495,7 @@ function DuesRow({
   row, isPending, online, onPay, onCadence, onOptOut, onStartAutopay, onStopAutopay, autopayFor,
 }: { row: DuesSummary } & RowHandlers) {
   const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   const declined = row.optedOut
   /**
@@ -591,12 +593,12 @@ function DuesRow({
       })
     : row.ageProration
       ? t('plan.termsProrated', {
-          now: formatCurrency(row.annualTotalCents, intl),
-          full: formatCurrency(row.ageProration.fullAnnualCents, intl),
+          now: money(row.annualTotalCents),
+          full: money(row.ageProration.fullAnnualCents),
           frequency: t(`dues.freq.${row.schedule.frequency}`),
         })
       : t('plan.termsPlain', {
-          amount: formatCurrency(row.annualTotalCents, intl),
+          amount: money(row.annualTotalCents),
           frequency: t(`dues.freq.${row.schedule.frequency}`),
         })
 
@@ -609,7 +611,7 @@ function DuesRow({
         : quiet ? 'bg-muted/30 hover:bg-muted/40'
           : 'hover:bg-muted/30',
     )}>
-      <td className="py-3 pr-3 sm:py-2.5">
+      <td className="py-3 pe-3 sm:py-2.5">
         {/* The description is a tooltip on the title rather than its own line: it is
             reference text, and a paragraph of it under every row pushed the amounts
             apart. The dotted underline is the only hint that there is more to read,
@@ -633,7 +635,7 @@ function DuesRow({
         {autopay && (
           <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft">
             <Repeat className="h-3 w-3" aria-hidden="true" />
-            Automatic · {formatCurrency(autopay.amountCents, intl)} {autopay.cadence}
+            Automatic · {money(autopay.amountCents)} {autopay.cadence}
           </span>
         )}
 
@@ -649,7 +651,7 @@ function DuesRow({
               {/* A SETTLED ROW STILL SHOWS ITS BALANCE, and it is zero. That is the whole
                   point of keeping it listed — "you are on this and you owe nothing on it"
                   is a different sentence from the row not being there. */}
-              <MetaIf value={formatCurrency(row.remainingBalanceCents, intl)} prefix={t('money.remaining')} />
+              <MetaIf value={money(row.remainingBalanceCents)} prefix={t('money.remaining')} />
             </>
           )}
         </div>
@@ -665,7 +667,7 @@ function DuesRow({
           THE CADENCE IS ON THIS CELL AT EVERY WIDTH SINCE 2026-08-25. It had a column of
           its own holding a `<select>`; the control moved into the row menu and the FACT
           stayed here, under the figure it is the unit of. */}
-      <td className="py-3 text-right font-semibold whitespace-nowrap align-top sm:py-2.5 sm:pr-3 sm:align-middle">
+      <td className="py-3 text-end font-semibold whitespace-nowrap align-top sm:py-2.5 sm:pe-3 sm:align-middle">
         {/* An em dash for a due nobody owes yet, not "$0.00". A zero here is a figure
             somebody would try to reconcile; a dash is the honest answer to "what is your
             next installment" when there is not going to be one this year. */}
@@ -674,7 +676,7 @@ function DuesRow({
             the honest answer to "what is your next installment" when there is not going to
             be one. The BALANCE column is where the zero belongs, and it says it there. */}
         <span className={cn((quiet || settled) && 'text-muted-foreground', declined && 'line-through')}>
-          {notYetOwed || settled ? '—' : formatCurrency(declined ? row.installmentCents : row.nextInstallmentCents, intl)}
+          {notYetOwed || settled ? '—' : money(declined ? row.installmentCents : row.nextInstallmentCents)}
         </span>
         {!quiet && !settled && (
           <span className="block text-[11px] font-normal capitalize text-muted-foreground">
@@ -683,12 +685,12 @@ function DuesRow({
         )}
         {!quiet && !settled && !row.onSchedule && row.followingInstallmentDate && (
           <span className="block text-[11px] font-normal text-muted-foreground">
-            then {formatCurrency(row.followingInstallmentCents, intl)}
+            then {money(row.followingInstallmentCents)}
           </span>
         )}
       </td>
 
-      <td className={cn('py-2.5 pr-3 text-xs text-muted-foreground whitespace-nowrap', COLLAPSING_CELL)}>
+      <td className={cn('py-2.5 pe-3 text-xs text-muted-foreground whitespace-nowrap', COLLAPSING_CELL)}>
         {/* The date the due STARTS, for a row nobody owes yet. It is the only date this
             row has, and it is the one thing the member wants from it. */}
         {notYetOwed && row.ageProration
@@ -700,9 +702,9 @@ function DuesRow({
           real zero for a settled one. `--brand-accent` is reserved for money still to find:
           a settled row printing "$0.00" in the owing colour would draw the eye to the one
           line on the screen that needs nothing. */}
-      <td className={cn('py-2.5 pr-3 text-right font-semibold whitespace-nowrap',
+      <td className={cn('py-2.5 pe-3 text-end font-semibold whitespace-nowrap',
         quiet || settled ? 'text-muted-foreground' : 'text-brand-accent', COLLAPSING_CELL)}>
-        {quiet ? '—' : formatCurrency(row.remainingBalanceCents, intl)}
+        {quiet ? '—' : money(row.remainingBalanceCents)}
       </td>
 
       <td className="py-2.5 align-top sm:align-middle">
@@ -821,7 +823,7 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
   isPending: boolean
   onPayAll: () => void
 }) {
-  const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   // REQUIRED FIRST, then optional, then by name — the reading order of the two tables above,
   // so a member checking the receipt against the list they just read finds the rows in the
@@ -846,7 +848,7 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
               <dt className="min-w-0 text-muted-foreground">
                 <span className="text-foreground">{r.schedule.label}</span>
                 {!r.required && (
-                  <span className="ml-1.5 text-xs text-muted-foreground">
+                  <span className="ms-1.5 text-xs text-muted-foreground">
                     {t('dues.optionalWord')}
                   </span>
                 )}
@@ -863,7 +865,7 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
                 )}
               </dt>
               <dd className="font-semibold whitespace-nowrap">
-                {formatCurrency(r.nextInstallmentCents, intl)}
+                {money(r.nextInstallmentCents)}
               </dd>
             </div>
           ))}
@@ -874,7 +876,7 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
         <div className="flex items-baseline justify-between gap-4">
           <dt className="font-medium">{t('money.total')}</dt>
           <dd className="text-lg font-bold text-brand-accent whitespace-nowrap">
-            {formatCurrency(totalCents, intl)}
+            {money(totalCents)}
           </dd>
         </div>
       </dl>
@@ -886,9 +888,9 @@ function DuesTotals({ lines, chargesReady, isPending, onPayAll }: {
           // they do share a row.
           <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
             <p className="max-w-md text-xs text-muted-foreground">{t('ui.onePaymentItemizedDue')}</p>
-            <Button variant="affirm" disabled={isPending} onClick={onPayAll} className="ml-auto">
+            <Button variant="affirm" disabled={isPending} onClick={onPayAll} className="ms-auto">
               <CreditCard className="h-4 w-4" />
-              {t('plan.payAmountByCard', { amount: formatCurrency(totalCents, intl) })}
+              {t('plan.payAmountByCard', { amount: money(totalCents) })}
             </Button>
           </div>
         ) : (
@@ -928,7 +930,7 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
   onClose: () => void
   onChoose: (cadence: PayCadence) => void
 }) {
-  const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   const [choice, setChoice] = useState<PayCadence>(row.cadence)
   const preview = planFor(row, choice)
@@ -970,7 +972,7 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
                         English, and `capitalize` is an English rule besides. */}
                     <span className="font-medium">{t(`dues.cad.${c}`)}</span>
                     <span className="text-sm font-semibold whitespace-nowrap">
-                      {formatCurrency(p.installmentCents, intl)}
+                      {money(p.installmentCents)}
                       <span className="font-normal text-muted-foreground">
                         {' '}{t('plan.perInstallment')}
                       </span>
@@ -983,11 +985,11 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
                   {!p.onSchedule && (
                     <span className="mt-0.5 block text-xs text-brand-withheld">
                       {t('plan.nextPaymentCovering', {
-                        amount: formatCurrency(p.nextInstallmentCents, intl),
+                        amount: money(p.nextInstallmentCents),
                       })}
                       {p.followingInstallmentDate
                         ? t('plan.thenEachTime', {
-                            amount: formatCurrency(p.followingInstallmentCents, intl),
+                            amount: money(p.followingInstallmentCents),
                           })
                         : ''}
                     </span>
@@ -1013,7 +1015,7 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
             {/* Names the consequence rather than saying "Save", because the figure it
                 commits to is the one thing that changed. */}
             {t('plan.payAmountNext', {
-              amount: formatCurrency(preview.nextInstallmentCents, intl),
+              amount: money(preview.nextInstallmentCents),
             })}
           </Button>
         </div>
@@ -1042,7 +1044,7 @@ function CadenceDialog({ row, planFor, onClose, onChoose }: {
  * with a redirect.
  */
 function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void }) {
-  const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   const [pending, startTransition] = useTransition()
   const [error, setError] = useState('')
@@ -1071,7 +1073,7 @@ function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void
       if (p.cents > p.row.remainingBalanceCents) {
         setFieldError(t('plan.mostThatCanBePaid', {
           schedule: p.row.schedule.label,
-          amount: formatCurrency(p.row.remainingBalanceCents, intl),
+          amount: money(p.row.remainingBalanceCents),
         }))
         return
       }
@@ -1110,7 +1112,7 @@ function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void
               <div className="min-w-0 flex-1">
                 <Label htmlFor={`pay-${r.schedule.id}`}>{r.schedule.label}</Label>
                 <p className="text-xs text-muted-foreground">
-                  {formatCurrency(r.remainingBalanceCents, intl)} outstanding
+                  {money(r.remainingBalanceCents)} outstanding
                 </p>
               </div>
               <div className="w-28 shrink-0">
@@ -1133,7 +1135,7 @@ function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void
           <div className="flex items-baseline justify-between gap-4 border-t pt-3">
             <span className="font-medium">{t('money.total')}</span>
             <span className="text-lg font-bold text-brand-accent whitespace-nowrap">
-              {formatCurrency(totalCents, intl)}
+              {money(totalCents)}
             </span>
           </div>
         )}
@@ -1155,7 +1157,7 @@ function PayDialog({ rows, onClose }: { rows: DuesSummary[]; onClose: () => void
               rather than being greyed out. */}
           <Button variant="affirm" onClick={pay} disabled={pending}>
             <CreditCard className="h-4 w-4" />
-            {pending ? t('money.opening') : `Pay ${formatCurrency(totalCents, intl)}`}
+            {pending ? t('money.opening') : `Pay ${money(totalCents)}`}
           </Button>
         </div>
       </div>

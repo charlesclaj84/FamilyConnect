@@ -25,7 +25,7 @@ import { formatWhenBrief } from '@/lib/gathering-when'
 import { cn } from '@/lib/utils'
 import { useServerState } from '@/lib/use-server-state'
 import { formatDate, todayLocal } from '@/lib/date-utils'
-import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
+import { dollarsToCents } from '@/lib/currency-utils'
 import { gatheringBudgetMath } from '@/lib/gathering-budget'
 import { GATHERING_STATUS_LABEL, type TaskProgress } from '@/lib/gatherings'
 import {
@@ -33,6 +33,7 @@ import {
   type AdminGatheringRow, type ReviewQueueRow, type GatheringBudgetView,
 } from '@/app/actions/admin/gatherings'
 import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import { useMoney } from '@/components/layout/MoneyProvider'
 import type { T } from '@/lib/i18n/t'
 
 /**
@@ -277,7 +278,7 @@ export function AdminGatheringsClient({
         onSelect={selectPane}
         action={pane !== 'templates' && mayCreate && (
           <Button variant="affirm" onClick={() => setCreating(true)}>
-            <CirclePlus className="h-4 w-4 mr-1" /> {t('agat.new')}
+            <CirclePlus className="h-4 w-4 me-1" /> {t('agat.new')}
           </Button>
         )}
       />
@@ -310,7 +311,7 @@ export function AdminGatheringsClient({
               <div className="overflow-visible rounded-xl border">
                 <table className="w-full border-collapse text-sm">
                   <thead>
-                    <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       <SortTh label={t('cal.kind.gathering')} {...sortProps('gathering')} className="px-3 py-2 font-semibold" />
                       <SortTh label={t('agat.when')} {...sortProps('when')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                       <SortTh label={t('money.status')} {...sortProps('status')} className="px-3 py-2 font-semibold" />
@@ -319,7 +320,7 @@ export function AdminGatheringsClient({
                           a rendered column would be a column of em-dashes suggesting nothing
                           is budgeted. */}
                       {mayManageBudget && (
-                        <SortTh label={t('budget.heading')} align="right" {...sortProps('budget')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                        <SortTh label={t('budget.heading')} align="end" {...sortProps('budget')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                       )}
                       <SortTh label={t('gath.tasks')} {...sortProps('tasks')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                       <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
@@ -367,7 +368,7 @@ export function AdminGatheringsClient({
                           <GatheringStatusPill status={row.status} />
                         </td>
                         {mayManageBudget && (
-                          <td className={cn('px-3 py-2.5 text-right', COLLAPSING_CELL)}>
+                          <td className={cn('px-3 py-2.5 text-end', COLLAPSING_CELL)}>
                             {/* THREE OUTCOMES, NOT TWO, and the em-dash is only one of them.
                                 This whole column is behind `mayManageBudget`, so nobody reaching
                                 it has had the money withheld — which means a null `budget` is
@@ -477,7 +478,7 @@ function PremierPill() {
  * capability being held back (spec §3.2).
  */
 function MoneyCell({ budget }: { budget: GatheringBudgetView }) {
-  const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   const math = gatheringBudgetMath({
     budgetCents:         budget.budgetCents,
@@ -499,21 +500,21 @@ function MoneyCell({ budget }: { budget: GatheringBudgetView }) {
   return (
     <div className="space-y-0.5">
       <p className={cn('tabular-nums', math.overFund && 'text-destructive')}>
-        {formatCurrency(math.budgetCents, intl)}
+        {money(math.budgetCents)}
       </p>
       <p className="text-xs text-muted-foreground">
         {budget.fundName ?? t('agat.noFund')}
-        {math.fundBalanceCents != null && ` · ${formatCurrency(math.fundBalanceCents, intl)} in it`}
+        {math.fundBalanceCents != null && ` · ${money(math.fundBalanceCents)} in it`}
       </p>
       {math.overFund && (
         <p className="text-xs text-destructive">
-          {t('agat.overBy', { amount: formatCurrency(math.overFundByCents, intl) })}
+          {t('agat.overBy', { amount: money(math.overFundByCents) })}
         </p>
       )}
       {!math.overFund && math.overFundWithOthers && (
         <p className="text-xs text-destructive">
           {t('agat.overWithOthersBy', {
-            amount: formatCurrency(math.overFundWithOthersByCents, intl),
+            amount: money(math.overFundWithOthersByCents),
           })}
         </p>
       )}
@@ -523,7 +524,7 @@ function MoneyCell({ budget }: { budget: GatheringBudgetView }) {
 
 /** The same figures as one line, for the folded meta row. */
 function MoneyText({ budget }: { budget: GatheringBudgetView }) {
-  const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   const math = gatheringBudgetMath({
     budgetCents:         budget.budgetCents,
@@ -535,7 +536,7 @@ function MoneyText({ budget }: { budget: GatheringBudgetView }) {
   const over = math.overFund || math.overFundWithOthers
   return (
     <span className={cn(over && 'text-destructive')}>
-      {formatCurrency(math.budgetCents, intl)}
+      {money(math.budgetCents)}
       {budget.fundName && ` on ${budget.fundName}`}
       {over && ' · over the fund'}
     </span>
@@ -580,6 +581,7 @@ function ReviewCard({
   onDecided: (taskId: string) => void
 }) {
   const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   const confirm = useConfirm()
   const [sendingBack, setSendingBack] = useState(false)
@@ -656,7 +658,7 @@ function ReviewCard({
         {/* `describeAnswer` returns '' for anything it cannot read, and `AnswerText` renders
             null for that — so the screen decides what absence looks like rather than printing
             an empty line where a figure should be. */}
-        <AnswerText kind={row.kind} answer={row.answer} />
+        <AnswerText kind={row.kind} answer={row.answer} money={money} />
         {!row.answer && <p className="text-muted-foreground">{t('agat.nothingRecorded')}</p>}
       </div>
 
@@ -752,7 +754,7 @@ function NewGatheringDialog({
   mayAuthorTemplates: boolean
   onCreated: (gatheringId: string) => void
 }) {
-  const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   const [templateIds, setTemplateIds] = useState<string[]>([])
   const [title, setTitle] = useState('')
@@ -960,7 +962,7 @@ function NewGatheringDialog({
                 <option value="">— No fund —</option>
                 {funds.map(f => (
                   <option key={f.id} value={f.id}>
-                    {f.name} — {formatCurrency(f.balanceCents, intl)}
+                    {f.name} — {money(f.balanceCents)}
                   </option>
                 ))}
               </Select>

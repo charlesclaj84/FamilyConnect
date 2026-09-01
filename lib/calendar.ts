@@ -1,3 +1,5 @@
+import { firstWeekdayFor } from '@/lib/date-utils'
+
 /**
  * The month grid behind `/gatherings/calendar`, and the month arithmetic every link on it depends on.
  *
@@ -350,7 +352,21 @@ export function buildCalendarMonth(
   // Day 1 of the month, and which weekday it falls on. `getUTCDay` against a `Date.UTC`
   // instant — the local `getDay()` is the same off-by-one-day trap as everything else here,
   // and here it would shift the ENTIRE grid by a column.
-  const firstWeekday = new Date(Date.UTC(year, monthIndex, 1)).getUTCDay()  // 0 = Sunday
+  const weekday = new Date(Date.UTC(year, monthIndex, 1)).getUTCDay()  // 0 = Sunday
+  // ── HOW MANY CELLS BEFORE THE 1st, WHICH IS NOT THE SAME AS ITS WEEKDAY ──────────
+  // The grid starts on the reader's first weekday, which is Sunday in the United States and in
+  // Mexico, Monday in France, and Saturday across most of the Arabic-speaking world. Before
+  // 2026-09-01 this WAS the weekday, i.e. Sunday-first for everybody — so a French member read
+  // a calendar whose columns were shifted by one day, plausibly and silently.
+  //
+  // `+ 7) % 7` because the subtraction goes negative whenever the 1st falls before the week's
+  // first day: a Monday-first March beginning on a Sunday needs SIX leading cells, not minus
+  // one, and a negative here would build a grid that starts after the month does.
+  //
+  // `firstWeekdayFor` is asked by `weekdayNames` too, so the header row and the grid cannot
+  // disagree about which column is which — a mismatch there puts every date under the wrong
+  // name and looks entirely plausible.
+  const firstWeekday = (weekday - firstWeekdayFor(intl) + 7) % 7
   // Day 0 of the next month is the last day of this one, by definition. No month-length
   // table, and February 2028 needs no special case.
   const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate()

@@ -131,7 +131,7 @@ export default async function LoginPage({
               sentence. The product NAME is still never typed; it arrives as `{app}`. */}
           <p>{t('auth.aside.whatItIs', { app: APP_NAME })}</p>
 
-          <ul className="list-disc space-y-1.5 pl-5">
+          <ul className="list-disc space-y-1.5 ps-5">
             <li>
               <AsideTerm>{t('auth.aside.forgotTerm')}</AsideTerm>{' '}
               <Link href="/forgot-password" className="font-medium text-primary hover:underline">

@@ -500,17 +500,17 @@ function EntryCard({
             type="button"
             onClick={() => setOpen(o => !o)}
             aria-expanded={open}
-            className="flex w-full min-w-0 items-center gap-2 text-left"
+            className="flex w-full min-w-0 items-center gap-2 text-start"
           >
             {open
               ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-              : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />}
+              : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground rtl:-scale-x-100" aria-hidden="true" />}
             <span className="min-w-0 flex-1 font-medium">{entry.title}</span>
             <span className="shrink-0 text-xs text-muted-foreground">
               {noteCount} note{noteCount === 1 ? '' : 's'}
             </span>
           </button>
-          <p className="mt-1 pl-6 text-xs text-muted-foreground">
+          <p className="mt-1 ps-6 text-xs text-muted-foreground">
             {/* "A FORMER OFFICER" RATHER THAN "UNKNOWN". `author_id` is ON DELETE SET NULL so
                 the office keeps the record when its author leaves the family, and "Unknown"
                 would make that read like data loss rather than like a record outliving the

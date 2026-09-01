@@ -56,7 +56,7 @@ export async function LivingSitePreview() {
       className="relative overflow-hidden bg-brand-soft/40 px-4 py-16 sm:px-6 sm:py-20"
     >
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="gn-float absolute -right-24 top-1/3 h-72 w-72 rounded-full bg-brand-legacy/10 blur-3xl" />
+        <div className="gn-float absolute -end-24 top-1/3 h-72 w-72 rounded-full bg-brand-legacy/10 blur-3xl" />
       </div>
 
       <div className="relative mx-auto max-w-6xl">
@@ -107,7 +107,7 @@ export async function LivingSitePreview() {
                 <span aria-hidden="true" className="size-2.5 rounded-full bg-brand-primary/30" />
                 <span aria-hidden="true" className="size-2.5 rounded-full bg-brand-primary/20" />
                 <span aria-hidden="true" className="size-2.5 rounded-full bg-brand-primary/10" />
-                <span className="ml-2 inline-flex items-center gap-1.5 truncate rounded-md bg-background/70 px-2 py-1 text-[11px] text-muted-foreground">
+                <span className="ms-2 inline-flex items-center gap-1.5 truncate rounded-md bg-background/70 px-2 py-1 text-[11px] text-muted-foreground">
                   <Globe className="h-3 w-3 shrink-0" aria-hidden="true" />
                   yourfamily.{APP_NAME.toLowerCase()}.com
                 </span>

@@ -107,7 +107,7 @@ export function PremierGatheringHero({ gathering, t }: {
     <section className="gn-hero-gradient relative isolate overflow-hidden rounded-3xl bg-brand-hero text-brand-on-hero">
       {/* Behind everything, bleeding off the right edge the way the kit's does, and at the
           opacity `tree-watermark-path.ts` requires rather than the kit's 34%. */}
-      <TreeWatermark className="pointer-events-none absolute -right-8 -top-6 h-[125%] w-auto opacity-[0.07]" />
+      <TreeWatermark className="pointer-events-none absolute -end-8 -top-6 h-[125%] w-auto opacity-[0.07]" />
 
       {/* `pt-28` and `pb-20` are clearance for the two curves, not padding taste — the crest
           cuts `h-24` into the top of the band and the foot `h-16` into the bottom. Shorten

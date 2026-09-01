@@ -110,7 +110,7 @@ export function CheckInRoster({ rows, zone }: {
   return (
     <div className="overflow-hidden rounded-lg border">
       <table className="w-full text-sm">
-        <thead className="bg-muted/50 text-left">
+        <thead className="bg-muted/50 text-start">
           <tr>
             <th scope="col" className="px-3 py-2 font-medium">{t('safety.relative')}</th>
             <th scope="col" className="px-3 py-2 font-medium">{t('safety.answer')}</th>

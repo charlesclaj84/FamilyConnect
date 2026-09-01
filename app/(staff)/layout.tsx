@@ -149,7 +149,7 @@ export default async function StaffLayout({ children }: { children: React.ReactN
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:ml-auto">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:ms-auto">
               {/* THE ROLE IS PASSED, and it is the whole reason the Access item is reachable
                   from the nav rather than only by typing the URL. `StaffNav` must stay a
                   client component — it reads `usePathname()` for `aria-current`, and a

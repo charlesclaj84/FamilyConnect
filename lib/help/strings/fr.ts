@@ -770,10 +770,12 @@ export const helpFr: Catalogue = {
     + 'gratuite d’attendre quelque chose qu’elle pourrait avoir cet après-midi serait pire.',
   'help.plans.data.heading': 'Changer de forfait ne supprime jamais de données',
   'help.plans.data.b0':
-    'Un forfait décide quels écrans une famille peut ouvrir, et rien d’autre. Une famille '
-    + 'qui passe à un forfait moins cher conserve chaque enregistrement qu’elle a jamais '
-    + 'saisi — les pages qui les lisent cessent simplement de s’ouvrir. Y revenir les ramène '
-    + 'aussitôt.',
+    'Une offre décide quelles pages une famille peut ouvrir. Une famille qui passe à une offre '
+    + 'moins chère conserve toutes les données saisies pendant **soixante jours** : les pages '
+    + 'qui les lisent cessent de s’ouvrir, et remonter dans ces soixante jours les ramène '
+    + 'aussitôt. Après soixante jours, ce que l’offre moins chère n’inclut pas est supprimé. '
+    + 'Quatre rappels arrivent avant, et [Facturation](/admin/settings) affiche la date en '
+    + 'permanence.',
   'help.troubleshooting.title': 'Si quelque chose semble anormal',
   'help.troubleshooting.summary':
     'Les quelques choses qui surprennent, et ce qui se passe réellement.',
@@ -1468,10 +1470,15 @@ export const helpFr: Catalogue = {
     + 'cotisations ni dans l’historique de paiement d’aucun membre — ce que votre famille '
     + 'nous paie et ce que vos proches paient à votre famille sont deux registres séparés.',
   'help.family-settings.billing.b9':
-    '**Pour arrêter de payer, descendez à Gratuit dans la section '
-    + '[Forfait](/admin/settings).** Cela met fin à un forfait mensuel à la fin de la période '
-    + 'déjà payée, jamais immédiatement. Chaque page reste ouverte jusque-là et chaque '
-    + 'enregistrement est conservé ensuite — remonter plus tard retrouve tout là où il était.',
+    '**Pour cesser de payer, redescendez à Gratuit dans la section [Offre](/admin/settings).** '
+    + 'Cela met fin à un forfait mensuel à la fin de la période déjà payée, jamais '
+    + 'immédiatement. Toutes les pages restent ouvertes jusque-là.',
+  'help.family-settings.billing.b10':
+    '**Ce que l’offre moins chère n’inclut pas est ensuite conservé soixante jours, puis '
+    + 'supprimé.** Rien ne disparaît le jour où vous redescendez. Vous êtes prévenu trente, '
+    + 'quinze, cinq et un jour avant, et remonter dans ces soixante jours retrouve tout '
+    + 'exactement où c’était — voir [ce qu’il advient de vos '
+    + 'données](/help/family-settings#retention).',
   'help.family-settings.removal.heading': 'Retirer la famille',
   'help.family-settings.removal.b0':
     '**Retirer cette famille**, en bas de la section **Famille**, désactive la famille '
@@ -2296,28 +2303,42 @@ export const helpFr: Catalogue = {
     + 'besoin sur ses propres pages ; à votre retour, ce panneau dit si les paiements par '
     + 'carte sont activés.',
   'help.accounting.processing.b1':
+    '**Le pays que vous choisissez décide de la devise dans laquelle votre famille '
+    + 'encaisse.** Le contrôle **Pays** de ce panneau fixe les deux : choisissez le Canada et '
+    + 'vos cotisations, vos fonds et les budgets de vos rassemblements sont enregistrés en '
+    + 'dollars canadiens, et les proches sont débités en dollars canadiens. C’est un seul '
+    + 'choix et non deux, de sorte que l’argent que votre famille demande et celui qui arrive '
+    + 'sur son compte sont toujours le même montant.',
+  'help.accounting.processing.b2':
+    '**Les deux sont définitivement fixés dès qu’un paiement est enregistré ou que le compte '
+    + 'Stripe est créé, et ni l’un ni l’autre ne peut être annulé.** Stripe ne peut pas '
+    + 'déplacer un compte connecté vers un autre pays, et le registre de votre famille ne '
+    + 'peut pas être redénominé après coup : cent lignes indiquant 40 $ devraient alors '
+    + 'vouloir dire deux choses différentes. Le panneau indique laquelle des deux l’a fixé. '
+    + 'Choisissez le pays avant d’enregistrer votre premier paiement.',
+  'help.accounting.processing.b3':
     '**Le compte appartient à votre famille, non à GENORRA.** L’argent va directement à la '
     + 'banque de votre famille, les frais de traitement de Stripe sortent du côté de votre '
     + 'famille, et votre famille conserve son propre tableau de bord Stripe, son propre '
     + 'calendrier de versements et ses propres remboursements. GENORRA ne prend aucune part '
     + 'de ce que votre famille encaisse.',
-  'help.accounting.processing.b2':
+  'help.accounting.processing.b4':
     '**On ne vous demandera jamais une clé Stripe, et vous ne devriez en donner aucune à '
     + 'personne.** GENORRA ne conserve que l’identifiant de votre compte — assez pour vous '
     + 'envoyer un paiement, et inutile à quiconque seul. Si un écran vous demande de coller '
     + 'une clé commençant par `sk_`, ce n’est pas ce produit.',
-  'help.accounting.processing.b3':
+  'help.accounting.processing.b5':
     'Un paiement par carte s’inscrit dans les registres de la famille dès qu’il est réglé '
     + 'et se répartit entre vos fonds selon le même tableau d’**Affectation** qu’un paiement '
     + 'saisi à la main. Personne n’a à le saisir ensuite, et il apparaît dans '
     + '[Transactions](/accounting/transactions) à côté de tout le reste.',
-  'help.accounting.processing.b4':
+  'help.accounting.processing.b6':
     '**Vérifier auprès de Stripe** demande à Stripe l’état actuel du compte, ce qui vaut la '
     + 'peine si vous venez de terminer quelque chose de leur côté. Jusqu’à ce qu’il indique '
     + 'que les paiements par carte sont activés, les membres ne voient aucune section **Payer '
     + 'en ligne** — mieux vaut cela qu’un bouton qui échoue une fois que quelqu’un a décidé '
     + 'de payer.',
-  'help.accounting.processing.b5':
+  'help.accounting.processing.b7':
     '**Se déconnecter arrête aussi chaque paiement automatique des membres, et ceux-là ne '
     + 'peuvent pas être relancés.** Se reconnecter ramène le même compte Stripe avec son '
     + 'historique et ses coordonnées bancaires exactement comme ils étaient — mais chaque '
@@ -2326,7 +2347,7 @@ export const helpFr: Catalogue = {
     + 'personnes cela représente avant que vous ne confirmiez. Rien de ce qui est déjà '
     + 'enregistré n’est retiré, et le compte Stripe de votre famille lui-même n’est pas '
     + 'touché — ceci arrête seulement son usage par GENORRA.',
-  'help.accounting.processing.b6':
+  'help.accounting.processing.b8':
     '**C’est pour cela que se déconnecter demande deux choses.** D’abord votre mot de passe '
     + 'de connexion, pour que cela ne puisse arriver par accident ni du fait de quelqu’un '
     + 'assis devant un écran déverrouillé. Ensuite un code à six chiffres envoyé à l’adresse '
@@ -2335,7 +2356,7 @@ export const helpFr: Catalogue = {
     + 'lui-même après cinq tentatives erronées. C’est la même barrière que [retirer une '
     + 'famille](/help/family-settings#removal), et elle est là pour la même raison : la '
     + 'partie que vous pouvez annuler en cache une que vous ne pouvez pas.',
-  'help.accounting.processing.b7':
+  'help.accounting.processing.b9':
     'Si votre famille s’est déconnectée, le panneau le dit et le bouton indique '
     + '**Reconnecter Stripe** plutôt que **Connecter un compte Stripe** — car c’est '
     + 'réellement le même compte qui revient, non un nouveau qui se crée.',
@@ -4577,4 +4598,69 @@ export const helpFr: Catalogue = {
     'Le décompte des usages est imprimé sur la carte à côté de la commande de suppression : '
     + 'le refus est donc rarement une surprise. Il est arrivé avec la page, cela dit, et un '
     + 'rassemblement programmé depuis n’y figurera pas — c’est le refus lui-même qui décide.',
+
+  // ── Family Settings · What happens to your records (20260901000002) ──────────────
+  'help.family-settings.retention.heading': 'Ce qu’il advient de vos données',
+  'help.family-settings.retention.b0':
+    '**Passer à une offre moins chère ne supprime rien le jour où vous le faites.** Les pages '
+    + 'que cette offre incluait cessent de s’ouvrir, et tout ce qui se trouve derrière est '
+    + 'conservé pendant **soixante jours**. Remontez dans ces soixante jours et chaque donnée '
+    + 'est exactement là où vous l’avez laissée.',
+  'help.family-settings.retention.b1':
+    '**Facturation** affiche la date en permanence, et quatre rappels sont envoyés à la '
+    + 'personne qui s’occupe de la facturation : trente jours avant, quinze, cinq et un.',
+  'help.family-settings.retention.b2.i0.term': 'La conserver',
+  'help.family-settings.retention.b2.i0.text':
+    'Revenez à l’offre que vous avez quittée. Cela couvre les mois d’absence ainsi que le mois '
+    + 'à venir, afin que l’offre n’ait aucun trou, et le montant figure dans la section '
+    + 'Facturation avant tout engagement.',
+  'help.family-settings.retention.b2.i1.term': 'La laisser partir',
+  'help.family-settings.retention.b2.i1.text':
+    'Ne faites rien et elle sera supprimée à la date indiquée, sans frais supplémentaires. Si '
+    + 'votre décision est prise, **Supprimer ces données…** dans la section Facturation le fait '
+    + 'aujourd’hui plutôt que de vous le rappeler trois fois de plus : un code à six chiffres '
+    + 'vous est d’abord envoyé par courriel, et la liste exacte de ce qui sera retiré s’affiche.',
+  'help.family-settings.retention.b3':
+    '**Les données supprimées ne peuvent pas être récupérées.** Ni par vous, ni par le support '
+    + 'GENORRA, ni depuis une sauvegarde. C’est la raison d’être des soixante jours et des '
+    + 'quatre rappels, et c’est la seule phrase de cette page qui mérite d’être lue deux fois.',
+  'help.family-settings.retention.b4':
+    '**Ce qui n’est jamais supprimé :** vos proches, l’Annuaire, les annonces, la messagerie, le '
+    + 'calendrier et tout ce que l’offre Gratuite inclut. Une famille qui cesse complètement de '
+    + 'payer conserve tout cela.',
+
+  // ── Family Settings · If a payment fails ─────────────────────────────────────────
+  'help.family-settings.overdue.heading': 'Si un paiement échoue',
+  'help.family-settings.overdue.b0':
+    'Une carte est refusée pour des raisons ordinaires : elle a expiré, la banque l’a signalée, '
+    + 'l’adresse de facturation a changé. Rien ne change le jour où cela arrive, et mettre la '
+    + 'carte à jour dans **Facturation** règle la situation.',
+  'help.family-settings.overdue.b1':
+    'Si l’impayé persiste, l’accès est limité par étapes afin que la personne capable de le '
+    + 'régler le puisse toujours :',
+  'help.family-settings.overdue.b2.i0.term': 'Au bout de 5 jours',
+  'help.family-settings.overdue.b2.i0.text':
+    'Toutes les personnes chargées de la facturation reçoivent un courriel. Rien n’est limité '
+    + 'et chacun continue comme d’habitude.',
+  'help.family-settings.overdue.b2.i1.term': 'Au bout de 10 jours',
+  'help.family-settings.overdue.b2.i1.text':
+    'Les proches ne peuvent plus utiliser le site. Les administrateurs conservent l’accès '
+    + 'complet, et le paiement le rétablit pour tout le monde d’un coup.',
+  'help.family-settings.overdue.b2.i2.term': 'Au bout de 30 jours',
+  'help.family-settings.overdue.b2.i2.text':
+    'Seule la section Facturation reste ouverte, pour les administrateurs aussi. Rien n’a été '
+    + 'retiré et tout se rouvre au paiement.',
+  'help.family-settings.overdue.b2.i3.term': 'Au bout de 60 jours',
+  'help.family-settings.overdue.b2.i3.text':
+    'La famille passe à l’offre Gratuite, et ce que l’offre Gratuite n’inclut pas est supprimé. '
+    + 'Deux avertissements sont envoyés avant : à 45 jours et la veille.',
+  'help.family-settings.overdue.b3':
+    '**Rien n’est supprimé avant le 60e jour, et rien de l’offre ne change avant non plus.** '
+    + 'Payez le 59e jour et chaque écran et chaque donnée sont exactement là où ils étaient. Ce '
+    + 'qui est supprimé le 60e jour ne peut pas être récupéré.',
+  'help.family-settings.overdue.b4':
+    'Un membre qui voit « temporairement indisponible » reçoit tout le message à dessein : ce '
+    + 'qu’une famille doit à GENORRA ne regarde pas chacun de ses proches. On lui demande de '
+    + 'contacter la personne qui tient la comptabilité de la famille, celle qui peut réellement '
+    + 'régler la situation.',
 }

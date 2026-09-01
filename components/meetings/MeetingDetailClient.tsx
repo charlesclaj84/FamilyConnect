@@ -314,10 +314,10 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
       <div className="flex flex-wrap items-center gap-2 px-4 py-3">
         <button type="button" onClick={() => setExpanded(e => !e)}
           aria-expanded={expanded}
-          className="flex min-w-0 flex-1 items-center gap-2 text-left">
+          className="flex min-w-0 flex-1 items-center gap-2 text-start">
           {expanded
             ? <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-            : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+            : <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground rtl:-scale-x-100" />}
           <span className="min-w-0 flex-1 truncate font-medium">{topic.title}</span>
           <span className="shrink-0 text-xs text-muted-foreground">
             {topic.notes.length} note{topic.notes.length === 1 ? '' : 's'}
@@ -377,7 +377,7 @@ function TopicCard({ topic, meeting, mayWrite, busy, onRun, onError }: {
           ) : (
             <ul className="space-y-3">
               {topic.notes.map(note => (
-                <li key={note.id} className="border-l-2 border-brand-soft pl-3">
+                <li key={note.id} className="border-s-2 border-brand-soft ps-3">
                   {editingNote === note.id && mayWrite ? (
                     <div className="space-y-2">
                       <Textarea value={noteDraft} rows={4} aria-label={t('notes.note')}

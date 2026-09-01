@@ -640,3 +640,55 @@ describe('under a negative UTC offset', () => {
     expect(idsOn(m, '2026-07-31')).toEqual([])
   })
 })
+
+describe('buildCalendarMonth — the week starts where the reader starts it', () => {
+  // ── THE GRID AND THE HEADER MUST AGREE, AND ONLY ONE OF THEM MOVING IS THE HAZARD ──
+  // `weekdayNames` rotates and so does this. Either one alone produces a calendar whose column
+  // NAMES do not describe its column CONTENTS — every date one place out, with nothing on
+  // screen looking broken. Asserted here on the grid, and in `lib/date-utils.test.ts` on the
+  // header, because a single test of either would pass with the other reverted.
+
+  it('starts an American month on Sunday', () => {
+    // 2026-09-01 is a Tuesday, so a Sunday-first September opens on 30 August.
+    const month = buildCalendarMonth('2026-09', '2026-09-01', [], 'en-US')
+    expect(month.weeks[0][0].iso).toBe('2026-08-30')
+    expect(month.weeks[0][2].iso).toBe('2026-09-01')
+  })
+
+  it('starts a French month on Monday', () => {
+    // The same September, one column across: it opens on 31 August, and the 1st is second.
+    const month = buildCalendarMonth('2026-09', '2026-09-01', [], 'fr-FR')
+    expect(month.weeks[0][0].iso).toBe('2026-08-31')
+    expect(month.weeks[0][1].iso).toBe('2026-09-01')
+  })
+
+  it('never builds a grid that starts AFTER the month does', () => {
+    // THE OFF-BY-SEVEN THIS FIXES. `weekday - firstWeekday` goes NEGATIVE whenever the 1st
+    // falls before the week's first day — a Monday-first month opening on a Sunday needs SIX
+    // leading cells, not minus one — so the `+ 7) % 7` is load-bearing rather than defensive.
+    // 2026-11-01 is a Sunday, which is exactly that case.
+    const month = buildCalendarMonth('2026-11', '2026-11-01', [], 'fr-FR')
+    expect(month.weeks[0][0].iso).toBe('2026-10-26')
+    expect(month.weeks[0][6].iso).toBe('2026-11-01')
+    // And the 1st is genuinely inside the grid rather than before it.
+    const all = month.weeks.flat().map(d => d.iso)
+    expect(all[0] <= '2026-11-01').toBe(true)
+    expect(all).toContain('2026-11-01')
+  })
+
+  it('is whole weeks and covers the whole month, in either convention', () => {
+    for (const intl of ['en-US', 'fr-FR', 'es-MX']) {
+      const month = buildCalendarMonth('2026-11', '2026-11-15', [], intl)
+      expect(month.weeks.every(w => w.length === 7)).toBe(true)
+      const days = month.weeks.flat().map(d => d.iso)
+      expect(days).toContain('2026-11-01')
+      expect(days).toContain('2026-11-30')
+      // No gaps: consecutive days, start to finish.
+      for (let i = 1; i < days.length; i++) {
+        const prev = new Date(`${days[i - 1]}T00:00:00Z`).getTime()
+        const here = new Date(`${days[i]}T00:00:00Z`).getTime()
+        expect(here - prev).toBe(86_400_000)
+      }
+    }
+  })
+})

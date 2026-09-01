@@ -12,7 +12,7 @@ import { COLLAPSING_CELL, RowMeta, MetaDot, MetaIf } from '@/components/ui/table
 import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { FormError } from '@/components/ui/form-message'
 import { cn } from '@/lib/utils'
-import { formatCurrency as fmt, dollarsToCents } from '@/lib/currency-utils'
+import { dollarsToCents } from '@/lib/currency-utils'
 import { useServerState } from '@/lib/use-server-state'
 import {
   createFund, updateFund, deleteFund,
@@ -25,6 +25,8 @@ import {
 } from '@/components/admin/account-sections'
 import { useT } from '@/components/layout/LocaleProvider'
 
+import { useMoney } from '@/components/layout/MoneyProvider'
+import type { Money } from '@/lib/currency-utils'
 // Member "open contributions" feature is hidden for now; flip to re-enable.
 const SHOW_OPEN_CONTRIBUTIONS = false
 
@@ -34,11 +36,11 @@ const SHOW_OPEN_CONTRIBUTIONS = false
  * Every other currency figure on this screen is a magnitude whose direction is the
  * column it sits in — Collected is in, Disbursed is out. Net transfers is the one that
  * can point either way for the same fund, so "$300" alone would be unreadable and
- * `formatCurrency(-30000, intl)` renders "-$300.00", which reads as a negative amount of
+ * `money(-30000)` renders "-$300.00", which reads as a negative amount of
  * money rather than money going the other way.
  */
-function signedFmt(cents: number): string {
-  return `${cents < 0 ? '−' : '+'}${fmt(Math.abs(cents))}`
+function signedFmt(cents: number, money: Money): string {
+  return `${cents < 0 ? '−' : '+'}${money(Math.abs(cents))}`
 }
 
 interface Props {
@@ -66,6 +68,7 @@ export function AdminFundsClient({
   rights,
 }: Props) {
   const t = useT()
+  const money = useMoney()
   // This one component renders three sections that are now three separate resources,
   // so the grants are read per section rather than once for the panel.
   const mayEditFunds       = rights.funds.edit
@@ -97,7 +100,7 @@ export function AdminFundsClient({
   // first paint for any family that has not reordered its funds — and unlike the waterfall,
   // priority is not printed on THIS table, so nothing visible is displaced.
   //
-  // EVERY FIGURE SORTS ON CENTS, never on `fmt(...)`. That is the money half of the rule this
+  // EVERY FIGURE SORTS ON CENTS, never on `money(...)`. That is the money half of the rule this
   // pass is built on: "$9.00" sorts after "$10.00" as text, and this table has five currency
   // columns to get it wrong in. `% of dues` sorts on `allocation_bps` for the same reason —
   // the cell prints a percentage rounded to two places, so two funds at 12.5% and 12.504% look
@@ -311,7 +314,7 @@ export function AdminFundsClient({
       title: t('fnd.delete'),
       description: fund
         ? t('fnd.deleteNamedBody', {
-            name: fund.name, balance: fmt(fund.balance_cents),
+            name: fund.name, balance: money(fund.balance_cents),
           })
         : t('fnd.deleteBody'),
       confirmLabel: t('fnd.delete'),
@@ -372,7 +375,7 @@ export function AdminFundsClient({
       title: t('fnd.deleteMilestone'),
       description: milestone
         ? t('fnd.deleteMilestoneNamedBody', {
-            name: milestone.name, amount: fmt(milestone.amount_cents),
+            name: milestone.name, amount: money(milestone.amount_cents),
           })
         : t('fnd.deleteMilestoneBody'),
       confirmLabel: t('fnd.deleteMilestone'),
@@ -459,19 +462,19 @@ export function AdminFundsClient({
             <div className="overflow-visible rounded-xl border">
               <table className="w-full border-collapse text-sm">
                 <thead>
-                  <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <SortTh label={t('fnd.fund')} {...fundSort.sortProps('fund')} className="px-3 py-2 font-semibold" />
                     {/* WAS THE LITERAL "% of dues", which was English in all three languages —
                         the lone-heading class AGENTS.md says `i18n:literals` structurally
                         cannot see. `fnd.shareOfDuesPrefix` is the key the `RowMeta` line
                         already labels this same figure with, so the heading and its folded
                         copy now read identically instead of being two words for one fact. */}
-                    <SortTh label={t('fnd.shareOfDuesPrefix')} align="right" {...fundSort.sortProps('share')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                    <SortTh label={t('fnd.balance')} align="right" {...fundSort.sortProps('balance')} className="px-3 py-2 font-semibold" />
-                    <SortTh label={t('fnd.collected')} align="right" {...fundSort.sortProps('collected')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                    <SortTh label={t('fnd.disbursed')} align="right" {...fundSort.sortProps('disbursed')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                    <SortTh label={t('fnd.transferred')} align="right" {...fundSort.sortProps('transferred')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                    <SortTh label={t('fnd.minimum')} align="right" {...fundSort.sortProps('minimum')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                    <SortTh label={t('fnd.shareOfDuesPrefix')} align="end" {...fundSort.sortProps('share')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                    <SortTh label={t('fnd.balance')} align="end" {...fundSort.sortProps('balance')} className="px-3 py-2 font-semibold" />
+                    <SortTh label={t('fnd.collected')} align="end" {...fundSort.sortProps('collected')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                    <SortTh label={t('fnd.disbursed')} align="end" {...fundSort.sortProps('disbursed')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                    <SortTh label={t('fnd.transferred')} align="end" {...fundSort.sortProps('transferred')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                    <SortTh label={t('fnd.minimum')} align="end" {...fundSort.sortProps('minimum')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                     <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                   </tr>
                 </thead>
@@ -495,9 +498,9 @@ export function AdminFundsClient({
                         </div>
                         {f.description && <p className="text-xs text-muted-foreground">{f.description}</p>}
                         <RowMeta className="gap-x-2">
-                          <MetaIf value={fmt(f.total_contributed_cents)} prefix={t('fnd.collected')} />
+                          <MetaIf value={money(f.total_contributed_cents)} prefix={t('fnd.collected')} />
                           <MetaDot />
-                          <MetaIf value={fmt(f.total_disbursed_cents)} prefix={t('fnd.disbursed')} />
+                          <MetaIf value={money(f.total_disbursed_cents)} prefix={t('fnd.disbursed')} />
                           {/* Only when there is one. On a fund that has never taken part
                               in a transfer this line would be a zero explaining nothing;
                               on one that has, its absence is the reason Collected minus
@@ -505,7 +508,7 @@ export function AdminFundsClient({
                           {f.net_transfers_cents !== 0 && (
                             <>
                               <MetaDot />
-                              <MetaIf value={signedFmt(f.net_transfers_cents)} prefix={t('fnd.transferred')} />
+                              <MetaIf value={signedFmt(f.net_transfers_cents, money)} prefix={t('fnd.transferred')} />
                             </>
                           )}
                           {/* EVERY FUND SHOWS ITS SHARE SINCE 2026-08-20, the Donations fund
@@ -521,12 +524,12 @@ export function AdminFundsClient({
                           {f.minimum_cents > 0 && (
                             <>
                               <MetaDot />
-                              <MetaIf value={fmt(f.minimum_cents)} prefix={t('fnd.minimum')} />
+                              <MetaIf value={money(f.minimum_cents)} prefix={t('fnd.minimum')} />
                             </>
                           )}
                         </RowMeta>
                       </td>
-                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
+                      <td className={cn('px-3 py-2.5 text-end whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
                         {/* NO LONGER AN EM-DASH FOR THE BUILT-IN FUND. It printed one while
                             the Donations fund was excluded from dues routing; since 2026-08-20
                             it can be given a share like any other, so it prints the share it
@@ -534,20 +537,20 @@ export function AdminFundsClient({
                             than an absence. */}
                         {`${(f.allocation_bps / 100).toFixed(f.allocation_bps % 100 === 0 ? 0 : 2)}%`}
                       </td>
-                      <td className={cn('px-3 py-2.5 text-right font-medium whitespace-nowrap',
+                      <td className={cn('px-3 py-2.5 text-end font-medium whitespace-nowrap',
                         f.balance_cents >= 0 ? 'text-brand-affirm' : 'text-destructive')}>
-                        {fmt(f.balance_cents)}
+                        {money(f.balance_cents)}
                       </td>
-                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{fmt(f.total_contributed_cents)}</td>
-                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{fmt(f.total_disbursed_cents)}</td>
+                      <td className={cn('px-3 py-2.5 text-end whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{money(f.total_contributed_cents)}</td>
+                      <td className={cn('px-3 py-2.5 text-end whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>{money(f.total_disbursed_cents)}</td>
                       {/* An em-dash for zero rather than "+$0.00": a fund that has never
                           taken part in a transfer has nothing to say here, and a column
                           of signed zeroes would drown the two rows that do. */}
-                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
-                        {f.net_transfers_cents === 0 ? '—' : signedFmt(f.net_transfers_cents)}
+                      <td className={cn('px-3 py-2.5 text-end whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
+                        {f.net_transfers_cents === 0 ? '—' : signedFmt(f.net_transfers_cents, money)}
                       </td>
-                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
-                        {f.minimum_cents > 0 ? fmt(f.minimum_cents) : '—'}
+                      <td className={cn('px-3 py-2.5 text-end whitespace-nowrap text-muted-foreground', COLLAPSING_CELL)}>
+                        {f.minimum_cents > 0 ? money(f.minimum_cents) : '—'}
                       </td>
                       <td className="w-px px-3 py-2.5">
                         <div className="flex items-center justify-end gap-1">
@@ -641,10 +644,10 @@ export function AdminFundsClient({
             <div className="overflow-visible rounded-xl border">
               <table className="w-full border-collapse text-sm">
                 <thead>
-                  <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     <SortTh label={t('fnd.milestone')} {...milestoneSort.sortProps('milestone')} className="px-3 py-2 font-semibold" />
                     <SortTh label={t('fnd.fund')} {...milestoneSort.sortProps('fund')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                    <SortTh label={t('fnd.award')} align="right" {...milestoneSort.sortProps('award')} className="px-3 py-2 font-semibold" />
+                    <SortTh label={t('fnd.award')} align="end" {...milestoneSort.sortProps('award')} className="px-3 py-2 font-semibold" />
                     <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                   </tr>
                 </thead>
@@ -664,8 +667,8 @@ export function AdminFundsClient({
                           </RowMeta>
                         </td>
                         <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{m.fundName ?? '—'}</td>
-                        <td className="px-3 py-2.5 text-right font-medium whitespace-nowrap">{fmt(m.amount_cents)}</td>
-                        <td className="w-px px-3 py-2.5 text-right">
+                        <td className="px-3 py-2.5 text-end font-medium whitespace-nowrap">{money(m.amount_cents)}</td>
+                        <td className="w-px px-3 py-2.5 text-end">
                           {mayDeleteMilestone && (
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive hover:text-destructive" onClick={() => handleDeleteMilestone(m.id)}>
                               <Trash2 className="h-3.5 w-3.5" />
@@ -711,24 +714,24 @@ export function AdminFundsClient({
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
-                      <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">#</th>
-                      <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">{t('fnd.fund')}</th>
-                      <th className="py-2 pr-3 text-right text-xs font-medium text-muted-foreground">{t('fnd.allocation')}</th>
-                      <th className={cn('py-2 text-right text-xs font-medium text-muted-foreground', COLLAPSING_CELL)}>{t('fnd.minimum')}</th>
+                      <th className="py-2 pe-3 text-start text-xs font-medium text-muted-foreground">#</th>
+                      <th className="py-2 pe-3 text-start text-xs font-medium text-muted-foreground">{t('fnd.fund')}</th>
+                      <th className="py-2 pe-3 text-end text-xs font-medium text-muted-foreground">{t('fnd.allocation')}</th>
+                      <th className={cn('py-2 text-end text-xs font-medium text-muted-foreground', COLLAPSING_CELL)}>{t('fnd.minimum')}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {alloc.map((a, i) => (
                       <tr key={a.fund_id} className="border-b align-top last:border-0 sm:align-middle">
-                        <td className="py-2 pr-3 text-xs text-muted-foreground">{i + 1}</td>
-                        <td className="py-2 pr-3 font-medium">
+                        <td className="py-2 pe-3 text-xs text-muted-foreground">{i + 1}</td>
+                        <td className="py-2 pe-3 font-medium">
                           {a.fund_name}
                           <RowMeta>
-                            <MetaIf value={fmt(dollarsToCents(a.minimum))} prefix={t('fnd.minimum')} />
+                            <MetaIf value={money(dollarsToCents(a.minimum))} prefix={t('fnd.minimum')} />
                           </RowMeta>
                         </td>
-                        <td className="py-2 pr-3 text-right">{(parseFloat(a.percent || '0') || 0).toFixed(2)}%</td>
-                        <td className={cn('py-2 text-right', COLLAPSING_CELL)}>{fmt(dollarsToCents(a.minimum))}</td>
+                        <td className="py-2 pe-3 text-end">{(parseFloat(a.percent || '0') || 0).toFixed(2)}%</td>
+                        <td className={cn('py-2 text-end', COLLAPSING_CELL)}>{money(dollarsToCents(a.minimum))}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -748,10 +751,10 @@ export function AdminFundsClient({
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b">
-                        <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">{t('fnd.priority')}</th>
-                        <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">{t('fnd.fund')}</th>
-                        <th className="py-2 pr-3 text-left text-xs font-medium text-muted-foreground">{t('fnd.allocationPct')}</th>
-                        <th className={cn('py-2 text-left text-xs font-medium text-muted-foreground', COLLAPSING_CELL)}>{t('fnd.minimumDollars')}</th>
+                        <th className="py-2 pe-3 text-start text-xs font-medium text-muted-foreground">{t('fnd.priority')}</th>
+                        <th className="py-2 pe-3 text-start text-xs font-medium text-muted-foreground">{t('fnd.fund')}</th>
+                        <th className="py-2 pe-3 text-start text-xs font-medium text-muted-foreground">{t('fnd.allocationPct')}</th>
+                        <th className={cn('py-2 text-start text-xs font-medium text-muted-foreground', COLLAPSING_CELL)}>{t('fnd.minimumDollars')}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -764,7 +767,7 @@ export function AdminFundsClient({
                         )
                         return (
                         <tr key={a.fund_id} className="border-b align-top last:border-0 sm:align-middle">
-                          <td className="py-2 pr-3">
+                          <td className="py-2 pe-3">
                             <div className="flex items-center gap-1">
                               <span className="text-xs text-muted-foreground w-4 text-center">{i + 1}</span>
                               <button
@@ -787,14 +790,14 @@ export function AdminFundsClient({
                               </button>
                             </div>
                           </td>
-                          <td className="py-2 pr-3 font-medium">
+                          <td className="py-2 pe-3 font-medium">
                             {a.fund_name}
                             <RowMeta className="flex-col items-start">
                               <span>{t('fnd.minimumDollarsPlain')}</span>
                               {minimumInput}
                             </RowMeta>
                           </td>
-                          <td className="py-2 pr-3">
+                          <td className="py-2 pe-3">
                             <Input type="number" min="0" max="100" step="0.01" value={a.percent}
                               onChange={e => setAllocField(a.fund_id, 'percent', e.target.value)}
                               aria-label={t('fnd.allocationPercentFor', { fund: a.fund_name })}

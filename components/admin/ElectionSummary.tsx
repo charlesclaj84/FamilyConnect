@@ -157,7 +157,7 @@ export function ElectionSummary({ summary, t }: {
                               (has not accepted)
                             </span>
                           )}
-                          <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                          <span className="ms-auto shrink-0 text-xs text-muted-foreground">
                             {c.vote_count} vote{c.vote_count === 1 ? '' : 's'}
                             {pos.votes_cast > 0 && ` · ${share}%`}
                           </span>

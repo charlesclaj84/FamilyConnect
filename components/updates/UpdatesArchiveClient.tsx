@@ -111,14 +111,14 @@ export function UpdatesArchiveClient({
       {/* A real <form>, so Enter submits and the browser's own search affordances work. */}
       <form onSubmit={onSearch} className="flex flex-col gap-2 sm:flex-row">
         <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute start-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
             placeholder={t('upd.searchPh')}
             aria-label={t('upd.searchLabel')}
             value={draft}
             onChange={e => setDraft(e.target.value)}
-            className="pl-8"
+            className="ps-8"
           />
         </div>
         <div className="flex gap-2">

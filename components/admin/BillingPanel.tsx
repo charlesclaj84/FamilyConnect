@@ -5,7 +5,7 @@ import { CalendarClock, CreditCard, ExternalLink, Receipt } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { FormError } from '@/components/ui/form-message'
-import { formatCurrency } from '@/lib/currency-utils'
+import { formatPlatformMoney } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { addDays } from '@/lib/platform-billing'
 import { TIER_LABEL } from '@/lib/tiers'
@@ -194,7 +194,7 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
           payments is the pane hiding its own content. */}
       <div className="space-y-2">
         <h2 className="text-lg font-semibold">
-          <Receipt className="mr-2 inline h-4 w-4" aria-hidden="true" />
+          <Receipt className="me-2 inline h-4 w-4" aria-hidden="true" />
           {t('bill.whatCharged')}
         </h2>
 
@@ -206,7 +206,7 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
           </p>
         ) : (
           <div className="overflow-hidden rounded-lg border">
-            <table className="w-full text-left text-sm">
+            <table className="w-full text-start text-sm">
               <thead className="bg-muted/50 text-xs uppercase tracking-wide text-muted-foreground">
                 <tr>
                   <th scope="col" className="px-4 py-2">{t('set.pane.plan')}</th>
@@ -216,7 +216,7 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
                       in the app. No `min-w-*` floor and no sideways scroll. */}
                   <th scope="col" className={cn('px-4 py-2', COLLAPSING_CELL)}>{t('money.paid')}</th>
                   <th scope="col" className={cn('px-4 py-2', COLLAPSING_CELL)}>{t('bill.covers')}</th>
-                  <th scope="col" className="px-4 py-2 text-right">{t('common.amount')}</th>
+                  <th scope="col" className="px-4 py-2 text-end">{t('common.amount')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -240,8 +240,8 @@ export function BillingPanel({ billing }: { billing: PlatformBilling | null }) {
                       </td>
                       <td className={cn('px-4 py-2', COLLAPSING_CELL)}>{paid ?? '—'}</td>
                       <td className={cn('px-4 py-2', COLLAPSING_CELL)}>{covers ?? '—'}</td>
-                      <td className="px-4 py-2 text-right font-medium">
-                        {formatCurrency(p.amountCents, intl)}
+                      <td className="px-4 py-2 text-end font-medium">
+                        {formatPlatformMoney(p.amountCents, intl)}
                       </td>
                     </tr>
                   )

@@ -67,7 +67,7 @@ export default async function ElectionDetailPage({ params }: { params: Promise<{
     <PageShell width="reading" className="space-y-8">
       <div>
         <Link href="/community/elections" className="text-sm text-muted-foreground hover:text-foreground flex items-center gap-1 mb-4">
-          <ChevronLeft className="h-3.5 w-3.5" />{t('comm.backElections')}</Link>
+          <ChevronLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />{t('comm.backElections')}</Link>
         <div className="flex items-start justify-between gap-4">
           <h1 className="text-3xl font-bold">{election.title}</h1>
           <span className={`text-xs px-2.5 py-1 rounded-full shrink-0 ${ELECTION_PHASE_PILL[election.phase]}`}>
@@ -137,7 +137,7 @@ export default async function ElectionDetailPage({ params }: { params: Promise<{
                         <li key={r.nominee_id} className="flex items-center gap-2">
                           {i === 0 && <Trophy className="h-4 w-4 text-brand-accent shrink-0" />}
                           <span className={`text-sm ${i === 0 ? 'font-semibold' : ''}`}>{r.nominee_name}</span>
-                          <span className="text-xs text-muted-foreground ml-auto">{r.vote_count} vote{r.vote_count !== 1 ? 's' : ''}</span>
+                          <span className="text-xs text-muted-foreground ms-auto">{r.vote_count} vote{r.vote_count !== 1 ? 's' : ''}</span>
                         </li>
                       ))}
                     </ul>

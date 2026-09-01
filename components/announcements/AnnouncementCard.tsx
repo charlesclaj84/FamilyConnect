@@ -92,7 +92,7 @@ export function AnnouncementCard({ announcement }: { announcement: Announcement 
         {electionHref && (
           <Link href={electionHref}
             className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-brand-accent hover:underline underline-offset-4">
-            {t('ann.openElection')} <ChevronRight className="h-3 w-3" aria-hidden="true" />
+            {t('ann.openElection')} <ChevronRight className="h-3 w-3 rtl:-scale-x-100" aria-hidden="true" />
           </Link>
         )}
       </CardContent>

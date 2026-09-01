@@ -54,8 +54,8 @@ export function PageHero({
           a plain colour block — the same treatment as the landing hero, so the pages feel
           like one site. `aria-hidden`, because they mean nothing. */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="gn-float absolute -right-16 -top-24 h-72 w-72 rounded-full bg-brand-legacy/12 blur-3xl" />
-        <div className="gn-float-slow absolute -bottom-28 -left-20 h-80 w-80 rounded-full bg-brand-accent/12 blur-3xl" />
+        <div className="gn-float absolute -end-16 -top-24 h-72 w-72 rounded-full bg-brand-legacy/12 blur-3xl" />
+        <div className="gn-float-slow absolute -bottom-28 -start-20 h-80 w-80 rounded-full bg-brand-accent/12 blur-3xl" />
       </div>
 
       <div className="relative mx-auto max-w-3xl text-center">
@@ -161,7 +161,7 @@ export function MoreLink({ href, children }: { href: string; children: ReactNode
       {children}
       <ArrowRight
         aria-hidden="true"
-        className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"
+        className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1 rtl:group-hover:-translate-x-1 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 rtl:-scale-x-100"
       />
     </Link>
   )

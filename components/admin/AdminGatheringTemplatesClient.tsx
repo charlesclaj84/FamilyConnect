@@ -13,7 +13,7 @@ import { FormError } from '@/components/ui/form-message'
 import { COLLAPSING_CELL, RowMeta, MetaDot } from '@/components/ui/table-collapse'
 import { cn } from '@/lib/utils'
 import { useServerState } from '@/lib/use-server-state'
-import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
+import { dollarsToCents } from '@/lib/currency-utils'
 import {
   GATHERING_STEP_KINDS, GATHERING_STEP_KIND_LABEL, GATHERING_STEP_KIND_HINT,
   GATHERING_TEMPLATE_SCHEDULERS,
@@ -24,7 +24,8 @@ import {
   addTemplateStep, updateTemplateStep, deleteTemplateStep, moveTemplateStep,
   type GatheringTemplate, type TemplateStep,
 } from '@/app/actions/admin/gathering-templates'
-import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import { useT } from '@/components/layout/LocaleProvider'
+import { useMoney } from '@/components/layout/MoneyProvider'
 import type { T } from '@/lib/i18n/t'
 
 /**
@@ -835,7 +836,7 @@ function TemplateCard({
               onClick={() => setOpen(o => !o)}
               aria-expanded={open}
               aria-controls={bodyId}
-              className="group flex items-start gap-2 text-left"
+              className="group flex items-start gap-2 text-start"
             >
               {/* `mt-1` to sit the chevron on the title's cap-height rather than its box, and
                   `shrink-0` so a long template name wraps beside it instead of squashing it.
@@ -843,6 +844,11 @@ function TemplateCard({
               <ChevronRight
                 className={cn(
                   'mt-1 h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 motion-reduce:transition-none',
+                  // Mirrored right-to-left, like every other directional glyph — `dir` flips
+                  // LAYOUT and leaves an SVG arrow pointing the way it was drawn. Safe beside
+                  // `rotate-90`: a chevron rotated to point DOWN is symmetric about the
+                  // vertical axis, so the mirror is a no-op on the open state.
+                  'rtl:-scale-x-100',
                   open && 'rotate-90',
                 )}
                 aria-hidden="true"
@@ -867,7 +873,7 @@ function TemplateCard({
                 aria-label={t('tmpl.editTemplateAria', { template: template.name })}
                 onClick={() => setEditingTemplate(true)}
               >
-                <Pencil className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> {t('action.edit')}
+                <Pencil className="me-1.5 h-3.5 w-3.5" aria-hidden="true" /> {t('action.edit')}
               </Button>
             )}
             {mayEdit && (
@@ -969,11 +975,11 @@ function TemplateCard({
               <div className="overflow-visible rounded-xl border">
                 <table className="w-full border-collapse text-sm">
                   <thead>
-                    <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                       <th scope="col" className="px-3 py-2 font-semibold">{t('tmpl.step')}</th>
                       <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('tmpl.asksFor')}</th>
                       <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>{t('common.required')}</th>
-                      <th scope="col" className={cn('px-3 py-2 text-right font-semibold', COLLAPSING_CELL)}>{t('tmpl.suggestedBudgetShort')}</th>
+                      <th scope="col" className={cn('px-3 py-2 text-end font-semibold', COLLAPSING_CELL)}>{t('tmpl.suggestedBudgetShort')}</th>
                       <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                     </tr>
                   </thead>
@@ -1080,11 +1086,11 @@ function StepRow({
   onMove: (direction: 'up' | 'down') => void
   onDelete: () => void
 }) {
-  const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   const isChild = step.kind === 'template'
   const budgetText = step.budgetDefaultCents == null
-    ? '—' : formatCurrency(step.budgetDefaultCents, intl)
+    ? '—' : money(step.budgetDefaultCents)
 
   return (
     <tr className="border-b align-top last:border-0 sm:align-middle">
@@ -1134,7 +1140,7 @@ function StepRow({
           <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
             {step.required ? 'Yes' : 'No'}
           </td>
-          <td className={cn('px-3 py-2.5 text-right tabular-nums text-muted-foreground', COLLAPSING_CELL)}>
+          <td className={cn('px-3 py-2.5 text-end tabular-nums text-muted-foreground', COLLAPSING_CELL)}>
             {budgetText}
           </td>
         </>

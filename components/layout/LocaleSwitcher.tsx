@@ -152,7 +152,7 @@ export function LocaleSwitcher({ className }: {
           the bell and the portrait sideways on the one screen where every member knows where
           those two are. */}
       {error && (
-        <span className="absolute right-0 top-full z-40 mt-1 whitespace-nowrap rounded-md border bg-card px-2 py-1 text-xs text-destructive shadow-sm">
+        <span className="absolute end-0 top-full z-40 mt-1 whitespace-nowrap rounded-md border bg-card px-2 py-1 text-xs text-destructive shadow-sm">
           {error}
         </span>
       )}

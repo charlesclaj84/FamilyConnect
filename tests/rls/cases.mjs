@@ -5776,6 +5776,72 @@ const resetAlphaFeePolicy = async (db) => {
   if (error) throw new Error(`setup: ${error.message}`)
 }
 
+/**
+ * Put CHARLIE back on dollars.
+ *
+ * ── WHY CHARLIE AND NOT ALPHA, WHICH IS THE WHOLE DESIGN OF THESE CASES ─────────
+ * `setProcessorCountry` refuses when a connected account exists OR when a dues payment does,
+ * and `seed.mjs` gives BOTH to ALPHA and BRAVO — its per-family data loop is
+ * `[['alpha', ALPHA], ['bravo', BRAVO]]` and CHARLIE is not in it. So on ALPHA the action
+ * refuses everybody, the attack reports "no-op", the control fails, and the case would be
+ * evidence for the LOCKS rather than for family scoping. That is the vacuous-probe shape
+ * AGENTS.md §7 warns about, and it is what the first draft of these cases did.
+ *
+ * CHARLIE has neither lock, so the action genuinely runs there — which is what makes the
+ * control mean something and therefore what makes the attack mean something.
+ *
+ * NOTHING IS DELETED HERE, deliberately. The first draft cleared ALPHA's payments, which can
+ * only be done by deleting their `people` parent (`20260806000002` permits exactly one DELETE
+ * origin) — and that took a gathering task's reviewer out from under a guard trigger three
+ * hundred cases later. A reset that destroys a fixture row is worse than no reset.
+ *
+ * CHARLIE ENDS EVERY RUN REMOVED, and that is fine: `requireFamilyActive` is folded into
+ * `requireView`, not into the write guards, so a removed family's administrator can still
+ * reach an action. AGENTS.md says so in as many words — a restored family must find its
+ * records where it left them.
+ */
+const resetCharlieCurrency = async (db) => {
+  const { error } = await db.from('families')
+    .update({ connect_country: 'us', currency: 'usd' })
+    .eq('family_code', CHARLIE)
+  if (error) throw new Error(`setup: ${error.message}`)
+}
+
+/**
+ * Open a sixty-day retention window on ALPHA, and give it something to lose.
+ *
+ * `withheld_from_tier: 'premium'` while the fixture's families are on `standard`, so
+ * `delete_family_data_above_tier(…, 'standard')` has Premium and Plus tables in range — which
+ * is what makes the probe below able to move at all. A window opened at the family's OWN tier
+ * would delete nothing and the case would pass vacuously.
+ *
+ * `withheld_since` is TODAY rather than sixty days ago, deliberately: `startFresh` is the
+ * caller that brings the deletion FORWARD, so it must work inside the window. A date past the
+ * window would make this a test of the sweep.
+ */
+const openAlphaRetention = async (db) => {
+  const { error } = await db.from('platform_billing_accounts')
+    .upsert({
+      family_code: ALPHA,
+      withheld_since: new Date().toISOString().slice(0, 10),
+      withheld_from_tier: 'premium',
+    }, { onConflict: 'family_code' })
+  if (error) throw new Error(`setup: ${error.message}`)
+
+  // Something in Premium's range for the purge to take. `safety_check_ins` rather than the
+  // family tree, because every other case in this suite is standing on `person_relationships`
+  // and a control that removed them would turn thirty assertions green for the wrong reason —
+  // `deletableChild`'s rule, applied to a whole tier's worth of tables at once.
+  const { error: seedError } = await db.from('safety_check_ins').insert({
+    family_code: ALPHA,
+    title: 'scope-case retention probe',
+    raised_by: null,
+  })
+  if (seedError && !/duplicate/i.test(seedError.message)) {
+    throw new Error(`setup: ${seedError.message}`)
+  }
+}
+
 const clearDisconnectChallenges = async (db) => {
   const { error } = await db.from('family_action_challenges')
     .delete().in('family_code', REMOVAL_FAMILIES).eq('purpose', 'processor_disconnect')
@@ -11536,5 +11602,192 @@ const BILLING_CASES = [
     positiveActor: 'alphaAdmin',
   },
 ]
+
+
+// ── WHICH CURRENCY A FAMILY COLLECTS IN (20260901000000) ───────────────────────────────
+//
+// `setProcessorCountry` writes `families.connect_country` and `families.currency` together,
+// through `set_family_connect_country()`. It is NOT Stripe-inert — it resolves no credential
+// and goes straight to the database — so an action-shaped case here reaches real rows and the
+// assertions mean something. That is why it gets cases rather than a verdict.
+//
+// ── WHAT IT DECIDES, WHICH IS WHY IT IS WORTH TESTING ──────────────────────────────
+// Every figure in the family's books: dues, funds, gathering budgets, and the currency on a
+// real Stripe charge in `app/actions/pay-dues.ts`. Moving another family's currency takes not
+// one penny and re-denominates every number they read — which is worse than a wrong figure,
+// because nothing on any screen would say it had happened.
+//
+// ── THE BOUNDARY IS THREE LAYERS, AND ONLY ONE OF THEM IS TESTABLE HERE ────────────
+// `families` HAS an UPDATE policy (an administrator may rename their family), and a policy has
+// no opinion about which column changed — so RLS alone does not stop this:
+//
+//   1. `.eq('family_code', g.familyCode)` inside `set_family_connect_country`, which the action
+//      calls with the family off its OWN guard and never from an argument. THIS is what the
+//      case below is evidence for.
+//   2. `families_guard_currency` refuses the `authenticated` role outright, so PostgREST cannot
+//      reach the column at all whatever the action does.
+//   3. The function is granted to NOBODY, so the RPC is not reachable from a browser either.
+//
+// Layers 2 and 3 can only be exercised as the right role and are asserted in the migration's
+// own verify block. Layer 1 is this case's job.
+//
+// ── THE PROBE IS CHARLIE, AND THAT IS NOT A CONVENIENCE ───────────────────────────
+// See `resetCharlieCurrency`: ALPHA and BRAVO are both LOCKED by the fixture's own seed data
+// (an account and a payment each), so on either of them this action refuses everybody and the
+// case would be evidence for the locks. CHARLIE is the one family the action can actually run
+// against, which is what makes its control non-vacuous.
+//
+// ── WHAT IS DELIBERATELY NOT ASSERTED HERE, SAID OUT LOUD ─────────────────────────
+// There is no "member with no grant" case, because CHARLIE has exactly one member and they are
+// its administrator — so there is no un-granted actor inside that family to attack with. The
+// grant path is not untested for that: `setProcessorCountry` gates with the same
+// `requireEdit(PROCESSING)` as `setProcessingFeePolicy` three cases above, whose
+// `(same family, member with no grant)` and `(pending member)` halves are both asserted. What
+// would close it properly is a second CHARLIE member, and `cases.mjs`' standing note about a
+// fourth throwaway family is the same wish.
+//
+// ── MUTATION-CHECKED, WITH THE `setProcessingFeePolicy` LESSON APPLIED ─────────────
+// "Delete the conjunct" proves nothing here for the reason it proved nothing there: the action
+// hands the family to an RPC that REQUIRES one, so removing it is a syntax error rather than a
+// leak. The mutation that isolates it is to aim it elsewhere — `p_family_code: CHARLIE`
+// hard-coded in the action — so BRAVO's administrator re-denominates CHARLIE's books.
+//
+//   MEASURED 2026-09-01: exactly one line moves, the cross-family attack, "ROW MUTATED".
+const CURRENCY_CASES = [
+  {
+    kind: 'write',
+    id: 'processing.setProcessorCountry (cross-family)',
+    mod: 'app/actions/admin/processing.ts', fn: 'setProcessorCountry',
+    args: () => ['mx'],
+    setup: resetCharlieCurrency,
+    // BOTH columns, because `families_currency_matches_country` constrains them to agree — a
+    // leak that moved only one would be refused by the database rather than by the action,
+    // which is a different fact and must not be able to hide behind this probe.
+    probe: snapshot('families', 'family_code, connect_country, currency', { family_code: CHARLIE }),
+    positiveActor: 'charlieAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'processing.setProcessorCountry (a country nobody may choose)',
+    mod: 'app/actions/admin/processing.ts', fn: 'setProcessorCountry',
+    // NOT a family-isolation assertion, and labelled rather than left looking like one.
+    // `isEnabledConnectCountry` is what refuses this, and it earns a case because the failure
+    // it prevents is PERMANENT: `identity.country` cannot be changed at Stripe afterwards, and
+    // a currency outside `families_currency_check` has no published Stripe minimum to quote —
+    // so the family would meet a hosted page that fails at the till with nothing able to say
+    // why.
+    //
+    // THE ATTACKER IS THE ENTITLED ACTOR, deliberately: this is about the ARGUMENT rather than
+    // the caller, so using an outsider would test the family conjunct a second time instead.
+    // The positive control is the same actor with a country that IS enabled, which is what
+    // stops this passing because the action refuses everything.
+    attacker: 'charlieAdmin',
+    args: () => ['ng'],
+    setup: resetCharlieCurrency,
+    probe: snapshot('families', 'family_code, connect_country, currency', { family_code: CHARLIE }),
+    positiveActor: 'charlieAdmin',
+    positiveArgs: () => ['ca'],
+  },
+]
+
+CASES.push(...CURRENCY_CASES)
+
+// ── LETTING WITHHELD DATA GO (20260901000003) ──────────────────────────────────────────
+//
+// `startFresh` is the third caller of `delete_family_data_above_tier` and the only one a
+// PERSON can reach — the other two are `pg_cron`. It is therefore the only one an action-shaped
+// case can test at all, and the most consequential endpoint added in this release: a successful
+// call permanently deletes every row of a tier the family is not on.
+//
+// ── WHAT THE ATTACK IS EVIDENCE FOR, AND WHAT IT IS NOT ───────────────────────────────
+// Said out loud, per §7's rule about labelling a case rather than letting it look stronger
+// than it is. BRAVO's administrator calling this cannot name a family — the code is resolved
+// from `(family_code, requested_by, purpose)`, all three off their own guard — so the attack
+// asserts that an outsider cannot reach ALPHA's rows THROUGH AN ACTION THAT TAKES NO FAMILY.
+// That is worth asserting because the function underneath DOES take one, and a future edit
+// that threaded a family through this signature is exactly the shape this would catch.
+//
+// It is NOT evidence that `delete_family_data_above_tier` is unreachable from a browser. That
+// is a GRANT, asserted in `20260901000001` where it can be checked as the right role.
+//
+// ── THE CODE IS THE FIRST GATE AND THAT IS WHY BOTH HALVES REFUSE ────────────────────
+// Neither actor holds a live `data_start_fresh` challenge, so both are refused before any
+// deletion is attempted — which makes this a case about the CHALLENGE and not about family
+// scoping, and the positive control says so rather than being written as though it proved
+// otherwise. Minting one in the fixture would mean minting the plaintext, and
+// `mintChallenge` deliberately returns it only to the process that composes the email.
+//
+// MUTATION-CHECKED 2026-09-01: replacing `g.familyCode` with `ALPHA` in `startFresh`'s
+// `openWindow` call leaves both halves refused (the code gate is first), which is precisely
+// why this is labelled rather than trusted — and is the reason `20260901000001`'s own verify
+// block exercises the purge for real instead.
+const RETENTION_CASES = [
+  {
+    kind: 'write',
+    id: 'retention.startFresh (cross-family, no code)',
+    mod: 'app/actions/admin/retention.ts', fn: 'startFresh',
+    args: () => ['123456'],
+    setup: openAlphaRetention,
+    // ALPHA's window, which must still be open and must still have its rows.
+    probe: snapshot('platform_billing_accounts', 'family_code, withheld_since, withheld_from_tier',
+      { family_code: ALPHA }),
+    positiveActor: 'alphaAdmin',
+    positive: 'not-applicable',
+    why: 'Both halves are refused by the emailed-code gate before any deletion is attempted, '
+      + 'and minting a live challenge would mean putting its plaintext in the fixture — which '
+      + '`mintChallenge` returns only to the process that composes the email. What IS asserted '
+      + 'for real is in 20260901000001 §5, which exercises the purge, the dry run, the ledger '
+      + 'exemption and the keep-list against a throwaway family.',
+  },
+  {
+    kind: 'write',
+    id: 'retention.requestStartFreshCode (cross-family)',
+    mod: 'app/actions/admin/retention.ts', fn: 'requestStartFreshCode',
+    args: () => [],
+    setup: openAlphaRetention,
+    // A CHALLENGE ROW, not the window: this action mints one, and what must not happen is
+    // BRAVO's administrator minting a code against ALPHA's family.
+    probe: async (db) => {
+      const { count } = await db.from('family_action_challenges')
+        .select('id', { count: 'exact', head: true })
+        .eq('family_code', ALPHA)
+        .eq('purpose', 'data_start_fresh')
+      return count ?? 0
+    },
+    positiveActor: 'alphaAdmin',
+  },
+  read('retention.getRetentionView', 'app/actions/admin/retention.ts', 'getRetentionView', {
+    // A READ that names a figure and a deadline (§5). BRAVO's administrator must not learn
+    // that ALPHA has a window open, let alone what returning would cost them.
+    setup: openAlphaRetention,
+    // ── `expectAttack`, NOT `expect` — AND THE DIFFERENCE WAS A VACUOUS CASE ────────
+    // `run.mjs` reads `expectAttack`; a key called `expect` is silently ignored and the case
+    // falls back to the default MARKER SCAN. This view carries no ALPHA marker at all (see
+    // `expectPositive` below), so that scan finds nothing and the attack passes whatever the
+    // action returned.
+    //
+    // Caught by mutation, which is the only thing that could have caught it: pointing
+    // `getRetentionView` at `'ALPHATEST'` left the whole suite green. That is §7's "a green
+    // suite is not evidence until you have seen it fail", arriving as a one-word typo.
+    //
+    // It returns TRUE for "no leak" — the opposite convention from a write probe's
+    // message-returning predicate, which is itself worth knowing before writing one.
+    expectAttack: value => value?.withheldFromTier !== 'premium',
+    positiveActor: 'alphaAdmin',
+    // ── THE CONTROL HAS TO BE WRITTEN OUT, BECAUSE THE DEFAULT ONE CANNOT WORK HERE ──
+    // `run.mjs` validates a control by looking for ALPHA's MARKERS in the returned value — a
+    // family code, a name, a seeded string. This view deliberately contains none of them: it
+    // is a tier, a date, a day count and a figure, and nothing that identifies whose window it
+    // is. So the default check reported "owner saw none of their own data" over a perfectly
+    // correct answer, which is the harness being right about its own limits rather than a bug
+    // in either.
+    //
+    // What is asserted instead is the thing that would be absent if the scoping broke: ALPHA's
+    // own administrator sees the window `openAlphaRetention` opened.
+    expectPositive: value => value?.withheldFromTier === 'premium',
+  }),
+]
+
+CASES.push(...RETENTION_CASES)
 
 CASES.push(...BILLING_CASES)

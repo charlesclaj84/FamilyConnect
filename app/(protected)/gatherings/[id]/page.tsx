@@ -15,6 +15,8 @@ import { GatheringDetailClient } from '@/components/gatherings/GatheringDetailCl
 import { PlanningUpsell } from '@/components/gatherings/PlanningUpsell'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
+import { moneyFor } from '@/lib/currency-utils'
+import { getMyFamilyCurrency } from '@/lib/auth/currency'
 import { docTitle } from '@/lib/i18n/page-metadata'
 
 export async function generateMetadata() {
@@ -64,6 +66,10 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
   const { t } = await callerI18n(user?.id ?? null)
   if (!user) redirect('/login')
   const { intl } = await callerI18n(user.id)
+  // The FAMILY's currency, bound with the reader's conventions. A page printing the
+  // family's own figures uses this; GENORRA's own prices use `formatPlatformMoney`.
+  // See `lib/currency-utils.ts` — the two ledgers must never meet.
+  const money = moneyFor(await getMyFamilyCurrency(user.id), intl)
 
   await requireView(user.id, 'gatherings')
 
@@ -107,7 +113,7 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
           href="/gatherings"
           className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ChevronLeft className="h-3.5 w-3.5" />{t('gath.backGatherings')}</Link>
+          <ChevronLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />{t('gath.backGatherings')}</Link>
 
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-3">
           <div className="min-w-0">
@@ -192,7 +198,7 @@ export default async function GatheringDetailPage({ params }: { params: Promise<
           `gatherings/budget:view` must not learn that money is attached), one honest line for
           `'unavailable'` (the caller holds the key and the read failed). Neither is the same
           thing as a gathering with no budget set, which is a `'shown'` band with a dash in it. */}
-      <BudgetBand budget={gathering.budget} state={gathering.budgetState} intl={intl} t={t} />
+      <BudgetBand budget={gathering.budget} state={gathering.budgetState} money={money} t={t} />
 
       {/* ── THE TASK TABLE, OR WHAT WOULD BE IN IT ───────────────────────────────
           A Free family has no tasks and never will while they are on Free, so the table would

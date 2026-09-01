@@ -220,7 +220,7 @@ export function AddRelativeDialog({
                     onClick={() => { setMode(m.id); setError('') }}
                     aria-pressed={active}
                     className={cn(
-                      'flex flex-col items-start gap-1 rounded-xl border px-3 py-2 text-left text-xs font-medium transition-colors',
+                      'flex flex-col items-start gap-1 rounded-xl border px-3 py-2 text-start text-xs font-medium transition-colors',
                       active
                         ? 'border-brand-primary bg-brand-soft text-brand-on-soft'
                         : 'border-input text-muted-foreground hover:border-brand-primary/40 hover:text-foreground',

@@ -233,7 +233,7 @@ export function NotificationsSection({
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/40">
-              <th scope="col" className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">
+              <th scope="col" className="px-4 py-2 text-start text-xs font-medium text-muted-foreground">
                 {t('notify.colNotification')}
               </th>
               {CHANNELS.map(c => (
@@ -241,7 +241,7 @@ export function NotificationsSection({
                   key={c}
                   scope="col"
                   className={cn(
-                    'px-3 py-2 text-left text-xs font-medium text-muted-foreground whitespace-nowrap',
+                    'px-3 py-2 text-start text-xs font-medium text-muted-foreground whitespace-nowrap',
                     // Push folds on a phone: it is the one column with nothing to press, and
                     // three switch columns plus a name do not fit 390px.
                     c === 'push' && COLLAPSING_CELL,

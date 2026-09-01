@@ -86,7 +86,7 @@ export function FamilySwitcher({ families }: {
         title={t('switcher.viewingClickToSwitch', { family: active.familyName })}
       >
         <Home className="h-4 w-4 shrink-0" />
-        <span className="min-w-0 flex-1 truncate text-left font-medium">
+        <span className="min-w-0 flex-1 truncate text-start font-medium">
           {isPending ? t('switcher.switching') : active.familyName}
         </span>
         <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
@@ -116,7 +116,7 @@ export function FamilySwitcher({ families }: {
                     onClick={() => handleSelect(family.familyCode)}
                     disabled={isPending}
                     className={cn(
-                      'flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors disabled:opacity-60',
+                      'flex w-full items-center gap-2 px-3 py-2 text-start text-sm transition-colors disabled:opacity-60',
                       family.isActive ? 'bg-brand-soft font-medium text-brand-on-soft' : 'hover:bg-muted',
                     )}
                   >

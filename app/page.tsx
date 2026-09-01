@@ -176,8 +176,8 @@ export default async function LandingPage() {
             add depth to a large flat field of burgundy, which is what stops it
             reading as a plain colour block. */}
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          <div className="gn-float absolute -top-24 -right-16 h-72 w-72 rounded-full bg-brand-legacy/12 blur-3xl" />
-          <div className="gn-float-slow absolute -bottom-28 -left-20 h-80 w-80 rounded-full bg-brand-accent/12 blur-3xl" />
+          <div className="gn-float absolute -top-24 -end-16 h-72 w-72 rounded-full bg-brand-legacy/12 blur-3xl" />
+          <div className="gn-float-slow absolute -bottom-28 -start-20 h-80 w-80 rounded-full bg-brand-accent/12 blur-3xl" />
         </div>
 
         <div className="relative mx-auto flex max-w-3xl flex-col items-center text-center">

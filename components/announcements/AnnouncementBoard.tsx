@@ -185,12 +185,12 @@ export function AnnouncementBoard({
                 <AnnouncementCard announcement={a} />
 
                 {a.chapter_name && (
-                  <span className="absolute left-3 top-3 rounded-full bg-brand-soft px-2 py-0.5 text-xs text-brand-on-soft">
+                  <span className="absolute start-3 top-3 rounded-full bg-brand-soft px-2 py-0.5 text-xs text-brand-on-soft">
                     {a.chapter_name}
                   </span>
                 )}
 
-                <div className="absolute right-3 top-3 flex gap-1">
+                <div className="absolute end-3 top-3 flex gap-1">
                     {/* ── EVERY MEMBER'S OWN VIEW OF A PINNED NOTICE ────────────────
                         Offered whenever the FAMILY has it pinned and in date, which is what
                         `pin_active` answers — there is nothing to hide from the top of your

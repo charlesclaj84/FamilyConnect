@@ -220,6 +220,13 @@ const NOT_COPY = new Map([
   // this string, and translating it would be translating a status code.
   ['Not authorized',
     'app/api/auth/send-email/route.ts — the hook response body, read by GoTrue'],
+  // THE SAME SHAPE ONE ROUTE OVER. `/api/billing/notices` answers a SCHEDULER — Vercel Cron,
+  // or a `curl` during a GO LIVE check — and its only reader is a log line or a person holding
+  // the secret. It names the environment variable on purpose, which is the opposite of
+  // something to translate: `CRON_SECRET` is the same word in every language and the sentence
+  // exists so the missing GO LIVE step is discoverable from the endpoint itself.
+  ['CRON_SECRET is not configured',
+    'app/api/billing/notices/route.ts — a 503 body read by a cron scheduler, never by a member'],
 
   // ── `priceShapeError`'s SIX DETAILS, WHOSE ONLY READER IS `console.error` ─────────
   // `app/actions/billing.ts` splits that function's return deliberately: `message` is what the

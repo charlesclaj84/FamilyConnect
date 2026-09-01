@@ -68,11 +68,18 @@ import type { T } from '@/lib/i18n/t'
  * The downgrade half is untouched, and the asymmetry is the point. Giving a plan up costs
  * the family nothing and takes nothing from us; acquiring one is a purchase.
  *
- * It withholds SCREENS, never rows. A family that moves down to Free keeps every record
- * it has ever entered — no RLS policy consults the tier and none may start to
- * (20260813000003) — so moving back up restores the pages with their data intact. That is
- * what makes this safe to offer as scaffolding, and it is the property to preserve if
- * billing ever lands on top of it.
+ * It withholds SCREENS, never rows: no RLS policy consults the tier and none may start to
+ * (20260813000003), so moving down closes pages and touches nothing underneath them.
+ *
+ * ── AND THE ROWS ARE KEPT FOR SIXTY DAYS, NOT FOR EVER ─────────────────────────────
+ * This said *"keeps every record it has ever entered … so moving back up restores the pages
+ * with their data intact"* without qualification, and `20260901000002` made that false: after
+ * sixty days, what the cheaper plan does not include is deleted, with four reminders first
+ * and a band on the Billing pane counting down throughout.
+ *
+ * Inside the window the old sentence still holds exactly — which is why the panel offers a
+ * downgrade with no warning of its own and the WINDOW is where the warning lives. If that
+ * ever stops being true, this control is the first thing that has to change.
  *
  * ── STATE ───────────────────────────────────────────────────────────────────────────
  * `current` is `useServerState`, so it ADOPTS what `revalidatePath` sends back rather

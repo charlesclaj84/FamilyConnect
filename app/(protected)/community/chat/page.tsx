@@ -97,7 +97,7 @@ export default async function ChatPage() {
           <div className="mx-auto max-w-lg space-y-2 py-16 text-center">
             <p className="text-sm font-medium text-destructive">{t('comm.unableLoadChat')}</p>
             {chatError && (
-              <p className="rounded bg-muted px-3 py-2 text-left font-mono text-xs text-muted-foreground">
+              <p className="rounded bg-muted px-3 py-2 text-start font-mono text-xs text-muted-foreground">
                 {chatError}
               </p>
             )}

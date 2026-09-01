@@ -37,7 +37,7 @@ function RequiredMark({ className }: { className?: string }) {
     <>
       <span
         aria-hidden="true"
-        className={cn("ml-0.5 align-top text-[0.7em] leading-none text-brand-accent", className)}
+        className={cn("ms-0.5 align-top text-[0.7em] leading-none text-brand-accent", className)}
       >
         *
       </span>
@@ -64,7 +64,7 @@ function Label({ className, required, children, ...props }: LabelProps) {
       {/* ONE FLEX ITEM, NOT TWO. This element is `display: flex` with `gap-2`, which is
           right for the labels that genuinely hold two things — a caption and a muted
           parenthetical — and wrong for a marker that belongs against the last letter of
-          the word. Wrapping the pair puts the mark in an inline context where `ml-0.5`
+          the word. Wrapping the pair puts the mark in an inline context where `ms-0.5`
           is the whole distance between them. Only when `required`, so a label with real
           sibling children keeps the gap it was written for. */}
       {required ? <span>{children}<RequiredMark /></span> : children}

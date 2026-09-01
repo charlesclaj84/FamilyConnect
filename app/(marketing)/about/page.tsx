@@ -174,7 +174,7 @@ export default async function AboutPage() {
                 their neighbours. "We could not find it." "So we built it." Each is a
                 paragraph because each is a pause, and joining them into one tidy sentence
                 would remove the reason they work. */}
-            <div className="mt-8 space-y-5 text-left text-lg leading-relaxed text-muted-foreground">
+            <div className="mt-8 space-y-5 text-start text-lg leading-relaxed text-muted-foreground">
               {LETTER.map((para, i) => (
                 <p key={i} className={para.strong ? 'font-medium text-foreground' : undefined}>
                   {para.text}

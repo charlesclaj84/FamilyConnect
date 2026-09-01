@@ -187,6 +187,25 @@ jobs:
       - name: No client hook is called from a Server Component
         run: npm run audit:client-hooks
 
+      # AND THE FOURTH, which is about LAYOUT rather than about words or mechanism. Tailwind's
+      # `ml-`, `pl-`, `left-`, `text-right`, `border-l` and `rounded-l` name a SIDE; their
+      # logical twins name an EDGE and mirror for free from `dir` on `<html>`.
+      #
+      # THE FAILURE MODE IS THE ONE THIS FILE KEEPS CATCHING: `ml-2` renders perfectly for
+      # every reader the product has today, so nothing anybody looks at goes wrong until the
+      # first right-to-left catalogue lands and a hundred screens are quietly inside out. That
+      # is the same shape as a stale permission key — it fails OPEN, so the absence of a
+      # failure proves nothing — and it wants the same answer: a ceiling of zero, from the day
+      # the sweep ran rather than from the day somebody adds Arabic.
+      #
+      # 430 physical utilities became logical ones on 2026-09-01 (TODO.md: *"the first RTL
+      # language is not a catalogue, it is a layout pass"*). This is what stops the 431st.
+      # Static; no database, no network. What it cannot see — a class built at runtime — is
+      # covered by `npm run i18n:onscreen -- --force-rtl`, which reads the rendered markup and
+      # needs a dev server, so it is hand-run like `realtime:check`.
+      - name: No layout that refuses to mirror
+        run: npm run i18n:rtl
+
       - uses: supabase/setup-cli@v1
         with:
           # Pinned. This is the version that will also apply migrations to production in

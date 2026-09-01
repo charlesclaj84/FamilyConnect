@@ -711,7 +711,7 @@ export default async function FeaturesPage() {
                           <div>
                             <h3 id={headingId} className="text-xl font-semibold">
                               {TIER_LABEL[tier]}
-                              <span className="ml-2.5 text-sm font-normal text-muted-foreground">
+                              <span className="ms-2.5 text-sm font-normal text-muted-foreground">
                                 {/* BOTH HALVES, and the promised one only when there
                                     is one. "12 screens" over a grid holding fifteen
                                     cards is a heading contradicting the thing under it;
@@ -755,7 +755,7 @@ export default async function FeaturesPage() {
                             : t('mkt.feat.noCharge')}
                           <ArrowRight
                             aria-hidden="true"
-                            className="h-4 w-4 transition-transform duration-300 group-hover/price:translate-x-1 motion-reduce:transition-none motion-reduce:group-hover/price:translate-x-0"
+                            className="h-4 w-4 transition-transform duration-300 group-hover/price:translate-x-1 rtl:group-hover/price:-translate-x-1 motion-reduce:transition-none motion-reduce:group-hover/price:translate-x-0 rtl:-scale-x-100"
                           />
                           <span className="sr-only">
                             {t('mkt.feat.seePlan', { plan: TIER_LABEL[tier] })}

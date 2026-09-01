@@ -66,15 +66,15 @@ export function MemberSearchBox({ value, onChange, placeholder, pending }: {
   const t = useT()
   return (
     <div className="relative">
-      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+      <Search className="pointer-events-none absolute start-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={placeholder}
-        className="h-9 pl-8 pr-16"
+        className="h-9 ps-8 pe-16"
         aria-label={placeholder}
       />
-      <span className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
+      <span className="absolute end-2 top-1/2 flex -translate-y-1/2 items-center gap-1">
         {pending && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
         {value && (
           <button
@@ -117,7 +117,7 @@ export function Pager({ page, total, onPage }: {
             className={cn('rounded p-1', page === 0 ? 'opacity-40' : 'hover:bg-muted')}
             aria-label={t('ms.prevPage')}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4 rtl:-scale-x-100" />
           </button>
           <span className="tabular-nums">
             {page + 1} / {pages}
@@ -129,7 +129,7 @@ export function Pager({ page, total, onPage }: {
             className={cn('rounded p-1', page + 1 >= pages ? 'opacity-40' : 'hover:bg-muted')}
             aria-label={t('ms.nextPage')}
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
           </button>
         </span>
       )}

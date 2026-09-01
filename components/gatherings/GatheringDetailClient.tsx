@@ -9,12 +9,12 @@ import { SortTh, useTableSort } from '@/components/ui/sortable-header'
 import { AnswerText } from '@/components/gatherings/AnswerText'
 import { TaskStatusPill } from '@/components/gatherings/StatusPill'
 import { GATHERING_TASK_STATUSES, GATHERING_TASK_STATUS_LABEL, isCompleteAnswer, type GatheringTaskStatus, type TaskProgress } from '@/lib/gatherings'
-import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { normalizePersonSearch } from '@/lib/person-search'
 import { cn } from '@/lib/utils'
 import type { GatheringTaskRow } from '@/app/actions/gatherings'
 import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import { useMoney } from '@/components/layout/MoneyProvider'
 import type { T } from '@/lib/i18n/t'
 
 /**
@@ -330,13 +330,13 @@ function TaskGroup({ heading, occursOn, location, tasks, showTaskBudgets }: {
       <div className="overflow-visible rounded-xl border">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               <SortTh label={t('gath.task')} {...sortProps('task')} className="px-3 py-2 font-semibold" />
               <SortTh label={t('gath.assignedTo')} {...sortProps('assignee')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
               <SortTh label={t('money.status')} {...sortProps('status')} className="px-3 py-2 font-semibold" />
               <SortTh label={t('gath.due')} {...sortProps('due')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
               {showTaskBudgets && (
-                <SortTh label={t('budget.heading')} align="right" {...sortProps('budget')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                <SortTh label={t('budget.heading')} align="end" {...sortProps('budget')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
               )}
               {/* Not sortable — see the extractor map above: `answer` is JSONB whose shape
                   depends on `kind`, so the column holds no one comparable value. */}
@@ -356,6 +356,7 @@ function TaskGroup({ heading, occursOn, location, tasks, showTaskBudgets }: {
 
 function TaskRow({ task, showTaskBudgets }: { task: GatheringTaskRow; showTaskBudgets: boolean }) {
   const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   // `isCompleteAnswer` is `parseAnswer(...) !== null` — it answers "is this an answer", NOT "was
   // the step required", and a blank is not an answer. Asking it here rather than testing
@@ -363,7 +364,7 @@ function TaskRow({ task, showTaskBudgets }: { task: GatheringTaskRow; showTaskBu
   // answered task with nothing in it.
   const answered = task.answer != null && isCompleteAnswer(task.kind, task.answer)
   const due = formatDate(task.dueOn, intl)
-  const answerNode = answered ? <AnswerText kind={task.kind} answer={task.answer} /> : null
+  const answerNode = answered ? <AnswerText kind={task.kind} answer={task.answer} money={money} /> : null
 
   // The meta line, built as a list so the interpuncts land between whatever is actually there
   // rather than around a value that turned out to be absent.
@@ -372,7 +373,7 @@ function TaskRow({ task, showTaskBudgets }: { task: GatheringTaskRow; showTaskBu
   else meta.push(<span key="who">{t('gath.nobodyYet')}</span>)
   if (due) meta.push(<span key="due">Due {due}</span>)
   if (showTaskBudgets && task.budgetCents != null) {
-    meta.push(<span key="budget" className="tabular-nums">{formatCurrency(task.budgetCents, intl)}</span>)
+    meta.push(<span key="budget" className="tabular-nums">{money(task.budgetCents)}</span>)
   }
   // LABELLED, because the heading that named it has folded away. A bare sentence under a task
   // label reads as part of the label.
@@ -417,8 +418,8 @@ function TaskRow({ task, showTaskBudgets }: { task: GatheringTaskRow; showTaskBu
       <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>{due ?? '—'}</td>
 
       {showTaskBudgets && (
-        <td className={cn('px-3 py-2.5 text-right tabular-nums text-muted-foreground', COLLAPSING_CELL)}>
-          {task.budgetCents != null ? formatCurrency(task.budgetCents, intl) : '—'}
+        <td className={cn('px-3 py-2.5 text-end tabular-nums text-muted-foreground', COLLAPSING_CELL)}>
+          {task.budgetCents != null ? money(task.budgetCents) : '—'}
         </td>
       )}
 

@@ -288,7 +288,7 @@ function AccountTable({ initial, isOwner }: {
         <div className="overflow-hidden rounded-xl border">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <SortTh label={t('field.email')} {...sortProps('email')} className="px-3 py-2 font-semibold" />
                 <SortTh label={t('money.status')} {...sortProps('status')} className="px-3 py-2 font-semibold" />
                 <SortTh label={t('staff.families')} {...sortProps('families')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
@@ -362,7 +362,7 @@ function AccountTable({ initial, isOwner }: {
                       does not, because a row you cannot act on is a row you have to widen
                       the window to act on. */}
                   {isOwner && (
-                    <td className="px-3 py-2.5 text-right">
+                    <td className="px-3 py-2.5 text-end">
                       {row.email ? (
                         <StaffDeleteAccountDialog
                           email={row.email}
@@ -398,7 +398,7 @@ function AccountTable({ initial, isOwner }: {
             className={cn('rounded p-1', page <= 1 ? 'opacity-40' : 'hover:bg-muted')}
             aria-label={t('ms.prevPage')}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft className="h-4 w-4 rtl:-scale-x-100" />
           </button>
           <button
             type="button"
@@ -407,7 +407,7 @@ function AccountTable({ initial, isOwner }: {
             className={cn('rounded p-1', !data.hasMore ? 'opacity-40' : 'hover:bg-muted')}
             aria-label={t('ms.nextPage')}
           >
-            <ChevronRight className="h-4 w-4" />
+            <ChevronRight className="h-4 w-4 rtl:-scale-x-100" />
           </button>
         </span>
       </div>

@@ -7,6 +7,7 @@ import {
 } from '@/lib/auth/family'
 import { FEATURES, TAB_RESOURCES, requiredTier } from '@/lib/features'
 import { getMyFamilyTier } from '@/lib/auth/tier'
+import { billingLockout, lockoutAdmits } from '@/lib/auth/billing-lockout'
 import { tierMeets } from '@/lib/tiers'
 
 /**
@@ -322,8 +323,42 @@ export async function canOn(
  */
 export async function requireView(userId: string, resource: string): Promise<void> {
   await requireFamilyActive(userId, resource)
+  await requireBillingCurrent(userId, resource)
   await requireTier(userId, resource)
   if (!(await can(userId, resource, 'view'))) notFound()
+}
+
+/**
+ * Refuse a page while the family is behind on its bill.
+ *
+ * ── FOLDED IN HERE FOR `requireTier`'s REASON, VERBATIM ────────────────────────────
+ * A second line every page must also remember is a line three pages will not have. This one is
+ * the sharpest instance of that rule so far: the whole feature is a set of screens that stop
+ * working, so a page written next year that forgot the call would be a hole in the lockout that
+ * nothing would report — it renders perfectly for every family that is paying.
+ *
+ * ── ORDER: REMOVED, THEN BEHIND, THEN PLAN ────────────────────────────────────────
+ * Removal first, because a removed family's billing is not a fact worth sending anybody
+ * anywhere over. Then the ladder, and only then the tier — a family locked out on day 30 must
+ * be told to pay their bill, not sent to `/upgrade` to buy something else.
+ *
+ * ── IT REDIRECTS TO `/dashboard`, WHICH IS WHERE IT IS EXPLAINED ──────────────────
+ * `requireFamilyActive`'s shape and its argument: a 404 is right for a page an administrator
+ * has RESTRICTED, because confirming it exists would leak how the family is organized. This is
+ * the opposite kind of fact — the family's own members are entitled to know why the product
+ * stopped working — and `/dashboard` is where they are told. A member reads that an
+ * administrator has to resolve an accounting issue and nothing more (`20260901000002` §A);
+ * whoever can pay reads the figure and gets a button.
+ *
+ * ── WHAT IT WITHHOLDS ─────────────────────────────────────────────────────────────
+ * SCREENS. No RLS policy consults `delinquent_since`, `20260901000002` §8 asserts that none
+ * does, and the server ACTIONS behind these pages are deliberately not checked — see
+ * `lib/auth/billing-lockout.ts`. A family that pays on day 59 finds every record where it was,
+ * which is the only behaviour that makes a lockout survivable.
+ */
+export async function requireBillingCurrent(userId: string, resource: string): Promise<void> {
+  const lock = await billingLockout(userId)
+  if (!lockoutAdmits(lock, resource)) redirect('/dashboard')
 }
 
 /**
@@ -403,9 +438,19 @@ export async function requireFamilyActive(userId: string, resource: string): Pro
  * NOT a security boundary, and nothing downstream may treat it as one. It withholds
  * SCREENS, not rows: family isolation is RLS and per-member authority is the permission
  * model, both of which are enforced in the database and neither of which knows what a
- * tier is. A family that lapses to Free keeps every record it ever entered — it simply
- * cannot open the pages that read them — which is the only behaviour that makes
- * downgrading survivable.
+ * tier is.
+ *
+ * ── AND FOR SIXTY DAYS A FAMILY THAT LAPSES KEEPS EVERY ROW, WHICH IS NOT FOREVER ───
+ * This said *"a family that lapses to Free keeps every record it ever entered"* full stop,
+ * and that stopped being true on 2026-09-01. `20260901000002` deletes what the new tier does
+ * not include after sixty days, with four reminders first.
+ *
+ * **NOTHING ABOUT THE GATE CHANGED.** No policy consults the tier, this still withholds
+ * screens rather than rows, and the deletion is a separate mechanism on a clock — not
+ * something `requireTier` does or knows about. What changed is the SENTENCE, not the
+ * boundary, and the distinction is worth keeping straight: the tier gate is still the only
+ * behaviour that makes downgrading survivable INSIDE those sixty days, which is what the
+ * window is for.
  *
  * Consequently the server ACTIONS behind a paid page are deliberately not tier-checked.
  * They are permission-checked, which is what protects the data; adding a tier test to
@@ -453,6 +498,13 @@ export async function requireViewOrPending(
   // truth for somebody who never got in; removal before tier, because a removed family's
   // plan is not a fact worth sending anybody to /upgrade over.
   await requireFamilyActive(userId, resource)
+  // BELOW the pending branch, like everything else here, and above the tier for the reason
+  // `requireBillingCurrent` gives: a locked-out family must be told to pay their bill rather
+  // than sold something else. In practice it cannot fire for an applicant — all four resources
+  // this guard serves are on `BILLING_LOCKOUT_RESOURCES` — and it is called anyway, because
+  // that list and this one are separate decisions and the day they diverge is the day this
+  // line matters.
+  await requireBillingCurrent(userId, resource)
   await requireTier(userId, resource)
   if (!(await can(userId, resource, 'view'))) notFound()
   return { pending: false }

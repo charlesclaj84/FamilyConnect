@@ -7,12 +7,19 @@ import { useState } from 'react'
  * The geometry every panel hanging off the app header shares.
  *
  * Both panels — the family switcher and the notification bell — anchor to a trigger
- * sitting in the RIGHT-HAND cluster of a header whose controls run out to the edge of
- * the screen. That is the trap: `absolute right-0` measures from the trigger, not from
- * the viewport, so a 20rem panel opened from a bell that already sits ~110px in from
- * the right edge starts 55px off the LEFT of a 375px screen. Capping the width does not
+ * sitting in the END cluster of a header whose controls run out to the edge of the
+ * screen. That is the trap: `absolute end-0` measures from the trigger, not from the
+ * viewport, so a 20rem panel opened from a bell that already sits ~110px in from that
+ * edge starts 55px off the OTHER side of a 375px screen. Capping the width does not
  * save it either — the panel is still as wide as it is and still anchored where it is;
- * it just runs off the other side more slowly.
+ * it just runs off the far side more slowly.
+ *
+ * ── `end-0` AND NOT `right-0`, SINCE THE 2026-09-01 LAYOUT PASS ─────────────────────
+ * The classes here were `right-0` / `left-3 right-3` and the prose said RIGHT-HAND, which was
+ * true of every reader this product has. In a right-to-left language the header's controls
+ * cluster on the LEFT, and a panel anchored `right-0` would hang off the far side of the
+ * screen from its own trigger. The logical property mirrors with `dir` and nothing here asks
+ * which direction it is in — `npm run i18n:rtl` is what keeps that true.
  *
  * So below `sm` the panel stops being a dropdown and becomes a sheet: `fixed`, pinned
  * under the header, inset from both edges, so its width is the screen's and there is no
@@ -41,9 +48,9 @@ export const HEADER_PANEL_CLASS = [
   // The underscores are Tailwind's escape for the spaces `calc()` requires around a
   // `-`; `calc(100dvh-5.5rem)` is not valid CSS. Same convention as the Sidebar's
   // `top-[calc(4rem_+_1px)]`.
-  'fixed left-3 right-3 top-[4.25rem] max-h-[calc(100dvh_-_5.5rem)]',
+  'fixed start-3 end-3 top-[4.25rem] max-h-[calc(100dvh_-_5.5rem)]',
   // Desktop: back to a dropdown hanging off the trigger.
-  'sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-1 sm:max-h-[min(60vh,32rem)]',
+  'sm:absolute sm:start-auto sm:end-0 sm:top-full sm:mt-1 sm:max-h-[min(60vh,32rem)]',
   // Shared chrome. z-30 ranks it against the backdrop (z-20) inside the header's own
   // stacking context — it is not competing with the page.
   'z-30 flex flex-col overflow-hidden rounded-xl border bg-card shadow-lg',

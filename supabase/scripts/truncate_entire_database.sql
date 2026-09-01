@@ -135,7 +135,14 @@ DECLARE
   keep CONSTANT text[] := ARRAY[
     'relationship_types',
     'permission_resources',
-    'permission_table_map'
+    'permission_table_map',
+    -- ── THE TIER→DATA MAP (20260901000001), ADDED 2026-09-01 ──────────────────────
+    -- Product reference data seeded by one migration, exactly like the three above, and
+    -- with the same one-way door: a database that has recorded that migration will never
+    -- re-run it. Emptying `tier_data_tables` makes every tier purge delete nothing, which
+    -- is a feature silently ceasing to work rather than an error anybody sees.
+    'tier_data_tables',
+    'tier_data_keep'
   ];
   v_tables   text;
   v_leftover text;

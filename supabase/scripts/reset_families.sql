@@ -274,6 +274,18 @@ BEGIN
   DELETE FROM dues_autopay;
   DELETE FROM family_stripe_accounts;
   DELETE FROM platform_payments;
+  -- ── THE LADDER'S TWO TABLES GO WITH THE ACCOUNT (20260901000002) ────────────────
+  -- BEFORE `platform_billing_accounts`, and the order is not decorative: the notices and the
+  -- deletion records are ABOUT a billing account, so a reset that left them would leave a
+  -- family's dunning history and an audit row naming a purge of data this script has just
+  -- removed anyway.
+  --
+  -- They are DELETED rather than kept, unlike `stripe_webhook_events` below, and the line is
+  -- the one §6d-bis already draws: that ledger is about GENORRA's own Stripe account and
+  -- belongs to no family, while these two carry a `family_code` and describe one family's
+  -- standing. A FAMILY reset empties what belongs to a family.
+  DELETE FROM platform_billing_notices;
+  DELETE FROM platform_data_deletions;
   DELETE FROM platform_billing_accounts;
 
   -- ── 6e. Text-message settings ─────────────────────────────────────────────
@@ -494,6 +506,12 @@ BEGIN
            -- is ordinary family data that §7 now deletes outright, and a leftover
            -- row in it is something this section SHOULD report.
            'permission_resources', 'permission_table_map', 'relationship_types',
+           -- AND THE TIER→DATA MAP (20260901000001). Two more global lookups, added
+           -- 2026-09-01: which of a family's tables belong to which tier, and which a purge
+           -- must never touch. Neither carries a `family_code` and neither is family data —
+           -- a FAMILY reset must leave them exactly as they are, or the next downgrade
+           -- deletes nothing at all.
+           'tier_data_tables', 'tier_data_keep',
            -- The kept account's active-family pointer.
            'user_family_settings',
            -- AND THE KEPT ACCOUNT'S OWN CONSENT RECORD. On this list rather than in §6e for two

@@ -98,12 +98,23 @@ export const APP_SEO_DESCRIPTION =
  * The company behind the product.
  *
  * Here rather than typed into the landing-page footer, for the same reason
- * `APP_NAME` is: it is now in two places (the footer and the `Organization`
+ * `APP_NAME` is: it is in two places (the footer and the `Organization`
  * structured data in `lib/structured-data.ts`), and a legal entity that appears
  * in a copyright line and a search engine's entity graph must not be able to
  * disagree with itself.
+ *
+ * ── IT IS GENORRA, AS OF 2026-09-01, AND IT IS STILL ITS OWN CONSTANT ────────
+ * It read `'ClearPath Digital'` until then. Keeping the constant rather than
+ * collapsing it into `APP_NAME` is deliberate: the PUBLISHER and the PRODUCT are
+ * two facts that happen to have one value today, and they are not the same
+ * question — one is who owns the copyright, the other is what the thing is
+ * called. Interpolating `APP_NAME` into the footer's copyright line would make
+ * a future rename of either one silently rename the other.
+ *
+ * `lib/structured-data.ts` no longer emits a `parentOrganization`, because a
+ * self-referential one says nothing; see the note there.
  */
-export const APP_PUBLISHER = 'ClearPath Digital'
+export const APP_PUBLISHER = 'GENORRA'
 
 /** The platforms the brand has a presence on, in the order the footer prints them. */
 export type SocialPlatform = 'facebook' | 'instagram' | 'x'

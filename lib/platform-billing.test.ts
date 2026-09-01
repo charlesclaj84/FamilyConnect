@@ -34,6 +34,15 @@ import {
   upgradeCreditDays,
   upgradeQuote,
   wholeMonthsInclusive,
+  delinquencyStage,
+  membersLockedOut,
+  adminsLockedOut,
+  daysUntilDrop,
+  DELINQUENCY_DAYS,
+  daysUntilDataDeleted,
+  RETENTION_DAYS,
+  RETENTION_REMINDERS,
+  catchUpQuote,
   type PlatformBillingRecord,
 } from '@/lib/platform-billing'
 
@@ -949,5 +958,168 @@ describe('upgradeQuote — the edges', () => {
         expect(q.paidThrough).toBe(lastDayOfMonthISO(q.paidThrough))
       }
     }
+  })
+})
+
+describe('the delinquency ladder', () => {
+  // ── THE BOUNDARIES ARE THE TEST, because every one of them is a member locked out or not,
+  // and because the SQL sweep counts the same days independently. §7b's rule: `today` is a
+  // parameter precisely so day 9 and day 10 can both be asked about.
+  const from = '2026-03-01'
+
+  it('is not on the ladder at all without a failed payment', () => {
+    expect(delinquencyStage(null, '2026-06-01')).toBe('current')
+    expect(delinquencyStage(undefined, '2026-06-01')).toBe('current')
+    expect(membersLockedOut(delinquencyStage(null, '2026-06-01'))).toBe(false)
+  })
+
+  // DAY N IS `from + N DAYS`, so day 5 of a lapse on 1 March is the SIXTH. Written out
+  // because the first draft of these assertions was off by one in exactly that way and the
+  // boundary tests are what caught it — the implementation matched the SQL sweep's
+  // `delinquent_since + N <= CURRENT_DATE` and the test did not.
+  it('notifies on day 5 and withholds nothing', () => {
+    expect(delinquencyStage(from, '2026-03-06')).toBe('notified')
+    expect(delinquencyStage(from, '2026-03-05')).toBe('current')
+    expect(membersLockedOut(delinquencyStage(from, '2026-03-10'))).toBe(false)
+  })
+
+  it('locks MEMBERS out on day 10, and not on day 9', () => {
+    // The sharpest boundary in the feature: on one side a relative uses the product, on the
+    // other they get a sentence telling them to speak to their administrator.
+    expect(delinquencyStage(from, '2026-03-10')).toBe('notified')
+    expect(delinquencyStage(from, '2026-03-11')).toBe('members-locked')
+    expect(membersLockedOut(delinquencyStage(from, '2026-03-11'))).toBe(true)
+    // AND ADMINISTRATORS KEEP EVERYTHING on day 10 — the half that makes the family able to
+    // fix it. A ladder that locked both at once would leave nobody able to pay.
+    expect(adminsLockedOut(delinquencyStage(from, '2026-03-11'))).toBe(false)
+  })
+
+  it('locks ADMINISTRATORS down to billing on day 30, and not on day 29', () => {
+    expect(adminsLockedOut(delinquencyStage(from, '2026-03-30'))).toBe(false)
+    expect(delinquencyStage(from, '2026-03-30')).toBe('members-locked')
+    expect(delinquencyStage(from, '2026-03-31')).toBe('admins-locked')
+    expect(adminsLockedOut(delinquencyStage(from, '2026-03-31'))).toBe(true)
+  })
+
+  it('is due for the drop on day 60, and stays locked until the sweep lands', () => {
+    expect(delinquencyStage(from, '2026-04-29')).toBe('admins-locked')
+    expect(delinquencyStage(from, '2026-04-30')).toBe('due-for-drop')
+    // WAITING IS NOT UNLOCKING. A family past day 60 whose warning email never sent is still
+    // delinquent; un-locking them while the sweep waits would reward the outage.
+    expect(membersLockedOut(delinquencyStage(from, '2026-06-30'))).toBe(true)
+    expect(adminsLockedOut(delinquencyStage(from, '2026-06-30'))).toBe(true)
+  })
+
+  it('treats a date in the future as not delinquent rather than as day zero', () => {
+    // Stripe cannot send one; a hand-edited row can. Locking somebody out over a typo is the
+    // one direction this must not fail in.
+    expect(delinquencyStage('2026-12-01', '2026-03-01')).toBe('current')
+  })
+
+  it('counts down to the drop and never below zero', () => {
+    expect(daysUntilDrop(from, '2026-03-01')).toBe(60)
+    expect(daysUntilDrop(from, '2026-04-29')).toBe(1)
+    expect(daysUntilDrop(from, '2026-04-30')).toBe(0)
+    // A screen printing "-3 days" is worse than one printing nothing.
+    expect(daysUntilDrop(from, '2026-06-30')).toBe(0)
+  })
+
+  it('agrees with the numbers the SQL sweep counts', () => {
+    // THE COUPLING WORTH ASSERTING. `sweep_platform_billing()` enqueues on
+    // `delinquent_since + N`, and this module locks on the same N. If the two drift, a member
+    // is locked out a day before or after the email that explains it — which is exactly the
+    // kind of thing nobody notices until somebody complains.
+    expect(DELINQUENCY_DAYS.notify).toBe(5)
+    expect(DELINQUENCY_DAYS.lockMembers).toBe(10)
+    expect(DELINQUENCY_DAYS.lockAdmins).toBe(30)
+    expect(DELINQUENCY_DAYS.warnDeletion).toBe(45)
+    expect(DELINQUENCY_DAYS.warnTomorrow).toBe(59)
+    expect(DELINQUENCY_DAYS.drop).toBe(60)
+  })
+})
+
+describe('the retention window', () => {
+  it('is null when nothing is withheld', () => {
+    expect(daysUntilDataDeleted(null, '2026-06-01')).toBeNull()
+    expect(daysUntilDataDeleted(undefined, '2026-06-01')).toBeNull()
+  })
+
+  it('counts sixty days from the day the downgrade landed', () => {
+    expect(daysUntilDataDeleted('2026-03-01', '2026-03-01')).toBe(60)
+    expect(daysUntilDataDeleted('2026-03-01', '2026-04-29')).toBe(1)
+    expect(daysUntilDataDeleted('2026-03-01', '2026-04-30')).toBe(0)
+  })
+
+  it('goes NEGATIVE past the window, deliberately', () => {
+    // Unlike `daysUntilDrop`, which clamps. The difference is what the caller does with it: a
+    // lockout screen must not print "-2 days", while an overdue sweep is precisely the fact
+    // somebody needs — the deletion is waiting on a reminder that never sent.
+    expect(daysUntilDataDeleted('2026-03-01', '2026-05-02')).toBe(-2)
+  })
+
+  it('reminds at 30, 15, 5 and 1 days, which the sweep subtracts from 60', () => {
+    expect([...RETENTION_REMINDERS]).toEqual([30, 15, 5, 1])
+    expect(RETENTION_DAYS).toBe(60)
+    // The sweep enqueues on `withheld_since + (60 - N)`, so the last reminder is day 59 and
+    // the deletion is day 60. Asserted as the subtraction rather than as four literals, for
+    // the reason the SQL is written that way: the window and the reminders must not drift.
+    expect(RETENTION_REMINDERS.map(n => RETENTION_DAYS - n)).toEqual([30, 45, 55, 59])
+  })
+})
+
+describe('catchUpQuote', () => {
+  // ONE FUNCTION FOR BOTH LADDERS — the brief asked for exactly that, in those words, so that
+  // the two figures cannot agree today and drift tomorrow.
+
+  it('is the months behind plus the coming one, at the tier rate', () => {
+    // Delinquent since 1 March, quoted on 14 May: March, April and May are behind (three
+    // whole months, inclusive of both ends), plus June.
+    const q = catchUpQuote({ tier: 'standard', from: '2026-03-01', today: '2026-05-14' })
+    expect(q.monthsBehind).toBe(3)
+    expect(q.arrearsCents).toBe(3 * TIER_PRICE.standard!.monthlyCents)
+    expect(q.comingMonthCents).toBe(TIER_PRICE.standard!.monthlyCents)
+    expect(q.totalCents).toBe(4 * TIER_PRICE.standard!.monthlyCents)
+  })
+
+  it('ALWAYS includes the coming month, even on day one', () => {
+    // "Plus the next month", in both briefs. A family that pays only its arrears is level today
+    // and delinquent again on the 1st — a second failed payment for money they thought they had
+    // settled, which is the outcome this clause exists to prevent.
+    const q = catchUpQuote({ tier: 'plus', from: '2026-03-01', today: '2026-03-01' })
+    expect(q.monthsBehind).toBe(1)
+    expect(q.totalCents).toBe(2 * TIER_PRICE.plus!.monthlyCents)
+  })
+
+  it('prices at the tier it is HANDED, which is what makes it serve both callers', () => {
+    // A delinquent family is quoted at the tier they still hold; a returning one at
+    // `withheld_from_tier`. Same arithmetic, different rate, and the caller decides — a
+    // function that guessed would be wrong for one of them.
+    const away = { from: '2026-03-01', today: '2026-04-15' }
+    expect(catchUpQuote({ tier: 'standard', ...away }).totalCents)
+      .toBe(3 * TIER_PRICE.standard!.monthlyCents)
+    expect(catchUpQuote({ tier: 'premium', ...away }).totalCents)
+      .toBe(3 * TIER_PRICE.premium!.monthlyCents)
+  })
+
+  it('is zero for Free, which has nothing to buy back', () => {
+    const q = catchUpQuote({ tier: 'free', from: '2026-01-01', today: '2026-06-01' })
+    expect(q.totalCents).toBe(0)
+    expect(q.monthsBehind).toBe(0)
+  })
+
+  it('owes nothing for a clock that has not started', () => {
+    const q = catchUpQuote({ tier: 'plus', from: '2026-12-01', today: '2026-03-01' })
+    expect(q.monthsBehind).toBe(0)
+    expect(q.totalCents).toBe(TIER_PRICE.plus!.monthlyCents)
+  })
+
+  it('counts CALENDAR months and not thirty-day blocks', () => {
+    // The family bills on the 1st, so what they missed is a count of 1sts. 1 February to
+    // 1 March is two months inclusive whatever February's length — a day-based count would
+    // make February cheaper than March for the same lapse.
+    expect(catchUpQuote({ tier: 'standard', from: '2026-02-01', today: '2026-03-01' }).monthsBehind)
+      .toBe(2)
+    expect(catchUpQuote({ tier: 'standard', from: '2026-01-01', today: '2026-02-01' }).monthsBehind)
+      .toBe(2)
   })
 })

@@ -228,7 +228,7 @@ export function AdminApprovalsClient({
                         same muted run as the family's own metadata would read as the
                         family's words — and this is text a stranger supplied. */}
                     {applicant.appeal && (
-                      <blockquote className="mt-2 border-l-2 border-brand-primary/40 bg-brand-soft/40 px-3 py-2 text-xs">
+                      <blockquote className="mt-2 border-s-2 border-brand-primary/40 bg-brand-soft/40 px-3 py-2 text-xs">
                         <p className="font-medium">{t('appr.lookAgain')}</p>
                         <p className="mt-0.5 whitespace-pre-wrap text-muted-foreground">
                           {applicant.appeal}

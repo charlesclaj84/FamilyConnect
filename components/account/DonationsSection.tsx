@@ -1,10 +1,10 @@
 import { Check } from 'lucide-react'
 import { GiveButton } from '@/components/account/GiveButton'
 import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import type { DonationSummary } from '@/app/actions/dues'
 import { type T } from '@/lib/i18n/t'
+import type { Money } from '@/lib/currency-utils'
 
 /**
  * The family's donation drives and how far the FAMILY has got toward each goal.
@@ -45,9 +45,10 @@ import { type T } from '@/lib/i18n/t'
  * keeps its own border — that separates one drive from the next, which is a different
  * job from fencing off the list.
  */
-export function DonationsSection({ donations, chargesReady = false, intl, t }: {
+export function DonationsSection({ donations, chargesReady = false, intl, money, t }: {
   /** The reader's `Intl` tag. A prop — this is a Server Component. */
   intl: string
+  money: Money
   /**
    * The reader's translator. A PROP for the same reason `intl` beside it is one, and this
    * component SHIPPED with `useT()` in its body instead — a client hook in a module with no
@@ -70,7 +71,7 @@ export function DonationsSection({ donations, chargesReady = false, intl, t }: {
   return (
     <div className="space-y-4">
       {donations.map(d => (
-        <DonationRow key={d.schedule.id} donation={d} chargesReady={chargesReady} intl={intl} t={t} />
+        <DonationRow key={d.schedule.id} donation={d} chargesReady={chargesReady} intl={intl} money={money} t={t} />
       ))}
     </div>
   )
@@ -79,9 +80,10 @@ export function DonationsSection({ donations, chargesReady = false, intl, t }: {
 /**
  * One drive: what it is, the window it runs in, and the family's progress to its goal.
  */
-function DonationRow({ donation: d, chargesReady, intl, t }: {
+function DonationRow({ donation: d, chargesReady, intl, money, t }: {
   /** The reader's `Intl` tag. A prop — this is a Server Component. */
   intl: string
+  money: Money
   /** The translator, threaded from the section above. See its prop for why it is not a hook. */
   t: T
   donation: DonationSummary
@@ -139,15 +141,15 @@ function DonationRow({ donation: d, chargesReady, intl, t }: {
         <>
           <GoalBar goalCents={goalCents} raisedCents={raisedCents} />
           <p className="text-xs text-muted-foreground">
-            <span className="font-medium text-foreground">{formatCurrency(raisedCents, intl)}</span>
-            {' raised of '}{formatCurrency(goalCents, intl)} · {progressPercent}%
+            <span className="font-medium text-foreground">{money(raisedCents)}</span>
+            {' raised of '}{money(goalCents)} · {progressPercent}%
             {raisedCents > goalCents
               && ` — ${t('drives.pastTheGoal', {
-                amount: formatCurrency(raisedCents - goalCents, intl),
+                amount: money(raisedCents - goalCents),
               })}`}
             {myGivenCents > 0
               && ` · ${t('drives.fromYou', {
-                amount: formatCurrency(myGivenCents, intl),
+                amount: money(myGivenCents),
               })}`}
           </p>
         </>
@@ -156,9 +158,9 @@ function DonationRow({ donation: d, chargesReady, intl, t }: {
         <p className="text-xs text-muted-foreground">
           {raisedCents > 0
             ? <>{t('drives.raisedAmount', {
-                amount: formatCurrency(raisedCents, intl),
+                amount: money(raisedCents),
               })}{myGivenCents > 0 && ` · ${t('drives.fromYou', {
-                amount: formatCurrency(myGivenCents, intl),
+                amount: money(myGivenCents),
               })}`}</>
             : t('drives.noGoal')}
         </p>

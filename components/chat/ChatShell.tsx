@@ -108,7 +108,7 @@ export function ChatShell({ initialRooms, familyRoomId, currentUserId, familyMem
           and is what clips them to the round. */}
       <div className="flex min-h-0 flex-1 overflow-hidden rounded-xl border bg-card">
         {/* Left panel */}
-        <aside className={cn('w-full md:w-64 shrink-0 border-r bg-background flex-col', showThread ? 'hidden md:flex' : 'flex')}>
+        <aside className={cn('w-full md:w-64 shrink-0 border-e bg-background flex-col', showThread ? 'hidden md:flex' : 'flex')}>
           <RoomList
             rooms={rooms}
             activeRoomId={activeRoomId}

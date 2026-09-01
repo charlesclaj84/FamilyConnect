@@ -2,10 +2,10 @@ import Link from 'next/link'
 import { Check, HeartHandshake } from 'lucide-react'
 import { buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import type { DonationSummary } from '@/app/actions/dues'
 import type { T } from '@/lib/i18n/t'
+import type { Money } from '@/lib/currency-utils'
 
 /**
  * The family's open donation drives, on the Dashboard.
@@ -57,9 +57,10 @@ import type { T } from '@/lib/i18n/t'
  * is a beneficiary of never reaches this component at all — the restrictive policies from
  * 20260811000000 refuse the schedule row, so there is no filtering to forget here.
  */
-export function DonationDrivesCard({ donations, t, intl }: {
+export function DonationDrivesCard({ donations, t, intl, money }: {
   /** The reader's `Intl` tag. A prop — this is a Server Component. */
   intl: string
+  money: Money
   donations: DonationSummary[]
   /**
    * The reader's language, bound. Threaded from the page rather than resolved here: a
@@ -92,9 +93,9 @@ export function DonationDrivesCard({ donations, t, intl }: {
       </h2>
 
       <ul className="space-y-4">
-        {shown.map(d => <DriveRow key={d.schedule.id} donation={d} t={t} intl={intl} />)}
-          intl={intl}
-          intl={intl}
+        {shown.map(d => (
+          <DriveRow key={d.schedule.id} donation={d} t={t} intl={intl} money={money} />
+        ))}
       </ul>
 
       {hidden > 0 && (
@@ -125,9 +126,10 @@ export function DonationDrivesCard({ donations, t, intl }: {
  * called "Martha's Medical Fund" plus two currency amounts does not fit on one. The name gets
  * the line it needs; the figures share the next.
  */
-function DriveRow({ donation: d, t, intl }: {
+function DriveRow({ donation: d, t, intl, money }: {
   /** The reader's `Intl` tag. A prop — this is a Server Component. */
   intl: string
+  money: Money
   donation: DonationSummary
   /** Threaded one more hop, for the same reason the card takes it. */
   t: T
@@ -154,13 +156,13 @@ function DriveRow({ donation: d, t, intl }: {
       )}
 
       <p className="text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">{formatCurrency(raisedCents, intl)}</span>
+        <span className="font-medium text-foreground">{money(raisedCents)}</span>
         {goalCents != null && goalCents > 0
-          ? ` of ${formatCurrency(goalCents, intl)} · ${progressPercent}%`
+          ? ` of ${money(goalCents)} · ${progressPercent}%`
           : ' raised'}
         {myGivenCents > 0
           && ` · ${t('drives.fromYou', {
-            amount: formatCurrency(myGivenCents, intl),
+            amount: money(myGivenCents),
           })}`}
       </p>
 

@@ -570,3 +570,123 @@ export function safetyCheckInEmail(o: {
     }),
   }
 }
+
+/**
+ * The dunning ladder, in one template.
+ *
+ * ── ONE TEMPLATE AND FIVE STAGES, NOT FIVE TEMPLATES ──────────────────────────────
+ * Every rung says the same three things — a payment failed, this is what has happened, this is
+ * what happens next — and differs only in which sentence sits in the middle. Five functions
+ * would be five places for the reply-to, the origin, the button and the fine print to drift,
+ * and the one that got the ladder's own dates wrong would be whichever nobody re-read.
+ *
+ * The STAGE decides the copy keys; everything else here is identical by construction. That is
+ * the same judgement `authEmailChangeEmail` makes about its two halves.
+ *
+ * ── IT GOES TO WHOEVER CAN ACTUALLY PAY ───────────────────────────────────────────
+ * `admin/settings:edit`, resolved by the caller — `20260823000007` is why a family always has
+ * at least one such person. The recipient is never a parameter a client chooses; the drain
+ * endpoint resolves the list from the family's own grid, which is the rule
+ * `sendDistribution` states at length about naming bodies rather than people.
+ *
+ * ── EVERY DELETION EMAIL SAYS IT CANNOT BE REVERSED, IN THOSE WORDS ───────────────
+ * The brief states it twice, which is how a requirement survives a summary. `day45` and
+ * `day59` both carry it, in the `fine` line where it cannot be skimmed past, and so does the
+ * lockout screen.
+ */
+export function dunningEmail(o: {
+  origin: string
+  familyName: string
+  /** Which rung. Decides the middle paragraph and the subject; nothing else moves. */
+  stage: 'day5' | 'day10' | 'day30' | 'day45' | 'day59'
+  /** What it costs to be level and stay level, already formatted. See `catchUpQuote`. */
+  amount: string
+  /** Days until the family drops to Free. Printed on every rung, so nobody has to count. */
+  daysLeft: number
+  /** The recipient's own language — resolved per administrator, not per family. */
+  locale?: string
+}): ComposedEmail {
+  const t = emailT(o.locale ?? BASE_LOCALE)
+  const family = esc(o.familyName)
+  // THE DELETION WARNING IS ON THE LAST TWO RUNGS ONLY. Putting it on day 5 would make the
+  // first message about losing the family tree rather than about a card that needs updating,
+  // which is both alarming and premature — and by day 45 it is the whole message.
+  const warns = o.stage === 'day45' || o.stage === 'day59'
+  return {
+    subject: t(`email.dunning.${o.stage}.subject`, { family: o.familyName }),
+    tag: `dunning-${o.stage}`,
+    html: renderEmailFrom(o.origin, {
+      t,
+      preheader: t(`email.dunning.${o.stage}.preheader`, { days: String(o.daysLeft) }),
+      heading: t(`email.dunning.${o.stage}.heading`),
+      paragraphs: [
+        t(`email.dunning.${o.stage}.p1`, { family, days: String(o.daysLeft) }),
+        t('email.dunning.amount', { amount: esc(o.amount) }),
+      ],
+      button: {
+        label: t('email.dunning.button'),
+        // THE BILLING SCREEN, not the dashboard. The one thing this email asks for is a
+        // payment, and a link that lands somewhere the reader has to navigate from is a link
+        // that gets closed.
+        href: `${o.origin}/admin/settings`,
+      },
+      fine: warns ? t('email.dunning.fineWarn') : t('email.dunning.fine'),
+      footnote: t('email.dunning.footnote'),
+    }),
+  }
+}
+
+/**
+ * The four reminders before a downgraded tier's data is deleted.
+ *
+ * ── ONE TEMPLATE, FOUR DATES, FOR `dunningEmail`'s REASON ─────────────────────────
+ * The only thing that changes is the number of days, and it is a PARAMETER rather than four
+ * copies of a sentence — so the reminder cannot say fifteen days while the sweep waits five.
+ *
+ * ── IT GOES TO A FAMILY IN GOOD STANDING, WHICH CHANGES THE TONE ENTIRELY ─────────
+ * Nobody here owes anything. They chose a cheaper plan and the data from the one they left is
+ * being kept for sixty days — so this is a reminder of a choice, not a demand, and the two
+ * routes out are both offered plainly: come back and keep it, or let it go.
+ *
+ * The "start fresh" half is deliberately NOT a link in this email. It destroys a family tree,
+ * it needs the strongest confirmation in the product (an emailed code), and a one-click
+ * version of it reachable from a forwarded inbox is exactly what `staffDeleteCodeEmail`'s own
+ * note refuses.
+ */
+export function retentionReminderEmail(o: {
+  origin: string
+  familyName: string
+  /** The tier whose data is being kept — what they would be coming back to. */
+  tierLabel: string
+  /** 30, 15, 5 or 1. */
+  daysLeft: number
+  /** What returning costs: the months away plus the coming one. Already formatted. */
+  amount: string
+  locale?: string
+}): ComposedEmail {
+  const t = emailT(o.locale ?? BASE_LOCALE)
+  const family = esc(o.familyName)
+  const tier = esc(o.tierLabel)
+  return {
+    subject: t('email.retention.subject', { tier: o.tierLabel, days: String(o.daysLeft) }),
+    tag: `retention-d${o.daysLeft}`,
+    html: renderEmailFrom(o.origin, {
+      t,
+      preheader: t('email.retention.preheader', { days: String(o.daysLeft) }),
+      heading: t('email.retention.heading', { days: String(o.daysLeft) }),
+      paragraphs: [
+        t('email.retention.p1', { family, tier, days: String(o.daysLeft) }),
+        t('email.retention.p2', { tier, amount: esc(o.amount) }),
+        t('email.retention.p3'),
+      ],
+      button: {
+        label: t('email.retention.button', { tier: o.tierLabel }),
+        href: `${o.origin}/admin/settings`,
+      },
+      // THE IRREVERSIBILITY, in the line that is hardest to skim past. Same placement as the
+      // two dunning warnings, and for the same reason.
+      fine: t('email.retention.fine'),
+      footnote: t('email.retention.footnote'),
+    }),
+  }
+}

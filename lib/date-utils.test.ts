@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatDateRange, latestDate } from '@/lib/date-utils'
+import { firstWeekdayFor, formatDateRange, latestDate, weekdayNames } from '@/lib/date-utils'
 
 /**
  * `latestDate`, under `npm test` — which is a `verify.yml` step, so this gates a pull request.
@@ -136,5 +136,70 @@ describe('formatDateRange', () => {
   it('answers null when there is no start to anchor the range', () => {
     expect(formatDateRange(null, '2026-06-14')).toBeNull()
     expect(formatDateRange('', '2026-06-14')).toBeNull()
+  })
+})
+
+describe('firstWeekdayFor', () => {
+  // ── THE QUESTION TODO.md's ARABIC NOTE RAISED, AND ITS ANSWER TURNED UP A LIVE BUG ──
+  // "The calendar's Sunday-first week becomes a question." It is two questions, and only one
+  // of them is about direction: WHICH SIDE the week starts on is free (a `<table>` in a
+  // `dir="rtl"` page lays its columns right-to-left), and WHICH DAY it starts on is a regional
+  // convention that was wrong for a language already shipped.
+
+  it('is Sunday for the United States and for Mexico', () => {
+    // Both are Sunday-first, so the grid was correct for two of the three shipped locales —
+    // which is exactly why nobody noticed the third.
+    expect(firstWeekdayFor('en-US')).toBe(0)
+    expect(firstWeekdayFor('es-MX')).toBe(0)
+  })
+
+  it('is Monday for France, which is the defect this fixes', () => {
+    // A French member has been reading a Sunday-first grid since `fr` shipped: every date sat
+    // one column from where they expect it, plausibly, with the weekday header agreeing with
+    // the grid and both disagreeing with the reader.
+    expect(firstWeekdayFor('fr-FR')).toBe(1)
+    expect(firstWeekdayFor('fr')).toBe(1)
+  })
+
+  it('separates Spanish by REGION, which the two-character code cannot', () => {
+    // `lib/i18n/locales.ts` opens by saying conflating `code` and `intl` is a real bug. This is
+    // that distinction in a third place: Mexico starts on Sunday and Spain on Monday, so `'es'`
+    // has no answer and `es-MX` does.
+    expect(firstWeekdayFor('es-MX')).toBe(0)
+    expect(firstWeekdayFor('es-ES')).toBe(1)
+  })
+
+  it('is Saturday for Arabic, before Arabic is shipped', () => {
+    // Listed now rather than defaulted later. A locale added without an entry here takes the
+    // Sunday fallback silently, which is the shape of the French bug repeating.
+    expect(firstWeekdayFor('ar-EG')).toBe(6)
+    expect(firstWeekdayFor('ar')).toBe(6)
+  })
+
+  it('falls back to Sunday, which is what every grid did before', () => {
+    expect(firstWeekdayFor('zz-ZZ')).toBe(0)
+    expect(firstWeekdayFor(null)).toBe(0)
+    expect(firstWeekdayFor(undefined)).toBe(0)
+  })
+})
+
+describe('weekdayNames', () => {
+  it('starts on the reader’s own first weekday', () => {
+    // THE HEADER AND THE GRID ASK THE SAME FUNCTION, which is the whole reason this is
+    // asserted: a header row starting on Sunday over a grid starting on Monday puts every date
+    // under the wrong column name, and both halves look entirely plausible on their own.
+    const en = weekdayNames('en-US')
+    const fr = weekdayNames('fr-FR')
+    expect(en).toHaveLength(7)
+    expect(fr).toHaveLength(7)
+    // Rotated by one, not relabelled: France's first column is England's second.
+    expect(fr[0].long.toLowerCase()).toContain('lundi')
+    expect(en[0].long.toLowerCase()).toContain('sunday')
+    expect(en[1].long.toLowerCase()).toContain('monday')
+  })
+
+  it('is a rotation, so no day is dropped or repeated', () => {
+    const names = weekdayNames('fr-FR').map(d => d.long)
+    expect(new Set(names).size).toBe(7)
   })
 })

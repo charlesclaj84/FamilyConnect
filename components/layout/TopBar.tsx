@@ -167,7 +167,7 @@ export default async function TopBar({
         {/* Left: the drawer trigger, below md only. */}
         <MobileNav viewable={viewable} />
 
-        {/* `ml-auto`, NOT `justify-between` on the parent. The trigger beside this is
+        {/* `ms-auto`, NOT `justify-between` on the parent. The trigger beside this is
             `md:hidden`, and a `display: none` flex child is removed from layout entirely —
             so on a wide screen `justify-between` had one item to distribute and parked it
             at the START. The controls sat top-LEFT of the workspace, which is the one
@@ -187,7 +187,7 @@ export default async function TopBar({
             would spend the most valuable position in the bar on the least-used destination.
             The family switcher sits outside all of that, first, because for most accounts it
             renders nothing at all. */}
-        <div className="ml-auto flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2">
+        <div className="ms-auto flex min-w-0 shrink-0 items-center gap-1.5 sm:gap-2">
           {/* Renders NOTHING for a single-family account, which is most of them — and is
               why this bar matches the Golden Master's three controls for most people
               while still giving a multi-family member the one piece of state they cannot

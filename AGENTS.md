@@ -2750,6 +2750,136 @@ a Stripe-shaped query on the hot path of every page load. `entitlementOn()` in T
 DESCRIBES the paid standing; the SQL sweep is the only writer. If a third expression of that rule
 appears, one of them is wrong.
 
+## A DOWNGRADE NOW DELETES, SIXTY DAYS LATER — AND THAT INVERTS AN INVARIANT
+
+Built 2026-09-01 (`20260901000001`, `20260901000002`). **Until then a downgrade deleted
+nothing**, and removing a family — the largest destructive act in the product — destroyed no
+rows at all. After this, a downgrade is the one operation that does: a mis-clicked plan change
+can eventually destroy a family tree, and a lapsed card can too.
+
+**THE SIXTY DAYS AND THE REMINDERS ARE NOT DECORATION. THEY ARE THE WHOLE OF THE SAFETY
+ARGUMENT** — which is why they are wired into the mechanism rather than promised in prose:
+**both deletion sweeps REFUSE to act unless the notices they owed are recorded as `sent`.** A
+mail outage therefore delays a deletion indefinitely and can never cause one. `20260901000002`
+§8 mutation-checks that: removing the two conjuncts turns the assertion red with `dropped: 1`.
+
+Neither of these may be dropped later as a simplification.
+
+### The two clocks, and why neither can do the other's half
+
+| | |
+|---|---|
+| `pg_cron`, hourly at :20 | **State.** Enqueue due notices, drop a delinquent family to Free, delete a withheld tier's data. It has NO NETWORK — `http` and `pg_net` are available on this project and neither is installed, and an outbound HTTP call inside a transaction that also deletes a family tree is not a thing to add casually. |
+| Vercel Cron, hourly at :40 | **Mail.** Claim pending notices and send them. It decides nothing and can move no tier. `vercel.json` is the whole of it and `VERCEL.md` argues it. |
+
+The queue between them is `platform_billing_notices` — the `distribution_recipients` design,
+for the reason that one states: *this product has nowhere to run background work.* Its unique
+key is `(family_code, kind, stage, cycle_on)`, and **`cycle_on` is what makes it idempotent
+across time**: an hourly re-run inside one lapse enqueues nothing, and a SECOND lapse in March
+starts a fresh set. Keying on `(family, kind, stage)` alone would send the second lapse nothing
+at all, silently and forever.
+
+### The delinquency ladder, and what is a GUARD rather than a tier
+
+Day 0 stamps `delinquent_since`; day 5 emails; **day 10 locks members out**; **day 30 leaves
+administrators the billing screen alone**; days 45 and 59 warn; **day 60 drops the family to
+Free and deletes what Free does not include.**
+
+* **`families.tier` IS NOT TOUCHED BEFORE DAY 60.** A family that pays on day 29 finds
+  everything where it was, which is only true because the lockout was never a tier.
+  `requireBillingCurrent` sits inside `requireView` beside `requireFamilyActive`, where a page
+  cannot forget it — the argument `requireTier` already makes.
+* **NO POLICY CONSULTS `delinquent_since`, AND THE MIGRATION ASSERTS IT.** Same rule
+  `families.status` and `families.tier` both keep. The server ACTIONS behind locked pages are
+  deliberately NOT lockout-checked: a family that pays must find its records untouched.
+* **THE STAGE IS DERIVED, NEVER STORED.** `delinquencyStage()` is a function of one date and
+  the clock, so a stored copy is the `is_minor` trap applied to something that changes daily.
+  `lib/platform-billing.test.ts` pins every boundary, and **day N is `from + N days`** — the
+  first draft of those assertions was off by one and the SQL was right.
+* **THE GUARD READS UTC, NOT `todayLocal()`.** It is compared against a sweep counting from
+  `CURRENT_DATE`. Using the reader's clock would put a member on one side of day 10 and the
+  email explaining it on the other, for eight hours a day, in California.
+* **THE BILLING READ FAILS OPEN**, alone among the reads in `lib/auth/`. A refused permission
+  read denies a screen somebody may not be entitled to; a refused billing read would lock an
+  entire paying family out over a PostgREST hiccup.
+* **A MEMBER IS NOT TOLD IT IS A MONEY PROBLEM.** *"Contact your family administrator to
+  resolve an accounting issue"* is the whole message, and `BillingLocked` renders two entirely
+  different screens for that reason. What a family owes GENORRA is not every relative's
+  business.
+* **DAY 60 IS A DROP TO FREE, NOT A DELETION OF THE FAMILY** (realigned 2026-09-01). They keep
+  their relatives, the Directory, announcements, chat and the calendar — everything Free
+  includes. And **the sixty days are not served twice**: the drop deletes immediately, because
+  any other reading makes the day-45 and day-59 wording ("in 15 days", "tomorrow") false.
+
+### The tier→data map is hand-written, and the assertion is what makes that survivable
+
+`tier_data_tables` and `tier_data_keep`, seeded by `20260901000001`. **There is no derivation
+available** — `permission_table_map` answers a policy question and `lib/features.ts` maps ROUTES
+— so somebody decided, per table, with a reason on the row.
+
+* **EVERY FAMILY-SCOPED TABLE IS ON ONE LIST OR THE OTHER, OR THE MIGRATION FAILS BY NAME.**
+  `reset_families.sql` §11's shape, and it is what stops a table added next year being silently
+  un-purgeable or, worse, silently purged. Mutation-checked.
+* **FOUR TABLES ARE KEPT AGAINST WHAT THEIR TIER SAYS**, and the first would have been
+  catastrophic: `permission_templates` (the tier sells the EDITOR, not the grid —
+  `people.permission_template_id` points here and every member's access resolves through it),
+  `resource_visibility`, `sms_consent_events` (a CONSENT RECORD), `platform_payments` (our
+  revenue, not their data). The migration asserts all four by name.
+* **A TRIGGER THAT REFUSES A DELETE IS A DECISION, AND THE PURGE DOES NOT OVERRULE IT BY
+  DEFAULT.** Two refused it and they got different answers. `dues_payments_immutable` gained a
+  narrow, asserted exemption, because deleting the ledger IS what "delete Standard's data"
+  means. `funds_protect_system` did not: a fund with a `system_key` is scaffolding a returning
+  family needs, so the purge asks for LESS through `where_extra`. Both were found by the verify
+  block rather than by reading.
+* **THE LEDGER EXEMPTION IS A GUC WITH EXACTLY ONE SETTER, ASSERTED.** AGENTS.md's objection to
+  `storage.allow_delete_query` is that any future action can set one. Nothing in the app can
+  set this — PostgREST executes no arbitrary SQL and supabase-js has no transaction control —
+  and §5 fails the deploy if a second `public` function so much as mentions the name. The
+  `pg_trigger_depth() > 1` shape TODO.md asked for is not available here: a depth test needs a
+  real cascade and the purge keeps `people`, so there is no parent to cascade from.
+* **STORAGE IS NOT REACHED.** A deleted `photos` row leaves its bytes in a `public: true`
+  bucket. `staff_delete_family` has the same limit and its ACTION deletes the objects first; a
+  `pg_cron` job has no action. TODO.md carries it.
+
+### One hard-delete path, three callers
+
+`delete_family_data_above_tier`. The retention sweep, day 60 of the ladder, and "start fresh".
+Writing it three times is how one of them ends up missing a table.
+
+* **`p_dry_run` IS PART OF THE CONFIRMATION**, not a courtesy: the screen names what will go
+  from the same function that will go and delete it. A second query built to describe it could
+  disagree on the day that matters most.
+* **AN UNRECOGNISED TIER IS REFUSED, NEVER TREATED AS FREE.** That one mistake would delete
+  everything the family has, quietly.
+* **"START FRESH" IS BEHIND AN EMAILED CODE**, purpose `data_start_fresh` (`20260901000003`).
+  It is the one act that brings an irreversible deletion forward at a person's request, with no
+  reminders in front of it. A confirm dialog is one careless click.
+* **AND REDEFINING AN EXISTING FUNCTION MEANS COPYING IT, NOT DESCRIBING IT.** That migration's
+  first draft retyped `consume_family_action_challenge` from a reading and silently changed two
+  refusal messages and the success branch — which would have broken every `expectRefusal` in
+  `tests/rls` that matches on message text, and left spent challenges claiming nobody answered
+  them. Neither would have failed a migration.
+
+### Returning inside the window is a CHOICE, and it has no default
+
+`startPlanCheckout` takes `withheldData: 'keep' | 'fresh'` and **refuses a purchase that covers
+a withheld tier without one** — a silent `'keep'` charges for months nobody agreed to, and a
+silent `'fresh'` destroys a family tree on a plan change.
+
+`'keep'` is priced by `catchUpQuote`, which is ONE function serving both ladders because the
+brief asked for exactly that: *"the same shape as the delinquency arrears figure … should be ONE
+function with one set of tests, not two that agree today."* It prices at **the tier it is
+handed** — the one a delinquent family still holds, or `withheld_from_tier` for a returning one
+— and always includes the coming month, or a family that pays its arrears is delinquent again
+on the 1st.
+
+**THE CHOICE IS SETTLED BY THE WEBHOOK, NEVER BY THE BUTTON PRESS.** *"THE BUTTON PRESS IS NOT
+THE PAYMENT"*, and it is sharper here than anywhere else in the product: acting on the press
+would delete a family's records for somebody who abandoned the hosted page. A monthly return
+lands on `invoice.paid` rather than on the session, so `settleWithheldData` is called from all
+three payment paths and reads `subscription_details.metadata` — reading `invoice.metadata`
+alone would make that branch silently never fire.
+
 ## FOUR RULES ABOUT PLANS, WRITTEN INTO COLUMNS RATHER THAN INTO CODE
 
 1. **ONE RATE PER TIER, MONTHLY.** No annual price — `lib/plans.ts` records why one was
@@ -4566,6 +4696,87 @@ SHAPE: twelve unrelated modules, all in the `told` phase, all passing their prob
 
 **So a case that writes a SHARED-PROFILE column runs as a spare actor.** `locale` is one;
 `people_sync_shared_profile` names the rest.
+
+## THE LAYOUT IS DIRECTION-AGNOSTIC, AND NO COMPONENT KNOWS WHICH WAY IT READS
+
+Done 2026-09-01, before any right-to-left language exists, because TODO.md's own language list
+said so in as many words: **"THE FIRST RTL LANGUAGE IS NOT A CATALOGUE, IT IS A LAYOUT PASS …
+do not let Arabic be the language somebody adds on a Friday."** 430 physical Tailwind utilities
+across 119 files became logical ones, and what makes that worth anything in a year is that the
+431st cannot arrive unnoticed.
+
+**THE FAILURE MODE IS WHY THIS IS A GATE AND NOT A CONVENTION.** `ml-2` renders perfectly for
+every reader this product has today. Nothing anybody looks at goes wrong until the first
+right-to-left catalogue lands and a hundred screens are quietly inside out — which is the same
+shape as a stale permission key: *it fails OPEN, so the absence of a failure proves nothing.*
+`npm run i18n:rtl` is a `verify.yml` step with a ceiling of zero.
+
+**NO ARABIC CATALOGUE IS SHIPPED AND `LOCALES` HAS NO `rtl` ROW.** A locale in that array is a
+locale the switcher offers, and offering Arabic over 5,682 English keys would tell a reader
+their language counts and then not speak it. Adding one now costs four catalogue files and one
+row; everything below already honours `dir: 'rtl'`.
+
+### One attribute decides it, and nothing else may ask
+
+`<html dir>` — set in `app/layout.tsx` from the same resolved locale as `lang`, and set again
+before the first paint by `DIRECTION_BOOT_SCRIPT`. **There is no `isRtl()` branch anywhere in
+`app/` or `components/`, and there must not be**: the browser mirrors every logical property
+from that one attribute, so a component that asked would be a second answer to a question
+already answered.
+
+* **`ms-` `me-` `ps-` `pe-` `start-` `end-` `text-start` `text-end` `border-s` `border-e`
+  `rounded-s` `rounded-e` `rounded-ss/se/es/ee`.** Never the physical twin.
+* **A VOCABULARY IS PART OF THIS TOO.** `SortTh`'s `align` prop takes `'start' | 'end'`, not
+  `'left' | 'right'`, and `TransactionsClient`'s column flag is `atEnd`. Renaming them changed
+  no behaviour whatever — what it changed is whether the word means anything, because in a
+  right-to-left language a money column belongs on the LEFT. A prop nobody can read correctly
+  is how the next person reintroduces a physical class.
+* **THE BOOT SCRIPT IS WHY `dir` IS NOT LEFT TO `LocaleSync`.** A member's stored language is
+  applied after hydration, which is invisible for `lang` and is the WHOLE PAGE flipping for
+  `dir`. `setMyLocale` mirrors the choice into `LOCALE_PICK_COOKIE` — the one the switcher
+  already writes and `proxy.ts` already reads — so the script in `<head>` can resolve it with
+  no session. `LocaleSync` still sets it as the backstop for a browser that has never had the
+  cookie.
+
+### Three things `dir` does NOT do, and each cost a decision
+
+* **IT DOES NOT MIRROR A GLYPH.** An SVG arrow keeps pointing the way it was drawn, so a
+  back-link chevron in Arabic would point away from where it goes. 36 directional Lucide icons
+  carry `rtl:-scale-x-100`, and the gate checks every one. A hover NUDGE needs its own
+  `rtl:` pair: CSS applies the individual `translate` and `scale` properties as
+  translate × rotate × scale, so the nudge happens in the parent's space and keeps its
+  direction while the glyph mirrors.
+* **IT DOES NOT ANSWER WHICH DAY THE WEEK STARTS ON.** That is a REGIONAL convention and not a
+  direction, and asking it turned up a live defect in a language already shipped: the calendar
+  was Sunday-first for everybody, and France starts on Monday — so a French member had been
+  reading a grid whose columns were shifted by a day, plausibly, since `fr` shipped.
+  `firstWeekdayFor` in `lib/date-utils.ts` is the one rule, and `buildCalendarMonth` and
+  `weekdayNames` BOTH ask it. They must: a header starting on Sunday over a grid starting on
+  Monday puts every date under the wrong column name and both halves look fine alone.
+
+  *Which SIDE the week starts on is free* — `MonthCalendar` is a real `<table>`, so a
+  `dir="rtl"` page lays its columns right-to-left with nothing to change.
+* **IT DOES NOT MIRROR TEXT INSIDE A BOX.** `.gn-wordmark` keeps `margin-right` on purpose:
+  the stray letterspace belongs to the LATIN GLYPHS, which the bidi algorithm still lays out
+  left-to-right inside an RTL page, so `margin-inline-end` would pull from the wrong side and
+  double the flaw it corrects. **The test for a case like this: does the artifact belong to the
+  BOX (mirror it) or to the glyphs inside it (do not)?**
+
+### The two gates cover different halves, and neither covers the other's
+
+| | |
+|---|---|
+| `npm run i18n:rtl` | reads SOURCE. Cannot see a class built at runtime — `` `m${side}-2` `` — or a physical property in a `style={{ }}` object. In `verify.yml`. |
+| `npm run i18n:onscreen -- --force-rtl` | reads the RENDERED markup of every route, so a `cn()` branch and a component that only appears under some data are in scope. Also the only thing that checks `<html>` carries a `dir` at all. Needs a dev server, so it is hand-run like `realtime:check`. |
+
+Neither can say whether a mirrored page READS correctly. That is still a person.
+
+**THE EXCEPTIONS ARE LINES WITH REASONS, NOT FILES.** `rtl-check.mjs`'s `KEEP` list holds
+three: `-translate-x-1/2` (centring is symmetric, and mirroring half of the idiom moves the
+element by a whole width), `gn-sheen` (a keyframe animates `translateX` one way, so the anchor
+must agree with the animation rather than with the reader), and `bg-gradient-to-r` (a wash with
+nothing positioned along it). A new exception belongs there, with its sentence — not in a
+number.
 
 ## SEARCH AND SORTING ARE THE TWO PLACES A LANGUAGE REACHES THE DATABASE
 

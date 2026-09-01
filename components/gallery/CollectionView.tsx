@@ -193,14 +193,14 @@ export function CollectionView({
           <div className="space-y-1">
             <Label htmlFor="caption-search" className="text-xs">{t('gal.searchCaptions')}</Label>
             <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+              <Search className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
               <Input
                 id="caption-search"
                 type="search"
                 value={captionQuery}
                 onChange={e => { setCaptionQuery(e.target.value); setLightbox(null) }}
                 placeholder={t('gal.searchCaptionsPh')}
-                className="w-56 pl-8"
+                className="w-56 ps-8"
               />
             </div>
           </div>
@@ -332,7 +332,7 @@ export function CollectionView({
               <img src={photo.url} alt={photo.caption ?? ''}
                 className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
               {photo.tags.length > 0 && (
-                <span className="absolute bottom-1 left-1 flex flex-wrap gap-0.5">
+                <span className="absolute bottom-1 start-1 flex flex-wrap gap-0.5">
                   {photo.tags.slice(0, 3).map(t => (
                     <span key={t.person_id} className="rounded bg-black/60 px-1 py-0.5 text-[10px] text-white">
                       {t.person_name.split(' ')[0]}
@@ -646,7 +646,7 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
               ) : untagged.slice(0, 40).map(m => (
                 <li key={m.id}>
                   <button type="button" onClick={() => addTag(m.id)} disabled={isPending}
-                    className="w-full rounded px-2 py-1 text-left text-sm hover:bg-brand-soft">
+                    className="w-full rounded px-2 py-1 text-start text-sm hover:bg-brand-soft">
                     {formatPersonName(m)}
                   </button>
                 </li>
@@ -690,7 +690,7 @@ function Lightbox({ photo, index, total, onClose, onPrev, onNext, mayDelete, onD
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90" onClick={onClose}>
       <div className="relative max-h-full w-full max-w-4xl p-4" onClick={e => e.stopPropagation()}>
         <button onClick={onClose} aria-label={t('gal.closePhoto')}
-          className="absolute right-2 top-2 z-10 text-white hover:text-white/70">
+          className="absolute end-2 top-2 z-10 text-white hover:text-white/70">
           <X className="h-6 w-6" />
         </button>
 
@@ -728,14 +728,14 @@ function Lightbox({ photo, index, total, onClose, onPrev, onNext, mayDelete, onD
 
         {index > 0 && (
           <button onClick={onPrev} aria-label={t('gal.prevPhoto')}
-            className="absolute left-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white">
-            <ChevronLeft className="h-8 w-8" />
+            className="absolute start-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white">
+            <ChevronLeft className="h-8 w-8 rtl:-scale-x-100" />
           </button>
         )}
         {index < total - 1 && (
           <button onClick={onNext} aria-label={t('gal.nextPhoto')}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white">
-            <ChevronRight className="h-8 w-8" />
+            className="absolute end-2 top-1/2 -translate-y-1/2 text-white/70 hover:text-white">
+            <ChevronRight className="h-8 w-8 rtl:-scale-x-100" />
           </button>
         )}
       </div>

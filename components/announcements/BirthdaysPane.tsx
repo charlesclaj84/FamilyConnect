@@ -188,7 +188,7 @@ export function BirthdaysPane({ birthdays, prompts }: {
         />
       )}
       <div className="relative sm:max-w-xs">
-        <Search className="pointer-events-none absolute left-2.5 top-2 h-4 w-4 text-muted-foreground" />
+        <Search className="pointer-events-none absolute start-2.5 top-2 h-4 w-4 text-muted-foreground" />
         {/* `aria-label` rather than a visible label: the placeholder says what it is, and a
             label above a single filter box over a table is a line of chrome between the rail
             and the answer. Not the same case as a form field, which owes a real <Label>. */}
@@ -197,7 +197,7 @@ export function BirthdaysPane({ birthdays, prompts }: {
           placeholder={t('bday.searchPh')}
           value={query}
           onChange={e => setQuery(e.target.value)}
-          className="pl-8"
+          className="ps-8"
         />
       </div>
 
@@ -212,7 +212,7 @@ export function BirthdaysPane({ birthdays, prompts }: {
         <div className="overflow-visible rounded-xl border">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <SortTh label={t('field.name')} {...sortProps('name')} className="px-3 py-2 font-semibold" />
                 <SortTh label={t('money.date')} {...sortProps('date')} className="px-3 py-2 font-semibold" />
                 {/* The two folded columns, and each `<th>` folds WITH its cells — hide two

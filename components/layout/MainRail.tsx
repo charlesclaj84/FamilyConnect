@@ -81,10 +81,16 @@ export function MainRail<T extends string>({ label, items, active, onSelect, act
             // Full width while stacked, so the whole line is the target and the left
             // bar has something to sit against; auto width once it is a row again.
             'flex w-full items-center gap-1.5 px-3 py-2 text-sm transition-colors sm:w-auto',
-            // The marker: border-l while stacked, border-b from sm up. Both are declared
+            // The marker: `border-s` while stacked, `border-b` from sm up. Both are declared
             // on every item — transparent when inactive — so becoming active changes a
             // colour and never a size.
-            'border-l-2 border-b-0 sm:border-l-0 sm:border-b-2',
+            //
+            // `border-s`, NOT `border-l`, since the 2026-09-01 layout pass: the marker belongs
+            // against the edge the reader STARTS at, which is the right-hand one in a
+            // right-to-left language. Nothing here asks which direction it is in — `dir` on
+            // `<html>` mirrors the logical property and this component has no opinion.
+            // `npm run i18n:rtl` is what keeps it that way.
+            'border-s-2 border-b-0 sm:border-s-0 sm:border-b-2',
             isActive
               ? 'border-brand-primary bg-brand-primary/[0.04] font-medium text-brand-ink sm:bg-transparent'
               : 'border-transparent text-muted-foreground hover:text-foreground',

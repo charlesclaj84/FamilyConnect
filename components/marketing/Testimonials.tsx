@@ -678,7 +678,7 @@ export function Testimonials({
           `tabIndex={0}` with a label because a scrollable region needs to be reachable and
           named for a keyboard user — that is what lets the arrow keys move it at all.
 
-          `scroll-pl-6` IS THE LEFT ARROW'S ROOM, AND `pl-6` CANNOT BE. This is the whole of the
+          `scroll-ps-6` IS THE LEFT ARROW'S ROOM, AND `ps-6` CANNOT BE. This is the whole of the
           second half of the arrow bug, and it is a snapping rule rather than a padding one: with
           `snap-mandatory` the browser aligns the snapped card's start edge to the SCROLLPORT's
           start edge, and plain `padding-left` is inside the scrollport — so the rail scrolls
@@ -691,7 +691,7 @@ export function Testimonials({
           arrow, the room one centred on that card's edge needs to sit on screen rather than
           be clamped inward onto the first word.
 
-          `pl-6` stays beside it: the scroll-padding decides where the rail STOPS, and the
+          `ps-6` stays beside it: the scroll-padding decides where the rail STOPS, and the
           padding is what makes 24px of scrollable room exist to stop in. The RIGHT padding
           stays at the page gutter so the next card still bleeds off the edge and says the rail
           scrolls.
@@ -705,7 +705,7 @@ export function Testimonials({
           tabIndex={0}
           role="group"
           aria-label={t('mkt.quotes.railLabel')}
-          className="flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-pl-6 scroll-smooth pt-2 pr-4 pb-8 pl-6 sm:px-6 motion-reduce:scroll-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          className="flex snap-x snap-mandatory gap-6 overflow-x-auto scroll-ps-6 scroll-smooth pt-2 pe-4 pb-8 ps-6 sm:px-6 motion-reduce:scroll-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
         >
           {/* `pt-2 pb-8` above is for the current card's shadow, which the scroll container
               would otherwise shear off at its own padding edge. */}
@@ -745,12 +745,12 @@ export function Testimonials({
                     the section, which is most of what read as overwhelming. */}
                 <Quote
                   aria-hidden="true"
-                  className="absolute right-5 top-5 h-8 w-8 text-brand-legacy/10 transition-colors duration-500 group-data-[current=true]:text-brand-legacy/30"
+                  className="absolute end-5 top-5 h-8 w-8 text-brand-legacy/10 transition-colors duration-500 group-data-[current=true]:text-brand-legacy/30"
                 />
-                {/* pr-12 is the reason the glyph is always visible: without it a long first
+                {/* pe-12 is the reason the glyph is always visible: without it a long first
                     line runs underneath the mark and both become unreadable. The padding
                     reserves the corner rather than hoping the text is short. */}
-                <blockquote className="flex-1 pr-12 text-base leading-relaxed">
+                <blockquote className="flex-1 pe-12 text-base leading-relaxed">
                   &ldquo;{t.quote}&rdquo;
                 </blockquote>
                 {/* The rule inside the card tracks the card's own outline, so a receded card
@@ -784,7 +784,7 @@ export function Testimonials({
             themselves, which need it to do anything at all.
 
             `size-9` until `sm` is what lets the left arrow fit beside the leftmost card on a
-            phone; the rail's `pl-6` there is derived from this size, so changing one means
+            phone; the rail's `ps-6` there is derived from this size, so changing one means
             changing the other.
 
             Opaque and elevated, because unlike the header they now sit ON a card — a
@@ -797,7 +797,7 @@ export function Testimonials({
           className="absolute z-10 inline-flex size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-card text-foreground shadow-[var(--shadow-card)] transition-colors hover:bg-muted sm:size-10"
           aria-label={t('mkt.quotes.prev')}
         >
-          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+          <ChevronLeft className="h-5 w-5 rtl:-scale-x-100" aria-hidden="true" />
         </button>
         <button
           type="button"
@@ -806,7 +806,7 @@ export function Testimonials({
           className="absolute z-10 inline-flex size-9 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-card text-foreground shadow-[var(--shadow-card)] transition-colors hover:bg-muted sm:size-10"
           aria-label={t('mkt.quotes.next')}
         >
-          <ChevronRight className="h-5 w-5" aria-hidden="true" />
+          <ChevronRight className="h-5 w-5 rtl:-scale-x-100" aria-hidden="true" />
         </button>
       </div>
     </section>

@@ -153,7 +153,7 @@ export function MarketingLanguagePicker({ className, withEndonym = false }: {
           <div
             ref={panel}
             id="marketing-language-panel"
-            className="absolute right-0 top-full z-40 mt-1 min-w-[11rem] overflow-hidden rounded-xl border bg-card py-1 shadow-lg"
+            className="absolute end-0 top-full z-40 mt-1 min-w-[11rem] overflow-hidden rounded-xl border bg-card py-1 shadow-lg"
           >
             <ul>
               {locales.map(l => {

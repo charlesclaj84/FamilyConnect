@@ -31,7 +31,7 @@ import { cn } from '@/lib/utils'
 import { useServerState } from '@/lib/use-server-state'
 import { disambiguatedName } from '@/lib/name-utils'
 import { formatDate } from '@/lib/date-utils'
-import { formatCurrency, dollarsToCents } from '@/lib/currency-utils'
+import { dollarsToCents } from '@/lib/currency-utils'
 import {
   GATHERING_STATUSES, GATHERING_STATUS_LABEL, GATHERING_TASK_STATUS_LABEL, type GatheringStatus,
 } from '@/lib/gatherings'
@@ -44,6 +44,7 @@ import {
 } from '@/app/actions/admin/gatherings'
 import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 
+import { useMoney } from '@/components/layout/MoneyProvider'
 /**
  * ONE GATHERING, from the organizer's side.
  *
@@ -211,6 +212,7 @@ export function AdminGatheringDetailClient({
   mayViewMemberPage, mayViewAccounting,
 }: Props) {
   const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   const router = useRouter()
   const confirm = useConfirm()
@@ -538,7 +540,7 @@ export function AdminGatheringDetailClient({
             `globals.css` paints every anchor `--brand-accent` anyway and being explicit is what
             keeps a future `className` from silently recolouring it. */}
         <Link href="/admin/gatherings" className="inline-flex items-center gap-1 text-sm text-brand-accent">
-          <ArrowLeft className="h-3.5 w-3.5" /> {t('agat.management')}
+          <ArrowLeft className="h-3.5 w-3.5 rtl:-scale-x-100" /> {t('agat.management')}
         </Link>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -746,7 +748,7 @@ export function AdminGatheringDetailClient({
                 const file = e.target.files?.[0]
                 if (file) handlePhoto(file)
               }}
-              className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium"
+              className="block w-full text-sm text-muted-foreground file:me-3 file:rounded-md file:border file:border-input file:bg-background file:px-3 file:py-1.5 file:text-sm file:font-medium"
             />
             <FormError message={photoError} />
           </div>
@@ -789,7 +791,7 @@ export function AdminGatheringDetailClient({
           {/* `budgetState`, not `budget !== null`: a failed money read is not a withheld one,
               and this screen is the sharper case of the two because its caller holds the console
               and expects the figures to be there. */}
-          <BudgetBand budget={budget} state={gathering.budgetState} intl={intl} t={t} />
+          <BudgetBand budget={budget} state={gathering.budgetState} money={money} t={t} />
           {mayEdit && (
             <BudgetForm
               gatheringId={gathering.id}
@@ -834,7 +836,7 @@ export function AdminGatheringDetailClient({
           <div className="overflow-visible rounded-xl border">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <SortTh label={t('agat.segment')} {...segmentSort.sortProps('segment')} className="px-3 py-2 font-semibold" />
                   {/* Day, Place and Tasks fold, and each `<th>` folds WITH its cells — hide the
                       cells and leave the headings and every remaining cell is announced under the
@@ -842,7 +844,7 @@ export function AdminGatheringDetailClient({
                       rendered twice; see `SegmentRow`. */}
                   <SortTh label={t('agat.day')} {...segmentSort.sortProps('day')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   <SortTh label={t('agat.place')} {...segmentSort.sortProps('place')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                  <SortTh label={t('gath.tasks')} align="right" {...segmentSort.sortProps('tasks')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('gath.tasks')} align="end" {...segmentSort.sortProps('tasks')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
                 </tr>
               </thead>
@@ -952,12 +954,12 @@ export function AdminGatheringDetailClient({
           <div className="overflow-visible rounded-xl border">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <SortTh label={t('gath.task')} {...taskSort.sortProps('task')} className="px-3 py-2 font-semibold" />
                   <SortTh label={t('gath.assignedTo')} {...taskSort.sortProps('assignee')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   <SortTh label={t('gath.due')} {...taskSort.sortProps('due')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   {mayManageBudget && (
-                    <SortTh label={t('budget.heading')} align="right" {...taskSort.sortProps('budget')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                    <SortTh label={t('budget.heading')} align="end" {...taskSort.sortProps('budget')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   )}
                   <SortTh label={t('money.status')} {...taskSort.sortProps('status')} className="px-3 py-2 font-semibold" />
                   <th scope="col" className="px-3 py-2 font-semibold"><span className="sr-only">{t('money.actions')}</span></th>
@@ -984,7 +986,7 @@ export function AdminGatheringDetailClient({
                           // A `<div>` rather than a `<p>`: `AnswerText` owns its own element,
                           // and a block inside a paragraph is invalid HTML that browsers unnest.
                           <div className="mt-0.5 text-xs text-muted-foreground">
-                            <AnswerText kind={task.kind} answer={task.answer} />
+                            <AnswerText kind={task.kind} answer={task.answer} money={money} />
                           </div>
                         )}
                         <RowMeta className="gap-x-2">
@@ -994,7 +996,7 @@ export function AdminGatheringDetailClient({
                           {mayManageBudget && task.budgetCents != null && (
                             <>
                               <MetaDot />
-                              <MetaIf value={formatCurrency(task.budgetCents, intl)} />
+                              <MetaIf value={money(task.budgetCents)} />
                             </>
                           )}
                         </RowMeta>
@@ -1006,10 +1008,10 @@ export function AdminGatheringDetailClient({
                         {task.dueOn ? formatDate(task.dueOn, intl) : '—'}
                       </td>
                       {mayManageBudget && (
-                        <td className={cn('px-3 py-2.5 text-right tabular-nums', COLLAPSING_CELL)}>
+                        <td className={cn('px-3 py-2.5 text-end tabular-nums', COLLAPSING_CELL)}>
                           {task.budgetCents == null
                             ? <span className="text-muted-foreground">—</span>
-                            : formatCurrency(task.budgetCents, intl)}
+                            : money(task.budgetCents)}
                         </td>
                       )}
                       <td className="px-3 py-2.5">
@@ -1203,7 +1205,7 @@ function SegmentRow({
       </td>
       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>{dayControl}</td>
       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>{placeControl}</td>
-      <td className={cn('px-3 py-2.5 text-right tabular-nums', COLLAPSING_CELL)}>{taskCount}</td>
+      <td className={cn('px-3 py-2.5 text-end tabular-nums', COLLAPSING_CELL)}>{taskCount}</td>
       <td className="w-px px-3 py-2.5">
         <div className="flex items-center justify-end gap-1">
           {mayEdit && dirty && (
@@ -1257,7 +1259,7 @@ function BudgetForm({
   mayViewAccounting: boolean
   onSaved: (next: GatheringBudgetView) => void
 }) {
-  const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   const [fundId, setFundId] = useServerState(budget.fundId ?? '')
   const [amount, setAmount] = useServerState(
@@ -1328,7 +1330,7 @@ function BudgetForm({
           >
             <option value="">— No fund —</option>
             {funds.map(f => (
-              <option key={f.id} value={f.id}>{f.name} — {formatCurrency(f.balanceCents, intl)}</option>
+              <option key={f.id} value={f.id}>{f.name} — {money(f.balanceCents)}</option>
             ))}
           </Select>
           <p className="text-xs text-muted-foreground">
@@ -1386,6 +1388,7 @@ function TaskDialog({
   onPatch: (next: Partial<AdminGatheringTaskRow>) => void
 }) {
   const intl = useIntlTag()
+  const money = useMoney()
   const t = useT()
   const confirm = useConfirm()
   const [assigneeId, setAssigneeId] = useState(task.assignee?.id ?? '')
@@ -1545,7 +1548,7 @@ function TaskDialog({
             <p className="text-xs font-medium text-muted-foreground">
               {task.status === 'approved' ? t('agat.approvedAnswerLabel') : t('agat.theirAnswer')}
             </p>
-            <AnswerText kind={task.kind} answer={task.answer} />
+            <AnswerText kind={task.kind} answer={task.answer} money={money} />
             {latest?.note && (
               <p className="whitespace-pre-wrap text-xs text-muted-foreground">
                 {t('agat.theirNote', { note: latest.note })}
@@ -1574,7 +1577,7 @@ function TaskDialog({
                     {submission.submittedBy && ` · ${memberNames.get(submission.submittedBy.id) ?? submission.submittedBy.name}`}
                     {submission.decision !== 'pending' && ` · ${submission.decision === 'approved' ? 'approved' : 'sent back'}`}
                   </p>
-                  <AnswerText kind={task.kind} answer={submission.answer} />
+                  <AnswerText kind={task.kind} answer={submission.answer} money={money} />
                   {submission.reviewNotes && (
                     <p className="whitespace-pre-wrap text-xs text-brand-withheld">
                       {t('agat.notesBack', { notes: submission.reviewNotes })}

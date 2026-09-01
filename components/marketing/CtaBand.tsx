@@ -63,7 +63,7 @@ export async function CtaBand({
   return (
     <section className="relative overflow-hidden bg-brand-hero px-4 py-20 sm:px-6">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <div className="gn-float-slow absolute -top-20 left-1/4 h-64 w-64 rounded-full bg-brand-legacy/10 blur-3xl" />
+        <div className="gn-float-slow absolute -top-20 start-1/4 h-64 w-64 rounded-full bg-brand-legacy/10 blur-3xl" />
       </div>
       <div className="relative mx-auto max-w-2xl text-center">
         <h2 className="mb-4 text-3xl text-brand-on-primary sm:text-4xl">

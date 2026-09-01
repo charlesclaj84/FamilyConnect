@@ -200,7 +200,7 @@ export function MemberDetailsDialog({ member, onClose, onEdit }: {
                  `onClose` plus `onEdit` so the two cannot be called in the wrong order,
                  which would unmount the trigger mid-transition. */
               <Button className="sm:w-auto" onClick={onEdit}>
-                <Pencil className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                <Pencil className="me-1.5 h-4 w-4" aria-hidden="true" />
                 {t('dir.editProfile')}
               </Button>
             )}
@@ -234,7 +234,7 @@ export function MemberDetailsTrigger({ name, onOpen, className }: {
       onClick={onOpen}
       aria-haspopup="dialog"
       className={cn(
-        'text-left font-medium hover:underline focus-visible:underline focus-visible:outline-none',
+        'text-start font-medium hover:underline focus-visible:underline focus-visible:outline-none',
         className,
       )}
     >

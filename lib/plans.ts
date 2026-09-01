@@ -52,7 +52,6 @@ import { type T } from '@/lib/i18n/t'
 
 import { TIER_RANK, TIERS, tierMeets, type FamilyTier } from '@/lib/tiers'
 import { DEFAULT_MONEY_LOCALE, formatMoney } from '@/lib/currency-utils'
-
 export interface PlanHighlight {
   /**
    * WHICH CLAIM THIS IS, as a stable `<tier>/<slug>` id shared with the bullet on `/pricing`
@@ -254,7 +253,7 @@ export const TIER_PRICE: Record<FamilyTier, TierPrice | null> = {
  * with cents in it keeps them, so a future $12.50 renders correctly without a second helper.
  *
  * ── THE `.00` STRIP WAS A REGEX AND IT ONLY EVER WORKED IN ENGLISH ──────────────────
- * This used to be `formatCurrency(cents).replace(/\.00$/, '')`, with a long note arguing that
+ * This used to be `formatPlatformMoney(cents).replace(/\.00$/, '')`, with a long note arguing that
  * a `cents % 100 === 0` guard beside it would be dead code. That argument was correct and it
  * rested on a premise the note stated out loud: *`formatCurrency` always emits exactly two
  * decimals*, and `lib/plans.test.ts` pinned it as `/^\$[\d,]+\.\d{2}$/`.
@@ -271,7 +270,7 @@ export const TIER_PRICE: Record<FamilyTier, TierPrice | null> = {
  * that was dead code against a regex is load-bearing against a formatter.
  *
  * ── THE LOCALE IS A SECOND POSITIONAL ARGUMENT, DEFAULTED ──────────────────────────
- * Same shape as `formatCurrency(value, intl)` and `formatDate(value, intl)` — the whole family
+ * Same shape as `formatPlatformMoney(value, intl)` and `formatDate(value, intl)` — the whole family
  * of formatters is threaded identically, which is what `i18n:check`'s PINNED-FORMATTER count
  * counts. It defaults so a caller with no reader-locale in hand still renders US conventions
  * rather than throwing; every call site in the tree passes one.

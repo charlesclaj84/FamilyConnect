@@ -115,7 +115,7 @@ export default async function HelpIndexPage() {
                   <span className="flex shrink-0 items-center gap-2">
                     <HelpAvailabilityBadge availability={availability?.get(chapter.slug)} t={t} />
                     <ChevronRight
-                      className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5"
+                      className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 rtl:group-hover:-translate-x-0.5 rtl:-scale-x-100"
                       aria-hidden="true"
                     />
                   </span>

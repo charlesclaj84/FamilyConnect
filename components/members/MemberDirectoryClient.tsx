@@ -103,12 +103,12 @@ export function MemberDirectoryClient({ members }: Props) {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute start-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder={t('bday.searchPh')}
             value={query}
             onChange={e => setQuery(e.target.value)}
-            className="pl-8"
+            className="ps-8"
           />
         </div>
         {chapters.length > 0 && (
@@ -153,7 +153,7 @@ export function MemberDirectoryClient({ members }: Props) {
         <div className="overflow-hidden rounded-xl border">
           <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <SortTh label={t('field.name')} {...sortProps('name')} className="px-3 py-2 font-semibold" />
                 {/* ── POSITION REPLACED REGION ON 2026-08-20, AND IT HAD TO ────────────────
                     Members & Access made that swap because board positions are assigned from

@@ -7,11 +7,11 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { requireEdit, requireRead } from '@/lib/auth/guard'
 import { FAMILY_RESOURCE } from '@/components/admin/family-settings'
 import { TIER_IS_SOLD, TIER_PRICE } from '@/lib/plans'
-import { formatCurrency } from '@/lib/currency-utils'
+import { formatPlatformMoney } from '@/lib/currency-utils'
 import { monthLabel } from '@/lib/calendar'
 import { TIER_LABEL, TIER_RANK, isFamilyTier, type FamilyTier } from '@/lib/tiers'
 import {
-  MAX_PREPAY_MONTHS, NO_PLATFORM_BILLING, addDays, daysBetween, daysLeftInMonth,
+  MAX_PREPAY_MONTHS, NO_PLATFORM_BILLING, addDays, catchUpQuote, daysBetween, daysLeftInMonth,
   dueNowTotalCents, entitlementOn, initialChargeLines, isPrepayMonths, nextFirstOfMonth,
   prepayQuoteCents, scheduleDowngrade, stripeTrialEnd, tierMove, upgradeQuote,
   type BillingMode, type PlatformBillingRecord,
@@ -276,6 +276,21 @@ export async function startPlanCheckout(input: {
   months?: number
   /** Monthly path only: `'remainder'` or `'remainder-plus-next'`. See below. */
   firstPayment?: string
+  /**
+   * What to do about data withheld by an earlier downgrade — `'keep'` or `'fresh'`.
+   *
+   * ── REQUIRED WHEN A WINDOW IS OPEN, AND REFUSED WHEN IT IS NOT ───────────────────
+   * Decided 2026-08-23: a family coming back inside the sixty days chooses between paying for
+   * the months they were away and keeping everything, or paying nothing extra and losing it.
+   * Both are legitimate and they cost different amounts, so this cannot have a default — a
+   * silent `'keep'` charges somebody for months they did not agree to, and a silent `'fresh'`
+   * destroys a family tree on a plan change.
+   *
+   * So the action REFUSES a purchase that would cover a withheld tier without saying which,
+   * and refuses this parameter when there is nothing withheld. The dialog asks; this is not
+   * the gate (§2), which is why it refuses rather than guessing.
+   */
+  withheldData?: string
 }): Promise<CheckoutResult> {
   const g = await requireEdit(FAMILY_RESOURCE)
   if (!g.ok) return { success: false, message: g.message }
@@ -369,6 +384,34 @@ export async function startPlanCheckout(input: {
     }
   }
 
+  // ── THE WITHHELD-DATA CHOICE, RESOLVED BEFORE ANY MONEY IS QUOTED ────────────────
+  // A window is OPEN when `withheld_since` is set, and this purchase COVERS it when the tier
+  // being bought is at least the tier that was withheld. Only then is there a choice to make
+  // — buying Standard while Premium's data is withheld does not bring it back, so the family
+  // is not asked and the window keeps running.
+  const withheldFrom = isFamilyTier(record.withheld_from_tier)
+    ? record.withheld_from_tier
+    : null
+  const windowOpen = record.withheld_since != null && withheldFrom != null
+  const purchaseCovers = windowOpen && withheldFrom != null
+    && TIER_RANK[tier] >= TIER_RANK[withheldFrom]
+
+  if (input.withheldData != null
+      && input.withheldData !== 'keep' && input.withheldData !== 'fresh') {
+    return { success: false, message: t('act.chooseKeepOrStartFresh') }
+  }
+  if (purchaseCovers && input.withheldData == null) {
+    // NO DEFAULT. See the parameter's own note: one reading charges for months nobody agreed
+    // to and the other destroys a family tree.
+    return { success: false, message: t('act.chooseKeepOrStartFresh') }
+  }
+  if (!purchaseCovers && input.withheldData != null) {
+    // Refused rather than ignored. A caller sending `keep` on a purchase that brings nothing
+    // back would be quoted arrears for data this session does not restore.
+    return { success: false, message: t('act.nothingWithheldToKeep') }
+  }
+  const withheldChoice = purchaseCovers ? (input.withheldData as 'keep' | 'fresh') : null
+
   const customerId = await ensureCustomer(admin, stripe, {
     familyCode: g.familyCode,
     existing: record.stripe_customer_id,
@@ -383,6 +426,11 @@ export async function startPlanCheckout(input: {
     genorra_family_code: g.familyCode,
     genorra_tier: tier,
     genorra_mode: mode,
+    // WHAT TO DO WITH THE WITHHELD DATA, carried so the webhook can act on a decision the
+    // family made here. Absent when there is nothing withheld, which is the ordinary case —
+    // and the handler treats an absent value as "leave the window alone" rather than as
+    // either choice, for the reason the parameter has no default.
+    ...(withheldChoice ? { genorra_withheld: withheldChoice } : {}),
   }
 
   // ── THE PART MONTH, AND WHEN THE CYCLE STARTS ─────────────────────────────────────
@@ -399,9 +447,30 @@ export async function startPlanCheckout(input: {
   // — see its header for why one rolled-up figure was not good enough on the hosted page.
   // Empty when a live prepaid term already owns these days, which is the case that would
   // otherwise be charged twice.
-  const dueNow = extendingLiveTerm
-    ? []
-    : initialChargeLines(tier, today, mode === 'prepaid' ? 'prepaid-remainder' : firstPayment)
+  // ── KEEPING THE DATA IS PRICED DIFFERENTLY, AND IT IS THE WHOLE OF THE DIFFERENCE ──
+  // "Pay for the months they were away, so the tier's billing has no hole in it" — decided
+  // 2026-08-23. `catchUpQuote` is that arithmetic and is shared with the delinquency ladder,
+  // deliberately, so the two figures cannot agree today and drift tomorrow.
+  //
+  // ONE LINE ON THE HOSTED PAGE, NAMED. A family being charged four months at once has to see
+  // WHY on the page where they commit, which is `initialChargeLines`' own argument about
+  // itemising rather than showing a total to take on trust.
+  const keeping = withheldChoice === 'keep' && record.withheld_since != null
+  const dueNow = keeping
+    ? [{
+        name: t('bill.catchUpLine', {
+          plan: TIER_LABEL[withheldFrom ?? tier],
+          months: String(catchUpQuote({
+            tier: withheldFrom ?? tier, from: record.withheld_since!, today,
+          }).monthsBehind),
+        }),
+        cents: catchUpQuote({
+          tier: withheldFrom ?? tier, from: record.withheld_since!, today,
+        }).totalCents,
+      }]
+    : extendingLiveTerm
+      ? []
+      : initialChargeLines(tier, today, mode === 'prepaid' ? 'prepaid-remainder' : firstPayment)
 
   if (dueNow == null) {
     // Only reachable for 'remainder' below the product floor, which is the ordinary state of
@@ -592,10 +661,10 @@ export async function startPlanCheckout(input: {
           custom_text: {
             submit: {
               message: t('bill.checkoutSubmitCovers', {
-                amount: formatCurrency(dueNowCents, intl),
+                amount: formatPlatformMoney(dueNowCents, intl),
                 month: monthLabel(addDays(billingStartsOn, -1).slice(0, 7)),
                 plan: TIER_LABEL[tier],
-                monthly: formatCurrency(TIER_PRICE[tier]?.monthlyCents ?? 0, intl),
+                monthly: formatPlatformMoney(TIER_PRICE[tier]?.monthlyCents ?? 0, intl),
               }),
             },
           },
@@ -1145,7 +1214,7 @@ async function upgradeFromPrepaid(input: {
         ? t('bill.activeNowCredit', {
             plan: TIER_LABEL[nextTier],
             through: quote.paidThrough,
-            credit: formatCurrency(quote.creditLeftCents, intl),
+            credit: formatPlatformMoney(quote.creditLeftCents, intl),
           })
         : t('bill.activeNowExact', {
             plan: TIER_LABEL[nextTier], through: quote.paidThrough,
@@ -1211,7 +1280,7 @@ async function upgradeFromPrepaid(input: {
       success: true,
       url: session.url,
       message: t('bill.openingStripeToCollect', {
-        amount: formatCurrency(quote.dueNowCents, intl),
+        amount: formatPlatformMoney(quote.dueNowCents, intl),
       }),
     }
   } catch (e) {
@@ -1293,12 +1362,20 @@ interface BillingRow {
   cancel_at_period_end: boolean | null
   scheduled_tier: string | null
   scheduled_tier_on: string | null
+  /**
+   * The retention clock (`20260901000002`). On `BillingRow` rather than in a second projection
+   * because it is a MONEY fact: `startPlanCheckout` prices a returning family off it, and a
+   * separate read would let the quote and the window disagree about whether one is open.
+   */
+  withheld_since: string | null
+  withheld_from_tier: string | null
 }
 
 const EMPTY_ROW: BillingRow = {
   stripe_customer_id: null, stripe_subscription_id: null, mode: null,
   paid_tier: null, paid_through: null, subscription_status: null,
   cancel_at_period_end: false, scheduled_tier: null, scheduled_tier_on: null,
+  withheld_since: null, withheld_from_tier: null,
 }
 
 /**
@@ -1318,7 +1395,7 @@ interface SignupIntentRow {
 async function loadRecord(admin: AdminClient, familyCode: string): Promise<BillingRow> {
   const { data } = await admin
     .from('platform_billing_accounts')
-    .select('stripe_customer_id, stripe_subscription_id, mode, paid_tier, paid_through, subscription_status, cancel_at_period_end, scheduled_tier, scheduled_tier_on')
+    .select('stripe_customer_id, stripe_subscription_id, mode, paid_tier, paid_through, subscription_status, cancel_at_period_end, scheduled_tier, scheduled_tier_on, withheld_since, withheld_from_tier')
     .eq('family_code', familyCode)
     .maybeSingle()
   return (data as BillingRow | null) ?? EMPTY_ROW

@@ -304,7 +304,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
       {/* THE TRIGGER IS ALWAYS HERE NOW. It used to be replaced by the form, so opening the
           form removed the only way back to the list. */}
       <Button size="sm" onClick={openCreate}>
-        <Plus className="h-4 w-4 mr-1" /> {t('ael.new')}
+        <Plus className="h-4 w-4 me-1" /> {t('ael.new')}
       </Button>
 
       <FormError message={listError} />
@@ -515,7 +515,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
                 <div className="flex items-center gap-1 shrink-0">
                   {e.status === 'draft' && (
                     <>
-                      <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer select-none mr-1">
+                      <label className="flex items-center gap-1 text-xs text-muted-foreground cursor-pointer select-none me-1">
                         <input
                           type="checkbox"
                           checked={announce[e.id] ?? true}
@@ -526,7 +526,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
                       </label>
                       <Button size="sm" variant="outline" className="h-7 text-xs"
                         onClick={() => handlePublish(e)} disabled={isPending}>
-                        <Send className="h-3 w-3 mr-1" /> {t('ael.publish')}
+                        <Send className="h-3 w-3 me-1" /> {t('ael.publish')}
                       </Button>
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
                         aria-label={`Edit ${e.title}`} onClick={() => openEdit(e)}>
@@ -538,7 +538,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
                   {e.status === 'published' && e.nomination_count === 0 && e.vote_count === 0 && (
                     <Button size="sm" variant="outline" className="h-7 text-xs"
                       onClick={() => handleUnpublish(e)} disabled={isPending}>
-                      <Undo2 className="h-3 w-3 mr-1" /> {t('ael.returnToDraft')}
+                      <Undo2 className="h-3 w-3 me-1" /> {t('ael.returnToDraft')}
                     </Button>
                   )}
                   {/* ── THE ORGANIZER'S SCREEN, NOT THE MEMBER'S BALLOT ─────────
@@ -555,7 +555,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
                   <Link href={`/admin/elections/${e.id}`}
                     aria-label={`Open ${e.title}`}>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
-                      <ChevronRight className="h-3.5 w-3.5" />
+                      <ChevronRight className="h-3.5 w-3.5 rtl:-scale-x-100" />
                     </Button>
                   </Link>
                   <Button size="sm" variant="ghost"
@@ -567,7 +567,7 @@ export function AdminElectionsClient({ initialElections, regions, chapters, role
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-x-6 gap-y-0.5 pl-0.5">
+              <div className="flex flex-wrap gap-x-6 gap-y-0.5 ps-0.5">
                 {e.nominations_open_on && (
                   <p className="text-xs text-muted-foreground">
                     Nominations: {formatDateRange(e.nominations_open_on, e.nominations_close_on)}

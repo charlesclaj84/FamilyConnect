@@ -90,14 +90,14 @@ export default async function ElectionsReportPage() {
           <table className="w-full border-collapse text-sm">
             <caption className="sr-only">{t('rep.everyPublishedElectionIts')}</caption>
             <thead>
-              <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 <th scope="col" className="px-3 py-2">Election</th>
                 <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Area</th>
                 <th scope="col" className={cn('px-3 py-2', COLLAPSING_CELL)}>Phase</th>
-                <th scope="col" className={cn('px-3 py-2 text-right', COLLAPSING_CELL)}>
+                <th scope="col" className={cn('px-3 py-2 text-end', COLLAPSING_CELL)}>
                   Nominations
                 </th>
-                <th scope="col" className="px-3 py-2 text-right">Turnout</th>
+                <th scope="col" className="px-3 py-2 text-end">Turnout</th>
               </tr>
             </thead>
             <tbody>
@@ -133,7 +133,7 @@ export default async function ElectionsReportPage() {
                   </td>
                   <td className={cn('px-3 py-2', COLLAPSING_CELL)}>{row.scopeLabel}</td>
                   <td className={cn('px-3 py-2', COLLAPSING_CELL)}>{row.phase}</td>
-                  <td className={cn('px-3 py-2 text-right tabular-nums', COLLAPSING_CELL)}>
+                  <td className={cn('px-3 py-2 text-end tabular-nums', COLLAPSING_CELL)}>
                     {row.accepted} / {row.nominations}
                     {row.uncontested > 0 && (
                       <span className="block text-xs text-brand-withheld">
@@ -143,7 +143,7 @@ export default async function ElectionsReportPage() {
                       </span>
                     )}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  <td className="px-3 py-2 text-end tabular-nums">
                     {/* NULL IS NOT ZERO. `turnout` answers null when nobody is eligible — a
                         chapter election in a chapter with no approved members has no turnout,
                         and "0%" would read as an election everybody ignored. */}

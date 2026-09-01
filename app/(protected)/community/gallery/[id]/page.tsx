@@ -54,16 +54,16 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
       <div>
         <Link href="/community/gallery"
           className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="h-3.5 w-3.5" />{t('comm.allAlbums')}</Link>
+          <ChevronLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />{t('comm.allAlbums')}</Link>
         <div className="flex items-center gap-3">
           <Images className="h-6 w-6 shrink-0 text-brand-accent" />
           <h1 className="text-2xl font-bold">{collection.name}</h1>
-          <span className="ml-auto text-sm text-muted-foreground">
+          <span className="ms-auto text-sm text-muted-foreground">
             {collection.photo_count} photo{collection.photo_count !== 1 ? 's' : ''}
           </span>
         </div>
         {collection.description && (
-          <p className="ml-9 mt-2 text-muted-foreground">{collection.description}</p>
+          <p className="ms-9 mt-2 text-muted-foreground">{collection.description}</p>
         )}
       </div>
 

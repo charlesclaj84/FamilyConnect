@@ -175,7 +175,7 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
       >
         <Bell className="h-5 w-5" />
         {badgeCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
+          <span className="absolute -top-0.5 -end-0.5 h-4 w-4 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center">
             {badgeCount > 9 ? '9+' : badgeCount}
           </span>
         )}
@@ -184,7 +184,7 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
       {open && (
         <>
           <div className={HEADER_PANEL_SCRIM_CLASS} onClick={() => setOpen(false)} aria-hidden="true" />
-          {/* Was a flat `w-80` anchored `right-0` to the bell. The bell sits ~110px in
+          {/* Was a flat `w-80` anchored `end-0` to the bell. The bell sits ~110px in
               from the right edge, so on a 375px screen those 320px started 55px off the
               left of the display and the first half of every notification was gone. It
               is a full-width sheet under the header below sm now; see header-panel.ts. */}
@@ -259,7 +259,7 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
                           type="button"
                           onClick={() => openQueue(queue)}
                           disabled={isPending}
-                          className="flex w-full items-start gap-2 bg-brand-soft px-4 py-3 text-left transition-colors hover:bg-muted/50 disabled:opacity-60"
+                          className="flex w-full items-start gap-2 bg-brand-soft px-4 py-3 text-start transition-colors hover:bg-muted/50 disabled:opacity-60"
                         >
                           {body}
                         </button>
@@ -278,7 +278,7 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
                   >
                     <div className="flex items-start gap-2">
                       {!n.read_at && <span className="mt-1.5 shrink-0 h-1.5 w-1.5 rounded-full bg-primary" />}
-                      <div className={!n.read_at ? '' : 'pl-3.5'}>
+                      <div className={!n.read_at ? '' : 'ps-3.5'}>
                         <p className="text-xs font-medium leading-snug">{n.title}</p>
                         {n.body && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{n.body}</p>}
                         <p className="text-[10px] text-muted-foreground/60 mt-1">{formatTimeAgo(timeAgo(n.created_at), locale)}</p>

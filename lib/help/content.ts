@@ -2382,6 +2382,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Processing',
             blocks: [
               p('**Processing** is where your family connects its own Stripe account, so relatives can pay their dues by card instead of writing a cheque. Press **Connect a Stripe account** and Stripe collects everything it needs on its own pages; when you come back, this pane says whether card payments are switched on.'),
+              p('**Which country you pick decides which currency your family collects in.** The **Country** control on this pane sets both: pick Canada and your dues, funds and gathering budgets are all recorded in Canadian dollars, and relatives are charged in Canadian dollars. It is one choice rather than two, so the money your family asks for and the money that reaches its bank are always the same number.'),
+              note('**Both are settled once either a payment has been recorded or the Stripe account has been created, and neither can be undone.** Stripe cannot move a connected account to another country, and your family’s ledger cannot be re-denominated after the fact — a hundred rows saying $40 would have to mean two different things. The pane says which of the two settled it. Pick the country before you record your first payment.'),
               p('**The account belongs to your family, not to GENORRA.** Money goes straight to your family\'s bank, Stripe\'s processing fees come out of your family\'s side, and your family keeps its own Stripe dashboard, its own payout schedule and its own refunds. GENORRA takes no share of what your family collects.'),
               note('**You will never be asked for a Stripe key, and you should never give one to anybody.** GENORRA stores only your account\'s id — enough to send a payment to you, and useless to anyone on its own. If a screen ever asks you to paste a key that begins `sk_`, it is not this product.'),
               p('A card payment posts to the family\'s books the moment it clears and splits across your funds by the same **Routing** table a payment keyed in by hand follows. Nobody has to enter it afterwards, and it appears in [Transactions](/accounting/transactions) beside everything else.'),
@@ -2923,7 +2925,38 @@ export const HELP_PARTS: readonly HelpPart[] = [
               note('**Nothing is granted by pressing a button here.** The plan changes when the payment clears, which can be a moment later — so if the band still shows the old plan straight after paying, give it a minute and reload. If a payment fails, this section says so and nothing your family can reach changes while Stripe keeps trying the card.'),
               p('**Cards and receipts** opens Stripe\'s own billing portal, where the card on file is changed and every invoice can be downloaded. **What GENORRA has charged** lists the same payments here — what was bought, when it was paid, what it covers and how much.'),
               note('These are GENORRA\'s charges to your family and they are deliberately nowhere near your family\'s own money. Nothing on this section appears in your funds, your [P&L](/reporting/pl-summary), your dues projections or any member\'s payment history — what your family pays us and what your relatives pay your family are two separate sets of books.'),
-              p('**To stop paying, move down to Free on the [Plan](/admin/settings) section.** That ends a monthly plan at the end of the period already paid for, never immediately. Every page stays open until then and every record is kept afterwards — moving back up later finds everything where it was.'),
+              p('**To stop paying, move down to Free on the [Plan](/admin/settings) section.** That ends a monthly plan at the end of the period already paid for, never immediately. Every page stays open until then.'),
+              note('**What the cheaper plan does not include is then kept for sixty days, and deleted after that.** Nothing goes on the day you move down. You are reminded thirty, fifteen, five and one day before, and moving back up inside those sixty days finds everything exactly where it was — see [what happens to your records](/help/family-settings#retention).'),
+            ],
+          },
+          {
+            id: 'retention',
+            heading: 'What happens to your records',
+            blocks: [
+              p('**Moving down to a cheaper plan does not delete anything on the day you do it.** The pages that plan included stop opening, and everything behind them is kept for **sixty days**. Move back up inside those sixty days and every record is exactly where you left it.'),
+              p('**Billing** shows the date throughout, and four reminders go to whoever looks after billing — thirty days before, fifteen, five and one.'),
+              defs(
+                { term: 'Keep it', text: 'Move back to the plan you left. That covers the months you were away as well as the coming one, so the plan has no gap in it, and the figure is on the Billing section before you commit to anything.' },
+                { term: 'Let it go', text: 'Do nothing and it is deleted on the date shown, at no extra cost. If you have already decided, **Let these records go…** on the Billing section does it today rather than reminding you three more times — it asks for a six-digit code emailed to you first, and it lists exactly what will be removed.' },
+              ),
+              note('**Deleted records cannot be recovered.** Not by you, not by GENORRA support, not from a backup. That is why the sixty days and the four reminders exist, and it is the one sentence on this page worth reading twice.'),
+              p('**What is never deleted:** your relatives, the Member Directory, announcements, chat, the calendar and everything else the Free plan includes. A family that stops paying entirely still has all of that.'),
+            ],
+          },
+          {
+            id: 'overdue',
+            heading: 'If a payment fails',
+            blocks: [
+              p('A card is declined for ordinary reasons — it expired, the bank flagged it, the billing address moved. Nothing changes the day it happens, and updating the card on **Billing** settles it.'),
+              p('If it stays unpaid, access is limited in stages so that whoever can fix it always can:'),
+              defs(
+                { term: 'After 5 days', text: 'Everyone who looks after billing is emailed. Nothing is limited and everybody carries on as usual.' },
+                { term: 'After 10 days', text: 'Relatives can no longer use the site. Administrators keep full access, and paying restores everybody at once.' },
+                { term: 'After 30 days', text: 'Only the Billing section stays open, for administrators too. Nothing has been removed and everything opens again on payment.' },
+                { term: 'After 60 days', text: 'The family moves to the Free plan, and what the Free plan does not include is deleted. Two warnings go out first — at 45 days and the day before.' },
+              ),
+              note('**Nothing is deleted before day 60, and nothing about the plan changes before then either.** Pay on day 59 and every screen and every record is exactly where it was. What is deleted on day 60 cannot be recovered.'),
+              p('A member who sees "temporarily unavailable" is being told the whole message deliberately: what a family owes GENORRA is not every relative’s business. They are asked to contact whoever looks after the family’s accounting, which is the person who can actually resolve it.'),
             ],
           },
           {
@@ -3048,7 +3081,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'data',
             heading: 'Changing plan never removes data',
             blocks: [
-              p('A plan decides which screens a family can open, and nothing else. A family that moves to a cheaper plan keeps every record it has ever entered — the pages that read them simply stop opening. Moving back brings them straight back.'),
+              p('A plan decides which screens a family can open. A family that moves to a cheaper plan keeps every record it has entered for **sixty days** — the pages that read them stop opening, and moving back inside those sixty days brings everything straight back. After sixty days, what the cheaper plan does not include is deleted. Four reminders arrive first, and [Billing](/admin/settings) shows the date throughout.'),
             ],
           },
         ],

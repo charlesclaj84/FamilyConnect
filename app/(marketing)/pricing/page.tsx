@@ -665,17 +665,17 @@ export default async function PricingPage() {
                   free thing and then some paid things. */}
               <div aria-hidden="true" className="h-1.5 w-full bg-brand-affirm" />
 
-              <span className="absolute right-0 top-1.5 rounded-bl-xl bg-brand-affirm px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-on-affirm">
+              <span className="absolute end-0 top-1.5 rounded-es-xl bg-brand-affirm px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-brand-on-affirm">
                 {t('mkt.price.availableNow')}
               </span>
 
-              {/* `lg:` and not `md:`: the right-hand half carries two columns of
+              {/* `lg:` and not `md:`: the end-hand half carries two columns of
                   bullets, so splitting the band before there is room for four columns
                   of text leaves both halves too narrow. Below that it stacks, which is
                   the order the eye reads it in anyway — offer, price, button, then
                   what is in it. */}
               <div className="grid gap-6 p-6 sm:p-7 lg:grid-cols-[minmax(0,17rem)_1fr] lg:gap-10">
-                <div className="lg:border-r lg:pr-10">
+                <div className="lg:border-e lg:pe-10">
                   <div className="flex items-center gap-2.5">
                     <span className="inline-flex rounded-xl bg-brand-affirm p-2 text-brand-on-affirm">
                       <Check className="h-4 w-4" aria-hidden="true" />
@@ -761,8 +761,8 @@ export default async function PricingPage() {
         className="relative overflow-hidden bg-brand-hero px-4 py-16 sm:px-6 sm:py-20"
       >
         <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-          <div className="gn-float absolute -right-16 -top-24 h-72 w-72 rounded-full bg-brand-legacy/12 blur-3xl" />
-          <div className="gn-float-slow absolute -bottom-28 -left-20 h-80 w-80 rounded-full bg-brand-accent/12 blur-3xl" />
+          <div className="gn-float absolute -end-16 -top-24 h-72 w-72 rounded-full bg-brand-legacy/12 blur-3xl" />
+          <div className="gn-float-slow absolute -bottom-28 -start-20 h-80 w-80 rounded-full bg-brand-accent/12 blur-3xl" />
         </div>
 
         <div className="relative mx-auto max-w-5xl">

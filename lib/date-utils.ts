@@ -258,15 +258,68 @@ export function formatDate(
  * SHORT AND LONG BOTH, because the column heading prints the short form and a screen reader
  * announces the long one: "Sun" read aloud is a word, not a day.
  */
+/**
+ * Which weekday a calendar week starts on, `0` = Sunday.
+ *
+ * ── A REGIONAL CONVENTION, AND NOT A READING DIRECTION ─────────────────────────────
+ * Raised by TODO.md's Arabic note — *"the calendar's Sunday-first week becomes a question"* —
+ * and answering it turned up a live defect in a language already shipped, which is the reason
+ * it is fixed here rather than deferred with the rest of the right-to-left work.
+ *
+ * THE TWO QUESTIONS ARE SEPARATE AND ONLY ONE OF THEM IS ABOUT DIRECTION:
+ *
+ *   WHICH SIDE the week starts on   free. `MonthCalendar` is a real `<table>`, so a
+ *                                   `dir="rtl"` page lays its columns right-to-left and the
+ *                                   first weekday appears on the right with nothing to change.
+ *   WHICH DAY the week starts on    this function, and it has nothing to do with direction.
+ *                                   France starts on Monday and the grid was Sunday-first for
+ *                                   everybody — so a French member has been reading a calendar
+ *                                   whose columns are shifted by a day since `fr` shipped.
+ *
+ * ── A TABLE RATHER THAN `Intl.Locale.getWeekInfo()` ────────────────────────────────
+ * The same judgement `minorUnitsPerMajor` and `stripeMinimumCents` make: `getWeekInfo` is
+ * recent, its shape has moved (a `weekInfo` accessor in earlier engines), and it is absent in
+ * enough runtimes that the fallback would be the code path nobody tested. Three shipped locales
+ * need three answers, and each is a fact somebody can check.
+ *
+ * ── IT IS KEYED ON THE `Intl` TAG, WHICH IS THE ONLY THING THAT CAN ANSWER ─────────
+ * Not on the two-character code. Spanish is Sunday-first in Mexico and Monday-first in Spain,
+ * so `'es'` has no answer — `es-MX` does. That is exactly the distinction `lib/i18n/locales.ts`
+ * opens by saying is *"a real bug"* to conflate, arriving in a third place.
+ *
+ * Sunday for anything unrecognised, matching what every grid in the product did before this.
+ */
+export function firstWeekdayFor(locale: string | null | undefined): number {
+  const tag = (locale || DEFAULT_MONEY_LOCALE).toLowerCase()
+  // Monday-first regions this product speaks or is heading for. Region-qualified, because the
+  // language alone cannot decide it — see above.
+  const MONDAY = ['fr-fr', 'fr-ca', 'fr', 'es-es', 'de-de', 'de', 'pt-br', 'pt', 'it-it', 'it']
+  // Saturday-first: most of the Arabic-speaking world, and the first place the reading
+  // direction and the week start happen to coincide. Listed now because a locale added later
+  // must not silently take the Sunday default.
+  const SATURDAY = ['ar-eg', 'ar-sa', 'ar-ae', 'ar']
+  if (SATURDAY.includes(tag)) return 6
+  if (MONDAY.includes(tag)) return 1
+  const primary = tag.split('-')[0]
+  if (SATURDAY.includes(primary)) return 6
+  if (MONDAY.includes(primary)) return 1
+  return 0
+}
+
 export function weekdayNames(locale: string = DEFAULT_MONEY_LOCALE): {
   short: string
   long: string
 }[] {
   const shortFmt = dateFormatter(locale, { weekday: 'short' }, 'wd-short')
   const longFmt = dateFormatter(locale, { weekday: 'long' }, 'wd-long')
+  // ROTATED TO THE READER'S FIRST WEEKDAY, and it MUST agree with `buildCalendarMonth`, which
+  // asks the same function. A header row that starts on Sunday over a grid that starts on
+  // Monday is not a cosmetic mismatch — every date sits under the wrong column name, silently,
+  // and looks entirely plausible.
+  const first = firstWeekdayFor(locale)
   return Array.from({ length: 7 }, (_, i) => {
     // 2026-01-04 is a Sunday. Any Sunday would do; a constant keeps it out of the clock.
-    const day = new Date(Date.UTC(2026, 0, 4 + i))
+    const day = new Date(Date.UTC(2026, 0, 4 + ((first + i) % 7)))
     return { short: shortFmt.format(day), long: longFmt.format(day) }
   })
 }

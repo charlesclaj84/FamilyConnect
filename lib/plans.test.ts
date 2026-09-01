@@ -4,7 +4,7 @@ import {
   formatPlanPrice, planAddsBetween, planChange,
 } from '@/lib/plans'
 import { TIERS, type FamilyTier } from '@/lib/tiers'
-import { formatCurrency } from '@/lib/currency-utils'
+import { formatPlatformMoney } from '@/lib/currency-utils'
 import { tFor } from '@/lib/i18n/catalogues'
 
 /**
@@ -253,7 +253,7 @@ describe('formatPlanPrice', () => {
 
   it('is the same figure formatCurrency gives, minus the zero cents', () => {
     // WHAT THIS REPLACES, and why it is the honest version. The old last case pinned
-    // `formatCurrency(cents)` against `/^\$[\d,]+\.\d{2}$/` — an assertion that read as
+    // `formatPlatformMoney(cents)` against `/^\$[\d,]+\.\d{2}$/` — an assertion that read as
     // being about fraction digits and was in fact about `en-US`, which is how the premise
     // came to be wrong in the two languages nobody on the team reads.
     //
@@ -262,11 +262,11 @@ describe('formatPlanPrice', () => {
     // of all three languages, so a fourth added later inherits the check by being added to
     // the list rather than by somebody rewriting a regex.
     for (const intl of ['en-US', 'es-MX', 'fr-FR']) {
-      expect(formatPlanPrice(1_250, intl)).toBe(formatCurrency(1_250, intl))
-      expect(formatPlanPrice(1_205, intl)).toBe(formatCurrency(1_205, intl))
+      expect(formatPlanPrice(1_250, intl)).toBe(formatPlatformMoney(1_250, intl))
+      expect(formatPlanPrice(1_205, intl)).toBe(formatPlatformMoney(1_205, intl))
       // And a whole number of dollars is the SAME string with the separator and the two
       // zeroes gone — never a differently-punctuated figure.
-      expect(formatCurrency(1_000, intl)).toContain(formatPlanPrice(1_000, intl).split(/[\s\u00a0\u202f]/)[0])
+      expect(formatPlatformMoney(1_000, intl)).toContain(formatPlanPrice(1_000, intl).split(/[\s\u00a0\u202f]/)[0])
     }
   })
 })

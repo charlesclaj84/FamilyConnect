@@ -251,7 +251,7 @@ export function StaffAccessClient({ team }: { team: StaffTeamRow[] }) {
           <div className="overflow-hidden rounded-xl border">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <SortTh label={t('staff.account')} {...sortProps('account')} className="px-3 py-2 font-semibold" />
                   <SortTh label={t('staff.access')} {...sortProps('access')} className="px-3 py-2 font-semibold" />
                   <SortTh label={t('staff.why')} {...sortProps('why')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
@@ -573,7 +573,7 @@ function TeamRow({ row, ownerTotal, onError }: {
         <span className="block text-xs break-all">{grantedBy}</span>
       </td>
 
-      <td className="px-3 py-2.5 text-right">
+      <td className="px-3 py-2.5 text-end">
         <Button
           type="button"
           size="sm"

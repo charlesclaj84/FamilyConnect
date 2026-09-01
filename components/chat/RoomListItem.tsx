@@ -34,7 +34,7 @@ export function RoomListItem({ room, currentUserId, isActive, onClick, onDelete 
       <button
         onClick={onClick}
         className={cn(
-          'flex-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-left transition-colors min-w-0',
+          'flex-1 flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-start transition-colors min-w-0',
           isActive
             ? 'bg-brand-primary text-brand-on-primary font-medium'
             : 'text-brand-ink hover:bg-brand-primary/10',

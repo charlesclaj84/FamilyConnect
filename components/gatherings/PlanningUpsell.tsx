@@ -70,7 +70,7 @@ export function PlanningUpsell({ variant = 'panel', className }: {
   if (variant === 'inline') {
     return (
       <p className={cn('text-xs text-muted-foreground', className)}>
-        <Sparkles className="mr-1 inline h-3 w-3 align-[-0.1em]" aria-hidden="true" />
+        <Sparkles className="me-1 inline h-3 w-3 align-[-0.1em]" aria-hidden="true" />
         {/* TWO KEYS WITH THE LINK BETWEEN THEM, not one key with markup in it. The
             catalogue holds strings and nothing else — a `<Link>` inside a translated value
             would need a parser, and a translator who moved the anchor would move a route.

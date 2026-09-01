@@ -580,7 +580,19 @@
   letter-spacing: 0.18em;
   font-weight: 600;
   /* The tracking is applied to the right of the last letter too, which
-     visually decentres the word inside its box. Pull it back. */
+     visually decentres the word inside its box. Pull it back.
+
+     PHYSICAL ON PURPOSE, AND IT MUST NOT BECOME `margin-inline-end`. Everything
+     else in this product took a logical property in the 2026-09-01 layout pass,
+     and this is the one place where that would be wrong: the stray gap belongs
+     to the LATIN TEXT rather than to the container. "GENORRA" is Latin script,
+     so the bidi algorithm lays it out left-to-right inside a `dir="rtl"` page
+     and its trailing letterspace is still on the visual RIGHT — while
+     `margin-inline-end` would resolve to the left and pull from the wrong side,
+     making the very thing this line corrects twice as bad.
+
+     The test for a case like this: does the artifact belong to the BOX (mirror
+     it) or to the GLYPHS inside it (do not)? */
   margin-right: -0.18em;
 }
 

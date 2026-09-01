@@ -293,7 +293,49 @@ export const fr: Catalogue = {
   // names the missing one rather than letting the picker print a key.
   'proc.countryLabel': 'Où la famille a sa banque',
   'proc.countryPermanent': 'Stripe ne peut pas modifier ceci après la création du compte : cela décide de la devise des versements et des documents qui vous seront demandés.',
+  'proc.countryDecidesCurrency': 'Les cotisations, les fonds et les budgets de votre famille seront enregistrés en {currency}.',
+  'proc.currencyFixedByAccount': 'Votre famille encaisse en {currency} ({country}). Stripe ne peut pas déplacer un compte connecté vers un autre pays : ce choix est définitif.',
+  'proc.currencyFixedByPayments': 'Votre famille encaisse en {currency} ({country}). Des paiements ont déjà été enregistrés et le registre ne peut pas être redénominé : ce choix est définitif.',
   'act.countryNotAvailableForDues': 'La collecte des cotisations en ligne n’est pas encore disponible dans ce pays.',
+  'act.nothingWithheldToLetGo': 'Aucune donnée conservée à supprimer.',
+  'act.couldNotDeleteRecordsPlease': 'Ces données n’ont pas pu être supprimées. Veuillez réessayer.',
+  'act.thatCodeNotRight': 'Ce code n’est pas correct.',
+  'act.enterSixDigitCode': 'Saisissez le code à six chiffres reçu par courriel.',
+  'ret.heading': 'Données de votre ancienne offre',
+  'ret.p1': 'Votre famille est passée sous {tier}. Tout ce que cette offre incluait a été conservé plutôt que supprimé, et sera supprimé dans {days} jours.',
+  'ret.p1One': 'Votre famille est passée sous {tier}. Tout ce que cette offre incluait a été conservé plutôt que supprimé, et sera supprimé demain.',
+  'ret.p1Today': 'Votre famille est passée sous {tier}. Tout ce que cette offre incluait doit être supprimé aujourd’hui.',
+  'ret.overdue': 'La suppression a {days} jours de retard et attend un rappel qui n’a pas été envoyé. Rien n’a été supprimé.',
+  'ret.keep': 'Revenez à {tier} pour le conserver. Cela couvre les {months} mois d’absence et le mois à venir — {amount}.',
+  'ret.freshHeading': 'Ou supprimez-le maintenant',
+  'ret.fresh': 'Si votre décision est prise, vous pouvez supprimer ces données aujourd’hui plutôt que d’attendre et de recevoir quatre rappels de plus.',
+  'ret.freshButton': 'Supprimer ces données…',
+  'ret.irreversible': 'Les données supprimées ne peuvent pas être récupérées. Cela ne peut être annulé ni par nous ni par personne d’autre.',
+  'ret.willDelete': 'Cela supprimera :',
+  'ret.rows': '{n} ligne(s) dans {table}',
+  'ret.codeSent': 'Un code à six chiffres a été envoyé à {email}. Il est valable {minutes} minutes.',
+  'ret.codeLabel': 'Code reçu par courriel',
+  'ret.confirmButton': 'Supprimer ces données définitivement',
+  'ret.done': 'Ces données ont été supprimées.',
+  'lock.admin.heading': 'Le paiement de votre famille est en retard',
+  'lock.admin.p1Members': 'Le dernier paiement pour {family} n’a pas abouti : les proches ne peuvent donc plus utiliser le site. Vous conservez l’accès complet, et le paiement le rétablit pour tout le monde d’un coup.',
+  'lock.admin.p1All': 'Le dernier paiement pour {family} n’a pas abouti : tous les écrans sauf la facturation sont fermés. Le paiement les rouvre tous.',
+  'lock.admin.nothingLost': 'Rien n’a été supprimé. Tout ce que la famille a saisi est exactement là où c’était.',
+  'lock.admin.warnOne': 'Demain, la famille passe à l’offre Gratuite et tout ce que l’offre Gratuite n’inclut pas est supprimé. Cela est irréversible.',
+  'lock.admin.warnMany': 'Dans {days} jours, la famille passe à l’offre Gratuite et tout ce que l’offre Gratuite n’inclut pas — l’arbre généalogique, le registre des cotisations, les fonds et les photographies — est supprimé. Cela est irréversible.',
+  'lock.admin.button': 'Aller à la facturation',
+  'lock.member.heading': '{family} est temporairement indisponible',
+  'lock.member.p1': 'Un problème comptable affecte le compte de cette famille. Veuillez contacter l’administrateur de votre famille.',
+  'lock.member.p2': 'Rien n’a été supprimé, et tout revient dès que la situation est réglée.',
+  'lock.otherFamilies': 'Vos autres familles ne sont pas concernées —',
+  'lock.myFamilies': 'Mes familles',
+  'act.chooseKeepOrStartFresh': 'Choisissez de conserver les données de votre ancienne offre ou de repartir de zéro avant de continuer.',
+  'act.nothingWithheldToKeep': 'Aucune donnée conservée que cette offre pourrait rétablir.',
+  'bill.catchUpLine': '{plan} — {months} mois d’absence, plus le mois à venir',
+  'act.countryAndCurrencySaved': 'Enregistré. Votre famille encaisse dans la devise de ce pays.',
+  'act.couldNotReadFamilyCurrency': 'Nous n’avons pas pu déterminer la devise dans laquelle votre famille encaisse ; ce paiement n’a pas été lancé. Veuillez réessayer.',
+  'act.currencyFixedByPayments': 'Votre famille a déjà enregistré des paiements : son pays et sa devise ne peuvent plus être modifiés.',
+  'act.currencyFixedByAccount': 'Le compte de paiement de votre famille a déjà été créé : son pays et sa devise ne peuvent plus être modifiés.',
   'country.us': 'États-Unis',
   'country.ca': 'Canada',
   'country.mx': 'Mexique',
@@ -410,7 +452,9 @@ export const fr: Catalogue = {
   'bill.effectOnceDifferencePaid':
     '{plan} prend effet dès que le montant supplémentaire est payé. Stripe facture maintenant la différence pour le reste de cette période.',
   'bill.planStopsOn':
-    'Le forfait s’arrête le {on}. Toutes les pages restent ouvertes jusque-là, et tous les enregistrements sont conservés ensuite.',
+    'Le forfait s’arrête le {on}. Toutes les pages restent ouvertes jusque-là. Ce que l’offre '
+    + 'moins chère n’inclut pas est conservé soixante jours ensuite, puis supprimé si vous n’êtes '
+    + 'pas remonté.',
   'bill.startsOnNoRefund':
     '{plan} commence le {on}. Rien ne change avant, et il n’y a aucun remboursement pour la période déjà payée.',
   'bill.activeNowCredit':
@@ -3001,16 +3045,18 @@ export const fr: Catalogue = {
     'Rien ne change aujourd’hui. {current} reste ouvert jusqu’à la fin de la période déjà '
     + 'payée, et {next} commence le {date}. Il n’y a pas de remboursement pour le reste de '
     + 'cette période — c’est ce qui garde les pages ouvertes jusqu’à sa fin. Rien n’est '
-    + 'supprimé, quel que soit le forfait sur lequel vous terminez.',
+    + 'supprimé alors, et ce que l’offre moins chère n’inclut pas est conservé soixante jours '
+    + 'ensuite.',
   'plan.downgradeBilled':
     'Rien ne change aujourd’hui. {current} reste ouvert jusqu’à la fin de la période déjà '
     + 'payée. Il n’y a pas de remboursement pour le reste de cette période — c’est ce qui garde '
-    + 'les pages ouvertes jusqu’à sa fin. Rien n’est supprimé, quel que soit le forfait sur '
-    + 'lequel vous terminez.',
+    + 'les pages ouvertes jusqu’à sa fin. Rien n’est supprimé alors, et ce que l’offre moins '
+    + 'chère n’inclut pas est conservé soixante jours ensuite.',
   'plan.downgradeUnbilled':
-    'Les pages qui font partie de {current} cessent de s’ouvrir. Rien n’est supprimé : chaque '
-    + 'enregistrement reste exactement où il est, et remonter ramène les pages avec leurs '
-    + 'données intactes.',
+    'Les pages qui font partie de {current} cessent de s’ouvrir. Rien n’est supprimé '
+    + 'aujourd’hui : chaque enregistrement reste exactement où il est pendant soixante jours, et '
+    + 'remonter dans ces soixante jours ramène les pages avec leurs données intactes. Après '
+    + 'soixante jours, c’est supprimé — vous êtes prévenu quatre fois avant.',
   'proc.consequenceBase':
     'Les membres ne pourront plus payer en ligne. Chaque paiement déjà enregistré est '
     + 'conservé, et le compte Stripe propre à la famille reste intact.',

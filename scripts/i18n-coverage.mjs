@@ -241,6 +241,12 @@ const FINGERPRINTS = join(ROOT, 'lib', 'i18n', 'translated-from.json')
  * still cannot invent a placeholder, and still cannot be an orphan.
  */
 const KNOWN_DYNAMIC = [
+  ['email.dunning.day', 'dunningEmail() picks the rung: t(`email.dunning.${stage}.subject`), '
+    + 'where `stage` is one of the five in 20260901000002 §A. ONE template rather than five, '
+    + 'because every rung says the same three things and differs only in the middle paragraph '
+    + '— five functions would be five places for the button, the amount and the fine print to '
+    + 'drift, and the one that got the ladder dates wrong would be whichever nobody re-read. '
+    + 'The stages are a closed set in the TypeScript union, so a typo is a type error.'],
   ['email.auth.changeOld.', 'authEmailChangeEmail() picks the half by which address it is '
     + 'addressed to: t(`email.auth.${k}.subject`), where `k` is changeOld or changeNew. ONE '
     + 'function rather than two because the two messages differ only by that, and splitting '

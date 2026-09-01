@@ -1,12 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_CURRENCY,
-  dollarsToCents,
-  formatCurrency,
-  formatMoney,
-  minorUnitsPerMajor,
+  DEFAULT_CURRENCY, dollarsToCents, formatMoney, formatPlatformMoney,
+  hasPublishedStripeMinimum, minorUnitsPerMajor, moneyFor, stripeMinimumCents,
 } from '@/lib/currency-utils'
-
 /**
  * `lib/currency-utils.ts`, under `npm test` — a `verify.yml` step, so this gates a pull request.
  *
@@ -72,13 +68,93 @@ describe('formatMoney', () => {
   })
 })
 
-describe('formatCurrency', () => {
-  it('is byte-identical to formatMoney with no options', () => {
-    // The alias every existing call site uses. Phase 1 must change no figure on any screen.
-    for (const cents of [0, 5, 99, 100, 123456, 100000000, -2500]) {
-      expect(formatCurrency(cents)).toBe(formatMoney(cents))
+describe('moneyFor', () => {
+  // `formatCurrency` was tested here — the alias that took a locale and ASSUMED a currency.
+  // It is deleted (see `lib/currency-utils.ts`), and what replaced it is a binder, so what is
+  // worth asserting changed with it: not that an alias agrees with its target, but that the
+  // currency and the reader stay independent.
+
+  it('binds a currency that the reader cannot change', () => {
+    // The rule the module header opens with. A French reader looking at a US family's books
+    // sees French grouping AND dollars — never euros.
+    const usdForFrench = moneyFor('usd', 'fr-FR')
+    expect(usdForFrench(123456)).toBe(formatMoney(123456, { currency: 'usd', locale: 'fr-FR' }))
+    expect(usdForFrench(123456)).toContain('$')
+
+    // And the same family's books read by an American are the same money, grouped differently.
+    expect(moneyFor('usd', 'en-US')(123456)).toBe('$1,234.56')
+  })
+
+  it('is the FAMILY currency, so two families read differently for one reader', () => {
+    // The whole point of `families.currency`: 4000 minor units is forty dollars for one family
+    // and forty pesos for another, and a reader must be able to tell them apart.
+    const us = moneyFor('usd', 'en-US')(4000)
+    const mx = moneyFor('mxn', 'en-US')(4000)
+    expect(us).not.toBe(mx)
+  })
+
+  it('defaults to dollars for a missing currency, and to en-US for a missing reader', () => {
+    // Not "safe" — see `lib/auth/currency.ts`. It is what every family created before
+    // 20260901000000 genuinely is, and the one path that MOVES money refuses instead.
+    expect(moneyFor(null, null)(2500)).toBe('$25.00')
+    expect(moneyFor(undefined, undefined)(-2500)).toBe('-$25.00')
+  })
+})
+
+describe('formatPlatformMoney', () => {
+  it('is always USD, whatever the reader reads', () => {
+    // GENORRA's own prices do not follow a family's books — AGENTS.md, "MONEY HAS TWO
+    // DIRECTIONS", and 20260901000000 §D asserts the same thing about the column.
+    expect(formatPlatformMoney(1000)).toBe('$10.00')
+    expect(formatPlatformMoney(1000, 'fr-FR')).toContain('$')
+    expect(formatPlatformMoney(1000, 'es-MX')).toBe(
+      formatMoney(1000, { currency: 'USD', locale: 'es-MX' }),
+    )
+  })
+
+  it('drops the cents only when asked', () => {
+    // `formatPlatformMoney(x, l, { fractionDigits: 0 })` is what a price card wants. NEVER on
+    // a figure somebody is reconciling — see MoneyFormat.fractionDigits.
+    expect(formatPlatformMoney(1000, 'en-US', { fractionDigits: 0 })).toBe('$10')
+    expect(formatPlatformMoney(1000, 'en-US')).toBe('$10.00')
+  })
+})
+
+describe('stripeMinimumCents', () => {
+  it('is a per-currency floor and not one number', () => {
+    // Transcribed from docs.stripe.com/currencies on 2026-09-01. MXN is TWENTY TIMES the USD
+    // floor in minor units, which is the whole reason this is a function.
+    expect(stripeMinimumCents('usd')).toBe(50)
+    expect(stripeMinimumCents('cad')).toBe(50)
+    expect(stripeMinimumCents('mxn')).toBe(1000)
+    // The one figure BELOW half a unit.
+    expect(stripeMinimumCents('gbp')).toBe(30)
+  })
+
+  it('is case-insensitive, because Stripe sends lower case', () => {
+    expect(stripeMinimumCents('USD')).toBe(50)
+    expect(stripeMinimumCents('MXN')).toBe(1000)
+  })
+
+  it('REFUSES rather than guessing for a currency Stripe does not publish', () => {
+    // NGN and KES are absent from Stripe's own table and are both high on TODO.md's country
+    // list. This assertion is the reason the function's shape changed: it was written to check
+    // that a fallback of 500 was "deliberately high" and FAILED, because 500 minor units is
+    // not high in MXN, let alone in NGN. There is no safely-high number in a currency you do
+    // not know, so `null` is the answer and the caller has to say so.
+    expect(stripeMinimumCents('ngn')).toBeNull()
+    expect(stripeMinimumCents('kes')).toBeNull()
+    expect(hasPublishedStripeMinimum('ngn')).toBe(false)
+    expect(hasPublishedStripeMinimum('usd')).toBe(true)
+  })
+
+  it('covers every currency a family may actually be billed in', () => {
+    // THE COUPLING WORTH ASSERTING. `families_currency_check` admits exactly these three, and
+    // a fourth enabled without a published minimum would silently take the fallback. Widening
+    // the CHECK without widening the table is what this catches.
+    for (const c of ['usd', 'cad', 'mxn']) {
+      expect(hasPublishedStripeMinimum(c)).toBe(true)
     }
-    expect(formatCurrency(-2500)).toBe('-$25.00')
   })
 })
 

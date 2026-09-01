@@ -264,7 +264,7 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
           {/* Affirm, never the default burgundy — that is what an active rail item looks
               like, and this is a create trigger. */}
           <Button variant="affirm" onClick={() => setOpen(true)}>
-            <CirclePlus className="h-4 w-4 mr-1" /> {t('gath.schedule')}
+            <CirclePlus className="h-4 w-4 me-1" /> {t('gath.schedule')}
           </Button>
         </div>
       )}

@@ -4,7 +4,6 @@ import { useMemo, useState } from 'react'
 import { Search, TrendingUp, Users } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
-import { formatCurrency } from '@/lib/currency-utils'
 import { formatDate } from '@/lib/date-utils'
 import { disambiguatedName } from '@/lib/name-utils'
 import { matchesPersonQuery } from '@/lib/person-search'
@@ -14,6 +13,7 @@ import { HelpLink } from '@/components/help/HelpLink'
 import { collectedPercent, type DuesStanding, type MemberStatus } from '@/lib/dues-projection'
 import type { DuesProjectionResult, ProjectionPerson } from '@/app/actions/dues'
 import { useIntlTag } from '@/components/layout/LocaleProvider'
+import { useMoney } from '@/components/layout/MoneyProvider'
 import { useT } from '@/components/layout/LocaleProvider'
 import type { T } from '@/lib/i18n/t'
 
@@ -170,6 +170,7 @@ function scopeCaption(
 export function DuesProjectionsClient({ result }: { result: DuesProjectionResult }) {
   const t = useT()
   const intl = useIntlTag()
+  const money = useMoney()
   const { projection, people, placeNames } = result
   const [query, setQuery] = useState('')
   const [onlyOwing, setOnlyOwing] = useState(false)
@@ -262,7 +263,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Figure
           label={t('proj.expectedThisYear')}
-          value={formatCurrency(projection.expectedCents, intl)}
+          value={money(projection.expectedCents)}
           caption={t(projection.payingMembers === 1
             ? 'proj.oweSomethingOne'
             : 'proj.oweSomethingMany', {
@@ -272,7 +273,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
         />
         <Figure
           label={t('proj.collected')}
-          value={formatCurrency(projection.collectedCents, intl)}
+          value={money(projection.collectedCents)}
           caption={projection.expectedCents > 0
             ? t('proj.percentOfBilled', { percent: String(percent) })
             : t('proj.nothingBilledYet')}
@@ -280,12 +281,12 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
         />
         <Figure
           label={t('proj.waived')}
-          value={formatCurrency(projection.waivedCents, intl)}
+          value={money(projection.waivedCents)}
           caption={t('proj.waivedCaption')}
         />
         <Figure
           label={t('proj.stillToCollect')}
-          value={formatCurrency(projection.outstandingCents, intl)}
+          value={money(projection.outstandingCents)}
           caption={owing === 0
             ? t('proj.everybodyUpToDate')
             : t(owing === 1 ? 'proj.outstandingOne' : 'proj.outstandingMany',
@@ -299,7 +300,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
       {projection.pendingCents > 0 && (
         <p className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
           {t('proj.pendingSettlement', {
-            amount: formatCurrency(projection.pendingCents, intl),
+            amount: money(projection.pendingCents),
           })}
         </p>
       )}
@@ -315,7 +316,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
           `--destructive`: nothing has failed, and nothing was deleted. */}
       {projection.unregisteredOutstandingCents > 0 && (
         <p className="rounded-xl border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          <span className="font-medium text-brand-withheld">{formatCurrency(projection.unregisteredOutstandingCents, intl)}</span>
+          <span className="font-medium text-brand-withheld">{money(projection.unregisteredOutstandingCents)}</span>
           {' '}of what is still to collect is owed
           by {unreachable === 1 ? 'one member' : `${unreachable} members`} with no
           account — {projection.statusCounts.invited} invited
@@ -352,13 +353,13 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
           <div className="overflow-visible rounded-xl border">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <SortTh label={t('col.schedule')} {...scheduleSort.sortProps('schedule')} className="px-3 py-2 font-semibold" />
-                  <SortTh label={t('proj.colPaying')} align="right" {...scheduleSort.sortProps('paying')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                  <SortTh label={t('proj.colExpected')} align="right" {...scheduleSort.sortProps('expected')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                  <SortTh label={t('proj.collected')} align="right" {...scheduleSort.sortProps('collected')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                  <SortTh label={t('proj.waived')} align="right" {...scheduleSort.sortProps('waived')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                  <SortTh label={t('proj.colOutstanding')} align="right" {...scheduleSort.sortProps('outstanding')} className="px-3 py-2 font-semibold" />
+                  <SortTh label={t('proj.colPaying')} align="end" {...scheduleSort.sortProps('paying')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.colExpected')} align="end" {...scheduleSort.sortProps('expected')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.collected')} align="end" {...scheduleSort.sortProps('collected')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.waived')} align="end" {...scheduleSort.sortProps('waived')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.colOutstanding')} align="end" {...scheduleSort.sortProps('outstanding')} className="px-3 py-2 font-semibold" />
                 </tr>
               </thead>
               <tbody>
@@ -367,13 +368,13 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                     <td className="px-3 py-2.5">
                       <span className="font-medium">{s.label}</span>
                       <span className={cn(
-                        'ml-2 inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
+                        'ms-2 inline-block whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium',
                         s.required ? 'bg-brand-soft text-brand-on-soft' : 'bg-brand-warm text-brand-on-warm',
                       )}>
                         {s.required ? 'Required' : 'Optional'}
                       </span>
                       {s.bloodlineOnly && (
-                        <span className="ml-1.5 inline-block whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft"
+                        <span className="ms-1.5 inline-block whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft"
                           title={t('dues.onlyMembersDescendedFrom')}>{t('dues.bloodlineOnly')}</span>
                       )}
                       {/* WHICH PART OF THE FAMILY OWES IT. On the row and not only in the
@@ -382,7 +383,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                           rendered when there IS a scope: "National" on every row of a family
                           that has no chapters would be noise on every row. */}
                       {scopeCaption(s, placeNames) && (
-                        <span className="ml-1.5 inline-block whitespace-nowrap rounded-full bg-brand-warm px-2 py-0.5 text-[11px] font-medium text-brand-on-warm"
+                        <span className="ms-1.5 inline-block whitespace-nowrap rounded-full bg-brand-warm px-2 py-0.5 text-[11px] font-medium text-brand-on-warm"
                           title={t('dues.onlyMembersPartFamily')}>
                           {scopeCaption(s, placeNames)}
                         </span>
@@ -417,7 +418,7 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                           different years, and a table that did not say so would be adding
                           up figures a reader assumes share a window. */}
                       <RowMeta className="gap-x-2">
-                        <MetaIf value={formatCurrency(s.annualCents, intl)}
+                        <MetaIf value={money(s.annualCents)}
                           prefix={t('proj.fullYear')} />
                         <MetaDot />
                         <MetaIf value={formatDate(s.periodStart, intl) ?? undefined}
@@ -427,9 +428,9 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                           n: String(s.payingMembers),
                         })} />
                         <MetaDot />
-                        <MetaIf value={formatCurrency(s.expectedCents, intl)} prefix="Expected" />
+                        <MetaIf value={money(s.expectedCents)} prefix="Expected" />
                         <MetaDot />
-                        <MetaIf value={formatCurrency(s.collectedCents, intl)} prefix="Collected" />
+                        <MetaIf value={money(s.collectedCents)} prefix="Collected" />
                       </RowMeta>
                       {/* The standings that are worth a word, and only when non-zero: a row
                           of five zeroes on a schedule nobody has declined is noise. */}
@@ -442,13 +443,13 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                         ))}
                       </p>
                     </td>
-                    <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground tabular-nums', COLLAPSING_CELL)}>{s.payingMembers}</td>
-                    <td className={cn('px-3 py-2.5 text-right whitespace-nowrap tabular-nums', COLLAPSING_CELL)}>{formatCurrency(s.expectedCents, intl)}</td>
-                    <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-brand-affirm tabular-nums', COLLAPSING_CELL)}>{formatCurrency(s.collectedCents, intl)}</td>
-                    <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground tabular-nums', COLLAPSING_CELL)}>{formatCurrency(s.waivedCents, intl)}</td>
-                    <td className={cn('px-3 py-2.5 text-right font-semibold whitespace-nowrap tabular-nums',
+                    <td className={cn('px-3 py-2.5 text-end whitespace-nowrap text-muted-foreground tabular-nums', COLLAPSING_CELL)}>{s.payingMembers}</td>
+                    <td className={cn('px-3 py-2.5 text-end whitespace-nowrap tabular-nums', COLLAPSING_CELL)}>{money(s.expectedCents)}</td>
+                    <td className={cn('px-3 py-2.5 text-end whitespace-nowrap text-brand-affirm tabular-nums', COLLAPSING_CELL)}>{money(s.collectedCents)}</td>
+                    <td className={cn('px-3 py-2.5 text-end whitespace-nowrap text-muted-foreground tabular-nums', COLLAPSING_CELL)}>{money(s.waivedCents)}</td>
+                    <td className={cn('px-3 py-2.5 text-end font-semibold whitespace-nowrap tabular-nums',
                       s.outstandingCents > 0 ? 'text-brand-withheld' : 'text-muted-foreground')}>
-                      {formatCurrency(s.outstandingCents, intl)}
+                      {money(s.outstandingCents)}
                     </td>
                   </tr>
                 ))}
@@ -500,13 +501,13 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                 className="h-4 w-4 rounded border-input accent-primary"
               />{t('dues.onlyThoseWhoOwe')}</label>
             <div className="relative w-full sm:w-52">
-              <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+              <Search className="absolute start-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
               <Input
                 aria-label={t('dues.filterMembers')}
                 placeholder={t('dues.filterName')}
                 value={query}
                 onChange={e => setQuery(e.target.value)}
-                className="h-8 pl-7 text-xs"
+                className="h-8 ps-7 text-xs"
               />
             </div>
           </div>
@@ -518,17 +519,17 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
           <div className="overflow-visible rounded-xl border">
             <table className="w-full border-collapse text-sm">
               <thead>
-                <tr className="border-b bg-muted/40 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   <SortTh label={t('col.member')} {...memberSort.sortProps('member')} className="px-3 py-2 font-semibold" />
                   <SortTh label={t('proj.colStanding')} {...memberSort.sortProps('standing')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
                   {/* THE SECOND AXIS. It folds like Standing does and is restated in the same
                       meta line, so a phone loses neither — see the header for why they are two
                       columns rather than one pill. */}
                   <SortTh label={t('col.status')} {...memberSort.sortProps('status')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                  <SortTh label={t('proj.colDues')} align="right" {...memberSort.sortProps('dues')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                  <SortTh label={t('proj.colExpected')} align="right" {...memberSort.sortProps('expected')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                  <SortTh label={t('proj.colPaid')} align="right" {...memberSort.sortProps('paid')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
-                  <SortTh label={t('proj.colOutstanding')} align="right" {...memberSort.sortProps('outstanding')} className="px-3 py-2 font-semibold" />
+                  <SortTh label={t('proj.colDues')} align="end" {...memberSort.sortProps('dues')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.colExpected')} align="end" {...memberSort.sortProps('expected')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.colPaid')} align="end" {...memberSort.sortProps('paid')} className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+                  <SortTh label={t('proj.colOutstanding')} align="end" {...memberSort.sortProps('outstanding')} className="px-3 py-2 font-semibold" />
                 </tr>
               </thead>
               <tbody>
@@ -563,25 +564,25 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                           {statusPill}
                           <MetaIf value={`${r.liableSchedules} ${r.liableSchedules === 1 ? 'due' : 'dues'}`} />
                           <MetaDot />
-                          <MetaIf value={formatCurrency(r.expectedCents, intl)} prefix="Expected" />
+                          <MetaIf value={money(r.expectedCents)} prefix="Expected" />
                           <MetaDot />
-                          <MetaIf value={formatCurrency(r.collectedCents, intl)} prefix="Paid" />
+                          <MetaIf value={money(r.collectedCents)} prefix="Paid" />
                           {r.waivedCents > 0 && (
                             <>
                               <MetaDot />
-                              <MetaIf value={formatCurrency(r.waivedCents, intl)} prefix="Waived" />
+                              <MetaIf value={money(r.waivedCents)} prefix="Waived" />
                             </>
                           )}
                         </RowMeta>
                       </td>
                       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>{pill}</td>
                       <td className={cn('px-3 py-2.5', COLLAPSING_CELL)}>{statusPill}</td>
-                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-muted-foreground tabular-nums', COLLAPSING_CELL)}>{r.liableSchedules}</td>
-                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap tabular-nums', COLLAPSING_CELL)}>{formatCurrency(r.expectedCents, intl)}</td>
-                      <td className={cn('px-3 py-2.5 text-right whitespace-nowrap text-brand-affirm tabular-nums', COLLAPSING_CELL)}>{formatCurrency(r.collectedCents, intl)}</td>
-                      <td className={cn('px-3 py-2.5 text-right font-semibold whitespace-nowrap tabular-nums',
+                      <td className={cn('px-3 py-2.5 text-end whitespace-nowrap text-muted-foreground tabular-nums', COLLAPSING_CELL)}>{r.liableSchedules}</td>
+                      <td className={cn('px-3 py-2.5 text-end whitespace-nowrap tabular-nums', COLLAPSING_CELL)}>{money(r.expectedCents)}</td>
+                      <td className={cn('px-3 py-2.5 text-end whitespace-nowrap text-brand-affirm tabular-nums', COLLAPSING_CELL)}>{money(r.collectedCents)}</td>
+                      <td className={cn('px-3 py-2.5 text-end font-semibold whitespace-nowrap tabular-nums',
                         r.outstandingCents > 0 ? 'text-brand-withheld' : 'text-muted-foreground')}>
-                        {formatCurrency(r.outstandingCents, intl)}
+                        {money(r.outstandingCents)}
                       </td>
                     </tr>
                   )

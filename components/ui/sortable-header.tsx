@@ -27,13 +27,24 @@ export type SortDir = SortDirection
  * with its column, and a `<th>` that has become a control announces neither.
  */
 export function SortTh({
-  label, active, dir, onClick, align = 'left', className,
+  label, active, dir, onClick, align = 'start', className,
 }: {
   label: string
   active: boolean
   dir: SortDir
   onClick: () => void
-  align?: 'left' | 'right'
+  /**
+   * Which edge the heading and its figures sit against.
+   *
+   * ── `'start' | 'end'`, NOT `'left' | 'right'`, SINCE 2026-09-01 ────────────────────
+   * The values are a VOCABULARY rather than a class name — they were mapped to `text-left` /
+   * `text-right` and are mapped to `text-start` / `text-end` now — so renaming them changes no
+   * behaviour whatever. What it changes is whether the word means anything: in a right-to-left
+   * language a money column belongs on the LEFT, and `align="end"` would have been an
+   * instruction that produced the opposite of what it says. A prop nobody can read correctly is
+   * how the next person reintroduces a physical class.
+   */
+  align?: 'start' | 'end'
   /** Pass `COLLAPSING_CELL` when this heading's column folds below `sm`. */
   className?: string
 }) {
@@ -46,14 +57,14 @@ export function SortTh({
     // guess. It was wrong on all four tables already converted, so fixing the component fixed
     // them too — which is the argument for the component rather than a `<th>` per table.
     <th scope="col" className={cn(
-      'py-2 pr-3 text-xs font-medium text-muted-foreground',
-      align === 'right' ? 'text-right' : 'text-left',
+      'py-2 pe-3 text-xs font-medium text-muted-foreground',
+      align === 'end' ? 'text-end' : 'text-start',
       className,
     )}>
       <button
         type="button"
         onClick={onClick}
-        className={`inline-flex items-center gap-0.5 hover:text-foreground select-none ${align === 'right' ? 'flex-row-reverse' : ''}`}
+        className={`inline-flex items-center gap-0.5 hover:text-foreground select-none ${align === 'end' ? 'flex-row-reverse' : ''}`}
       >
         {label}
         <Icon className="h-3 w-3 opacity-60" />
@@ -82,7 +93,7 @@ export function SortTh({
  *     }, 'name')
  *     …
  *     <SortTh label="Name" {...sortProps('name')} />
- *     <SortTh label="Balance" align="right" {...sortProps('due')} />
+ *     <SortTh label="Balance" align="end" {...sortProps('due')} />
  *
  * ── THREE THINGS IT DECIDES, SO TWENTY TABLES DO NOT DECIDE THEM DIFFERENTLY ───────
  *

@@ -206,7 +206,7 @@ export function NominationBoard({
                           <p className="text-sm font-medium">
                             {nomination.nominee_name}
                             {nomination.nominee_id === myPersonId && (
-                              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                              <span className="ms-1.5 text-xs font-normal text-muted-foreground">
                                 (you)
                               </span>
                             )}

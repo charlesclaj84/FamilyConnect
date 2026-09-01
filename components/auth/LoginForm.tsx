@@ -241,7 +241,7 @@ export function LoginForm({
               {...register('password')}
             />
             <FieldError message={errors.password?.message} />
-            <Link href="/forgot-password" className="text-sm text-primary hover:underline block text-right">
+            <Link href="/forgot-password" className="text-sm text-primary hover:underline block text-end">
               {t('auth.forgot')}
             </Link>
           </div>

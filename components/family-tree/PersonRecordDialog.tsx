@@ -293,7 +293,7 @@ export function PersonRecordDialog({
                           : t('rec.noBloodThroughLink', {
                               name: connection.otherName,
                             }))}
-                    {saved && <span className="ml-1 font-medium text-brand-affirm">{t('rec.saved')}</span>}
+                    {saved && <span className="ms-1 font-medium text-brand-affirm">{t('rec.saved')}</span>}
                   </p>
                 </div>
               )

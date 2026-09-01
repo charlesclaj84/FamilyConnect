@@ -38,11 +38,26 @@
  *     is reported; so is a family's own data. `EXPECTED_SAME` filters the obvious ones and
  *     the rest are for a person to read past.
  *
+ * ── A SECOND MODE: `--force-rtl`, WHICH ASKS A DIFFERENT QUESTION ──────────────────
+ * Added 2026-09-01 with the right-to-left layout pass. It renders every route and reads the
+ * emitted `class` attributes for a PHYSICAL direction utility — `ml-`, `pl-`, `left-`,
+ * `text-right`, `border-l`, `rounded-l` — rather than diffing two languages.
+ *
+ * IT IS NOT A SECOND COPY OF `npm run i18n:rtl`. That gate reads SOURCE and says so in its own
+ * header: it cannot see a class assembled at runtime, `` `m${side}-2` `` or a `style={{ }}`
+ * object. This reads what the server actually SENT, so a class built by a `cn()` branch, by a
+ * variable, or by a component that only renders under some data is in scope here and nowhere
+ * else. The two together are the coverage; either alone has a hole the other fills.
+ *
+ * It also asserts that `<html>` carries a `dir` at all, which is the one thing that would make
+ * every logical utility in the product inert and which nothing else looks at.
+ *
  * ── RUNNING IT ─────────────────────────────────────────────────────────────────────
  *     npx supabase start
  *     npm run test:rls                  # seeds the two-family fixture
  *     npm run dev                       # against the LOCAL stack, port 3100
  *     npm run i18n:onscreen
+ *     npm run i18n:onscreen -- --force-rtl
  */
 import { readFileSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
@@ -123,6 +138,76 @@ async function setLocale(code) {
 async function grab(path) {
   const r = await fetch(`${APP}${path}`, { headers: { cookie }, redirect: 'manual' })
   return r.status === 200 ? visibleText(await r.text()) : null
+}
+
+const FORCE_RTL = process.argv.includes('--force-rtl')
+
+// ── `--force-rtl`: physical direction in the RENDERED markup ──────────────────────────
+if (FORCE_RTL) {
+  // The same list `scripts/rtl-check.mjs` sweeps the source for, so the two cannot disagree
+  // about what counts. Matched inside a `class="…"` attribute only — the HTML is full of
+  // English prose containing the words "left" and "right".
+  const PHYSICAL = [
+    'rounded-tl', 'rounded-tr', 'rounded-bl', 'rounded-br', 'rounded-l', 'rounded-r',
+    'border-l', 'border-r', 'scroll-ml', 'scroll-mr', 'scroll-pl', 'scroll-pr',
+    'text-left', 'text-right', 'float-left', 'float-right', 'clear-left', 'clear-right',
+    'ml', 'mr', 'pl', 'pr', 'left', 'right',
+  ]
+  const NO_SUFFIX = new Set(['text-left', 'text-right', 'float-left', 'float-right',
+    'clear-left', 'clear-right'])
+  const OPTIONAL = new Set(['border-l', 'border-r', 'rounded-l', 'rounded-r',
+    'rounded-tl', 'rounded-tr', 'rounded-bl', 'rounded-br'])
+
+  function physicalClasses(html) {
+    const found = new Map()
+    for (const m of html.matchAll(/class="([^"]*)"/g)) {
+      for (const cls of m[1].split(/\s+/)) {
+        // Strip every variant prefix (`sm:`, `hover:`, `rtl:`) and one leading `-`.
+        const bare = cls.split(':').pop().replace(/^-/, '')
+        for (const phys of PHYSICAL) {
+          const ok = NO_SUFFIX.has(phys) ? bare === phys
+            : OPTIONAL.has(phys) ? (bare === phys || bare.startsWith(phys + '-'))
+              : bare.startsWith(phys + '-')
+          if (ok) { found.set(cls, (found.get(cls) ?? 0) + 1); break }
+        }
+      }
+    }
+    return found
+  }
+
+  await setLocale('en')
+  let pages = 0
+  let missingDir = 0
+  const all = new Map()
+  for (const path of routes) {
+    const r = await fetch(`${APP}${path}`, { headers: { cookie }, redirect: 'manual' })
+    if (r.status !== 200) continue
+    const html = await r.text()
+    pages++
+    // THE ATTRIBUTE ITSELF. Without it every logical utility in the product resolves
+    // left-to-right forever and the whole pass is inert — and nothing else checks it.
+    if (!/<html[^>]*\sdir="(ltr|rtl)"/.test(html)) { missingDir++; console.log(`  NO dir=  ${path}`) }
+    for (const [cls, n] of physicalClasses(html)) all.set(cls, (all.get(cls) ?? 0) + n)
+  }
+
+  console.log('')
+  console.log('  PHYSICAL DIRECTION IN THE RENDERED MARKUP — what a source sweep cannot see.')
+  console.log('')
+  const rows = [...all.entries()].sort((a, b) => b[1] - a[1])
+  for (const [cls, n] of rows) console.log(`  ${String(n).padStart(5)}  ${cls}`)
+  console.log('')
+  console.log(`  ${pages} route(s) rendered · ${rows.length} distinct physical class(es) · `
+    + `${missingDir} page(s) with no dir attribute`)
+  console.log('')
+  if (rows.length === 0 && missingDir === 0) {
+    console.log('  Clean. NOTE: a route only shows what its fixture data renders, and nothing')
+    console.log('  behind a control is in the markup at all — see the header.')
+  } else {
+    console.log('  Each is a class that will not mirror. If `npm run i18n:rtl` is clean, it was')
+    console.log('  built at runtime — which is the gap this mode exists to cover.')
+  }
+  console.log('')
+  process.exit(rows.length === 0 && missingDir === 0 ? 0 : 1)
 }
 
 // Warm every route once, so a first-compile miss does not read as a difference.

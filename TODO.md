@@ -50,6 +50,32 @@ are not code changes and none of them is done by `db push` — every one is a se
 a credential on the deployed environment, which is exactly why they are easy to reach
 launch day without.
 
+### [ ] `CRON_SECRET` is not set, so no dunning or retention mail is sent
+
+**Action:** set it in Vercel → Project → Settings → Environment Variables, on Production. Any
+long random string.
+
+`vercel.json` schedules `/api/billing/notices` hourly and Vercel sets
+`Authorization: Bearer $CRON_SECRET` on its own cron requests **only if the variable exists**.
+The route answers **503** without it rather than running open — a deployment that has not been
+configured must not have a mail-sending endpoint reachable by anybody.
+
+**WHAT IS ACTUALLY BROKEN WHILE IT IS UNSET IS NARROWER THAN IT SOUNDS, AND SAFER.** No
+dunning mail goes out, so no family is warned — and because both deletion sweeps refuse to act
+unless the notices they owed are recorded as `sent`, **nothing is ever deleted either.** The
+ladder still locks screens on schedule (that is `delinquent_since` and a guard, not the mail),
+but day 60 never fires. Failing in that direction is deliberate; see `20260901000002` §D.
+
+To prove it once it is set:
+
+```bash
+curl -i -X POST https://genorra.com/api/billing/notices \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+A 200 with `{"claimed":0,...}` on a healthy estate is the expected answer. `VERCEL.md` carries
+the rest.
+
 ### [~] Two `[auth]` values are set in `config.toml` and not on hosted — ONE APPLIED 2026-08-29, THE OTHER NEEDS A PLAN
 
 **Action:** nothing, until somebody decides whether this project goes to Pro. The first half
@@ -641,63 +667,6 @@ revisiting the moment either list outgrows a page.
 
 Recorded 2026-08-31.
 
-## BUILD: collect dues in the family's own currency, not in dollars
-
-**Action:** decide the currency per family, store it, and thread it through every figure.
-Blocked on nothing but the decision. Recorded 2026-08-31, out of the Connect country picker.
-
-**The picker landed and this did not.** `/admin/settings` now asks which country a family's
-connected account is created in — US, Canada or Mexico today, with the rest of Stripe's
-cross-border set one flag away (`CONNECT_COUNTRIES` in `lib/stripe/connect-countries.ts`).
-So a Mexican family can onboard, complete Stripe's Mexican paperwork, and be paid out in
-MXN. **Every figure in the product is still USD**, and that is now a visible mismatch rather
-than a theoretical one:
-
-* `currency: 'usd'` is a literal on every Checkout Session and every `price_data`.
-* `formatCurrency` formats cents with the reader's `Intl` tag and **no currency argument**,
-  so it prints the reader's *conventions* around a dollar figure — `1 234,56 $` for a French
-  reader looking at US dollars, which is the worst of both.
-* `dues_schedules.amount_cents`, `platform_payments.currency` and every fund balance are
-  integers with no currency beside them except `'usd'`.
-
-**A direct charge in USD into a CAD account is allowed and settles with conversion**, so
-nothing is broken. What is wrong is that a Canadian family sets a $40 due, a member is
-charged 40 USD, and the family receives about 54 CAD less Stripe's conversion — three
-different numbers, none of them the one anybody typed.
-
-### THE DECISION, AND IT IS ONE DECISION MADE THREE TIMES
-
-1. **What currency is a DUE in?** The family's, chosen once, immutable after the first
-   payment. That last clause is the load-bearing half: `dues_payments` is append-only
-   (`20260806000002`), so a family that switched currency mid-year would have a ledger whose
-   sum means nothing. It wants the same guard shape as `families_guard_family_code` — refuse
-   the `authenticated` role outright, and refuse any change at all once a payment exists.
-2. **What currency is the PLATFORM charged in?** GENORRA's own plan pricing is a separate
-   question with a separate answer, and conflating them is the trap: `TIER_PRICE` is our
-   revenue and `dues_schedules.amount_cents` is the family's. A Mexican family may well pay
-   us in USD while collecting from relatives in MXN. Keep `platform_payments` and
-   `dues_payments` as far apart here as "MONEY HAS TWO DIRECTIONS" already keeps them.
-3. **What does an existing family get?** USD, written down explicitly rather than left NULL.
-   A nullable currency column is a column that means "dollars, probably", which is how this
-   whole item started.
-
-### WHAT IT COSTS, IN THE ORDER IT HAS TO BE DONE
-
-| | |
-|---|---|
-| `families.currency` | `CHAR(3) NOT NULL DEFAULT 'usd'`, CHECK against the enabled set, guarded like `family_code`. Backfilled explicitly, not defaulted-and-forgotten |
-| `formatCurrency` | takes a currency, and **stops being optional**. An optional argument here is one every new call site omits — the same argument `NextInstallmentsCard`'s `intl` prop makes |
-| every `currency: 'usd'` | reads the family's. `app/actions/pay-dues.ts` and `app/actions/dues.ts` are the two files |
-| the minimum charge | `MINIMUM_FIRST_CHARGE_CENTS` is $5 in cents and means nothing in MXN. Stripe's own minimum is per-currency and has to be looked up, not converted |
-| `lib/dues-utils.ts` | pure and already tested; it needs no currency, because arithmetic on cents is currency-blind. **Check that stays true** before assuming it |
-| the ledger's history | nothing. Rows already written stay USD, which is why the column is immutable once a payment exists |
-
-**AND `formatCurrency` IS THE ONE TO GET RIGHT FIRST**, because it is the only change that
-is wrong in BOTH directions today: it already takes the reader's `Intl` tag, so it is
-half-localized in a way that reads as finished.
-
-Recorded 2026-08-31.
-
 ## WHERE THIS GOES NEXT: fifteen languages and fifteen countries, in priority order
 
 **Action:** none yet. This is the target list the next two localization passes are measured
@@ -734,12 +703,24 @@ countries in it.
 | 14 | **Swahili** | East Africa, and one language across several countries |
 | 15 | **German** | Not diaspora — it is the strongest European market for a paid family product |
 
-**THE FIRST RTL LANGUAGE IS NOT A CATALOGUE, IT IS A LAYOUT PASS.** Arabic at #7 is where
-that bill arrives, and it is worth naming now: `dir` on `<html>` beside `lang`, every
-`ml-`/`mr-`/`left-`/`right-` utility becomes a logical property, `MainRail`'s active marker
-and `header-panel.ts`'s `right-0` anchoring both flip, and the calendar's Sunday-first week
-becomes a question. Nothing about it is hard and none of it is free. **Do not let Arabic be
-the language somebody adds on a Friday.**
+**THE FIRST RTL LANGUAGE IS NOT A CATALOGUE, IT IS A LAYOUT PASS — AND THE PASS IS DONE, as
+of 2026-09-01.** Every item this paragraph listed is built: `dir` on `<html>` beside `lang`
+(plus a boot script, because a flip after hydration is not the invisible attribute change
+`lang` is), 430 physical utilities across 119 files converted to logical properties,
+`MainRail`'s marker and `header-panel.ts`'s anchoring both mirroring, and the calendar's
+Sunday-first week answered — **which turned up a live defect in a language already shipped:
+France starts on Monday and the grid was Sunday-first for everybody.**
+
+`npm run i18n:rtl` is a `verify.yml` step at a ceiling of zero and
+`npm run i18n:onscreen -- --force-rtl` covers the runtime-built classes it cannot see. AGENTS.md
+carries the rules, including the three things `dir` does NOT do.
+
+**SO ADDING ARABIC IS NOW FOUR CATALOGUE FILES AND ONE `LOCALES` ROW**, and the row is
+deliberately absent until those files exist: a locale in that array is a locale the switcher
+OFFERS, and offering Arabic over 5,682 English keys would tell a reader their language counts
+and then not speak it — the same failure the Haitian Creole entry above is about. What is still
+owed with the catalogue, and is NOT layout: `firstWeekdayFor` already answers Saturday for
+`ar`, and nothing has yet been READ by somebody who reads Arabic.
 
 ### THE FIFTEEN COUNTRIES
 
@@ -779,165 +760,93 @@ below is in Stripe's cross-border set, so each is a one-flag change in
   are written around North America, and `toE164` REFUSES what it cannot parse — which is the
   right behaviour and means a Nigerian mobile is silently unreachable for SMS rather than
   wrongly reachable.
-* **A SECOND CURRENCY IS THE PREREQUISITE FOR ALL TWELVE.** Nothing below the third row is
-  worth shipping until "collect dues in the family's own currency" is done, because the
-  alternative is a family in Lagos setting a due in dollars.
+* **A SECOND CURRENCY IS BUILT AS OF 2026-09-01, AND THE COST MOVED RATHER THAN VANISHED.**
+  `families.currency` is derived from `families.connect_country` and threaded through every
+  figure, so a family in Lagos would no longer set a due in dollars. What enabling a country
+  now costs is **a migration as well as a flag**: `families_currency_check` and
+  `families_connect_country_check` list the three enabled currencies by hand, deliberately, so
+  a value nothing can format, price or charge a minimum against cannot be written. The CHECK
+  and `CONNECT_COUNTRIES` have to move together.
+
+* **AND STRIPE PUBLISHES NO MINIMUM CHARGE FOR NGN OR KES**, which is a blocker on rows 5 and
+  14 rather than a detail. `stripeMinimumCents` in `lib/currency-utils.ts` is transcribed from
+  docs.stripe.com/currencies and answers `null` for both — there is no safely-high fallback in
+  a currency you do not know, and the failure of guessing low is a member choosing a small
+  payment and meeting a hosted page that fails at the till. Establish the figure with Stripe
+  before enabling either, and note that the minimum is measured in the SETTLEMENT currency
+  after conversion, not the presentment one.
 
 Recorded 2026-08-31.
 
-## BUILD: the delinquency ladder — decided 2026-08-23, and it needs the scheduler first
+## The billing ladder is built. Three things it deliberately did NOT do
 
-**Action:** build it. `pg_cron` is installed as of `20260823000006`, so the ladder is no longer
-blocked — it needs its own daily `cron.schedule` line in the migration that builds it, asserted
-in the same file the way the tier sweep's is.
+**Action:** each is a decision somebody has to take, not work somebody forgot. Recorded
+2026-09-01, when `20260901000001`–`20260901000003` built the delinquency ladder and the
+sixty-day retention window. AGENTS.md carries the rules; this is only what is still open.
 
-What is built today is the DATA and nothing else: `invoice.payment_failed` stamps
-`platform_billing_accounts.delinquent_since` and `last_payment_failure`, the Billing band says
-so, and no tier moves. Everything below is the decided policy, recorded so it can be built in
-one pass.
+### 1. A DELETED PHOTOGRAPH LEAVES ITS BYTES IN A PUBLIC BUCKET
 
-### The ladder
+`delete_family_data_above_tier` removes `photos` rows and cannot touch storage — SQL does not
+reach the backend, `storage.protect_delete()` refuses a direct DELETE, and a `pg_cron` job has
+no Storage API to call. `staff_delete_family` has the identical limit and its ACTION deletes
+the objects first; a sweep has no action in front of it.
 
-Day counted from `delinquent_since`. Every email goes to the ADMINS, meaning **whoever holds
-`admin/settings:edit`** — the exact grant that opens the Billing panel and can actually pay
-(decided; see "who is an admin" below).
+**So a family whose Plus data is purged keeps every image file**, in a bucket that is
+`public: true`, fetchable by URL to anybody who already has one. Two honest options, and the
+first is much the smaller:
 
-| Day | What happens |
-|---|---|
-| 0 | `invoice.payment_failed`. `delinquent_since` stamped. Nothing else. |
-| 5 | Email every admin asking for payment. Full access continues. |
-| 10 | **Members are locked out.** Only admins can sign in. Email every admin saying access is limited until the account is paid. A member signing in sees a message telling them to contact their family administrator about an accounting issue, and can do nothing else. Admins keep FULL access. |
-| 30 | **Admins lose full access too** — every screen except the one that takes a payment. Reactivating requires paying **all arrears plus the next month**. |
-| 45 | Email: the account will be **deleted** in 15 days. |
-| 59 | Email: it will be deleted **tomorrow** unless payment is received. |
-| 60 | **The family's records are deleted. This cannot be undone.** |
+* **A reaper on the notice-drain path.** `/api/billing/notices` already runs Node hourly with
+  the service key. It could read `platform_data_deletions` for rows whose `deleted` mentions
+  `photos`, list the family's prefix and remove what no row points at. Needs a marker so it
+  does not re-walk the same deletion forever.
+* **`pg_net` from the sweep**, which puts an outbound HTTP call in a transaction that deletes a
+  family tree. Cheaper to write and much worse to reason about.
 
-### Six things to get right
+Until one exists, the deletion is honest about rows and silent about bytes, and this entry is
+the only place that says so.
 
-1. **EVERY DELETION EMAIL SAYS IT CANNOT BE REVERSED, in those words.** The day-45 and day-59
-   emails and the day-30 lockout screen all carry it. This is the one requirement stated twice
-   in the brief and it is the one a summary would smooth over.
-2. **THE LOCKOUT IS A GUARD, NOT A TIER.** `families.tier` must not be touched — no policy
-   consults it, and a family that pays on day 29 has to find everything where it was. It
-   belongs beside `requireFamilyActive` in `requireView`/`requireViewOrPending`, which is where
-   the removed-family check already lives and where a page cannot forget it. The day-30 state
-   needs its own `REMOVED_FAMILY_RESOURCES`-shaped exemption list containing only the billing
-   screen.
-3. **"PAY ALL PREVIOUS AND NEXT MONTH" IS ARITHMETIC NOBODY HAS WRITTEN.** It is arrears (every
-   month since `delinquent_since`) plus the coming month, and it belongs in
-   `lib/platform-billing.ts` as a pure function with tests — not in an action, and not left to
-   Stripe's own invoice total, which is what it happens to be rather than what was decided.
-4. **A MEMBER MUST NOT BE TOLD IT IS A MONEY PROBLEM IN DETAIL.** "Contact your family
-   administrator to resolve an accounting issue" is the whole message. What the family owes
-   GENORRA is not every relative's business.
-5. **THE DELETION IS THE SAME MECHANISM AS THE 60-DAY DATA DELETION BELOW** — one hard-delete
-   path, two callers. Writing it twice is how one of them ends up missing a table.
-6. **AN ADMIN WHO PAYS ON DAY 59 MUST BE FULLY RESTORED BY THE `invoice.paid` HANDLER**, which
-   means clearing `delinquent_since` (it already does) AND unwinding the lockout in the same
-   transaction. A family that pays and stays locked out is the worst possible bug here.
+### 2. `CRON_SECRET` IS A GO LIVE STEP AND THE ENDPOINT REFUSES WITHOUT IT
 
-## BUILD: a downgrade withholds for 60 days, then deletes — decided 2026-08-23
+`vercel.json` schedules `/api/billing/notices` hourly; Vercel sets
+`Authorization: Bearer $CRON_SECRET` only if the variable exists, and the route answers **503**
+when it is unset rather than running open. So an unconfigured deployment sends no dunning mail
+— and therefore deletes nothing, which is the correct direction to fail but is not the intended
+state. `VERCEL.md` has the setting and the `curl` to prove it by hand.
 
-**Action:** build it. `pg_cron` is installed as of `20260823000006`, so this is no longer
-blocked — it needs its own daily `cron.schedule` line in the migration that builds it.
+### 3. NOTHING TESTS THE LADDER END TO END, AND ONE THING STRUCTURALLY CANNOT
 
-### The rules, as decided
+What IS tested: `20260901000002` §8 exercises the sweep for real against a throwaway family —
+five rungs enqueued, the day-60 drop refused without its warnings and granted with them, the
+person surviving, no second drop. `lib/platform-billing.test.ts` pins every boundary of the
+derived stage. `tests/rls` covers the three retention actions.
 
-* A downgrade takes effect on the **1st** — the next one for a family paying monthly, and the
-  1st after a prepaid term is exhausted. That half is BUILT (`scheduleDowngrade`, tested).
-* From that day the tier's data is **withheld, not deleted, for 60 days.**
-* Reminder emails at **30, 15, 5 and 1 day** before deletion, each saying the data will be
-  deleted unless the family moves back to their tier.
-* At 60 days, **any data not available on the family's current tier is deleted from the
-  database.**
-* Coming back inside the window is **the family's choice of two**:
-  * **keep the data** — pay for the months they were away, so the tier's billing has no hole
-    in it. Standard July, Standard August, back to Plus in September means Plus for July,
-    August and September.
-  * **start fresh** — pay nothing extra, lose the withheld data, carry on from today.
-* Deleting a family for non-payment (day 60 of the ladder above) **hard-deletes the family's
-  records and keeps the sign-in accounts**, because an account can belong to other families.
+What is NOT: **the mail.** `drainBillingNotices` resolves recipients from the permission grid
+and composes nine messages, and no gate renders one. `npm run auth-email:check` is the shape to
+copy — a hand-run script against the local stack that drives the queue and reads Mailpit — and
+`realtime:check`'s header is the argument for why it stays hand-run.
 
-### Nine things this costs, and the first three are the expensive ones
-
-1. **A TIER→DATA MAP, PER TIER, DECIDED BY A PERSON.** `lib/features.ts` maps ROUTES to tiers
-   and says nothing about tables. Standard alone covers the family tree, the whole
-   dues-and-donations ledger, permission templates and the planning half of Gatherings — so
-   "Standard's data" is `person_relationships`, `dues_schedules`, `dues_payments`, `fund_*`,
-   `permission_templates`, `gathering_templates` and more. **There is no derivation available**:
-   `permission_table_map` maps keys to tables for POLICY purposes and is not the same question.
-   This map has to be written out and reviewed, and it is the single riskiest artefact in the
-   feature.
-2. **`dues_payments` IS APPEND-ONLY AND REFUSES A DELETE TO THE SERVICE ROLE**
-   (`20260806000002`). Deleting a family's ledger means an exemption inside that trigger — the
-   `meeting_votes_are_final` shape, where a `pg_trigger_depth() > 1` test admits a cascade and
-   nothing else. Do NOT reach for a `SET LOCAL` escape hatch: `storage.protect_delete()` has one
-   and its own note in AGENTS.md says a hatch is a thing any future action can set, where a depth
-   test can only be satisfied by an actual cascade.
-3. **DECIDED 2026-08-23: WITHHOLDING IS *EXACTLY* THE TIER GATE, AND NOTHING MORE.** This item
-   asked whether "withheld" had to mean something stronger than closing the route — because the
-   rows stay readable to `/reporting/*`, the dashboard tiles and the family tree's own
-   `bloodlineIds` walk, none of which live on the withheld route. The answer is no: **a
-   downgrade removes the ROUTES, and 60 days later the data is deleted.** There is no third
-   state to build.
-   
-   That is the cheapest possible answer and it is already implemented — the tier gate has closed
-   routes since `lib/tiers.ts` shipped. What remains is the CLOCK and the DELETION, which is
-   what the rest of this list is about. It also removes the largest unknown from the estimate:
-   there is no read-layer gating to write.
-4. **A GRACE WINDOW IS NOT OPTIONAL AND 60 DAYS IS IT.** Recorded because the reminder schedule
-   only makes sense against a fixed clock: `withheld_since` on the family, set by the sweep when
-   the downgrade lands, and the four reminders keyed off it. Not off `scheduled_tier_on`, which
-   is cleared when the change applies.
-5. **THE "PAY THE MONTHS YOU WERE AWAY" FIGURE IS PURE ARITHMETIC AND BELONGS IN
-   `lib/platform-billing.ts`.** Whole months from `withheld_since` to the next 1st at the
-   returning tier's rate, plus the coming month. It is the same shape as the delinquency
-   arrears figure above and should be ONE function with one set of tests, not two that agree
-   today.
-6. **"START FRESH" DELETES IMMEDIATELY AND MUST SAY SO IRREVERSIBLY.** It is the same
-   hard-delete path as everything else here, taken deliberately by an administrator rather than
-   by a clock — so it needs the strongest confirmation in the product. The family-removal
-   pattern (an emailed six-digit code, `family_removal_challenges`) already exists and is the
-   right precedent; a plain confirm dialog is not enough for a button that destroys a family
-   tree.
-7. **ONE HARD-DELETE PATH, THREE CALLERS.** The 60-day sweep, "start fresh", and day 60 of the
-   delinquency ladder. Writing it three times is how one of them ends up missing a table — and
-   the check for that already exists in shape: `reset_families.sql` §11 derives its assertion
-   over `information_schema.tables` rather than trusting a list, and this needs the same.
-8. **THE ACCOUNTS SURVIVE, THE FAMILY'S ROWS DO NOT.** Decided. `auth.users` is untouched,
-   because an account may belong to another family and is a person's login identity. What that
-   leaves is an account with no membership, which the product already handles — `/my-families`
-   is reachable and the resolver falls through — so the state is not new.
-9. **AND THE COPY ON FOUR SURFACES BECOMES FALSE IN THE SAME COMMIT.** `PlanPanel` promises *"a
-   family that moves down to Free keeps every record it has ever entered … so moving back up
-   restores the pages with their data intact"*; `lib/plans.ts`, `/help/family-settings#plan` and
-   `/help/plans` say versions of it. All four are correct TODAY and all four have to change with
-   the code, or the product is lying on the screen where the decision is made.
-
-### The concern, stated once, because it inverts a documented invariant
-
-Today a downgrade deletes nothing, and that is asserted rather than merely true: no RLS policy
-consults `families.tier` and none may (`20260813000003`), and removing a family — the largest
-destructive act in the product — destroys no rows at all. After this, a downgrade becomes the
-one operation that does, which means a mis-clicked plan change can destroy a family tree, and a
-lapsed card can eventually do the same. The 60-day window and the reminders are what make that
-defensible, which is presumably why they are in the brief. It is worth knowing that the window
-and the emails are not decoration — they are the whole of the safety argument, so neither can be
-dropped later as a simplification.
-
-**No family is using this product yet**, which is what makes the decision cheap to take now and
-expensive to take later — the same ground `20260819000006` retired Events on.
-
-Recorded 2026-08-23.
+The gap that matters inside that: **`billingAdmins()` walks `template_permissions` in
+TypeScript rather than asking `auth_permission`**, because it answers for a FAMILY rather than
+for a caller. If the two ever disagree, dunning mail goes to the wrong people or to nobody, and
+nothing anywhere would say so.
 
 ## `http` is not installed, and one unbuilt feature wants it
 
 **Action:** decide it when the weather poller is built. Nothing else wants it.
 
 `pg_cron` went in with `20260823000006`, which schedules `apply_due_platform_tier_changes()`
-hourly at five past — so the delinquency ladder and the 60-day retention above are unblocked and
-each needs its own daily `cron.schedule` line in the migration that builds it. `pg_net` (0.20.3),
-`http` (1.6) and `postgis` (3.3.7) are all AVAILABLE on this project and none is installed.
+hourly at five past; `20260901000002` added `platform-billing-ladder` at twenty past, so there
+are two jobs now and both are created in a migration and asserted there. `pg_net` (0.20.3),
+`http` (1.6) and `postgis` (3.3.7) are all AVAILABLE on this project and **none is installed**.
+
+**THE LADDER DECLINED `pg_net`, WHICH IS THE PRECEDENT WORTH READING BEFORE INSTALLING EITHER.**
+It needed to send email on a schedule and could have done it from SQL. It does not: `pg_cron`
+owns the STATE and a Vercel cron drains a queue for the MAIL, because an outbound HTTP call
+inside a transaction that also deletes a family tree is not a thing to add casually, and because
+a queue in a table is recoverable in a way a fire-and-forget POST is not. `VERCEL.md` argues it.
+
+That is not an argument against the extension in general — it is an argument that "the job needs
+the network" is not on its own sufficient, and the alternative is usually a table.
 
 **This said "the last extension anything wants" and that was falsified within four days**, by
 `20260827000000`, which installs `unaccent` so full-text search folds accents — a thing

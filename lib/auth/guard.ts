@@ -1,4 +1,5 @@
 import { getMyFamilyCode, getMyPersonId, isApprovedMember } from '@/lib/auth/family'
+import { getMyFamilyCurrency } from '@/lib/auth/currency'
 import { can, canAny, canOn, type PermissionAction } from '@/lib/auth/permissions'
 import { callerI18n } from '@/lib/i18n/server'
 import type { T } from '@/lib/i18n/t'
@@ -57,6 +58,26 @@ export interface GuardOk {
    * as their locale — see `lib/i18n/locales.ts`.
    */
   intl: string
+  /**
+   * The currency the FAMILY's books are kept in — `families.currency`, lowercase ISO 4217.
+   *
+   * ── IT IS HERE FOR `t`'s REASON AND ONE STRONGER ONE ──────────────────────────────
+   * `resolve()` already awaits a `families` read for nothing else, so this joins the same
+   * `Promise.all` and the round trip is absorbed rather than added. That is the cheap
+   * argument. The expensive one is that a currency omitted at a call site is not a missing
+   * label — it is a figure that says `$40` about forty pesos, and in
+   * `app/actions/pay-dues.ts` it is a charge in the wrong denomination. A missing `currency`
+   * here is a type error, which is the only version of that rule anybody keeps.
+   *
+   * ── NOT THE CURRENCY GENORRA CHARGES IN ──────────────────────────────────────────
+   * That is always USD and is not a per-family fact. AGENTS.md's "MONEY HAS TWO DIRECTIONS":
+   * `app/actions/billing.ts` must never read this, and it does not.
+   *
+   * ── DO NOT USE IT TO DECIDE ANYTHING ─────────────────────────────────────────────
+   * Same rule as `t` one field up. A currency is a fact about money, not about authority;
+   * nothing a caller may do may branch on it, exactly as no policy may.
+   */
+  currency: string
 }
 
 export interface GuardFail {
@@ -99,15 +120,17 @@ async function notAuthorized(userId: string): Promise<string> {
 }
 
 async function resolve(userId: string): Promise<GuardOk> {
-  // THREE READS IN PARALLEL, not two and then one. See `GuardOk.t`: the locale read is the
-  // cheapest of the three and would otherwise be a serial fourth round trip written out at
-  // every call site.
-  const [familyCode, personId, i18n] = await Promise.all([
+  // FOUR READS IN PARALLEL, not three and then one. See `GuardOk.t` and `GuardOk.currency`:
+  // both are cheaper than the two above them and each would otherwise be a serial round trip
+  // written out at every call site. `getMyFamilyCurrency` re-resolves the family code through
+  // its own `cache()`, so this costs one `families` row and not a second membership read.
+  const [familyCode, personId, i18n, currency] = await Promise.all([
     getMyFamilyCode(userId),
     getMyPersonId(userId),
     callerI18n(userId),
+    getMyFamilyCurrency(userId),
   ])
-  return { ok: true, userId, familyCode, personId, t: i18n.t, intl: i18n.intl }
+  return { ok: true, userId, familyCode, personId, t: i18n.t, intl: i18n.intl, currency }
 }
 
 /**
