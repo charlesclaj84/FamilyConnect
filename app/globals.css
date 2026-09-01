@@ -650,9 +650,17 @@
    applied to thirty elements reads as thirty identical things falling in step;
    alternating the rotation is the whole difference between confetti and rain.
 
-   `forwards` and iteration count 1 — it runs for about three seconds and STOPS.
-   A permanent animation on the screen a member lands on is what WCAG 2.2.2 is
-   about, and it is irritating by the fourth page load besides.
+   IT LOOPS, AND THAT IS A DECISION MADE TWICE. It ran once for three seconds
+   and stopped, on WCAG 2.2.2's argument about moving content a member lands on.
+   Asked for on 2026-09-01 to keep falling, and the reason it is admissible is
+   that this band is the ONE surface in the product that appears on one day a
+   year, carries no information in the motion, and hides itself entirely for
+   anybody who has asked for less of it. WHAT MAKES THAT TRUE MUST NOT BE
+   WEAKENED: `motion-reduce:hidden` on the container and the `display: none`
+   below are now the whole of the accessibility answer, where before they were
+   the belt beside a three-second brace. A loop here without them would be a
+   permanent animation on the screen a member lands on, which is exactly what
+   that criterion is about.
 
    The `opacity: 0` lives inside the keyframe rather than on the class, for the
    reason `.gn-rise` states above: killing the animation must leave the element
@@ -670,14 +678,19 @@
   10%  { opacity: 0.9; }
   to   { opacity: 0; transform: translateY(520%) rotate(-380deg); }
 }
-.gn-confetti-a { animation: gn-confetti-a 3s cubic-bezier(0.4, 0, 0.7, 1) 1 forwards; }
-.gn-confetti-b { animation: gn-confetti-b 3.4s cubic-bezier(0.4, 0, 0.7, 1) 1 forwards; }
+/* `infinite`, and no `forwards` — a fill mode says what to hold after the last
+   iteration and there is no last iteration. The two DURATIONS are deliberately
+   coprime-ish (3s against 3.4s): they drift against each other, so the stream
+   never resolves into one repeating pattern the eye can lock onto. */
+.gn-confetti-a { animation: gn-confetti-a 3s cubic-bezier(0.4, 0, 0.7, 1) infinite; }
+.gn-confetti-b { animation: gn-confetti-b 3.4s cubic-bezier(0.4, 0, 0.7, 1) infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   .gn-float, .gn-float-slow, .gn-shimmer, .gn-rise, .gn-sheen { animation: none; }
   /* NOT `animation: none` for these two: that would leave thirty dots sitting on the
-     band. The container carries `motion-reduce:hidden`, so this is belt-and-braces for
-     a caller that forgets it. */
+     band FOREVER now that the animation loops — `none` on an infinite animation strands
+     every piece at its `from` styles rather than ending it. The container carries
+     `motion-reduce:hidden`; this is what catches a caller that forgets it. */
   .gn-confetti-a, .gn-confetti-b { animation: none; display: none; }
 }
 

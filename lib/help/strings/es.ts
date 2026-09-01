@@ -1435,18 +1435,20 @@ export const helpEs: Catalogue = {
     + 'documentos y personas se quedan exactamente donde están. Quitar cierra las puertas de '
     + 'la familia; no destruye ningún registro.',
   'help.family-settings.removal.b2':
+    '**La facturación se detiene, y esa parte no se puede revertir.** Su plan de GENORRA no se renovará: sigue vigente hasta el final del periodo que ya pagó, y no se reembolsa nada. A cada miembro que paga sus cuotas automáticamente se le cancela ese pago en Stripe de inmediato, y no se pueden reactivar: recuperar la familia restaura todos los registros, pero cada familiar que pagaba automáticamente tendrá que volver a configurarlo. Es el mismo compromiso que supone [desconectar Stripe](/help/accounting#processing), y existe por la misma razón: lo que puede deshacer oculta algo que no puede.',
+  'help.family-settings.removal.b3':
     'Son dos pasos. **Enviarme un código de retirada** envía seis dígitos a la dirección '
     + 'con la que usted inicia sesión, no a una dirección que escriba y no a nadie más. '
     + '**Introducir el código y quitar** pide después esos dígitos y una confirmación. El '
     + 'código dura quince minutos, funciona una vez, y se cancela solo tras cinco intentos '
     + 'fallidos; pida otro con **Enviar otro código**.',
-  'help.family-settings.removal.b3':
+  'help.family-settings.removal.b4':
     'A los integrantes de una familia retirada no se los deja adivinando. Iniciar sesión '
     + 'muestra una pantalla que dice que la familia se retiró y que no se eliminó nada, [Mis '
     + 'familias](/my-families) la enumera con una marca de **Retirada**, y el menú de familia '
     + 'de la parte superior de la página también la marca; así que una cuenta que pertenece a '
     + 'más de una familia sigue en las otras exactamente como antes.',
-  'help.family-settings.removal.b4':
+  'help.family-settings.removal.b5':
     '**Solo el soporte de GENORRA puede recuperar una familia.** No hay ningún botón para '
     + 'eso en ninguna parte del producto, y a propósito: una familia que pudiera revertir su '
     + 'propia retirada no habría sido retirada. Si fue un error, escriba al soporte y pídalo.',

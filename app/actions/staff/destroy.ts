@@ -9,6 +9,7 @@ import { sendEmail, emailOrigin } from '@/lib/email/send'
 import { staffDeleteCodeEmail } from '@/lib/email/templates'
 import { resolveLocale } from '@/lib/auth/locale'
 import { hashChallengeCode, mintStaffDeleteChallenge } from '@/lib/action-challenge'
+import { cancelEveryFamilySubscription } from '@/lib/stripe/cancel-family'
 
 /**
  * The two things the staff console can permanently destroy.
@@ -26,14 +27,30 @@ import { hashChallengeCode, mintStaffDeleteChallenge } from '@/lib/action-challe
  * different in kind, so the file is small enough to read in full before touching it, and a
  * `grep` for what can destroy a family has one answer.
  *
- * ── STORAGE FIRST, THEN THE ROWS. THE ORDER IS LOAD-BEARING ────────────────────────
- * SQL cannot reach the bytes: `storage.protect_delete()` refuses a direct
- * `DELETE FROM storage.objects` and the objects live in a backend no migration touches. So
- * the deletion is two halves, and **the bytes go first** — once `photos` and `documents` have
- * been deleted from the database, nothing can enumerate which objects belonged to that
- * family, and they become orphans only a manual sweep of the backend would find.
- * `scripts/drop-retired-bucket.mjs` and `20260820000008` had to make exactly this split, and
- * that pair's own header states the order for the same reason.
+ * ── THREE HALVES, AND THE ORDER OF ALL THREE IS LOAD-BEARING ───────────────────────
+ * One statement of SQL can only do the last of them, so the deletion is:
+ *
+ *   1. **STRIPE.** Every recurring charge that exists for this family, stopped —
+ *      `lib/stripe/cancel-family.ts`, and see below on why a failure here REFUSES.
+ *   2. **THE BYTES.** `storage.protect_delete()` refuses a direct
+ *      `DELETE FROM storage.objects` and the objects live in a backend no migration touches.
+ *   3. **THE ROWS**, in one statement.
+ *
+ * One sentence puts 1 and 2 in front of 3, and it is the same sentence both times: **once the
+ * rows are gone, nothing can enumerate what belonged to that family.** After `photos` and
+ * `documents` are deleted the objects are orphans only a manual sweep of the backend would
+ * find; after `dues_autopay` and `platform_billing_accounts` are deleted the only record of
+ * which Stripe subscriptions were this family's is at Stripe, and finding them means a person
+ * reading a dashboard by hand. `scripts/drop-retired-bucket.mjs` and `20260820000008` had to
+ * make exactly this split for the storage half, and that pair's header states the order for
+ * the same reason.
+ *
+ * ── AND STRIPE IS THE ONE OF THE THREE THAT CAN REFUSE THE DELETION ────────────────
+ * The storage half reports its failures and presses on: an orphaned object is recoverable by
+ * hand, and a storage outage is not a reason to refuse a deletion request. A live subscription
+ * is the opposite on both counts — it takes money from somebody every month, and **a charge
+ * cannot be un-charged where a deletion can be retried.** So a family whose subscriptions
+ * cannot be stopped is not deleted, and the owner is told so.
  */
 
 export type StaffDestroyResult =
@@ -176,7 +193,26 @@ export async function deleteFamilyPermanently(input: {
     return { success: false, message: challenge?.message ?? t('act.codeNotRight') }
   }
 
-  // ── HALF ONE: THE BYTES. See the module header on why this is first ────────────
+  // ── HALF ONE: STRIPE. BOTH DIRECTIONS OF MONEY, AND IT CAN REFUSE ─────────────
+  // The relatives' standing dues arrangements on the family's own connected account, and the
+  // family's own GENORRA subscription on ours. Neither is a row this database can delete, and
+  // `staff_delete_family` deletes the rows that NAME them — so this must happen first or the
+  // subscriptions become unfindable while still charging cards (module header).
+  //
+  // UNLIKE THE STORAGE HALF BELOW, A FAILURE HERE IS FATAL. An orphaned object costs a manual
+  // sweep; a live subscription takes somebody's money every month and cannot be refunded (rule
+  // 2 of "FOUR RULES ABOUT PLANS"). The deletion can be retried — with a new code, since the
+  // one just spent is single use, which is the contract `disconnectProcessor` already keeps.
+  // `plan: 'now'` — there is no family left to lose the rest of a paid month, and a period-end
+  // cancellation would leave the subscription live and emitting events for a family with no
+  // rows behind it. `cancel-family.ts` argues both branches; removal takes the other one.
+  const stripe = await cancelEveryFamilySubscription(admin, code, { plan: 'now' })
+  if (!stripe.ok) {
+    console.error(`[staff/destroy] ${code} was NOT deleted: ${stripe.failure}`)
+    return { success: false, message: t('act.couldNotStopSubscriptions') }
+  }
+
+  // ── HALF TWO: THE BYTES. See the module header on why this is not first ────────
   // A failure here is REPORTED AND NOT FATAL. The alternative is a family that cannot be
   // deleted because one object will not go, and a storage outage is not a reason to refuse a
   // deletion request — so the row sweep proceeds and the detail says what was left. The
@@ -212,7 +248,7 @@ export async function deleteFamilyPermanently(input: {
     if (removeError) leftover.push(`${bucket} (${removeError.message})`)
   }
 
-  // ── HALF TWO: THE ROWS, IN ONE STATEMENT ──────────────────────────────────────
+  // ── HALF THREE: THE ROWS, IN ONE STATEMENT ────────────────────────────────────
   const { data, error } = await admin.rpc('staff_delete_family', {
     p_family_code: code,
     p_note: note,
@@ -231,12 +267,27 @@ export async function deleteFamilyPermanently(input: {
   revalidatePath('/staff')
 
   const rows = Object.values(row.deleted ?? {}).reduce((n, v) => n + Number(v), 0)
+
+  // ── THE DETAIL LINE IS WHAT A PERSON HAS TO ACT ON, OR RECONCILE AGAINST ───────
+  // Two kinds of sentence and they are different in kind, which is why they are composed
+  // rather than merged into one key. What Stripe stopped is a RECEIPT — an owner asked for a
+  // family to be erased and needs to be able to say, afterwards, that the charges stopped and
+  // how many. The leftover objects are WORK: they are the one part of this nobody else will
+  // notice. A deletion that stopped no subscriptions says nothing at all, because there was
+  // nothing to say.
+  const detail = [
+    stripe.duesCancelled > 0
+      ? t(stripe.duesCancelled === 1 ? 'act.stoppedDuesOne' : 'act.stoppedDuesMany',
+          { n: String(stripe.duesCancelled) })
+      : null,
+    stripe.platformCancelled ? t('act.stoppedGenorraPlan') : null,
+    leftover.length > 0 ? t('act.someObjectsRemain', { detail: leftover.join(', ') }) : null,
+  ].filter(Boolean).join(' ')
+
   return {
     success: true,
     message: t('act.familyDeletedPermanently', { code, rows: String(rows) }),
-    // The storage half's failures, verbatim, because they are the one part of this a person
-    // has to act on afterwards.
-    detail: leftover.length > 0 ? t('act.someObjectsRemain', { detail: leftover.join(', ') }) : undefined,
+    detail: detail === '' ? undefined : detail,
   }
 }
 

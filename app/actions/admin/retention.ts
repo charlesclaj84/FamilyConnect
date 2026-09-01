@@ -11,6 +11,7 @@ import { resolveLocale } from '@/lib/auth/locale'
 import { hashChallengeCode, mintChallenge } from '@/lib/action-challenge'
 import { normalizeTier, TIER_LABEL, type FamilyTier } from '@/lib/tiers'
 import { catchUpQuote, daysUntilDataDeleted } from '@/lib/platform-billing'
+import { cancelFamilyDuesAutopay } from '@/lib/stripe/cancel-family'
 
 /**
  * The sixty days after a downgrade, and the two ways out of them.
@@ -207,6 +208,26 @@ export async function startFresh(code: string): Promise<StartFreshResult> {
   const { data: famRow } = await admin
     .from('families').select('tier').eq('family_code', g.familyCode).maybeSingle()
   const tier = normalizeTier((famRow as { tier?: string } | null)?.tier)
+
+  // ── THE CHARGES FIRST, BECAUSE THIS CALLER CAN STOP THEM NOW ──────────────────────
+  // `20260901000008` makes the purge ENQUEUE every live dues subscription it is about to delete
+  // our record of, and `reapPurgedSubscriptions` drains that queue on the daily route. That is
+  // the only mechanism available to the two `pg_cron` callers, and it means up to a day between
+  // the record going and the charge stopping.
+  //
+  // THIS caller is in a request, with the rows still in front of it, so it does better: it
+  // cancels them now and the enqueue then finds nothing, because that loop takes only rows with
+  // `cancelled_at IS NULL`. The two compose rather than duplicating — which is why the queue is
+  // keyed on live rows rather than on all of them.
+  //
+  // A FAILURE REFUSES THE PURGE. Nothing has been deleted yet, so there is nothing to be half
+  // done; and the alternative is deleting the family's record of arrangements this action could
+  // not stop, which is the exact damage the queue exists to prevent, chosen deliberately.
+  const stopped = await cancelFamilyDuesAutopay(admin, g.familyCode)
+  if (!stopped.ok) {
+    console.error(`[retention] start-fresh refused for ${g.familyCode}: ${stopped.failure}`)
+    return { success: false, message: t('act.couldNotStopDuesFirst') }
+  }
 
   const { data: counts, error } = await admin
     .rpc('delete_family_data_above_tier', {

@@ -109,6 +109,15 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
     status: r => r.status,
   }, 'incoming')
   const [error, setError] = useState('')
+  // ── WHAT A DELETION LEFT BEHIND, AND WHAT IT STOPPED ──────────────────────────────
+  // Not a courtesy. `deleteFamilyPermanently` reports two things a person has to act on or
+  // account for — storage objects it could not remove, and the Stripe subscriptions it
+  // cancelled on the way past — and the dialog closes on success, so this is the only surface
+  // either can appear on. It was appearing on none.
+  //
+  // `--brand-affirm`, never `--destructive`: this is the act SUCCEEDING. `FormError` below owns
+  // reporting a failure, and this file's own header says the red treatment belongs to it alone.
+  const [outcome, setOutcome] = useState('')
   const [isPending, startTransition] = useTransition()
 
   // Ignore a slow response a newer request has already superseded — the same guard
@@ -124,9 +133,14 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
   // the timeout callback because a new search also resets to the first page, and doing
   // them together keeps it to one commit.
   useEffect(() => {
-    const t = setTimeout(() => { setDebounced(query); setPage(0) }, 250)
+    // `setOutcome('')` rides along here rather than in an effect of its own: a receipt for a
+    // family that is no longer in the filtered list is a sentence about nothing on screen, and
+    // `react-hooks/set-state-in-effect` refuses a bare setState in an effect body — correctly,
+    // and this is a callback rather than the body.
+    const t = setTimeout(() => { setDebounced(query); setPage(0); setOutcome('') }, 250)
     return () => clearTimeout(t)
   }, [query])
+
 
   function load() {
     const id = ++reqId.current
@@ -190,6 +204,15 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
       {/* One per screen, beside the control that caused it. Renders nothing for an empty
           message, hence no `{error && …}` guard. */}
       <FormError message={error} />
+
+      {/* NOT `FormError`, and not `role="alert"`: this is the outcome of something the owner
+          just did and is still looking at, so interrupting a screen reader with it would be
+          the wrong treatment for what is partly a receipt. */}
+      {outcome && (
+        <p className="rounded-lg border border-brand-affirm/40 bg-card px-4 py-3 text-sm text-brand-affirm">
+          {outcome}
+        </p>
+      )}
 
       {data.failed ? (
         <p className="rounded-lg border bg-card px-4 py-3 text-sm text-muted-foreground">{t('stf.familiesListCouldNot')}</p>
@@ -310,7 +333,7 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
                             familyCode={row.familyCode}
                             familyName={row.familyName}
                             memberCount={row.memberCount}
-                            onDeleted={load}
+                            onDeleted={summary => { setOutcome(summary); load() }}
                           />
                         </span>
                       )}
@@ -330,7 +353,7 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
       )}
 
       <PageScopedSortNote moreThanOnePage={data.total > MEMBER_PAGE_SIZE} />
-      <Pager page={page} total={data.total} onPage={setPage} />
+      <Pager page={page} total={data.total} onPage={next => { setOutcome(''); setPage(next) }} />
     </div>
   )
 }

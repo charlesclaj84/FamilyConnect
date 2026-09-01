@@ -614,6 +614,23 @@ function RemoveFamilySection({ settings }: { settings: FamilySettings }) {
         <strong className="font-semibold">{t('set.onlySupportRestores')}</strong>
       </p>
 
+      {/* ── THE ONE CONSEQUENCE OF REMOVAL THAT A RESTORE CANNOT UNDO ─────────────────
+          Added 2026-09-01 with the cancellation itself, and it is not decoration. Everything
+          above this paragraph says nothing is deleted, which is true of every ROW — and from
+          2026-09-01 removal also cancels the family's GENORRA plan and every member's automatic
+          dues payment, and `disconnectProcessor`'s header states the asymmetry that creates: a
+          cancelled subscription cannot be un-cancelled, so those enrolments do not come back
+          with the family. An irreversible consequence nobody was told about is worse than the
+          consequence.
+
+          `--brand-withheld`, never `--destructive`: this is a capability going away, not an
+          error and not a deletion. The token's own note in `globals.css` draws exactly that
+          line, and `FormError` above owns reporting a failure. */}
+      <p className="mt-2 text-sm text-brand-withheld">
+        <strong className="font-semibold">{t('set.removalStopsBilling')}</strong>{' '}
+        {t('set.removalBillingBody')}
+      </p>
+
       <FormError message={error} />
 
       {challenge ? (

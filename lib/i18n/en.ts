@@ -442,6 +442,21 @@ export const en: Catalogue = {
   'act.sayWhyAccountDeleted': 'Say why this account is being deleted.',
   'act.couldNotDeleteThatAccount': 'We could not delete that account. Nothing was changed.',
   'act.accountDeleted': '{email} can no longer sign in.',
+  // ── STRIPE, WHEN A FAMILY IS DESTROYED (2026-09-01) ──────────────────────
+  // A Stripe subscription is not a row in this database, so `staff_delete_family`
+  // cannot reach one. `lib/stripe/cancel-family.ts` stops both directions of money
+  // before the rows go, and these are what it reports. The refusal names no amount,
+  // no card and no Stripe id — that detail is in the log, and an owner needs to know
+  // only that nothing was deleted and why.
+  'act.couldNotStopSubscriptions': 'Nothing was deleted. This family still has live Stripe subscriptions that could not be stopped, and deleting it would leave them charging cards with no record of who they belong to. Fix that at Stripe, then ask for a new code.',
+  'act.stoppedDuesOne': 'One recurring dues payment was stopped at Stripe.',
+  'act.stoppedDuesMany': '{n} recurring dues payments were stopped at Stripe.',
+  'act.stoppedGenorraPlan': 'The family’s GENORRA plan was cancelled.',
+  'act.couldNotStopSubscriptionsRemoval': 'The family was not removed. We could not stop its subscriptions at Stripe, and removing it would leave those payments running with nobody able to reach the screen that stops them. Try again in a few minutes with a new code.',
+  'act.couldNotStopDuesFirst': 'Nothing was deleted. We could not stop your members\' recurring dues payments at Stripe first, and deleting the records would leave those payments running with nothing to say what they were for. Try again in a few minutes with a new code.',
+  'set.removalStopsBilling': 'The billing stops, and this part does not come back.',
+  'set.removalBillingBody': 'Your GENORRA plan will not renew — it runs to the end of the period you have already paid for, and nothing is refunded. Every member paying dues automatically has that payment cancelled straight away. Restoring the family brings back every record, but it cannot bring those automatic payments back: each member would have to set theirs up again.',
+  'stf.deleteStopsBilling': 'Every recurring payment for this family is cancelled at Stripe first — the members\' automatic dues on the family\'s own account, and the family\'s GENORRA plan on ours. If any of them cannot be stopped, nothing is deleted.',
   // ── BIRTHDAYS, 2026-08-31 ──────────────────────────────────────────────────
   // `birthday.familyPosted` and `birthday.fromUs` are NOT interchangeable and must not
   // be merged: the first says the family spoke and the second says only that we did.

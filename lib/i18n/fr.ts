@@ -450,6 +450,15 @@ export const fr: Catalogue = {
   'act.sayWhyAccountDeleted': 'Indiquez pourquoi ce compte est supprimé.',
   'act.couldNotDeleteThatAccount': 'Nous n’avons pas pu supprimer ce compte. Rien n’a été modifié.',
   'act.accountDeleted': '{email} ne peut plus se connecter.',
+  'act.couldNotStopSubscriptions': 'Rien n’a été supprimé. Cette famille a encore des abonnements actifs sur Stripe qui n’ont pas pu être résiliés, et la supprimer laisserait ces prélèvements se poursuivre sans aucune trace de leur propriétaire. Corrigez cela sur Stripe, puis demandez un nouveau code.',
+  'act.stoppedDuesOne': 'Un paiement récurrent de cotisations a été résilié sur Stripe.',
+  'act.stoppedDuesMany': '{n} paiements récurrents de cotisations ont été résiliés sur Stripe.',
+  'act.stoppedGenorraPlan': 'Le forfait GENORRA de la famille a été résilié.',
+  'act.couldNotStopSubscriptionsRemoval': 'La famille n’a pas été retirée. Nous n’avons pas pu résilier ses abonnements sur Stripe, et la retirer laisserait ces paiements en cours sans que personne puisse accéder à l’écran qui les arrête. Réessayez dans quelques minutes avec un nouveau code.',
+  'act.couldNotStopDuesFirst': 'Rien n’a été supprimé. Nous n’avons pas pu résilier au préalable les paiements récurrents de cotisations de vos membres sur Stripe, et supprimer les enregistrements laisserait ces paiements en cours sans rien pour indiquer à quoi ils correspondaient. Réessayez dans quelques minutes avec un nouveau code.',
+  'set.removalStopsBilling': 'La facturation s’arrête, et cette partie est irréversible.',
+  'set.removalBillingBody': 'Votre forfait GENORRA ne sera pas renouvelé : il court jusqu’à la fin de la période déjà payée, et rien n’est remboursé. Chaque membre qui paie ses cotisations automatiquement voit ce paiement résilié immédiatement. Restaurer la famille rétablit tous les enregistrements, mais ne peut pas rétablir ces paiements automatiques : chaque membre devrait le reconfigurer.',
+  'stf.deleteStopsBilling': 'Tous les paiements récurrents de cette famille sont d’abord résiliés sur Stripe : les cotisations automatiques des membres sur le compte de la famille, et le forfait GENORRA de la famille sur le nôtre. Si l’un d’eux ne peut pas être arrêté, rien n’est supprimé.',
   // ── BIRTHDAYS, 2026-08-31 ──────────────────────────────────────────────────
   // `birthday.familyPosted` and `birthday.fromUs` are NOT interchangeable and must not
   // be merged: the first says the family spoke and the second says only that we did.

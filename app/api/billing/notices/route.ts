@@ -3,11 +3,30 @@ import type { NextRequest } from 'next/server'
 
 import { drainBillingNotices } from '@/lib/billing/notices'
 import { reapPurgedStorage } from '@/lib/billing/storage-reaper'
+import { reapPurgedSubscriptions } from '@/lib/billing/subscription-reaper'
 import { runDuesReminders } from '@/lib/dues/reminders'
 
 /**
  * The mail half of the billing ladder — the only thing that can send a dunning or retention
- * notice.
+ * notice — and, because this is the ONE place in this product where Node runs on a clock with
+ * the service key, three other jobs ride it.
+ *
+ * ── FOUR JOBS, AND ONLY ONE OF THEM IS ABOUT PLATFORM BILLING ─────────────────────
+ * That is a fact about the infrastructure rather than a family relationship between the
+ * features, and the file's own name is the weakest thing about it. Each runs in its OWN `try`,
+ * in this order, and the response reports all four separately — a failure in one must not cost
+ * a message another has already composed, and a partial run must be legible rather than looking
+ * like a success.
+ *
+ *   1. the platform mail        the ladder's five dunning notices and the retention warnings
+ *   2. `runDuesReminders`       a RELATIVE owing THEIR FAMILY. The other direction of money,
+ *                              with no lockout and no ladder behind it, and never to be
+ *                              conflated with 1
+ *   3. `reapPurgedStorage`      the bytes a purge could not delete, because SQL cannot reach
+ *                              the storage backend
+ *   4. `reapPurgedSubscriptions` the Stripe subscriptions a purge could not cancel, because
+ *                              `pg_cron` has no network. The most urgent of the four: every row
+ *                              left in that queue is a card still being charged
  *
  * ── WHY THIS EXISTS AT ALL, AND WHY IT IS NOT `pg_cron` ────────────────────────────
  * `20260901000002` §E argues it: the sweep owns the STATE and cannot send email, because that
@@ -123,12 +142,35 @@ async function drain(request: NextRequest): Promise<Response> {
       console.error(`[reaper] the storage sweep failed: ${e instanceof Error ? e.message : e}`)
       reaped = { claimed: 0, removed: 0, abandoned: 0 }
     }
+    // ── AND THE CHARGES BEHIND A PURGE, WHICH SQL CANNOT STOP EITHER ─────────────
+    // `20260901000008`. The same shape as the storage reaper one line up and the more urgent of
+    // the two: an orphaned photograph is fetchable by somebody who already has a URL, and an
+    // orphaned subscription TAKES A RELATIVE'S MONEY every month and cannot be refunded.
+    //
+    // The queue is written by the purge itself, BEFORE it deletes the rows that name the
+    // subscriptions — there is no after-the-fact subtraction available here, unlike the bytes.
+    // Its own try, last, for the reasons the two above give: a failure must not cost a dunning
+    // notice already composed, and every claim this dies holding ages out in fifteen minutes.
+    let stopped
+    try {
+      stopped = await reapPurgedSubscriptions()
+      if (stopped.claimed > 0) {
+        console.log(
+          `[subscription-reaper] claimed ${stopped.claimed}: ${stopped.cancelled} cancelled, `
+          + `${stopped.alreadyGone} already gone, ${stopped.failed} failed`,
+        )
+      }
+    } catch (e) {
+      console.error(`[subscription-reaper] the sweep failed: ${e instanceof Error ? e.message : e}`)
+      stopped = { claimed: 0, cancelled: 0, alreadyGone: 0, failed: 0 }
+    }
+
     // LOGGED EVEN WHEN IT DID NOTHING. A quiet queue and a broken drain look identical from
     // outside, and this is the only line that tells them apart.
     console.log(
       `[billing] drained ${result.claimed} notice(s): ${result.sent} sent, ${result.failed} failed`,
     )
-    return Response.json({ ...result, reaped, reminders })
+    return Response.json({ ...result, reaped, reminders, stopped })
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e)
     console.error(`[billing] the notice drain failed: ${message}`)

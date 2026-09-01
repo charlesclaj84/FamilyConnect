@@ -19,6 +19,7 @@ import { resolveLocale } from '@/lib/auth/locale'
 import {
   CHALLENGE_CODE_MINUTES, hashChallengeCode, mintChallenge,
 } from '@/lib/action-challenge'
+import { cancelEveryFamilySubscription } from '@/lib/stripe/cancel-family'
 import {
   FAMILY_RESOURCE, MAX_FAMILY_NAME, REMOVE_FAMILY_RESOURCE,
 } from '@/components/admin/family-settings'
@@ -694,6 +695,40 @@ export async function removeFamily(code: string): Promise<RemoveFamilyResult> {
   }
   if (!challenge?.ok) {
     return { success: false, message: challenge?.message ?? 'That code is not right.' }
+  }
+
+  // ── THE MONEY STOPS BEFORE THE FAMILY DOES ────────────────────────────────────────
+  // Decided 2026-09-01, and it changes what removal MEANS, so it is worth reading before
+  // touching. Removal used to stop no charge at all: a removed family went on paying GENORRA
+  // every month for a product it could not open, and every relative's standing dues arrangement
+  // went on charging their card. `lib/stripe/cancel-family.ts` stops both.
+  //
+  // ── IT IS THE LESS REVERSIBLE OF THE TWO CHOICES, AND THAT IS THE DECISION ────────
+  // Removal is a soft disable and a restore brings every row back where it was — but
+  // `disconnectProcessor`'s header already states the asymmetry this creates: reconnecting
+  // returns the same `acct_…`, and **a cancelled subscription cannot be un-cancelled**, so the
+  // enrolments do not come back with the family. The alternative was cancelling only the GENORRA
+  // plan and leaving the relatives enrolled, which keeps removal fully reversible and means a
+  // removed family's members keep paying dues into a treasury nobody can open.
+  //
+  // So the copy carries it: `/admin/family`'s removal panel says in as many words that every
+  // member's recurring dues payment is cancelled too and that restoring does not bring them
+  // back. A destructive consequence nobody was told about is the version of this that would
+  // actually be wrong.
+  //
+  // ── AND IT RUNS BEFORE THE STATUS FLIPS, WHICH IS THE SAFE ORDER ──────────────────
+  // A failure here refuses the removal, so the family is never left removed with a live
+  // subscription — which would be the copy above made false, on a screen the family can no
+  // longer reach to do anything about it. The emailed code is spent either way, which is the
+  // contract `disconnectProcessor` and `staff/destroy.ts` both keep; the family asks for a new
+  // one.
+  // `plan: 'period-end'` — removal destroys nothing, the term is paid for and nothing is
+  // refunded (rule 2), and a restore inside that month then costs the family nothing at all.
+  // The DUES half is immediate either way; the module says why the two differ.
+  const stopped = await cancelEveryFamilySubscription(admin, g.familyCode, { plan: 'period-end' })
+  if (!stopped.ok) {
+    console.error(`[admin/family] removal refused for ${g.familyCode}: ${stopped.failure}`)
+    return { success: false, message: t('act.couldNotStopSubscriptionsRemoval') }
   }
 
   const { data, error } = await admin

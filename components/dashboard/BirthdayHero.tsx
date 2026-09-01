@@ -96,23 +96,34 @@ export function BirthdayHero({ banner, t }: { banner: MyBirthdayBanner; t: T }) 
  * canvas and a render loop bought for one band that appears on one day a year — and this file
  * sits in the Dashboard's tree, which every member loads.
  *
- * ── IT RUNS ONCE AND STOPS, AND THAT IS ACCESSIBILITY RATHER THAN TASTE ───────────
- * Three seconds, `animation-iteration-count: 1`. A permanent animation on the screen a member
- * lands on is what WCAG 2.2.2 is about, and it is irritating by the fourth page load besides.
- * `motion-reduce:hidden` removes it entirely rather than slowing it: somebody who has asked
- * for no motion has asked for no motion, and thirty static dots would be the worse answer for
- * decoration that carries no information. `globals.css` belts that with `display: none` on the
- * two classes.
+ * ── IT KEEPS FALLING, AND `motion-reduce:hidden` IS NOW THE WHOLE GATE ────────────
+ * It ran once for three seconds and stopped, on WCAG 2.2.2's argument about moving content a
+ * member lands on. Asked for on 2026-09-01 to keep falling, and what makes that admissible is
+ * narrow and must stay intact: this band appears on ONE DAY A YEAR, the motion carries no
+ * information, and anybody who has asked for less of it never sees a frame of it.
  *
- * ── DETERMINISTIC, NOT RANDOM ─────────────────────────────────────────────────────
+ * So `motion-reduce:hidden` on the container below has been PROMOTED. It used to be the belt
+ * beside a three-second brace; it is now the entire accessibility answer, belted by
+ * `display: none` on the two classes in `globals.css`. **Do not remove either, and do not
+ * "simplify" the reduced-motion rule to `animation: none`** — on an infinite animation that
+ * strands thirty dots on the band permanently, which is worse than both the loop and the burst.
+ *
+ * ── DETERMINISTIC, NOT RANDOM, AND THE DELAYS NOW SPAN THE WHOLE DURATION ─────────
  * `Math.random()` in a component that renders on the server is a hydration mismatch, and the
- * calendar module already refuses `Math.random()` for the same class of reason. A fixed spread
- * also reads as designed rather than as noise.
+ * calendar module already refuses it for the same class of reason. A fixed spread also reads as
+ * designed rather than as noise.
+ *
+ * The delay is `(i * 7) % 30` tenths of a second, which is a full permutation of 0.0–2.9s
+ * because 7 and 30 are coprime — so the thirty pieces are spread evenly across one fall rather
+ * than clustered into ten groups of three. That was right when the animation ran once (ten
+ * clusters read as a burst) and is wrong for a loop: clusters would arrive as ten visible
+ * pulses every three seconds. Even spread plus the two drifting durations in `globals.css` is
+ * what makes it a stream instead of a repeating pattern.
  */
 function Confetti() {
   const pieces = Array.from({ length: 30 }, (_, i) => ({
     left: `${(i * 37) % 100}%`,
-    delay: `${(i % 10) * 0.12}s`,
+    delay: `${((i * 7) % 30) * 0.1}s`,
     // The brand's own celebratory set: Legacy gold, Warmth, and the cream already on this band.
     tone: ['bg-brand-legacy', 'bg-brand-warm', 'bg-brand-on-hero'][i % 3],
     size: i % 4 === 0 ? 'h-2.5 w-1' : 'h-1.5 w-1.5',

@@ -428,6 +428,15 @@ export const es: Catalogue = {
   'act.sayWhyAccountDeleted': 'Diga por qué se elimina esta cuenta.',
   'act.couldNotDeleteThatAccount': 'No pudimos eliminar esa cuenta. No se cambió nada.',
   'act.accountDeleted': '{email} ya no puede iniciar sesión.',
+  'act.couldNotStopSubscriptions': 'No se eliminó nada. Esta familia todavía tiene suscripciones activas en Stripe que no se pudieron cancelar, y eliminarla dejaría esos cargos en las tarjetas sin ningún registro de a quién pertenecen. Corríjalo en Stripe y luego solicite un código nuevo.',
+  'act.stoppedDuesOne': 'Se canceló un pago recurrente de cuotas en Stripe.',
+  'act.stoppedDuesMany': 'Se cancelaron {n} pagos recurrentes de cuotas en Stripe.',
+  'act.stoppedGenorraPlan': 'Se canceló el plan de GENORRA de la familia.',
+  'act.couldNotStopSubscriptionsRemoval': 'No se eliminó la familia. No pudimos cancelar sus suscripciones en Stripe, y eliminarla dejaría esos pagos en marcha sin que nadie pueda acceder a la pantalla que los detiene. Inténtelo de nuevo en unos minutos con un código nuevo.',
+  'act.couldNotStopDuesFirst': 'No se eliminó nada. No pudimos cancelar primero los pagos recurrentes de cuotas de sus miembros en Stripe, y eliminar los registros dejaría esos pagos en marcha sin nada que indique a qué correspondían. Inténtelo de nuevo en unos minutos con un código nuevo.',
+  'set.removalStopsBilling': 'La facturación se detiene, y esta parte no se puede revertir.',
+  'set.removalBillingBody': 'Su plan de GENORRA no se renovará: sigue vigente hasta el final del periodo que ya pagó, y no se reembolsa nada. A cada miembro que paga sus cuotas automáticamente se le cancela ese pago de inmediato. Restaurar la familia recupera todos los registros, pero no puede recuperar esos pagos automáticos: cada miembro tendría que volver a configurarlo.',
+  'stf.deleteStopsBilling': 'Primero se cancelan en Stripe todos los pagos recurrentes de esta familia: las cuotas automáticas de los miembros en la cuenta de la propia familia, y el plan de GENORRA de la familia en la nuestra. Si alguno no se puede cancelar, no se elimina nada.',
   // ── BIRTHDAYS, 2026-08-31 ──────────────────────────────────────────────────
   // `birthday.familyPosted` and `birthday.fromUs` are NOT interchangeable and must not
   // be merged: the first says the family spoke and the second says only that we did.

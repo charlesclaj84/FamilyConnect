@@ -11,8 +11,8 @@ how a deployment gains behaviour nobody reviewed.
 40 0 * * *   GET /api/billing/notices
 ```
 
-Once a day at 00:40 UTC, it asks the app to do the three things this product cannot do without a
-clock. All three ride one route because **it is the only place in GENORRA where Node runs on a
+Once a day at 00:40 UTC, it asks the app to do the four things this product cannot do without a
+clock. All four ride one route because **it is the only place in GENORRA where Node runs on a
 schedule with the service key** — not because they belong together:
 
 | | |
@@ -20,6 +20,7 @@ schedule with the service key** — not because they belong together:
 | **Platform billing mail** | The dunning ladder's five emails and the retention window's four reminders. `sweep_platform_billing()` in the database has already decided which are due; this route only sends. |
 | **Family dues reminders** | `lib/dues/reminders.ts`. Queues an installment falling in the next fortnight and mails it once. |
 | **The storage reaper** | `lib/billing/storage-reaper.ts`. Deletes the bytes behind a purge, which SQL structurally cannot reach. |
+| **The subscription reaper** | `lib/billing/subscription-reaper.ts`, added 2026-09-01. Cancels the Stripe subscriptions behind a purge, which `pg_cron` cannot reach either. **The most urgent of the four:** every row left in that queue is a relative's card still being charged. |
 
 **THE FIRST TWO ARE OPPOSITE DIRECTIONS OF MONEY AND MUST NEVER BE CONFLATED.** AGENTS.md's
 *"MONEY HAS TWO DIRECTIONS"* is the rule: the platform mail is about what a FAMILY owes GENORRA
@@ -29,9 +30,19 @@ schedule and nothing else. A reminder that acquired the word "overdue" would be 
 product, not of copy.
 
 **EACH RUNS IN ITS OWN `try`, IN THAT ORDER.** A failure in the reminders must not cost a dunning
-notice that has already been composed, and a failure in the reaper must not cost either. The
-response body reports all three separately so a partial run is legible rather than looking like
+notice that has already been composed, and a failure in either reaper must not cost either. The
+response body reports all four separately so a partial run is legible rather than looking like
 a success.
+
+**AND THE TWO REAPERS ARE NOT THE SAME SHAPE, WHICH IS THE ONE THING TO KNOW BEFORE EDITING
+EITHER.** The storage one works out what to delete AFTER the purge, by listing the bucket and
+subtracting the rows that survived — so its whole hazard is a failed read making every object
+look like an orphan. The subscription one CANNOT do that: once `dues_autopay` is deleted, nothing
+in the database names those subscriptions and no question put to Stripe would recover which
+family they belonged to. So `20260901000008` has the purge capture the ids **before** it deletes
+them, into `platform_subscription_cancellations`, and this route drains that queue. A row that
+never drains is a charge that never stops, which is why a failed attempt is returned to `pending`
+for five days and then marked `failed` rather than being filed as done.
 
 ## Why the work is split across two schedulers
 
@@ -41,7 +52,7 @@ other's:
 | | |
 |---|---|
 | `pg_cron`, 00:20 UTC | **State.** Enqueue due notices, drop a delinquent family to Free, delete a withheld tier's data. It has no network — `http` and `pg_net` are both available on this project and neither is installed, and putting an outbound HTTP call inside a transaction that also deletes a family tree is not something to do casually. |
-| Vercel Cron, 00:40 UTC | **Everything that needs the network or a storage client.** Claim pending notices and send them; queue and send dues reminders; delete the bytes behind a purge. It makes no decisions about a family's standing and can move no tier. |
+| Vercel Cron, 00:40 UTC | **Everything that needs the network or a storage client.** Claim pending notices and send them; queue and send dues reminders; delete the bytes behind a purge; cancel the subscriptions behind a purge. It makes no decisions about a family's standing and can move no tier. |
 
 Twenty minutes apart so the state is settled before the mail is composed.
 

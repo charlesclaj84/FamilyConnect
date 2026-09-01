@@ -7,8 +7,9 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // read family data, which every query here does through the admin client with §3 by hand.
 import { requireEdit, requireRead } from '@/lib/auth/guard'
 import { SECTION_RESOURCE } from '@/components/admin/account-sections'
-import { intentKey, onAccount, stripeClient, stripeUnavailableKey } from '@/lib/stripe/client'
+import { intentKey, stripeClient, stripeUnavailableKey } from '@/lib/stripe/client'
 import { connectConfigured } from '@/lib/stripe/config'
+import { cancelFamilyDuesAutopay } from '@/lib/stripe/cancel-family'
 import {
   DEFAULT_CONNECT_COUNTRY, isEnabledConnectCountry,
 } from '@/lib/stripe/connect-countries'
@@ -676,8 +677,10 @@ export async function disconnectProcessor(code: string): Promise<ProcessorAction
   // `people` row in this family has nothing to resolve against.
   if (!g.personId) return { success: false, message: t('act.youDoNotBelongFamily') }
 
-  const stripe = stripeClient()
-  if (!stripe) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
+  // NO BINDING: the cancellation itself is `cancelFamilyDuesAutopay`'s, and this is only the
+  // early refusal — a deployment with no Stripe key cannot have stopped anything, and saying
+  // so before the code is spent is better than spending it and failing.
+  if (!stripeClient()) return { success: false, message: t('act.onlinePaymentsNotSetUp2') }
 
   const admin = createAdminClient()
 
@@ -724,38 +727,33 @@ export async function disconnectProcessor(code: string): Promise<ProcessorAction
   const accountId = row?.stripe_account_id as string | undefined
   if (!accountId) return { success: false, message: t('act.familyNotConnectedAccount') }
 
-  const { data: autopays, error: readError } = await admin
-    .from('dues_autopay')
-    .select('id, stripe_subscription_id')
-    .eq('family_code', g.familyCode)
-    .is('cancelled_at', null)
-  if (readError) {
-    return { success: false, message: t('act.couldNotCheckRecurringPayments') }
-  }
-
-  let cancelled = 0
-  for (const row of autopays ?? []) {
-    const subscriptionId = row.stripe_subscription_id as string
-    try {
-      await stripe.subscriptions.cancel(subscriptionId, undefined, onAccount(accountId))
-    } catch (e) {
-      // A subscription Stripe no longer has is already cancelled, which is the outcome we
-      // wanted — anything else stops the whole disconnection.
-      const message = describe(e)
-      if (!/No such subscription|resource_missing/i.test(message)) {
-        console.error(`[processing] could not cancel ${subscriptionId} for ${g.familyCode}: ${message}`)
-        return {
-          success: false,
-          message: t('act.someMembersStillBeingCharged'),
-        }
-      }
+  // ── THE SUBSCRIPTIONS, THROUGH THE ONE MODULE THAT CANCELS THEM ─────────────────
+  // `lib/stripe/cancel-family.ts`, shared with the staff console's permanent deletion, for
+  // `lib/chapter-propagation.ts`'s reason: a second copy of "stop every standing dues
+  // arrangement for this family" is a second place for the treatment of `resource_missing`,
+  // the account each subscription is addressed on, and the stamp on the row to drift — and
+  // this is money, so a drift is a member still being charged.
+  //
+  // It reads each subscription's account off its OWN `dues_autopay` row rather than off the
+  // `family_stripe_accounts` row read above. Equivalent, because `dues_autopay_guard_family`
+  // asserts the two agree on every write, and strictly narrower.
+  //
+  // A PARTIAL FAILURE STILL REFUSES THE DISCONNECTION — the behaviour this action already had
+  // and the reason its own header gives: leaving a member charged is worse than leaving a
+  // connection in place. The two failure messages are kept apart on `stage`, because "we could
+  // not check your recurring payments" and "some members may still be being charged" are
+  // opposite reassurances.
+  const stopped = await cancelFamilyDuesAutopay(admin, g.familyCode)
+  if (!stopped.ok) {
+    console.error(`[processing] disconnect refused for ${g.familyCode}: ${stopped.failure}`)
+    return {
+      success: false,
+      message: stopped.stage === 'read'
+        ? t('act.couldNotCheckRecurringPayments')
+        : t('act.someMembersStillBeingCharged'),
     }
-    await admin.from('dues_autopay')
-      .update({ cancelled_at: new Date().toISOString(), status: 'canceled' })
-      .eq('id', row.id)
-      .eq('family_code', g.familyCode)
-    cancelled += 1
   }
+  const cancelled = stopped.cancelled
 
   const { error } = await admin.from('family_stripe_accounts')
     .update({ disconnected_at: new Date().toISOString() })

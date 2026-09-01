@@ -800,6 +800,49 @@ copy — a hand-run script against the local stack that drives the queue and rea
 key and its claim are all asserted in `20260901000007`'s verify block, and nothing renders
 `duesReminderEmail`. One script would cover both.
 
+## THE SUBSCRIPTION REAPER IS BUILT. WHAT IS LEFT IS PROVING IT SENDS NOTHING TO STRIPE
+
+**Action:** none, until somebody wants an end-to-end Stripe test. This is a note, not a task.
+
+`20260901000008` and `lib/billing/subscription-reaper.ts` closed *"a purge leaving live
+subscriptions at Stripe"* on the day it was opened, along with the family-ending paths that had
+the same hole. All four now stop both directions of money:
+
+| | |
+|---|---|
+| staff hard delete | `cancelEveryFamilySubscription(..., { plan: 'now' })`, in Node, BEFORE the rows go — and **a failure refuses the deletion**, because a charge cannot be un-charged where a deletion can be retried. |
+| removal | the same call with `{ plan: 'period-end' }`, and the copy now says every member's automatic dues payment is cancelled and cannot be restarted. |
+| day 60, and the retention sweep | the purge ENQUEUES, the daily route drains. `pg_cron` has no network, and there is no after-the-fact subtraction available the way there is for the bytes. |
+| `startFresh` | cancels first, in the request, so the member's card stops immediately; the enqueue then finds nothing because it takes only `cancelled_at IS NULL` rows. |
+
+**What IS tested:** `20260901000008` §5 exercises the enqueue for real against a throwaway family
+— a live arrangement queued, an already-cancelled one left alone, a dry run queuing nothing, the
+claim taken once, five attempts spent and `gone` filed apart from `failed`. Mutation-checked twice:
+dropping the dry-run guard and dropping the `cancelled_at IS NULL` conjunct each turn a different
+assertion red. `tests/rls` is green on a fresh reset.
+
+### THE ONE THAT REMAINS: nothing has ever watched this call Stripe
+
+Exactly the gap the billing ladder's own entry has about mail, and for the same reason.
+`reapPurgedSubscriptions` composes a `subscriptions.cancel` with `Stripe-Account` set, and **no
+gate has ever issued one** — the RLS harness has no `STRIPE_SECRET_KEY`, which is what the
+`STRIPE-INERT` verdict in `cases.mjs` is about, and `npm test` has no network.
+
+`npm run reaper:check` is the shape to copy: `vitest.integration.config.mts`, hand-run against the
+local stack, and its most valuable case would be the one that asserts **nothing is claimed when
+there is no Stripe key** — because the claim increments `attempts`, so a deployment that cannot
+cancel anything would burn all five and mark live subscriptions `failed`. That branch is written
+and unproven.
+
+Two things it should assert beyond the happy path, both of which are decisions rather than
+plumbing: that a `resource_missing` from Stripe files as `gone` rather than `failed`, and that a
+dues cancellation is addressed on the FAMILY's account and never on ours. Getting the second one
+wrong would look like a working integration.
+
+**AND A ROW LEFT `failed` HAS NO SURFACE.** Nothing in the staff console shows the queue, so five
+spent attempts on a live subscription are visible only in a log line. That is the honest gap, and
+it is smaller than the one it replaced: before this, the same charge was invisible AND had no row.
+
 ## `http` is not installed, and the one feature that wants it is blocked on DATA
 
 **Action:** get a ZIP-to-county crosswalk, or decide the weather poller waits behind a delivery

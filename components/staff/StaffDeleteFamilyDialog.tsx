@@ -45,8 +45,17 @@ export function StaffDeleteFamilyDialog({ familyCode, familyName, memberCount, o
   familyName: string
   /** Shown so the owner can recognise the family. The real counts come back after. */
   memberCount: number
-  /** Called after a successful deletion, so the list can re-read. */
-  onDeleted: () => void
+  /**
+   * Called after a successful deletion, so the list can re-read — and it is handed the
+   * outcome, because this dialog closes on success and has nowhere left to print it.
+   *
+   * That sentence used to be the whole of a real gap: `StaffDestroyResult.detail` names the
+   * storage objects that could NOT be removed and are now orphaned, which is the one part of a
+   * deletion a person has to act on afterwards, and nothing rendered it anywhere. Since
+   * 2026-09-01 it also carries the receipt for the Stripe subscriptions that were stopped, so
+   * dropping it would discard the only statement this product makes that the charges ended.
+   */
+  onDeleted: (outcome: string) => void
 }) {
   const t = useT()
   const [open, setOpen] = useState(false)
@@ -88,7 +97,9 @@ export function StaffDeleteFamilyDialog({ familyCode, familyName, memberCount, o
       })
       if (!result.success) { setError(result.message); return }
       setOpen(false)
-      onDeleted()
+      // Both halves, joined: what was destroyed, then what was stopped at Stripe and what was
+      // left behind in storage. `detail` is absent when there was nothing to say.
+      onDeleted([result.message, result.detail].filter(Boolean).join(' '))
     })
   }
 
@@ -118,6 +129,20 @@ export function StaffDeleteFamilyDialog({ familyCode, familyName, memberCount, o
         <div className="mt-2 space-y-4">
           <p className="rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {t('staff.deleteFamilyWhatGoes')}
+          </p>
+
+          {/* ── WHAT HAPPENS AT STRIPE, WHICH THE PARAGRAPH ABOVE CANNOT SAY ──────────
+              Added 2026-09-01 with the cancellation itself. The line above lists what is
+              DESTROYED, and a Stripe subscription is not a row this database can destroy — so
+              an owner reading only that paragraph would have no way to know whether erasing a
+              family also stops charging its relatives' cards. It does, and it refuses the
+              deletion if it cannot.
+
+              `--brand-withheld` rather than `--destructive`: nothing here is a failure or a
+              deletion, and stacking a second red box would flatten the one distinction the box
+              above is making. */}
+          <p className="rounded-lg border border-brand-withheld/40 px-3 py-2 text-sm text-brand-withheld">
+            {t('stf.deleteStopsBilling')}
           </p>
 
           <div className="space-y-1.5">

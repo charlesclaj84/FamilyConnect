@@ -286,6 +286,19 @@ BEGIN
   -- standing. A FAMILY reset empties what belongs to a family.
   DELETE FROM platform_billing_notices;
   DELETE FROM platform_data_deletions;
+  -- ── AND THE WORK A PURGE LEFT OWING (20260901000008) ──────────────────────────
+  -- Deleted rather than kept, on the same line §11 already draws: it carries a `family_code`
+  -- and describes one family's standing, so a FAMILY reset empties it. It is safe to empty
+  -- BECAUSE a reset is a development act against rows nobody is being charged for — on a real
+  -- database, dropping a pending row here would leave a relative's card being charged with
+  -- nothing left anywhere able to say why, which is the whole reason that table exists.
+  DELETE FROM platform_subscription_cancellations;
+  -- ── AND THE DUES REMINDER QUEUE (20260901000007) ──────────────────────────────
+  -- Added 2026-09-01 alongside the row above. It shipped without a DELETE here, so §11's
+  -- dynamic check was already naming it — the same way it caught the three tables recorded at
+  -- the top of this file. Reminders are about what a relative owes their own family, so they
+  -- go with the family.
+  DELETE FROM dues_reminders;
   DELETE FROM platform_billing_accounts;
 
   -- ── 6e. Text-message settings ─────────────────────────────────────────────

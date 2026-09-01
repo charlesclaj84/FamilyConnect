@@ -2989,6 +2989,121 @@ lands on `invoice.paid` rather than on the session, so `settleWithheldData` is c
 three payment paths and reads `subscription_details.metadata` — reading `invoice.metadata`
 alone would make that branch silently never fire.
 
+## A FAMILY ENDING MUST STOP BOTH DIRECTIONS OF MONEY, AND NO SQL CAN DO IT
+
+Added 2026-09-01. **A Stripe subscription is not a row in this database**, so every deletion
+path in this product structurally cannot reach one — and `staff_delete_family` deletes the rows
+that NAME them. Its sweep is derived from any `public` table carrying a `family_code`, which
+includes both `dues_autopay` and `platform_billing_accounts`, so before this a permanently
+deleted family left:
+
+* **every relative's standing dues arrangement live** on the family's own connected account,
+  charging cards monthly, with no row anywhere in this product pointing at any of them;
+* **the family's own GENORRA subscription live on our account**, invoicing a card for a product
+  with not one row left — and `platform-events.ts` upserting `platform_billing_accounts` on
+  every renewal, RE-CREATING a billing row for a family that does not exist, because that
+  table's `family_code` has no foreign key to `families`. That is the worse of the two: it
+  bills for nothing and it looks like revenue.
+
+`lib/stripe/cancel-family.ts` is the one module that stops either, and three rules come with it.
+
+* **IT RUNS BEFORE THE ROWS GO, AND THAT IS THE STORAGE ARGUMENT TRANSPOSED.**
+  `staff/destroy.ts` deletes the bytes first because afterwards nothing can enumerate which
+  objects belonged to which family. The same sentence is true of subscriptions and the stakes
+  are higher — once those two tables are empty, the only record of which subscriptions were
+  this family's is at Stripe, found by a person reading a dashboard by hand.
+* **A FAILURE REFUSES THE DELETION, WHERE A STORAGE FAILURE DOES NOT.** An orphaned object
+  costs a manual sweep and a storage outage is not a reason to refuse a deletion request. A
+  live subscription takes somebody's money every month, and **a charge cannot be un-charged
+  where a deletion can be retried.** The emailed code is spent either way, which is the
+  contract `disconnectProcessor` already keeps.
+* **IT IS ONE MODULE, NOT A SECOND COPY.** `disconnectProcessor` calls the same function for
+  the dues half — `lib/chapter-propagation.ts`'s reason, with money on it: a second copy of
+  "stop every standing dues arrangement" is a second place for the treatment of
+  `resource_missing`, the account each subscription is addressed on, and the stamp on the row
+  to drift. It reads the account off each `dues_autopay` row rather than off
+  `family_stripe_accounts` — equivalent, because `dues_autopay_guard_family` asserts the two
+  agree on every write, and it still works for a family whose connection is already severed.
+
+**IMMEDIATE, NOT `cancel_at_period_end`, AND THAT IS THE ONE PLACE IT DIFFERS FROM
+`cancelPlanRenewal`.** That action ends a term at its close because a family would otherwise
+lose pages they had paid for with nothing given back (rule 2 below). Neither half of that
+argument survives a deletion: there is no family left to lose pages, and a period-end
+cancellation would leave the subscription ACTIVE for up to a month, still emitting `invoice.paid`
+for a `family_code` with nothing behind it. Neither `invoice_now` nor `prorate` is passed, so
+Stripe issues no final invoice and **no proration credit** — a credit is a refund that has not
+been paid out yet, which is exactly the hazard `changePlanTier` passes
+`proration_behavior: 'none'` to avoid.
+
+**WHAT IT DELIBERATELY DOES NOT TOUCH:** the family's connected ACCOUNT (theirs, with their
+payouts, refunds and disputes on it — `disconnectProcessor`'s argument unchanged), and our
+Stripe CUSTOMER (`platform_payments` is GENORRA's own revenue record and survives a family
+deletion by design, so deleting the customer would orphan our own ledger's references to charges
+on it).
+
+## AND SO MUST A PURGE, WHICH CANNOT REACH STRIPE FROM WHERE IT RUNS
+
+`20260901000008`, the same day. **A tier purge deletes `dues_autopay` at `standard`**, so a family
+dropped to Free on day 60 lost the only record it had of every relative's standing card
+arrangement — and every one of those went on charging a card. `tier_data_tables` said so on that
+table's own row (*"cancelling them is the disconnect path's job, not this one"*), which was a true
+statement of scope and became the whole of what remained.
+
+**IT IS THE STORAGE REAPER'S PROBLEM WITH ONE DIFFERENCE THAT DECIDES THE DESIGN.**
+`reapPurgedStorage` runs AFTER the purge and works out what to delete by listing the bucket and
+subtracting the rows that survived. **No such subtraction exists here:** once those rows are gone,
+nothing in this database names the subscriptions and no question put to Stripe recovers which
+family they were. So the purge CAPTURES the ids before deleting them —
+`platform_subscription_cancellations` — and `lib/billing/subscription-reaper.ts` drains that queue
+on the daily route, because `pg_cron` has no network.
+
+Five things about it, and the second is the one an edit will get wrong:
+
+* **THE ENQUEUE IS DERIVED, IN BOTH DIRECTIONS.** `tier_data_tables.stripe_subscription_kind`, the
+  `storage_bucket` device again, and §5 of that migration fails the deploy if a purgeable table
+  carries a `stripe_subscription_id` and names no kind, or names one and lacks a column the
+  enqueue reads. A table that starts holding subscriptions next year cannot be silently un-reaped.
+* **NOT ON A DRY RUN.** `p_dry_run` promises to count and change nothing, and the screen that warns
+  a family calls it — an enqueue there would cancel a relative's dues for showing somebody a
+  confirmation dialog. Mutation-checked: dropping that guard turns the migration's own assertion
+  red.
+* **ONLY `cancelled_at IS NULL`.** Live arrangements. That is what lets a Node caller cancel first
+  and leave the loop nothing to do, which is what `startFresh` does — the two compose rather than
+  duplicating, and it is why the queue is keyed on live rows rather than all of them.
+* **THE FAMILY'S GENORRA PLAN IS NEVER TOUCHED BY ANY OF THIS.** `platform_billing_accounts` is on
+  `tier_data_keep`, so a purge never deletes it — and a family dropped to Free is not a family
+  leaving. Cancelling their plan there would be the purge deciding they had.
+* **A ROW THAT NEVER DRAINS IS A CHARGE THAT NEVER STOPS.** So a failure returns to `pending` for
+  five days and then becomes `failed`, which is a state a person has to look at; `gone` is kept
+  apart from `cancelled` because "we stopped forty charges" and "thirty-eight were already
+  stopped" are different facts.
+
+## AND REMOVAL STOPS BOTH TOO, WHICH MAKES ONE PART OF IT IRREVERSIBLE
+
+Decided 2026-09-01. Removal used to stop no charge at all: a removed family went on paying GENORRA
+monthly for a product it could not open, and every relative's dues enrolment went on charging
+them. `removeFamily` now calls the same module.
+
+**IT IS THE LESS REVERSIBLE OF THE TWO AVAILABLE ANSWERS AND THAT WAS THE CHOICE.** Removal
+destroys no row and a restore brings everything back — but `disconnectProcessor`'s header states
+the asymmetry: reconnecting returns the same `acct_…`, and **a cancelled subscription cannot be
+un-cancelled**, so the enrolments do not come back with the family. The alternative was cancelling
+only the GENORRA plan, which keeps removal wholly reversible and leaves a removed family's members
+paying dues into a treasury nobody can open.
+
+**SO THE COPY CARRIES IT, IN THREE PLACES, AND THAT IS NOT OPTIONAL.** The removal panel, the
+manual's `family-settings#removal`, and the staff console's delete dialog each say that every
+member's automatic dues payment is cancelled and cannot be restarted. An irreversible consequence
+nobody was told about is the version of this that would actually be wrong.
+
+**AND THE PLAN'S TIMING DIFFERS BETWEEN THE TWO ACTS, WHICH IS WHY `cancelFamilyPlan` TAKES
+`when`.** `now` for a deletion: there is no family left to lose the rest of a paid month, and a
+period-end cancellation would leave the subscription live and emitting `invoice.paid` for a
+`family_code` with no rows behind it. `period-end` for a removal: rule 2 applies unchanged — the
+term is paid for, nothing is refunded, and a restore inside that month then costs nothing. **The
+DUES half is immediate in both**, because a member's next dues charge is money they have not yet
+paid into a family that is switched off.
+
 ## FOUR RULES ABOUT PLANS, WRITTEN INTO COLUMNS RATHER THAN INTO CODE
 
 1. **ONE RATE PER TIER, MONTHLY.** No annual price — `lib/plans.ts` records why one was

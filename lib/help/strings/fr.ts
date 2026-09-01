@@ -1491,19 +1491,21 @@ export const helpFr: Catalogue = {
     + 'document et personne reste exactement là où il est. Le retrait ferme les portes de la '
     + 'famille ; il ne détruit aucun enregistrement.',
   'help.family-settings.removal.b2':
+    '**La facturation s’arrête, et cette partie est irréversible.** Votre forfait GENORRA ne sera pas renouvelé : il court jusqu’à la fin de la période déjà payée, et rien n’est remboursé. Chaque membre qui paie ses cotisations automatiquement voit ce paiement résilié sur Stripe immédiatement, et ces paiements ne peuvent pas être rétablis : rétablir la famille restaure tous les enregistrements, mais chaque proche qui payait automatiquement devra le reconfigurer. C’est le même compromis que [déconnecter Stripe](/help/accounting#processing), et pour la même raison : ce que vous pouvez annuler cache une chose que vous ne pouvez pas.',
+  'help.family-settings.removal.b3':
     'Cela se fait en deux étapes. **M’envoyer un code de retrait** envoie six chiffres à '
     + 'l’adresse avec laquelle vous vous connectez — pas à une adresse que vous saisissez, et '
     + 'pas à quelqu’un d’autre. **Saisir le code et retirer** demande ensuite ces chiffres et '
     + 'une confirmation. Le code dure quinze minutes, fonctionne une fois, et s’annule de '
     + 'lui-même après cinq tentatives erronées ; demandez-en un autre avec **Envoyer un autre '
     + 'code**.',
-  'help.family-settings.removal.b3':
+  'help.family-settings.removal.b4':
     'Les membres d’une famille retirée ne sont pas laissés dans le doute. Se connecter '
     + 'affiche un écran disant que la famille a été retirée et que rien n’a été supprimé, '
     + '[Mes familles](/my-families) la liste avec une mention **Retirée**, et le menu de '
     + 'famille en haut de la page la marque aussi — de sorte qu’un compte appartenant à plus '
     + 'd’une famille continue dans les autres exactement comme avant.',
-  'help.family-settings.removal.b4':
+  'help.family-settings.removal.b5':
     '**Seul le soutien technique de GENORRA peut ramener une famille.** Il n’y a aucun '
     + 'bouton pour cela nulle part dans le produit, et c’est délibéré : une famille qui '
     + 'pourrait annuler son propre retrait n’aurait pas été retirée. S’il s’agissait d’une '
