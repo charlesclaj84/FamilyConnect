@@ -9,6 +9,9 @@ import { requireMember, requireOwn } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedMany, embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { IMAGE_FORMATS, isAllowedUpload, uploadRejection } from '@/lib/upload-types'
+import {
+  PHOTO_MAX_BYTES, PHOTO_UPLOAD_CHUNK, photoObjectPath, photoObjectPrefix,
+} from '@/lib/photo-upload'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
 
@@ -44,6 +47,23 @@ import { callerI18n } from '@/lib/i18n/server'
  * type are both required. The `accept` attribute on the input is a hint a picker may ignore
  * and a drag-and-drop bypasses entirely; this is the gate, because a `'use server'` export is
  * a public HTTP endpoint (§2).
+ *
+ * ── THE BYTES NO LONGER TRAVEL THROUGH A SERVER ACTION ────────────────────────────
+ * Reported 2026-09-01: adding several photographs at once answered **500**, with no message,
+ * from the framework rather than from anything here. `uploadPhotos(collectionId, formData)`
+ * carried the files in the action's own request body, and that body is capped twice over —
+ * Next.js at 1 MB by default and Vercel at 4.5 MB platform-side — so a single modern
+ * photograph could exceed it and a batch always did. The 10 MB per file this screen promises
+ * was never reachable.
+ *
+ * It is a THREE-STEP flow now, and only the first and last cross an action:
+ *
+ *   createPhotoUploadTickets   resolves every gate, then mints one signed upload URL per file
+ *   (the browser)              PUTs each file straight to Supabase Storage with its token
+ *   recordUploadedPhotos       re-resolves the gates, re-derives each path, writes the rows
+ *
+ * `lib/photo-upload.ts` holds the three facts both sides need. Both actions check the album
+ * and the grant, because each is reachable on its own (§2).
  *
  * ── THE ADMIN CLIENT IS USED FOR EXACTLY TWO READS, AND SAYS WHY EACH TIME ─────────
  * Everything else goes through the user client so RLS does the narrowing (§3).
@@ -250,27 +270,160 @@ export async function createCollection(input: {
 }
 
 /**
- * UPLOAD MANY AT ONCE, which is what the ask was and what a reunion actually produces.
+ * TICKETS FOR A BATCH: the gates here, the bytes straight to Storage.
  *
- * ── ONE ACTION PER BATCH, AND IT REPORTS PER FILE ──────────────────────────────────
- * The alternative was to leave `uploadPhoto` alone and let the client call it in a loop. That
- * is worse in the way that matters: the collection check, the family lookup and the person
- * lookup are three round trips EACH TIME, so forty photographs cost a hundred and twenty
- * queries to answer one question a hundred and twenty times. Here they are answered once.
+ * ── WHY THIS IS NOT `uploadPhotos(collectionId, formData)` ANY MORE ────────────────
+ * That action took the files themselves and 500'd on every real batch — and on a single
+ * modern photograph. `lib/photo-upload.ts` records the two ceilings; the short version is
+ * that Next.js refuses a Server Action body over 1 MB before the action runs, and Vercel
+ * refuses a function request body over 4.5 MB whatever Next.js is configured to allow. So
+ * the action's own "up to 10 MB each" was never reachable, and the framework's refusal is a
+ * bare 500 rather than the per-file verdict the dialog exists to print.
  *
- * IT IS NOT ALL-OR-NOTHING, and that is deliberate. A batch of forty with one `.heic` in it
- * should upload thirty-nine, and the caller is told which one did not and why — because the
- * alternative is a member who has to find the offending file themselves and start again.
- * `uploaded` and `failed` are both returned; the screen prints both.
+ * Now: this mints one **signed upload URL per file**, the browser PUTs each file straight to
+ * Supabase Storage with it, and `recordUploadedPhotos` writes the rows. Nothing large crosses
+ * a server action in either direction.
  *
- * ── THE CAPTION IS PER BATCH AND IS DELIBERATELY NOT PER FILE ──────────────────────
- * A picker returns a list, not a form per file, and forty caption boxes is not a screen. One
- * caption applies to the batch — "Saturday, at the lake" — and the list view is where an
- * individual one is corrected afterwards, which is the other half of the same ask.
+ * ── EVERY GATE IS STILL ON THE SERVER, WHICH IS THE POINT OF A TICKET ──────────────
+ * The obvious cheaper design is to let the browser call `supabase.storage.upload()` on its own
+ * session: the bucket's INSERT policy (`20260820000006`) already pins the first path segment
+ * to `auth_family_code()`. It is rejected because that policy knows about the FAMILY and
+ * nothing about `community/gallery:create` — a member with no upload grant could write objects
+ * into their family's public bucket for as long as they liked. A signed URL is minted only
+ * after the grant is resolved, and it names ONE path, so it authorizes exactly the upload this
+ * action agreed to.
+ *
+ * The URL is minted on the USER's client on purpose: the storage policy is then a second
+ * boundary under the grant check rather than being bypassed by the service role (§3).
+ * Measured 2026-09-01 against the local stack, as ALPHA's administrator:
+ *
+ *   createSignedUploadUrl('ALPHATEST/probe/own.jpg')      minted
+ *   createSignedUploadUrl('BRAVOTEST/probe/theirs.jpg')   new row violates row-level security
+ *
+ * So even with every check here deleted, a ticket for another family's folder cannot be
+ * minted. That is defence in depth and not the gate — `photos_family_insert` knows about the
+ * FAMILY and nothing about the album, which is what `recordUploadedPhotos` is for.
+ *
+ * ── IT IS NOT ALL-OR-NOTHING, and that is unchanged ────────────────────────────────
+ * A batch of forty with one `.heic` in it should ticket thirty-nine, and the caller is told
+ * which one did not and why. `tickets` and `failed` are both returned; the screen prints both.
  */
-export async function uploadPhotos(
+export interface PhotoUploadTicket {
+  /** The file this ticket is for, so the client can pair them up without relying on order. */
+  name: string
+  /** `<family code>/<collection id>/<photo id><ext>` — echoed back to `recordUploadedPhotos`. */
+  path: string
+  /** Supabase's one-shot upload token for that exact path. */
+  token: string
+}
+
+export async function createPhotoUploadTickets(
   collectionId: string,
-  formData: FormData,
+  files: { name: string; type: string; size: number }[],
+): Promise<{ success: boolean; tickets: PhotoUploadTicket[]; failed: string[]; message?: string }> {
+  const g = await requireMember()
+  if (!g.ok) return { success: false, tickets: [], failed: [], message: g.message }
+  const { t } = g
+  if (!(await canAny(g.userId, 'community/gallery', 'create'))) {
+    return { success: false, tickets: [], failed: [], message: t('act.notAuthorized') }
+  }
+
+  // ── §4: THE COLLECTION IS A CLIENT-SUPPLIED ID THAT ENDS UP ON THE ROW ───────────
+  // The `photos` row carries the CALLER's `family_code`, so every policy on it is satisfied
+  // while `collection_id` points wherever the caller said — including into another family's
+  // album. Nothing in the database is asked, because RLS is a predicate over the row being
+  // written and not over the ids it references. `belongsToFamily` uses the service role on
+  // purpose: the answer must not depend on the caller's view grant.
+  //
+  // IT IS CHECKED HERE AS WELL AS IN `recordUploadedPhotos`, and the two do different jobs.
+  // The one there is the GATE: it is what stops a `photos` row being written against another
+  // family's album, mutation-checked. This one refuses EARLY and is worth having anyway —
+  // without it a member picks two hundred photographs, waits while every one of them uploads,
+  // and is then told the album was not theirs, with two hundred orphaned objects left in the
+  // bucket. Do not remove it as redundant; it is not the same check twice, it is the same
+  // answer given before the expensive part.
+  if (!(await belongsToFamily('photo_collections', collectionId, g.familyCode))) {
+    return { success: false, tickets: [], failed: [], message: t('act.albumNotFound') }
+  }
+
+  if (files.length === 0) {
+    return { success: false, tickets: [], failed: [], message: t('act.noFilesChosen') }
+  }
+  if (files.length > PHOTO_UPLOAD_CHUNK) {
+    // The client chunks; a caller that does not is refused rather than served, because the
+    // per-file signing below is a round trip each and an unbounded list is a way to hold a
+    // function open. Not a security boundary — a bound.
+    return {
+      success: false, tickets: [], failed: [],
+      message: t('gal.tooManyAtOnce', { n: String(PHOTO_UPLOAD_CHUNK) }),
+    }
+  }
+
+  const supabase = await createClient()
+  const tickets: PhotoUploadTicket[] = []
+  const failed: string[] = []
+
+  for (const file of files) {
+    // THE SAME TWO CHECKS THE OLD ACTION MADE, and they still belong here rather than only in
+    // the picker: this is the gate (§2), and `size` is the browser's own figure. It is not the
+    // last word — a signed URL is good for one object of any size — so the cap is re-read from
+    // the OBJECT in `recordUploadedPhotos`, which is where the file actually exists.
+    if (!isAllowedUpload(file.name, file.type, IMAGE_FORMATS)) {
+      failed.push(uploadRejection(file.name, IMAGE_FORMATS))
+      continue
+    }
+    if (file.size > PHOTO_MAX_BYTES) {
+      failed.push(t('gal.fileTooLarge', { name: file.name }))
+      continue
+    }
+
+    // THE EXTENSION COMES FROM THE ALLOW-LIST'S OWN READING of the name, not from a split on
+    // the raw string: `isAllowedUpload` has already established it is one of ours.
+    const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
+    const path = photoObjectPath(g.familyCode, collectionId, crypto.randomUUID(), ext)
+
+    const { data, error } = await supabase.storage.from('photos').createSignedUploadUrl(path)
+    if (error || !data?.token) {
+      console.error(`[gallery] could not sign an upload for ${path}: ${error?.message}`)
+      failed.push(`${file.name}: ${error?.message ?? t('gal.couldNotStartUpload')}`)
+      continue
+    }
+    tickets.push({ name: file.name, path, token: data.token })
+  }
+
+  return { success: tickets.length > 0, tickets, failed }
+}
+
+/**
+ * Write the rows for objects the browser has just put in the bucket.
+ *
+ * ── THE PATH IS RE-DERIVED, NEVER TRUSTED ──────────────────────────────────────────
+ * A `'use server'` export has a URL (§2), so `entries` is whatever the caller sent — and
+ * `file_path` is what every reader turns into an image URL. A path pointing into another
+ * family's folder would put their photograph in this album under this family's row, with
+ * `family_code` correct and every policy satisfied: §4 exactly, arriving through a string
+ * rather than through an id. So each path must sit DIRECTLY inside
+ * `<family code>/<collection id>/`, which `photoObjectPrefix` is the one definition of, and a
+ * path with a further slash in it is refused too — otherwise `ALPHA/album/../../BRAVO/x.jpg`
+ * is a prefix match.
+ *
+ * ── THE OBJECT IS READ BACK, WHICH IS WHAT MAKES THE SIZE CAP REAL ─────────────────
+ * A signed upload URL authorizes one path and says nothing about how many bytes go through
+ * it, so the 10 MB in `createPhotoUploadTickets` is a courtesy until it is checked against the
+ * object that now exists. `list({ search })` on the album's folder answers both questions at
+ * once — is it there, and how big — and it is one call per file rather than a scan, because an
+ * album is not small and `list` pages at a hundred.
+ *
+ * ── AN ORPHANED OBJECT IS POSSIBLE AND IS THE RIGHT WAY ROUND ──────────────────────
+ * If the row write fails the object is removed here, as the old action did. If the BROWSER
+ * dies between the upload and this call, the object stays in the bucket with no row — a file
+ * nothing points at, which costs storage and shows nobody anything. The reverse ordering would
+ * leave a row pointing at nothing, which renders as a broken image for the whole family.
+ */
+export async function recordUploadedPhotos(
+  collectionId: string,
+  entries: { name: string; path: string }[],
+  caption: string,
 ): Promise<{ success: boolean; uploaded: number; failed: string[]; message?: string }> {
   const g = await requireMember()
   if (!g.ok) return { success: false, uploaded: 0, failed: [], message: g.message }
@@ -278,48 +431,53 @@ export async function uploadPhotos(
   if (!(await canAny(g.userId, 'community/gallery', 'create'))) {
     return { success: false, uploaded: 0, failed: [], message: t('act.notAuthorized') }
   }
-
-  // ── §4: THE COLLECTION IS A CLIENT-SUPPLIED ID WRITTEN ONTO THE ROW ──────────────
-  // The `photos` row carries the CALLER's `family_code`, so every policy on it is satisfied
-  // while `collection_id` points wherever the caller said — including into another family's
-  // album. Nothing in the database is asked, because RLS is a predicate over the row being
-  // written and not over the ids it references. `belongsToFamily` uses the service role on
-  // purpose: the answer must not depend on the caller's view grant.
   if (!(await belongsToFamily('photo_collections', collectionId, g.familyCode))) {
     return { success: false, uploaded: 0, failed: [], message: t('act.albumNotFound') }
   }
-
-  const files = formData.getAll('files').filter((f): f is File => f instanceof File && f.size > 0)
-  if (files.length === 0) {
+  if (entries.length === 0) {
     return { success: false, uploaded: 0, failed: [], message: t('act.noFilesChosen') }
   }
-  const caption = (formData.get('caption') as string | null)?.trim() || null
+  if (entries.length > PHOTO_UPLOAD_CHUNK) {
+    // The same bound the ticket action keeps, and for the same reason: each entry below is a
+    // storage round trip and then an insert, so an unbounded list is a way to hold a function
+    // open. The client sends one round's worth because that is all it was given tickets for.
+    return {
+      success: false, uploaded: 0, failed: [],
+      message: t('gal.tooManyAtOnce', { n: String(PHOTO_UPLOAD_CHUNK) }),
+    }
+  }
 
   const supabase = await createClient()
+  const prefix = photoObjectPrefix(g.familyCode, collectionId)
+  const trimmed = caption.trim() || null
   const failed: string[] = []
   let uploaded = 0
 
-  for (const file of files) {
-    if (!isAllowedUpload(file.name, file.type, IMAGE_FORMATS)) {
-      failed.push(uploadRejection(file.name, IMAGE_FORMATS))
-      continue
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      failed.push(t('gal.fileTooLarge', { name: file.name }))
+  for (const entry of entries) {
+    const objectName = entry.path.startsWith(prefix) ? entry.path.slice(prefix.length) : null
+    if (!objectName || objectName.includes('/')) {
+      // Not a per-file rejection with an explanation: nothing a member can do produces this,
+      // so the honest report is the same refusal the album check gives.
+      failed.push(`${entry.name}: ${t('act.albumNotFound')}`)
       continue
     }
 
-    const photoId = crypto.randomUUID()
-    // THE EXTENSION COMES FROM THE ALLOW-LIST'S OWN READING of the name, not from a split on
-    // the raw string: `isAllowedUpload` has already established it is one of ours.
-    const ext = file.name.slice(file.name.lastIndexOf('.')).toLowerCase()
-    const filePath = `${g.familyCode}/${collectionId}/${photoId}${ext}`
-
-    const { error: uploadError } = await supabase.storage
-      .from('photos')
-      .upload(filePath, file, { contentType: file.type || undefined, upsert: false })
-    if (uploadError) {
-      failed.push(`${file.name}: ${uploadError.message}`)
+    const { data: found, error: listError } = await supabase.storage
+      .from('photos').list(prefix.slice(0, -1), { search: objectName, limit: 1 })
+    if (listError) {
+      failed.push(`${entry.name}: ${listError.message}`)
+      continue
+    }
+    // `search` is a prefix match rather than an equality, so the name is compared here.
+    const object = (found ?? []).find(o => o.name === objectName)
+    if (!object) {
+      failed.push(t('gal.uploadDidNotArrive', { name: entry.name }))
+      continue
+    }
+    const size = (object.metadata as { size?: number } | null)?.size
+    if (typeof size === 'number' && size > PHOTO_MAX_BYTES) {
+      await supabase.storage.from('photos').remove([entry.path])
+      failed.push(t('gal.fileTooLarge', { name: entry.name }))
       continue
     }
 
@@ -327,15 +485,14 @@ export async function uploadPhotos(
       collection_id: collectionId,
       family_code: g.familyCode,
       uploader_id: g.personId || null,
-      file_path: filePath,
-      caption,
+      file_path: entry.path,
+      caption: trimmed,
     })
     if (dbError) {
       // The object goes back if the row did not land, or the bucket accumulates files nothing
-      // points at. The reverse ordering — row first — would leave a row pointing at nothing,
-      // which renders as a broken image for everybody.
-      await supabase.storage.from('photos').remove([filePath])
-      failed.push(`${file.name}: ${dbError.message}`)
+      // points at.
+      await supabase.storage.from('photos').remove([entry.path])
+      failed.push(`${entry.name}: ${dbError.message}`)
       continue
     }
     uploaded += 1
@@ -348,8 +505,61 @@ export async function uploadPhotos(
     success: uploaded > 0,
     uploaded,
     failed,
-    message: uploaded === 0 ? 'Nothing was uploaded.' : undefined,
+    message: uploaded === 0 ? t('gal.nothingUploaded') : undefined,
   }
+}
+
+/**
+ * Rename an album, and re-word its description.
+ *
+ * ── THE SAME OWNER RULE AS DELETING ONE, ONE RUNG QUIETER ──────────────────────────
+ * `requireOwn('community/gallery', 'edit', created_by)`: its creator, or somebody holding the
+ * unrestricted edit grant. That is `updatePhotoCaption`'s rule applied to the album rather
+ * than to a picture in it, and it is deliberately `edit` and not `delete` — a mis-typed name
+ * is repaired by typing it again, where a deleted album takes every photograph with it.
+ *
+ * The row is read on the ADMIN client and family-scoped by hand (§3) BEFORE the grant is
+ * resolved, because `requireOwn` needs the owner and reading it on the caller's client would
+ * make who the owner is depend on the caller's view grant.
+ *
+ * `confirmWrite`, because the UPDATE underneath is narrowed by RLS as well: `photo_collections`
+ * maps to `community/gallery` with an `own_expr` of `created_by = auth_person_id()`, so a
+ * caller holding `edit` at 'own' who somehow reached somebody else's album would match zero
+ * rows and be told it saved (§8b). The guard above should make that unreachable; `confirmWrite`
+ * is what makes "should" observable.
+ */
+export async function updateCollection(
+  id: string,
+  input: { name: string; description?: string },
+): Promise<{ success: boolean; message?: string }> {
+  const admin = createAdminClient()
+  const { user } = await currentUser()
+  // The translator BEFORE the row read, because the "not found" below runs before the guard.
+  const { t } = await callerI18n(user?.id ?? null)
+  const { data: row } = await admin
+    .from('photo_collections').select('created_by, family_code').eq('id', id).maybeSingle()
+  if (!row) return { success: false, message: t('act.albumNotFound') }
+
+  const g = await requireOwn('community/gallery', 'edit', row.created_by)
+  if (!g.ok) return { success: false, message: g.message }
+  if (row.family_code !== g.familyCode) return { success: false, message: t('act.albumNotFound') }
+
+  const name = input.name.trim()
+  if (!name) return { success: false, message: t('act.giveAlbumName') }
+
+  const supabase = await createClient()
+  const outcome = await confirmWrite(() =>
+    supabase.from('photo_collections')
+      .update({ name, description: input.description?.trim() || null })
+      .eq('id', id)
+      .select('id'))
+  if (!outcome.ok) return { success: false, message: outcome.message }
+
+  // BOTH PATHS: the index prints the name on a tile and the album page prints it as the
+  // heading, and a rename that shows on one of them reads as a save that half worked.
+  revalidatePath('/community/gallery')
+  revalidatePath(`/community/gallery/${id}`)
+  return { success: true }
 }
 
 /**

@@ -1827,6 +1827,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Albums, not a pile',
             blocks: [
               p('The [Gallery](/community/gallery) keeps photographs in **albums** \u2014 a reunion, a wedding, a year. An album has a name, an optional description, and any number of pictures.'),
+              p('**Both can be changed afterwards.** Press the pencil beside the album\u2019s title, or the one in the corner of its tile on the Gallery page, and edit either. The photographs in it are untouched \u2014 see [who can change what](#who-can-change-what).'),
               p('It was called Photos and sat under Resources until 2026-08-22. Same screen, more of it.'),
               note('Only image files: JPEG, PNG, WebP or GIF, up to 10 MB each. A HEIC straight off an iPhone is refused, because no browser but Safari can display one \u2014 iOS converts to JPEG when you pick a file, so in practice this only bites a file you have copied off the phone yourself.'),
             ],
@@ -1843,6 +1844,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 'Press **Upload**.',
               ),
               p('**A batch is not all-or-nothing.** If one file is the wrong kind or too big, the rest still upload and the panel names the ones that did not, and why. You do not have to find the offending file and start again.'),
+              p('**A large batch goes up a dozen at a time**, and the button counts them as they land \u2014 \u201cUploading 27 of 200\u201d. Leave the panel open until it finishes: closing the tab part-way keeps whatever has already arrived and stops the rest.'),
               p('The caption applies to every photograph in the batch, which is right for \u201cSaturday, at the lake\u201d and wrong for a picture that needs its own. Fix an individual one afterwards in the list view \u2014 see [changing a caption](#tidying).'),
             ],
           },
@@ -1876,6 +1878,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Caption', text: 'Its uploader, or somebody with permission to edit anybody\u2019s.' },
                 { term: 'Tags', text: 'Anybody who may edit the gallery. Tagging is not about whose photograph it is \u2014 it is about who is in it, and the person who recognises a cousin is often not the person who took the picture.' },
                 { term: 'Delete a photograph', text: 'Its uploader, or somebody with the unrestricted grant. The image file is removed as well as the row.' },
+                { term: 'Rename an album', text: 'Its creator, or somebody with permission to edit anybody\u2019s \u2014 the same rung as a caption, and deliberately one below deleting. The control is the pencil beside the album\u2019s title, and the one in the corner of its tile on the Gallery page. It changes the name and the description and nothing else.' },
                 { term: 'Delete an album', text: 'Its creator, or somebody with the unrestricted grant \u2014 which is what an administrator holds. The control is the bin in the corner of the album\u2019s tile on the Gallery page. It takes every photograph in the album with it, and the image files too; the confirmation says how many before you commit.' },
               ),
               note('Deleting an album is not reversible and not partly reversible. The warning counts the photographs for exactly that reason.'),

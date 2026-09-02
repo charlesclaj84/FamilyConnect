@@ -3503,9 +3503,14 @@ export const helpFr: Catalogue = {
     + 'rassemblement, un mariage, une année. Un album a un nom, une description facultative, '
     + 'et un nombre quelconque d’images.',
   'help.gallery.what-it-is.b1':
+    '**Les deux peuvent être changés par la suite.** Appuyez sur le crayon à côté du '
+    + 'titre de l’album, ou sur celui dans le coin de sa vignette sur la page Galerie, et '
+    + 'modifiez l’un ou l’autre. Les photographies qu’il contient ne sont pas touchées : '
+    + 'voyez [qui peut changer quoi](#who-can-change-what).',
+  'help.gallery.what-it-is.b2':
     'Elle s’appelait Photos et se trouvait sous Ressources jusqu’au 22-08-2026. Le même '
     + 'écran, avec davantage dedans.',
-  'help.gallery.what-it-is.b2':
+  'help.gallery.what-it-is.b3':
     'Uniquement des fichiers image : JPEG, PNG, WebP ou GIF, jusqu’à 10 Mo chacun. Un HEIC '
     + 'sorti tout droit d’un iPhone est refusé, car aucun navigateur sauf Safari ne peut en '
     + 'afficher un — iOS convertit en JPEG lorsque vous choisissez un fichier, donc en '
@@ -3524,6 +3529,10 @@ export const helpFr: Catalogue = {
     + 'reste se téléverse tout de même et le panneau nomme ceux qui ne l’ont pas fait, et '
     + 'pourquoi. Vous n’avez pas à trouver le fichier fautif et à recommencer.',
   'help.gallery.uploading.b2':
+    '**Un grand lot part par douze**, et le bouton les compte à mesure qu’ils arrivent : '
+    + '« Envoi de 27 sur 200 ». Laissez le panneau ouvert jusqu’à la fin : fermer l’onglet '
+    + 'à mi-chemin conserve ce qui est déjà arrivé et arrête le reste.',
+  'help.gallery.uploading.b3':
     'La légende s’applique à chaque photographie du lot, ce qui convient pour « samedi, au '
     + 'lac » et ne convient pas à une image qui a besoin de la sienne. Corrigez-en une en '
     + 'particulier ensuite dans la vue en liste — voyez [changer une légende](#tidying).',
@@ -3581,8 +3590,14 @@ export const helpFr: Catalogue = {
   'help.gallery.who-can-change-what.b1.i2.text':
     'Celui qui l’a téléversée, ou quelqu’un ayant l’autorisation sans restriction. Le '
     + 'fichier image est retiré en plus de la ligne.',
-  'help.gallery.who-can-change-what.b1.i3.term': 'Supprimer un album',
+  'help.gallery.who-can-change-what.b1.i3.term': 'Renommer un album',
   'help.gallery.who-can-change-what.b1.i3.text':
+    'Son créateur, ou quelqu’un ayant la permission de modifier ceux de tout le monde : '
+    + 'le même niveau qu’une légende, et délibérément un cran en dessous de la suppression. '
+    + 'Le contrôle est le crayon à côté du titre de l’album, et celui dans le coin de sa '
+    + 'vignette sur la page Galerie. Il change le nom et la description, et rien d’autre.',
+  'help.gallery.who-can-change-what.b1.i4.term': 'Supprimer un album',
+  'help.gallery.who-can-change-what.b1.i4.text':
     'Celui qui l’a créé, ou quelqu’un ayant l’autorisation sans restriction — ce qu’un '
     + 'administrateur détient. La commande est la corbeille dans le coin de la tuile de '
     + 'l’album sur la page de la Galerie. Elle emporte chaque photographie de l’album, et les '

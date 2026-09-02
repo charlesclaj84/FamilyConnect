@@ -1,10 +1,11 @@
 import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
-import { ChevronLeft, Images } from 'lucide-react'
+import { ChevronLeft } from 'lucide-react'
 import { getMyPersonId } from '@/lib/auth/family'
 import { requireView } from '@/lib/auth/permissions'
 import { getCollectionDetail, getGalleryRights } from '@/app/actions/gallery'
 import { getMembers } from '@/app/actions/members'
+import { AlbumHeading } from '@/components/gallery/AlbumHeading'
 import { CollectionView } from '@/components/gallery/CollectionView'
 import { PageShell } from '@/components/layout/PageShell'
 import { currentUser } from '@/lib/auth/current-user'
@@ -55,16 +56,17 @@ export default async function AlbumPage({ params }: { params: Promise<{ id: stri
         <Link href="/community/gallery"
           className="mb-4 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
           <ChevronLeft className="h-3.5 w-3.5 rtl:-scale-x-100" />{t('comm.allAlbums')}</Link>
-        <div className="flex items-center gap-3">
-          <Images className="h-6 w-6 shrink-0 text-brand-accent" />
-          <h1 className="text-2xl font-bold">{collection.name}</h1>
-          <span className="ms-auto text-sm text-muted-foreground">
-            {collection.photo_count} photo{collection.photo_count !== 1 ? 's' : ''}
-          </span>
-        </div>
-        {collection.description && (
-          <p className="ms-9 mt-2 text-muted-foreground">{collection.description}</p>
-        )}
+        <AlbumHeading
+          id={id}
+          name={collection.name}
+          description={collection.description}
+          photoCount={collection.photo_count}
+          /* THE SAME PAIR `CollectionView`'s `mayEdit` uses, one level up: `editAny` reaches
+             anybody's album, `editOwn` reaches your own — which is exactly what
+             `requireOwn('community/gallery', 'edit', created_by)` resolves in the action. */
+          mayRename={rights.editAny
+            || (rights.editOwn && myPersonId !== '' && collection.created_by === myPersonId)}
+        />
       </div>
 
       <CollectionView

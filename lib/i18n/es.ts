@@ -723,7 +723,6 @@ export const es: Catalogue = {
   'gal.photographsAddedMany': '{n} fotografías añadidas.',
   'gal.addedSomeFailed': '{added} añadidas. {failed} no: {reasons}',
   'gal.formatsAndSize': '{formats}, hasta 10 MB cada una.',
-  'gal.uploadingCount': 'Subiendo {n}…',
   'gal.uploadOne': 'Subir fotografía',
   'gal.uploadMany': 'Subir {n} fotografías',
   'gal.removeTagForConfirm': '¿Quitar la etiqueta de {name} de esta fotografía?',
@@ -1181,6 +1180,17 @@ export const es: Catalogue = {
   'dues.driveVisibleToEveryone':
     'La colecta se creó, pero es VISIBLE PARA TODOS: {reason} Ábrala y establezca a quién va dirigida.',
   'dues.requiredCannotOptOut': '{schedule} es una cuota obligatoria, así que no se puede excluir.',
+  'gal.tooManyAtOnce': 'Demasiadas fotografías a la vez: {n} cada vez.',
+  'gal.couldNotStartUpload': 'No se pudo iniciar la subida.',
+  'gal.uploadDidNotArrive': '{name} no llegó al álbum. Inténtelo de nuevo.',
+  'gal.uploadingProgress': 'Subiendo {done} de {n}…',
+  'gal.photoCountOne': '1 fotografía',
+  'gal.photoCountMany': '{n} fotografías',
+  'gal.renameAlbum': 'Cambiar el nombre del álbum',
+  'gal.renameAlbumBody':
+    'Cambie cómo se llama este álbum y cómo se describe. Las fotografías que contiene no se tocan.',
+  'gal.renameNamedAlbumAria': 'Cambiar el nombre del álbum “{name}”',
+  'gal.renameFailed': 'No se pudo cambiar el nombre de ese álbum.',
   'gal.fileTooLarge': '{name} pesa más de 10 MB.',
   'gal.albumGoneFilesLeftOne':
     'El álbum se ha ido, pero 1 de sus archivos de imagen no se pudo quitar del almacenamiento. Ya no aparece en ninguna lista; avise a un administrador para que lo limpie.',

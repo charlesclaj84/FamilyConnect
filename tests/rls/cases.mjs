@@ -8844,25 +8844,220 @@ const STORAGE_CASES = [
       { family_code: fx.alpha.familyCode })(db),
     positiveActor: 'alphaAdmin',
   },
-  // `uploadPhotos` TAKES A COLLECTION ID FROM THE CLIENT, which makes it the one upload with
-  // a §4 shape — and it had no `belongsToFamily` until 2026-08-20. The row it writes carries
-  // the CALLER's family_code, so every policy on `photos` is satisfied while `collection_id`
-  // points into ALPHA's album: a cross-family reference nothing in the database was asked
-  // about, and nothing in the product would ever report, because the reading side scopes by
-  // family and renders a gap where an image should be.
+  // ── THE UPLOAD IS TWO ACTIONS SINCE 2026-09-01, SO IT IS TWO CASES ────────────────
   //
-  // IT TAKES A BATCH SINCE 2026-08-22 (`uploadPhoto` -> `uploadPhotos`), and the case is
-  // unchanged in shape: one file in the form is still one row attempted, and the §4 check runs
-  // once for the batch rather than once per file — which is the thing worth re-asserting
-  // after that change, because a per-file loop is where a shared check gets dropped.
+  // `uploadPhotos(collectionId, formData)` carried the bytes and 500'd on every real batch —
+  // Next.js caps a Server Action body at 1 MB and Vercel caps a function request body at
+  // 4.5 MB, so the 10 MB per file the screen promises was never reachable. It is a ticket and
+  // a record now: the gates on the server, the bytes straight to Storage.
+  //
+  // THE CASE IS MOVED RATHER THAN DROPPED, and it has to become two, because the §4 shape it
+  // was written for is now in BOTH halves and neither is the other's second line. That shape:
+  // `collectionId` arrives from the client and ends up on a row carrying the CALLER's
+  // `family_code`, so every policy on `photos` is satisfied while `collection_id` points into
+  // ALPHA's album — a cross-family reference nothing in the database is asked about, and
+  // nothing in the product would ever report, because the reading side scopes by family and
+  // renders a gap where an image should be. `belongsToFamily` is what refuses it, and it had
+  // to be added to the new action rather than inherited.
+  //
+  // WHAT THE FIRST ONE ASSERTS IS A CREDENTIAL, not a row — the `getDocumentDownloadUrl`
+  // shape. A ticket is a signed upload URL for one path, so there is no row for a marker scan
+  // to find; what is asserted is that no ticket comes back at all.
+  //
+  // MUTATION-CHECKED 2026-09-01: with `belongsToFamily` removed from
+  // `createPhotoUploadTickets`, exactly this attack line goes RED and nothing else moves.
+  //
+  // BE PRECISE ABOUT WHAT THAT MUTATION WOULD COST, because it is not a leak on its own: the
+  // path is built from the CALLER's family code, so an unguarded ticket names BRAVO's own
+  // folder and no object crosses a boundary. The damage lands one action later, when a row
+  // carrying ALPHA's `collection_id` is written — which is what the case below asserts, and
+  // which is why the guard there is the gate and the guard here is an early refusal.
+  {
+    kind: 'read',
+    id: 'gallery.createPhotoUploadTickets (a collection from another family)',
+    mod: 'app/actions/gallery.ts', fn: 'createPhotoUploadTickets',
+    args: fx => [fx.alpha.collection.id, [{ name: 'p.jpg', type: 'image/jpeg', size: 4 }]],
+    // NOT the marker scan: the answer is a path rather than a row, and ALPHA's family code and
+    // collection id are IN that path by construction — so the default assertion would report a
+    // leak on a successful control. What is asserted is the shape: no ticket, at all.
+    expectAttack: v => v?.success === false && (v?.tickets?.length ?? 0) === 0,
+    expectPositive: (v, fx) => v?.success === true && v.tickets.length === 1
+      && typeof v.tickets[0].token === 'string' && v.tickets[0].token.length > 0
+      && v.tickets[0].path.startsWith(`${fx.alpha.familyCode}/${fx.alpha.collection.id}/`),
+    positiveActor: 'alphaAdmin',
+  },
+  // AND THE SECOND WRITES THE ROW, which is where the old case's probe still belongs.
+  //
+  // ── THE ATTACKER IS BRAVO'S ORDINARY MEMBER, NOT ITS ADMINISTRATOR ─────────────
+  // The only case in this file that does not aim BRAVO's administrator, and the reason is the
+  // one section 5 of the sweep block records: `my-families.createFamily` runs `bravoAdmin` as
+  // its attacker twice, and creating a family MAKES IT THE CREATOR'S ACTIVE ONE — so by the
+  // time these storage cases run, `getMyFamilyCode(bravoAdmin)` answers a freshly minted code
+  // rather than BRAVOTEST. Measured: `9WQ2JC`.
+  //
+  // That matters here and nowhere else, because this is the one case whose ARGUMENT has to
+  // name the attacker's own family. `recordUploadedPhotos` re-derives the object path prefix
+  // from the CALLER's family code (§4 — `file_path` is what every reader turns into an image
+  // URL, so a path the client altered would put another family's photograph in this album),
+  // and a path aimed at the wrong prefix is refused by that check before the album check is
+  // ever reached. So the case cannot be made order-independent the canonical way; it is made
+  // order-independent by choosing an actor no case moves.
+  //
+  // THE PERMISSION LAYER IS STILL OUT OF THE RESULT, which is what §7's "give the attacker
+  // every grant their own family can confer" is actually for. Measured against the local
+  // stack: BRAVO's General template holds `community/gallery` at `create: 'any'`, which is
+  // exactly the grant this action demands. Whatever refuses is not a missing grant.
+  //
+  // ── WHAT IT IS EVIDENCE FOR, MUTATION-CHECKED 2026-09-01 ─────────────────────
+  //   `belongsToFamily` deleted from `recordUploadedPhotos`   -> RED, and the probe prints a
+  //                                                              `photos` row carrying ALPHA's
+  //                                                              `collection_id`
+  //   the PREFIX check widened to a basename split           -> RED on the sibling case below
+  //
+  // The first is §4 exactly: the row's own `family_code` is BRAVO's, so every policy on
+  // `photos` is satisfied while it points into another family's album — a cross-family
+  // reference nothing in the database is asked about, and nothing in the product would ever
+  // surface, because the reading side scopes by family and renders a gap where an image
+  // should be. It is what `audit_cross_family_refs.sql` exists to find afterwards.
+  //
+  // ── THE SETUP IS LOAD-BEARING, in BOTH halves and for different reasons ─────────
+  // `recordUploadedPhotos` reads the object back before it writes the row — that is what makes
+  // the 10 MB cap real, since a signed URL authorizes a path and says nothing about how many
+  // bytes go through it. With no object at the control's path the POSITIVE CONTROL fails and
+  // the case reports a vacuous pass; with no object at the ATTACK's path the mutation above
+  // would be refused by the existence check rather than admitted, so the case would look like
+  // evidence it is not. The trap `documents.getDocumentDownloadUrl` records, twice over.
   {
     kind: 'write',
-    id: 'gallery.uploadPhotos (a collection from another family)',
-    mod: 'app/actions/gallery.ts', fn: 'uploadPhotos',
-    args: fx => [fx.alpha.collection.id, photoForm()],
+    id: 'gallery.recordUploadedPhotos (a collection from another family)',
+    mod: 'app/actions/gallery.ts', fn: 'recordUploadedPhotos',
+    attacker: 'bravoMember',
+    args: fx => [
+      fx.alpha.collection.id,
+      [{
+        name: 'planted.jpg',
+        path: `${fx.bravo.familyCode}/${fx.alpha.collection.id}/planted.jpg`,
+      }],
+      'RLS probe photo',
+    ],
+    positiveArgs: fx => [
+      fx.alpha.collection.id,
+      [{
+        name: 'recorded.jpg',
+        path: `${fx.alpha.familyCode}/${fx.alpha.collection.id}/recorded.jpg`,
+      }],
+      'RLS probe photo',
+    ],
+    setup: async (db, fx) => {
+      await seedObject('photos', `${fx.bravo.familyCode}/${fx.alpha.collection.id}/planted.jpg`)(db)
+      await seedObject('photos', `${fx.alpha.familyCode}/${fx.alpha.collection.id}/recorded.jpg`)(db)
+    },
     probe: (db, fx) => snapshot('photos', 'id, collection_id, family_code',
       { collection_id: fx.alpha.collection.id })(db),
+    // §8b: the probe cannot tell a refusal from an action that wrote nothing and said it
+    // saved, and this action's report is a per-file list rather than a single verdict.
+    expectRefusal: v => v?.success === false && v?.uploaded === 0
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
     positiveActor: 'alphaAdmin',
+  },
+  // AND THE PREFIX CHECK GETS ITS OWN CASE, because the one above cannot reach it: their
+  // attacks are refused by different lines and a single case would be evidence for whichever
+  // fires first. This is the crafted path — ALPHA's folder, sent by somebody in BRAVO — which
+  // `belongsToFamily` never sees, because the album really does belong to the family named in
+  // the path and the caller is simply not in it.
+  //
+  // ITS OWN ALBUM, so the two cases cannot disturb each other's probe. Mutation-checked
+  // 2026-09-01: widening the prefix test to a basename split turns this RED with a `photos`
+  // row whose `file_path` serves an ALPHA object out of a BRAVO row.
+  {
+    kind: 'write',
+    id: 'gallery.recordUploadedPhotos (a path in another family\'s folder)',
+    mod: 'app/actions/gallery.ts', fn: 'recordUploadedPhotos',
+    attacker: 'bravoMember',
+    args: fx => [
+      fx.bravo.renamableCollection.id,
+      [{
+        name: 'stolen.jpg',
+        path: `${fx.alpha.familyCode}/${fx.alpha.collection.id}/recorded.jpg`,
+      }],
+      'RLS probe photo',
+    ],
+    positiveArgs: fx => [
+      fx.bravo.renamableCollection.id,
+      [{
+        name: 'mine.jpg',
+        path: `${fx.bravo.familyCode}/${fx.bravo.renamableCollection.id}/mine.jpg`,
+      }],
+      'RLS probe photo',
+    ],
+    setup: async (db, fx) => {
+      await seedObject('photos', `${fx.alpha.familyCode}/${fx.alpha.collection.id}/recorded.jpg`)(db)
+      await seedObject('photos', `${fx.bravo.familyCode}/${fx.bravo.renamableCollection.id}/mine.jpg`)(db)
+    },
+    // BRAVO'S OWN ALBUM IS THE PROBE, deliberately: the leak this case is about is a BRAVO row
+    // whose `file_path` points at an ALPHA object, and that row is not in ALPHA's collection,
+    // so a probe of ALPHA's rows would pass over it. The rule §8's own warning makes about
+    // reading the right thing, applied to a write.
+    probe: (db, fx) => snapshot('photos', 'id, file_path, family_code',
+      { collection_id: fx.bravo.renamableCollection.id })(db),
+    expectRefusal: v => v?.success === false && v?.uploaded === 0
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    // THE CONTROL IS BRAVO'S OWN MEMBER writing into BRAVO's own album, which is the symmetric
+    // shape section 5 of the sweep block warns against — and it is correct here, because the
+    // claim is about the PATH rather than about the album: what must hold is that the same
+    // caller is admitted with their own prefix and refused with somebody else's. `bravoMember`
+    // is the actor no case moves, which is what made the warning apply in the first place.
+    positiveActor: 'bravoMember',
+  },
+  // ── RENAMING AN ALBUM (2026-09-01) ────────────────────────────────────────────────
+  //
+  // An album could be created and deleted and never renamed, so a typo was permanent unless
+  // you deleted the album — which takes every photograph in it. `updateCollection` is that
+  // repair, at `edit` rather than `delete` because the two acts are not the same size.
+  //
+  // ── WHAT IT IS EVIDENCE FOR IS NOT WHAT IT LOOKS LIKE ────────────────────────
+  // Two boundaries sit under this action and the case asserts that AT LEAST ONE holds — the
+  // shape `documents.getDocumentDownloadUrl`'s header spells out, measured the same way.
+  // Three mutations, 2026-09-01:
+  //
+  //   1. drop `row.family_code !== g.familyCode` from the action      -> STAYS GREEN
+  //   2. that, AND move the UPDATE to the admin client                -> RED, ALPHA's album
+  //                                                                      comes back renamed
+  //                                                                      "BRAVO WAS HERE"
+  //   3. (1) alone, with `expectRefusal` watched                      -> still refused, and
+  //                                                                      `confirmWrite`
+  //                                                                      reports it honestly
+  //
+  // So what refuses in (1) is `perm:photo_collections:update`, whose first conjunct is
+  // `family_code = auth_family_code()`: the statement runs on the CALLER's client, matches zero
+  // rows, and `confirmWrite` turns that into a refusal rather than a silent success (§8b).
+  // The hand-written conjunct is DEFENCE IN DEPTH here, not the gate — the same verdict
+  // AGENTS.md reaches about `retractNomination`'s hand-written filter, and worth keeping for
+  // the same reason: a later widening of that policy would otherwise leave nothing standing.
+  // Labelling it as the thing this case proves is the mistake §7 is most explicit about.
+  //
+  // ITS OWN ALBUM, NOT `f.collection`: the control genuinely renames what it is given, and a
+  // case that moves a value another case's marker scan reads is `f.deletableChild`'s hazard.
+  {
+    kind: 'write',
+    id: 'gallery.updateCollection (an album from another family)',
+    mod: 'app/actions/gallery.ts', fn: 'updateCollection',
+    args: fx => [fx.alpha.renamableCollection.id, { name: 'BRAVO WAS HERE' }],
+    probe: (db, fx) => snapshot('photo_collections', 'id, name, description, family_code',
+      { id: fx.alpha.renamableCollection.id })(db),
+    // §8b: the row is untouched EITHER WAY here, because `requireOwn` refuses before a
+    // statement is sent — so the probe alone cannot tell a refusal from an action that changed
+    // nothing and said it saved. This is the assertion that can.
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaAdmin',
+    positiveArgs: fx => [
+      fx.alpha.renamableCollection.id,
+      { name: 'ALPHATEST renamed album', description: 'renamed by the control' },
+    ],
   },
 
   // ── THE FIRST READ IN THIS BLOCK, AND THE FIRST THAT ASSERTS A CREDENTIAL ─────────
@@ -8947,15 +9142,6 @@ function gatheringPhotoForm(gatheringId) {
   const fd = new FormData()
   fd.append('gatheringId', gatheringId)
   fd.append('file', new File([new Uint8Array([1, 2, 3, 4])], 'g.jpg', { type: 'image/jpeg' }))
-  return fd
-}
-function photoForm() {
-  const fd = new FormData()
-  // `files`, PLURAL, since `uploadPhotos` took over on 2026-08-22 — the action reads
-  // `formData.getAll('files')`, so a form still keyed `file` uploads nothing and the case would
-  // go green over an action that never reached the database.
-  fd.append('files', new File([new Uint8Array([1, 2, 3, 4])], 'p.jpg', { type: 'image/jpeg' }))
-  fd.append('caption', 'RLS probe photo')
   return fd
 }
 /**

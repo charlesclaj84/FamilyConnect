@@ -741,7 +741,6 @@ export const en: Catalogue = {
   'gal.photographsAddedMany': '{n} photographs added.',
   'gal.addedSomeFailed': '{added} added. {failed} did not: {reasons}',
   'gal.formatsAndSize': '{formats}, up to 10 MB each.',
-  'gal.uploadingCount': 'Uploading {n}…',
   'gal.uploadOne': 'Upload photograph',
   'gal.uploadMany': 'Upload {n} photographs',
   'gal.removeTagForConfirm': 'Remove the tag for {name} from this photograph?',
@@ -1204,6 +1203,17 @@ export const en: Catalogue = {
   'dues.driveVisibleToEveryone':
     'The drive was created, but it is VISIBLE TO EVERYONE — {reason} Open it and set who it is for.',
   'dues.requiredCannotOptOut': '{schedule} is a required due, so it cannot be opted out of.',
+  'gal.tooManyAtOnce': 'Too many photographs in one go — {n} at a time.',
+  'gal.couldNotStartUpload': 'Could not start the upload.',
+  'gal.uploadDidNotArrive': '{name} did not reach the album. Try it again.',
+  'gal.uploadingProgress': 'Uploading {done} of {n}…',
+  'gal.photoCountOne': '1 photograph',
+  'gal.photoCountMany': '{n} photographs',
+  'gal.renameAlbum': 'Rename album',
+  'gal.renameAlbumBody':
+    'Change what this album is called, and how it is described. The photographs in it are untouched.',
+  'gal.renameNamedAlbumAria': 'Rename the album “{name}”',
+  'gal.renameFailed': 'Could not rename that album.',
   'gal.fileTooLarge': '{name} is larger than 10 MB.',
   'gal.albumGoneFilesLeftOne':
     'The album is gone, but 1 of its image files could not be removed from storage. It is no longer listed anywhere; tell an administrator so it can be swept.',

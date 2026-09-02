@@ -750,7 +750,6 @@ export const fr: Catalogue = {
   'gal.photographsAddedMany': '{n} photographies ajoutées.',
   'gal.addedSomeFailed': '{added} ajoutées. {failed} non : {reasons}',
   'gal.formatsAndSize': '{formats}, jusqu’à 10 Mo chacune.',
-  'gal.uploadingCount': 'Téléversement de {n}…',
   'gal.uploadOne': 'Téléverser la photographie',
   'gal.uploadMany': 'Téléverser {n} photographies',
   'gal.removeTagForConfirm': 'Retirer l’étiquette de {name} de cette photographie ?',
@@ -1217,6 +1216,17 @@ export const fr: Catalogue = {
     'La collecte a été créée, mais elle est VISIBLE PAR TOUS — {reason} Ouvrez-la et indiquez à qui elle est destinée.',
   'dues.requiredCannotOptOut':
     '{schedule} est une cotisation obligatoire, on ne peut donc pas s’en retirer.',
+  'gal.tooManyAtOnce': 'Trop de photographies à la fois — {n} à la fois.',
+  'gal.couldNotStartUpload': 'Impossible de démarrer l’envoi.',
+  'gal.uploadDidNotArrive': '{name} n’est pas arrivée dans l’album. Réessayez.',
+  'gal.uploadingProgress': 'Envoi de {done} sur {n}…',
+  'gal.photoCountOne': '1 photographie',
+  'gal.photoCountMany': '{n} photographies',
+  'gal.renameAlbum': 'Renommer l’album',
+  'gal.renameAlbumBody':
+    'Changez le nom de cet album et sa description. Les photographies qu’il contient ne sont pas touchées.',
+  'gal.renameNamedAlbumAria': 'Renommer l’album « {name} »',
+  'gal.renameFailed': 'Impossible de renommer cet album.',
   'gal.fileTooLarge': '{name} dépasse 10 Mo.',
   'gal.albumGoneFilesLeftOne':
     'L’album a disparu, mais 1 de ses fichiers image n’a pas pu être retiré du stockage. Il n’est plus listé nulle part ; prévenez un administrateur pour qu’il soit nettoyé.',

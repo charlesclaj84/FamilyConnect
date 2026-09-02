@@ -3370,9 +3370,14 @@ export const helpEs: Catalogue = {
     + 'una boda, un año. Un álbum tiene un nombre, una descripción opcional, y cualquier '
     + 'número de imágenes.',
   'help.gallery.what-it-is.b1':
+    '**Las dos cosas se pueden cambiar después.** Pulse el lápiz que hay junto al '
+    + 'título del álbum, o el de la esquina de su mosaico en la página de la Galería, y '
+    + 'edite cualquiera de las dos. Las fotografías que contiene no se tocan: vea '
+    + '[quién puede cambiar qué](#who-can-change-what).',
+  'help.gallery.what-it-is.b2':
     'Se llamaba Fotos y estaba en Recursos hasta el 22-08-2026. La misma pantalla, con más '
     + 'cosas.',
-  'help.gallery.what-it-is.b2':
+  'help.gallery.what-it-is.b3':
     'Solo archivos de imagen: JPEG, PNG, WebP o GIF, de hasta 10 MB cada uno. Un HEIC '
     + 'directo de un iPhone se rechaza, porque ningún navegador salvo Safari puede mostrar '
     + 'uno; iOS convierte a JPEG cuando usted elige un archivo, así que en la práctica esto '
@@ -3389,6 +3394,10 @@ export const helpEs: Catalogue = {
     + 'grande, el resto se sube igual y el panel nombra los que no lo hicieron, y por qué. No '
     + 'tiene que encontrar el archivo ofensor y empezar de nuevo.',
   'help.gallery.uploading.b2':
+    '**Un lote grande sube de doce en doce**, y el botón los va contando según llegan: '
+    + '«Subiendo 27 de 200». Deje el panel abierto hasta que termine: cerrar la pestaña a '
+    + 'medias conserva lo que ya haya llegado y detiene el resto.',
+  'help.gallery.uploading.b3':
     'El pie se aplica a todas las fotografías del lote, lo cual es correcto para «sábado, '
     + 'en el lago» y equivocado para una imagen que necesita el suyo. Arregle una en concreto '
     + 'después en la vista de lista: vea [cambiar un pie](#tidying).',
@@ -3441,8 +3450,14 @@ export const helpEs: Catalogue = {
   'help.gallery.who-can-change-what.b1.i2.text':
     'Quien la subió, o alguien con el permiso sin restricción. El archivo de imagen se '
     + 'quita además de la fila.',
-  'help.gallery.who-can-change-what.b1.i3.term': 'Eliminar un álbum',
+  'help.gallery.who-can-change-what.b1.i3.term': 'Cambiar el nombre de un álbum',
   'help.gallery.who-can-change-what.b1.i3.text':
+    'Quien lo creó, o alguien con permiso para editar el de cualquiera: el mismo nivel '
+    + 'que un pie, y deliberadamente uno por debajo de eliminar. El control es el lápiz que '
+    + 'hay junto al título del álbum, y el de la esquina de su mosaico en la página de la '
+    + 'Galería. Cambia el nombre y la descripción y nada más.',
+  'help.gallery.who-can-change-what.b1.i4.term': 'Eliminar un álbum',
+  'help.gallery.who-can-change-what.b1.i4.text':
     'Quien lo creó, o alguien con el permiso sin restricción, que es lo que tiene un '
     + 'administrador. El control es la papelera en la esquina del mosaico del álbum en la '
     + 'página de la Galería. Se lleva todas las fotografías del álbum, y los archivos de '

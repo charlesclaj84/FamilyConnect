@@ -1469,6 +1469,15 @@ export async function seed() {
       file_path: `${code}/photo.jpg`, caption: `${code} photo`,
     }).select().single())
 
+    // AN ALBUM WHOSE NAME A CASE IS ALLOWED TO CHANGE. `gallery.updateCollection`'s
+    // positive control renames the album it is given, and the comment below is the
+    // reason it may not be `f.collection`: a case that MOVES a value another case's
+    // marker scan reads is `f.deletableChild`'s hazard in its quieter form.
+    f.renamableCollection = must('renamable photo collection',
+      await db.from('photo_collections').insert({
+        family_code: code, name: `${code} renamable album`, created_by: owner.personId,
+      }).select().single())
+
     // ── A COLLECTION, A PHOTOGRAPH AND A TAG THAT NOTHING ELSE TOUCHES ────────
     // `tests/rls/raw/photos.mjs` probes the photo WRITE policies straight through
     // PostgREST, and it needs rows of its own for two separate reasons. `f.photo` is

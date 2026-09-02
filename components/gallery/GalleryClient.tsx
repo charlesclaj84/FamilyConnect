@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { Images, Plus, Trash2 } from 'lucide-react'
+import { Images, Pencil, Plus, Trash2 } from 'lucide-react'
 import { CollectionCard } from '@/components/gallery/CollectionCard'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
 import {
-  createCollection, deleteCollection, getPhotoCollections,
+  createCollection, deleteCollection, getPhotoCollections, updateCollection,
   type GalleryRights, type PhotoCollection,
 } from '@/app/actions/gallery'
 import { useT } from '@/components/layout/LocaleProvider'
@@ -43,6 +43,11 @@ export function GalleryClient({ rights, myPersonId }: {
   const [description, setDescription] = useState('')
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  // THE ALBUM BEING RENAMED, not a boolean: the dialog is shared by every tile, so which one
+  // it is editing has to be part of the state rather than inferred from what is open.
+  const [renaming, setRenaming] = useState<PhotoCollection | null>(null)
+  const [renameName, setRenameName] = useState('')
+  const [renameDescription, setRenameDescription] = useState('')
   const [isPending, startTransition] = useTransition()
 
   useEffect(() => {
@@ -65,6 +70,36 @@ export function GalleryClient({ rights, myPersonId }: {
 
   const mayDelete = (c: PhotoCollection) =>
     rights.deleteAny || (myPersonId !== null && c.created_by === myPersonId)
+
+  // ONE RUNG QUIETER THAN DELETING. Renaming is an `edit`, and `updateCollection` resolves
+  // `requireOwn('community/gallery', 'edit', created_by)` — so `editAny` reaches anybody's
+  // album and `editOwn` reaches your own. A mis-typed name used to be permanent unless you
+  // deleted the album, which takes every photograph in it with it.
+  const mayRename = (c: PhotoCollection) =>
+    rights.editAny || (rights.editOwn && myPersonId !== null && c.created_by === myPersonId)
+
+  function startRename(c: PhotoCollection) {
+    setRenaming(c)
+    setRenameName(c.name)
+    setRenameDescription(c.description ?? '')
+    setError('')
+  }
+
+  function handleRename() {
+    const c = renaming
+    if (!c) return
+    if (!renameName.trim()) { setError(t('gal.needName')); return }
+    setError('')
+    startTransition(async () => {
+      const result = await updateCollection(c.id, {
+        name: renameName.trim(),
+        description: renameDescription.trim() || undefined,
+      })
+      if (!result.success) { setError(result.message ?? t('gal.renameFailed')); return }
+      setRenaming(null)
+      setCollections(await getPhotoCollections())
+    })
+  }
 
   async function handleDelete(c: PhotoCollection) {
     const count = c.photo_count
@@ -136,6 +171,22 @@ export function GalleryClient({ rights, myPersonId }: {
               {/* OUTSIDE THE CARD'S ANCHOR, and it has to be: an <a> may not contain a
                   <button>, and nesting one produces markup a screen reader cannot describe
                   and a browser may reparent. The same rule `RecentUpdates` follows. */}
+              {/* BOTH CONTROLS SHARE ONE ROW so a tile whose caller may rename but not
+                  delete does not leave a gap where the bin would be, and so the two never
+                  overlap on a narrow tile. */}
+              <div className="absolute end-1.5 top-1.5 flex gap-1">
+              {mayRename(c) && (
+                <button
+                  type="button"
+                  onClick={() => startRename(c)}
+                  disabled={isPending}
+                  aria-label={t('gal.renameNamedAlbumAria', { name: c.name })}
+                  title={t('gal.renameAlbum')}
+                  className="rounded-md bg-background/85 p-1.5 text-muted-foreground shadow-sm transition-opacity hover:bg-background hover:text-foreground focus-visible:opacity-100 disabled:opacity-50 sm:opacity-0 sm:group-hover/tile:opacity-100"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              )}
               {mayDelete(c) && (
                 <button
                   type="button"
@@ -155,14 +206,49 @@ export function GalleryClient({ rights, myPersonId }: {
                      AND IT IS VISIBLE BELOW `sm`, not hover-revealed: a phone has no hover
                      state at all, so a control that only appears on one is a control a
                      phone does not have. */
-                  className="absolute end-1.5 top-1.5 rounded-md bg-background/85 p-1.5 text-destructive shadow-sm transition-opacity hover:bg-background focus-visible:opacity-100 disabled:opacity-50 sm:opacity-0 sm:group-hover/tile:opacity-100"
+                  className="rounded-md bg-background/85 p-1.5 text-destructive shadow-sm transition-opacity hover:bg-background focus-visible:opacity-100 disabled:opacity-50 sm:opacity-0 sm:group-hover/tile:opacity-100"
                 >
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               )}
+              </div>
             </div>
           ))}
         </div>
+      )}
+
+      {renaming && (
+        <Dialog
+          open
+          onClose={() => { if (!isPending) { setRenaming(null); setError('') } }}
+          title={t('gal.renameAlbum')}
+          description={t('gal.renameAlbumBody')}
+        >
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="album-rename">{t('field.name')}</Label>
+              <Input id="album-rename" value={renameName} autoFocus
+                onChange={e => setRenameName(e.target.value)}
+                placeholder={t('gal.albumNamePh')} />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="album-redescribe">{t('field.descriptionOptional')}</Label>
+              <Input id="album-redescribe" value={renameDescription}
+                onChange={e => setRenameDescription(e.target.value)}
+                placeholder={t('gal.albumDescPh')} />
+            </div>
+            <FormError message={error} />
+            <div className="flex gap-2">
+              <Button size="sm" variant="affirm" onClick={handleRename} disabled={isPending}>
+                {t('action.saveChanges')}
+              </Button>
+              <Button size="sm" variant="ghost" disabled={isPending}
+                onClick={() => { setRenaming(null); setError('') }}>
+                {t('action.cancel')}
+              </Button>
+            </div>
+          </div>
+        </Dialog>
       )}
 
       {creating && (

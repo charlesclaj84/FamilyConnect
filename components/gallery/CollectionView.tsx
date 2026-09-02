@@ -20,9 +20,12 @@ import { matchesCaption } from '@/lib/photo-search'
 import { cn } from '@/lib/utils'
 import { IMAGE_FORMATS, acceptAttribute, formatList, isAllowedUpload } from '@/lib/upload-types'
 import {
-  deletePhoto, tagPersonInPhoto, untagPersonFromPhoto, updatePhotoCaption, uploadPhotos,
+  createPhotoUploadTickets, deletePhoto, recordUploadedPhotos, tagPersonInPhoto,
+  untagPersonFromPhoto, updatePhotoCaption,
   type GalleryRights, type Photo,
 } from '@/app/actions/gallery'
+import { PHOTO_UPLOAD_CHUNK } from '@/lib/photo-upload'
+import { createClient } from '@/lib/supabase/client'
 import { useT } from '@/components/layout/LocaleProvider'
 
 interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null }
@@ -406,6 +409,26 @@ export function CollectionView({
  * SPEED of feedback rather than safety: a member who drags in a folder with a `.heic` in it
  * learns which one before waiting for forty uploads. `lib/upload-types.ts` is the one list, so
  * the two answers cannot differ. The server's copy is the gate.
+ *
+ * ── THE BYTES GO STRAIGHT TO STORAGE, IN ROUNDS OF `PHOTO_UPLOAD_CHUNK` ────────────
+ * Reported 2026-09-01 as a 500 on adding several at once. This used to put every file in one
+ * `FormData` and hand it to a server action, which is a request body Next.js caps at 1 MB and
+ * Vercel caps at 4.5 MB — so a batch never arrived, and the refusal came from the framework
+ * with nothing to print. `app/actions/gallery.ts`' header argues it at length.
+ *
+ * Each round is: ask for tickets, PUT each file at its signed URL, record the rows. Three
+ * things about that are load-bearing:
+ *
+ *   THE ROUNDS ARE SEQUENTIAL and the files inside one are concurrent. A phone on a slow
+ *   connection uploading two hundred files at once is two hundred stalled sockets; twelve is
+ *   a batch a browser schedules sensibly.
+ *
+ *   A ROUND'S FAILURES DO NOT STOP THE NEXT ROUND, for the same reason one bad file never
+ *   stopped a batch: forty photographs with one refusal in them should leave thirty-nine in
+ *   the album. Everything that did not land is collected and named.
+ *
+ *   PROGRESS IS COUNTED IN FILES, not rounds. "Uploading 27 of 200" is the only thing worth
+ *   showing while a reunion goes up, and the old single call could not show anything at all.
  */
 function UploadDialog({ collectionId, onClose, onDone }: {
   collectionId: string
@@ -417,6 +440,7 @@ function UploadDialog({ collectionId, onClose, onDone }: {
   const [caption, setCaption] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
+  const [done, setDone] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const rejected = files.filter(f => !isAllowedUpload(f.name, f.type, IMAGE_FORMATS))
@@ -424,17 +448,58 @@ function UploadDialog({ collectionId, onClose, onDone }: {
 
   async function submit() {
     if (accepted.length === 0) { setError(t('gal.chooseImage')); return }
-    setError(''); setBusy(true)
-    const fd = new FormData()
-    for (const f of accepted) fd.append('files', f)
-    fd.append('caption', caption)
-    const result = await uploadPhotos(collectionId, fd)
+    setError(''); setBusy(true); setDone(0)
+
+    const storage = createClient().storage.from('photos')
+    const failed: string[] = []
+    let uploaded = 0
+
+    for (let i = 0; i < accepted.length; i += PHOTO_UPLOAD_CHUNK) {
+      const round = accepted.slice(i, i + PHOTO_UPLOAD_CHUNK)
+      const ticketed = await createPhotoUploadTickets(
+        collectionId,
+        round.map(f => ({ name: f.name, type: f.type, size: f.size })),
+      )
+      failed.push(...ticketed.failed)
+      if (ticketed.tickets.length === 0) {
+        // A REFUSAL OF THE WHOLE ROUND STOPS EVERYTHING, where a per-file one does not: it is
+        // the grant, the album or the session, and none of those gets better on round four.
+        if (ticketed.message) { failed.push(ticketed.message); break }
+        continue
+      }
+
+      // THE FILE IS FOUND BY NAME, not by position: `createPhotoUploadTickets` drops the ones
+      // it refuses, so the two lists are different lengths the moment anything is rejected.
+      const byName = new Map(round.map(f => [f.name, f]))
+      const landed = await Promise.all(ticketed.tickets.map(async ticket => {
+        const file = byName.get(ticket.name)
+        if (!file) return null
+        const { error: putError } = await storage.uploadToSignedUrl(
+          ticket.path, ticket.token, file, { contentType: file.type || undefined },
+        )
+        if (putError) {
+          failed.push(`${file.name}: ${putError.message}`)
+          return null
+        }
+        setDone(n => n + 1)
+        return { name: ticket.name, path: ticket.path }
+      }))
+
+      const entries = landed.filter((e): e is { name: string; path: string } => e !== null)
+      if (entries.length === 0) continue
+
+      const recorded = await recordUploadedPhotos(collectionId, entries, caption)
+      failed.push(...recorded.failed)
+      uploaded += recorded.uploaded
+      if (recorded.uploaded === 0 && recorded.message) failed.push(recorded.message)
+    }
+
     setBusy(false)
-    if (!result.success && result.uploaded === 0) {
-      setError(result.failed.join(' ') || result.message || t('gal.nothingUploaded'))
+    if (uploaded === 0) {
+      setError(failed.join(' ') || t('gal.nothingUploaded'))
       return
     }
-    onDone(result.uploaded, result.failed)
+    onDone(uploaded, failed)
   }
 
   return (
@@ -490,7 +555,7 @@ function UploadDialog({ collectionId, onClose, onDone }: {
           <Button size="sm" variant="affirm" onClick={submit} disabled={busy || accepted.length === 0}>
             {busy && <Loader2 className="animate-spin" />}
             {busy
-              ? t('gal.uploadingCount', { n: String(accepted.length) })
+              ? t('gal.uploadingProgress', { done: String(done), n: String(accepted.length) })
               : accepted.length === 1
                 ? t('gal.uploadOne')
                 : t('gal.uploadMany', { n: String(accepted.length) })}
