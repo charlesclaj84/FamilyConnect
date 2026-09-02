@@ -109,11 +109,19 @@ export default async function FamilyTreePage() {
   // resolves to 'none' on every resource, so `canAny` refuses them on its own.
   const canEdit = await canAny(user.id, 'community/family-tree', 'edit')
 
-  // WHO MAY MOVE THE BLOODLINE ANCHOR — `admin/family:edit`, the same grant that renames
-  // the family, because it is the same kind of decision: one setting that changes what
-  // every member sees. Deliberately NOT the tree's self-service rule. Any member may say
-  // who their father is; redefining whose line the family descends from is not that.
-  const canSetAnchor = await canAny(user.id, 'admin/settings', 'edit')
+  // THERE IS NO BLOODLINE ANCHOR ANY MORE, and so no second grant on this page.
+  //
+  // `canSetAnchor` resolved `admin/settings:edit` here, on the argument that naming the
+  // ancestor a family's line descends from was family-wide configuration rather than a
+  // self-service record. `20260902000000` deleted the anchor: the bloodline is
+  // `people.is_bloodline`, ticked per person, and `setPersonBloodline` resolves the TREE's
+  // own edit grant — `canEdit` above, which the canvas already has.
+  //
+  // That is a widening and it is the intended one: recording who is in the family's
+  // bloodline is the same kind of act as recording who somebody's father is, and both are
+  // now the same grant. What it is NOT is self-service — `setPersonBloodline` uses `canAny`,
+  // because a member editing their own row is the abuse case when
+  // `dues_schedules.bloodline_only` prices against the column.
 
   // WHETHER A CARD OPENS A PERSON PANEL AT ALL — the Directory's grant, not the tree's.
   //
@@ -152,7 +160,6 @@ export default async function FamilyTreePage() {
       <FamilyTreeBuilder
         tree={tree}
         canEdit={canEdit}
-        canSetAnchor={canSetAnchor}
         canViewDirectory={canViewDirectory}
       />
     </PageShell>

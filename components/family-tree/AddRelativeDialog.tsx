@@ -12,7 +12,7 @@ import { PersonPicker } from '@/components/ui/person-picker'
 import { HelpLink } from '@/components/help/HelpLink'
 import { cn } from '@/lib/utils'
 import { addRelative, type AddRelativeMode, type TreePerson } from '@/app/actions/family-tree'
-import { relationshipMeta, LINK_KINDS, linkKindLabel, type LinkKind } from '@/lib/family-tree'
+import { relationshipMeta } from '@/lib/family-tree'
 import { useT } from '@/components/layout/LocaleProvider'
 import type { T } from '@/lib/i18n/t'
 
@@ -109,7 +109,13 @@ export function AddRelativeDialog({
   const [email, setEmail] = useState('')
   const [reason, setReason] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
-  const [linkKind, setLinkKind] = useState<LinkKind>('blood')
+  // NOT TICKED BY DEFAULT, unlike `sharedParents` below, and the two defaults disagree on
+  // purpose. `people.is_bloodline` is `NOT NULL DEFAULT false` and `dues_schedules
+  // .bloodline_only` prices against it, so a ticked default would bill a step-son whom
+  // nobody had thought about the moment a family turned that flag on. A missed tick is a
+  // relative left out of the Bloodline view, which somebody notices and fixes; a wrong
+  // tick is a bill.
+  const [isBloodline, setIsBloodline] = useState(false)
   // TICKED BY DEFAULT. Sharing both parents is what "brother" means to most families most
   // of the time, and a half-sibling is the case somebody unticks — the opposite default
   // makes the ordinary addition take an extra decision and leaves the tree half-built when
@@ -135,7 +141,7 @@ export function AddRelativeDialog({
     setEmail('')
     setReason('')
     setDateOfBirth('')
-    setLinkKind('blood')
+    setIsBloodline(false)
     setSharedParents(coParents.map(p => p.id))
     setError('')
     setResult(null)
@@ -176,7 +182,7 @@ export function AddRelativeDialog({
         email,
         noEmailReason: reason,
         dateOfBirth,
-        linkKind,
+        isBloodline,
         sharedParentIds: sharedParents,
       })
       if (!r.success) { setError(r.message); return }
@@ -259,56 +265,36 @@ export function AddRelativeDialog({
             )}
           </div>
 
-          {/* HOW THEY ARE RELATED, and only for a link blood could travel down. A marriage
-              is never blood — the database corrects one that claims to be
-              (`person_relationships_marriage_is_not_blood`) — so asking here would be
-              asking a question whose answer is overruled.
+          {/* IS THIS PERSON IN THE FAMILY'S BLOODLINE.
+              `people.is_bloodline`, and the whole of what used to be a four-way picker over
+              `person_relationships.link_kind` — blood, step, adopted, foster — asked about
+              the LINK. `20260902000000` argues the change at length; what matters here is
+              why it is still asked at CREATION rather than left to the person's card:
+              somebody adding a step-son knows it at that moment and will not come back.
 
-              It is asked at CREATION rather than left to be corrected later because the
-              person adding a step-son knows it at that moment and will not come back. The
-              default is 'blood', which is the common case and the column default. */}
-          {meta && meta.relation !== 'spouse' && (
-            <div className="space-y-2">
-              <Label>{t('rel.howRelated')}</Label>
-              <div className="grid gap-2 sm:grid-cols-4">
-                {LINK_KINDS.map(k => {
-                  const active = linkKind === k
-                  return (
-                    <button
-                      key={k}
-                      type="button"
-                      onClick={() => setLinkKind(k)}
-                      aria-pressed={active}
-                      className={cn(
-                        'rounded-xl border px-3 py-2 text-xs font-medium capitalize transition-colors',
-                        active
-                          ? 'border-brand-primary bg-brand-soft text-brand-on-soft'
-                          : 'border-input text-muted-foreground hover:border-brand-primary/40 hover:text-foreground',
-                      )}
-                    >
-                      {k}
-                    </button>
-                  )
-                })}
-              </div>
-              {/* WHAT THE FIELD RECORDS, not what the Bloodline view will show. This used
-                  to say "Blood relatives appear in the Bloodline view", which is a promise
-                  the field cannot keep for a PARENT: whether somebody appears there depends
-                  on which ancestor the family's line descends from, and adding a mother
-                  correctly marked blood put her in the view. The member's only visible
-                  recourse was to mark a real parent as step, which is a falsehood the tree
-                  then carries forever. Say what the link means; point at the setting that
-                  decides membership. */}
+              NOT OFFERED FOR mode 'existing'. That person already has an answer recorded,
+              and restating it as a side effect of drawing a second relationship would let
+              this dialog overwrite it — `addRelative` ignores the field there for the same
+              reason, so offering the control would be offering one that does nothing.
+
+              NOT NARROWED TO NON-SPOUSE LINKS, which the old picker was. A marriage was
+              never blood and the database corrected a link that claimed to be, so asking
+              was asking a question whose answer was overruled. This is a fact about the
+              PERSON: a wife who married in is not in the bloodline, and a cousin somebody
+              married is, and only the family knows which. */}
+          {mode !== 'existing' && (
+            <div className="space-y-2 rounded-xl border bg-muted/30 px-4 py-3">
+              <label className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={isBloodline}
+                  onChange={e => setIsBloodline(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-input"
+                />
+                <span>{t('rel.inBloodlineQuestion')}</span>
+              </label>
               <p className="text-xs text-muted-foreground">
-                {linkKind === 'blood'
-                  ? t('rel.bloodLinkNote')
-                  : t('rel.nonBloodLinkNote', {
-                      kind: linkKindLabel(linkKind, meta.label),
-                    })}
-                {meta.relation === 'parent' && t('rel.parentBloodlineNote', {
-                  decidedBy: t('tree.decidedBy'),
-                  control: t('tree.bloodlineFrom'),
-                })}
+                {t('rel.inBloodlineHint', { control: t('tree.bloodline') })}
               </p>
             </div>
           )}
@@ -370,10 +356,12 @@ export function AddRelativeDialog({
               missing is a fact nobody has entered yet, which is what `--brand-warm` reads
               as here (AGENTS.md: never `--destructive`, which is for a failure).
 
-              NARROWED TO 'blood' ON PURPOSE. A step-sister correctly never joins the
-              bloodline, so telling somebody adding one that she will not is noise about a
-              thing they did not ask for. */}
-          {meta?.relation === 'sibling' && coParents.length === 0 && linkKind === 'blood' && (
+              SHOWN ONLY WHEN THEY ARE BEING MARKED AS BLOODLINE. A step-sister is not in
+              it either way, so telling somebody adding one that she will not appear in the
+              Bloodline view is noise about a thing they did not ask for. It was
+              `linkKind === 'blood'` until `20260902000000`; the condition asks the same
+              question of the person instead of the link. */}
+          {meta?.relation === 'sibling' && coParents.length === 0 && isBloodline && (
             <div className="rounded-xl border border-brand-warm bg-brand-warm/10 px-4 py-3">
               <p className="text-xs text-brand-warm">
                 {t('rel.siblingNeedsSharedParent', {

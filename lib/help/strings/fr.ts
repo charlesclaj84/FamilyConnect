@@ -2240,12 +2240,11 @@ export const helpFr: Catalogue = {
     + 'cotisation qui n’est jamais la sienne n’est pas listée comme quelque chose qu’il ne '
     + 'paie pas.',
   'help.accounting.dues.b5':
-    'La commande est indisponible tant que votre famille n’a pas dit de quel ancêtre sa '
-    + 'lignée descend, car sans cela il n’y a pas de lignée et la cotisation ne serait due '
-    + 'par personne. Définissez d’abord **La lignée descend de** sur l’[arbre '
-    + 'généalogique](/community/family-tree). Qui est dans la lignée est calculé depuis '
-    + 'l’arbre chaque fois : corriger un lien — ou déplacer ce réglage — change donc qui doit '
-    + 'la cotisation.',
+    'Le contrôle n’est pas disponible tant que personne dans votre famille n’a été coché '
+    + 'comme faisant partie de sa lignée, car jusque-là la cotisation ne serait due par '
+    + 'personne. Cochez d’abord **fait partie de la lignée de la famille** sur la fiche '
+    + 'd’un parent dans l’[arbre familial](/community/family-tree). Qui doit la cotisation '
+    + 'est exactement qui est coché, donc cocher quelqu’un plus tard l’y ajoute.',
   'help.accounting.dues.b6':
     '**Dû par** dit quelle partie de la famille la doit : National — toute la famille — ou '
     + 'une région, ou une section. Cela n’apparaît qu’une fois que votre famille a une région '
@@ -3044,60 +3043,72 @@ export const helpFr: Catalogue = {
     + '**Inviter** de l’éditeur de fiches. Il n’y a pas d’étape séparée « convertir en adulte '
     + '» — un enfant qui obtient une adresse courriel est simplement invité comme n’importe '
     + 'qui.',
-  'help.family-tree.blood.heading': 'Sang, alliance, adoption et placement',
+  'help.family-tree.blood.heading': 'Qui fait partie de la lignée',
   'help.family-tree.blood.b0':
-    'Chaque lien porte l’une de ces quatre. Cela se définit sur le *lien*, non sur la '
-    + 'personne, car le même enfant peut être l’enfant par alliance d’un parent et l’enfant '
-    + 'de sang de l’autre.',
+    'Une case à cocher par personne : **fait partie de la lignée de la famille**, ou non. '
+    + 'Elle est sur la PERSONNE et non sur l’une de ses relations, et c’est quelque chose '
+    + 'que votre famille déclare, pas quelque chose que le produit déduit.',
   'help.family-tree.blood.b1':
-    'Le produit ne peut pas le déduire de lui-même et n’essaie pas. Un homme avec trois '
-    + 'enfants a trois liens identiques ; seule une personne sait lesquels sont de son sang. '
-    + 'Définissez-le en ajoutant le proche, ou ensuite dans la boîte de gestion.',
+    'Cochez-la pour un parent par le sang. Laissez-la décochée pour quelqu’un qui a '
+    + 'épousé un membre de la famille, et pour un parent par alliance, adoptif ou '
+    + 'd’accueil. La boîte de dialogue le demande lorsque vous ajoutez un nouveau parent ; '
+    + 'ensuite, ouvrez la fiche de n’importe qui et cochez-la là. C’est enregistré dès que '
+    + 'vous cochez.',
   'help.family-tree.blood.b2':
-    'La boîte de gestion énumère **tous** les liens de cette personne, depuis la carte de '
-    + 'qui que ce soit d’où vous l’avez ouverte — une belle-grand-mère se corrige donc depuis '
-    + 'sa propre carte plutôt qu’en cliquant jusqu’au parent auquel elle est rattachée. '
-    + 'Chacun s’enregistre à mesure que vous le changez, et les deux directions bougent '
-    + 'ensemble : le beau-père d’un beau-fils reste un lien par alliance lu dans l’autre '
-    + 'sens.',
+    'Cela décide deux choses, et la seconde est de l’argent : qui apparaît sous '
+    + '**Lignée** dans l’arbre, et qui doit une cotisation réglée sur **Lignée '
+    + 'uniquement**. Si un parent dont vous attendez qu’il doive une cotisation de lignée '
+    + 'ne la doit pas, c’est la première chose à vérifier.',
   'help.family-tree.blood.b3':
-    'Un mariage n’est jamais de sang, et le choisir n’est pas proposé — le produit '
-    + 'enregistre un lien de conjoint comme lien par alliance et passe à autre chose plutôt '
-    + 'que de refuser un ordinaire « ajouter mon épouse » à cause d’un champ que personne n’a '
-    + 'saisi.',
+    '**Personne n’est coché au départ.** C’est délibéré et non un oubli : une cotisation '
+    + 'réservée à la lignée est due par les personnes cochées, donc une famille qui n’a '
+    + 'touché à rien ne facture personne au lieu de facturer un parent qui a épousé un '
+    + 'membre de la famille.',
+  'help.family-tree.blood.b4':
+    '**C’étaient auparavant quatre mots sur la relation** — sang, alliance, adoption ou '
+    + 'accueil — et la lignée était calculée en remontant ces relations depuis un ancêtre '
+    + 'nommé. Cela n’existe plus. Le parcours avait raison sur le graphe et continuait '
+    + 'd’avoir tort sur la famille : dans une famille créée par un fils, il remontait par '
+    + 'sa mère, si bien que l’ancienne épouse de son père revenait comme parente par le '
+    + 'sang, et le seul levier disponible était de marquer une véritable mère comme '
+    + 'belle-mère — ce qui rendait l’arbre faux à son sujet et au sujet de chaque parent à '
+    + 'elle ajouté ensuite.',
+  'help.family-tree.blood.b5':
+    'Une chose a vraiment disparu avec cela : l’arbre n’imprime plus **Beau-fils** ni '
+    + '**Fille adoptive** sur une fiche. Une relation est un lien et un nom ; la manière '
+    + 'dont quelqu’un est entré dans la famille ne s’imprime pas sur son visage.',
   'help.family-tree.bloodline.heading': 'L’interrupteur Lignée',
   'help.family-tree.bloodline.b0':
-    '**Toute la famille** montre tout le monde. **Lignée** ne montre que les personnes '
-    + 'descendant de la lignée de la famille, en masquant les conjoints et les liens par '
-    + 'alliance, d’adoption et de placement.',
+    '**Famille entière** montre tout le monde. **Lignée** ne montre que les personnes '
+    + 'cochées comme faisant partie de la lignée de la famille, et masque les autres.',
   'help.family-tree.bloodline.b1':
-    'C’est une seule réponse pour toute la famille, non une par lecteur — deux membres ne '
-    + 'peuvent pas être en désaccord sur qui est dans la lignée de la famille. Elle est '
-    + 'calculée en remontant depuis une seule personne, et **La lignée descend de** est là où '
-    + 'quelqu’un détenant l’autorisation Paramètres la nomme.',
+    'C’est une seule réponse pour toute la famille, non une par lecteur : deux membres ne '
+    + 'peuvent pas être en désaccord sur qui fait partie de la lignée de la famille. '
+    + 'Quiconque peut modifier l’arbre peut changer une case, et cela change ce que voit '
+    + 'chaque membre.',
   'help.family-tree.bloodline.b2':
-    'Le choix par défaut — la personne qui a créé la famille — est généralement le mauvais. '
-    + 'Une famille commencée par un fils remonte par sa mère, ce qui fait rentrer comme sang '
-    + 'l’ex-épouse de son père. Nommer plutôt l’ancêtre enregistré le plus ancien est ce qui '
-    + 'fait que l’interrupteur signifie ce que les gens attendent.',
+    'Le sélecteur n’apparaît que lorsque votre famille a coché CERTAINS de ses parents et '
+    + 'pas tous. Sans personne de coché il masquerait toute la famille, et avec tout le '
+    + 'monde coché il ne ferait rien — il n’est donc pas proposé dans l’un ni l’autre cas.',
   'help.family-tree.bloodline.b3':
-    'L’arbre le dit lorsque cela s’applique : si la personne dont la lignée descend a des '
-    + 'parents enregistrés, un avis sous le réglage les nomme, explique que leurs deux lignes '
-    + 'comptent comme sang, et propose l’ancêtre enregistré le plus ancien de chacune comme '
-    + 'un choix en un clic.',
+    'Un parent non coché est MASQUÉ par le sélecteur, non absent de l’arbre. Revenez à '
+    + '**Famille entière** et il est là ; la case décide de ce que montre cette vue, et de '
+    + 'rien d’autre concernant sa fiche.',
   'help.family-tree.bloodline.b4':
-    '**Quelqu’un qui apparaît comme sang et est entré dans la famille par mariage est un '
-    + 'problème de point de départ, non un problème de lien.** La tentation est d’ouvrir sa '
-    + 'carte et de marquer le lien de parenté comme lien par alliance — ne le faites pas. Si '
-    + 'elle est vraiment la mère de quelqu’un, ce lien est de sang, et enregistrer autre '
-    + 'chose rend l’arbre faux à son sujet et au sujet de chaque proche d’elle que vous '
-    + 'ajouterez plus tard. Déplacez plutôt le réglage d’une génération vers le haut : le '
-    + 'parcours ne l’atteint alors jamais, et ses enfants gardent leur goutte car leur ligne '
-    + 'passe toujours par leur père.',
+    '**Un parent qui devrait y être et n’y est pas n’a simplement pas encore été coché.** '
+    + 'Ouvrez sa fiche et cochez-la. Il n’y a rien à déduire et rien d’autre qui puisse '
+    + 'être faux — ce qui n’était pas vrai du réglage auquel ceci succède : là, quelqu’un '
+    + 'apparaissant à tort comme parent par le sang était un problème de l’ancêtre depuis '
+    + 'lequel le parcours commençait, non d’une relation que vous pouviez voir.',
+  'help.family-tree.bloodline.b5':
+    'Une cotisation réglée sur **Lignée uniquement** est due par exactement les personnes '
+    + 'cochées ici, donc cet écran et ce chiffre ne peuvent pas être en désaccord.',
   'help.family-tree.fixing.heading': 'Corriger une erreur',
   'help.family-tree.fixing.b0.i0':
-    'Lien erroné — ouvrez la boîte de gestion du lien et changez-le. De **Mari** à '
-    + '**Ex-mari** se fait ici, et de sang à alliance aussi.',
+    'Mauvaise relation : ouvrez la boîte de dialogue de gestion de la relation. Un '
+    + 'mariage peut y être renommé, **Mari** en **Ex-mari**. Le fait que quelqu’un fasse '
+    + 'partie de la lignée est une case sur sa propre fiche, dans la même boîte de '
+    + 'dialogue.',
   'help.family-tree.fixing.b0.i1':
     'Informations erronées sur une fiche — la commande de modification de la carte. Elle '
     + 'n’est proposée que pour les personnes sans compte propre ; un membre est maître de son '

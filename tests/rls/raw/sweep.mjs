@@ -72,7 +72,12 @@ export async function selectResourceVisibility() {
 }
 
 export async function selectPersonRelationships() {
-  return rawSelect('person_relationships', 'id, person_id, related_person_id, family_code, link_kind')
+  // `link_kind` was in this projection and went with the column (`20260902000000`).
+  // LEAVING IT WOULD HAVE BEEN 42703, which PostgREST answers by killing the WHOLE query
+  // (§8) — so this probe returned nothing to everybody and its ATTACK half passed
+  // perfectly. The POSITIVE CONTROL is what reported it, on the first run after the
+  // migration, which is §7's argument for the control half arriving unprompted.
+  return rawSelect('person_relationships', 'id, person_id, related_person_id, family_code')
 }
 
 /**
@@ -149,6 +154,42 @@ export async function selfApprove(ownPersonId) {
 /** The same, for the other guarded column: a self-promotion onto an admin template. */
 export async function selfPromote(ownPersonId, templateId) {
   return rawUpdate('people', ownPersonId, { permission_template_id: templateId })
+}
+
+/**
+ * The THIRD guarded column, and the newest (`20260902000000`): a self-exemption from a due.
+ *
+ * ── WHY IT NEEDS A PROBE OF ITS OWN ─────────────────────────────────────────────────
+ * `people.is_bloodline` decides who owes a `dues_schedules.bloodline_only` due. The action
+ * that writes it, `setPersonBloodline`, resolves `community/family-tree:edit` at `canAny`
+ * and runs on the admin client — so the case in `cases.mjs` is evidence for
+ * `belongsToFamily` and the grant, and CANNOT be evidence for the trigger: the trigger only
+ * ever fires for the `authenticated` role, which that action never speaks as. Exactly the
+ * position `selfApprove` is in relative to `saveProfileSection`, where the allow-list
+ * refuses first and the guard is never reached.
+ *
+ * ── THE ATTACK IS A MEMBER'S OWN ROW, WHICH EVERY POLICY ADMITS THEM TO WRITE ───────
+ * `people` maps to `community/directory` with an `own_expr` of `user_id = auth.uid()`, so
+ * an approved member's UPDATE on their own row satisfies the composed policy — and a policy
+ * has no opinion about which column changed. So without the trigger:
+ *
+ *     PATCH /rest/v1/people?id=eq.MINE   {"is_bloodline": false}
+ *
+ * is a member dropping out of a blood-only due from devtools, past the action, past the
+ * grant, with every policy satisfied. That is the §4-shaped hole the guard closes, and it
+ * is why the column could not simply be added to `lib/profile-columns.ts`.
+ *
+ * THE ACTOR IS AN APPROVED MEMBER, not an applicant, and that is the whole point: an
+ * applicant is refused by the policy's own approval conjunct before the trigger is reached,
+ * so a probe run as one would be evidence for §6's sweep instead. Nothing about family
+ * isolation is being tested here — the column boundary is.
+ *
+ * Expect `42501` and the guard's own message. `rawUpdate` carries a `.select()`, which ANDs
+ * the SELECT policy in; that admits a member's own row, so the row is genuinely reachable
+ * and the trigger is what refuses.
+ */
+export async function selfExemptFromBloodline(ownPersonId) {
+  return rawUpdate('people', ownPersonId, { is_bloodline: true })
 }
 
 // ── The guard on `families`, and the only way to reach it (20260817000006 §2) ─────────

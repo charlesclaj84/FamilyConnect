@@ -156,11 +156,20 @@ export interface ScheduleProjection extends ProjectionTotals {
   /** Only the bloodline owes it. */
   bloodlineOnly: boolean
   /**
-   * Bloodline-only, and the family has no anchor to work the bloodline out from — so
-   * NOBODY owes it. Surfaced rather than left as a suspiciously low expected figure: it is
-   * the one state on this screen a treasurer cannot diagnose from the numbers.
+   * Bloodline-only, and NOT ONE member counted is in the bloodline — so it bills nothing.
+   *
+   * ── IT WAS `bloodlineUnknown` UNTIL `20260902000000` ──────────────────────────────
+   * The bloodline was derived from `families.bloodline_anchor_id`, and a family that had
+   * never set one got NULL from `bloodlineIds()`, which billed nobody. That state is gone
+   * with the anchor — `people.is_bloodline` is stated per person — and the REASON the field
+   * existed is not: this is still "the one state on this screen a treasurer cannot diagnose
+   * from the numbers", because a family that ticks Bloodline only before marking anybody
+   * sees Expected read $0.00 with nothing in the figures to explain it.
+   *
+   * So the field asks the new question instead of being deleted, and it is now the exact
+   * parallel of `scopeEmpty` below — same shape, same derivation from `counts`, same reason.
    */
-  bloodlineUnknown: boolean
+  bloodlineEmpty: boolean
   /** Which part of the family owes it (20260817000008). */
   scope: DuesScope
   /** The region it is scoped to, when `scope` is 'regional'. The screen names it. */
@@ -258,6 +267,15 @@ export interface ProjectionMember {
    * `getDuesProjection` always selects the column rather than deciding whether it needs to.
    */
   chapterId?: string | null
+  /**
+   * `people.is_bloodline` — stated by the family, never derived (`20260902000000`).
+   *
+   * REQUIRED, WITH NO DEFAULT, for `hasAccount`'s reason: the failure mode of forgetting is
+   * invisible, and here it is money. Defaulting it true would bill every member who married
+   * in on a blood-only due; defaulting it false would silently stop billing the whole
+   * family. The caller has the column in hand, so it has to say.
+   */
+  isBloodline: boolean
 }
 
 export interface ProjectionPayment {
@@ -418,16 +436,6 @@ export function projectDues(input: {
   payments: readonly ProjectionPayment[]
   plans: readonly ProjectionPlan[]
   /**
-   * Who is in the family's bloodline — `bloodlineIds(...)`, or NULL for "do not know".
-   *
-   * Only consulted for a schedule with `bloodline_only`. NULL is not an empty set and
-   * `duesEligibility` is what draws that distinction: it answers 'bloodline-unknown', the
-   * schedule bills nobody, and `bloodlineUnknown` on the row is what lets the screen say
-   * so rather than showing an unexplained zero. Omitting it entirely is the same as not
-   * knowing, which is the safe default for a caller that has not loaded the tree.
-   */
-  bloodline?: ReadonlySet<string> | null
-  /**
    * `chapters` as chapter id -> region id, which is what a member's REGION is derived from
    * (20260817000008). A chapter under National maps to null.
    *
@@ -439,7 +447,6 @@ export function projectDues(input: {
   chapterRegions?: ReadonlyMap<string, string | null>
 }): DuesProjection {
   const { schedules, members, payments, plans } = input
-  const bloodline = input.bloodline ?? null
   const chapterRegions = input.chapterRegions ?? new Map<string, string | null>()
 
   const declined = new Set(
@@ -495,13 +502,13 @@ export function projectDues(input: {
       // database: a plan row that predates 20260807000003's guard, or one whose schedule
       // was made required after the member opted out, must read as owed.
       const optedOut = !schedule.required && declined.has(key)
-      // WHETHER THEY OWE IT AT ALL, before any question of how much. A bloodline-only due
-      // is owed by nobody when the family has not named its line — see `duesEligibility`,
-      // which is where the reasoning for that direction lives.
+      // WHETHER THEY OWE IT AT ALL, before any question of how much — see
+      // `duesEligibility`, which is where the reasoning lives. One column on the member's
+      // own row since `20260902000000`; it used to be a set membership test against a walk
+      // over the whole family tree.
       const eligibility = duesEligibility({
         bloodlineOnly: schedule.bloodline_only,
-        bloodline,
-        personId: member.personId,
+        isBloodline: member.isBloodline,
       })
       const excluded = eligibility !== 'owed'
       // WHOSE PART OF THE FAMILY IT IS FOR, which is a third and separate reduction — see
@@ -565,10 +572,19 @@ export function projectDues(input: {
       periodStart,
       annualCents,
       bloodlineOnly: Boolean(schedule.bloodline_only),
-      // Only true where the flag is set AND there is no bloodline to apply it with. A
-      // schedule open to everybody does not care that the anchor is unset, so saying so on
-      // its row would be a warning about nothing.
-      bloodlineUnknown: Boolean(schedule.bloodline_only) && bloodline === null,
+      // Bloodline-only, and every member counted came out excluded. DERIVED FROM `counts`
+      // rather than from the roster, exactly as `scopeEmpty` is and for the same reason: a
+      // second count taken from the roster would be free to disagree with the pills beside
+      // it. A schedule open to everybody does not care that nobody is marked, so the first
+      // conjunct is what stops this being a warning about nothing — and a family with no
+      // members at all is not this state, which the member count already says.
+      //
+      // `counts['excluded']` is the bloodline's own bucket: `duesScopeMatch` is answered
+      // FIRST (see the order note above), so a member out of scope never reaches 'excluded'
+      // and cannot inflate this into a false positive on a scoped blood-only due.
+      bloodlineEmpty: Boolean(schedule.bloodline_only)
+        && members.length > 0
+        && counts.excluded === members.length,
       scope: duesScope(schedule),
       regionId: schedule.region_id ?? null,
       chapterId: schedule.chapter_id ?? null,

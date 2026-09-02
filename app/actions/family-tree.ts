@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { requireEdit, requireMember, requireRead } from '@/lib/auth/guard'
+import { requireMember, requireRead } from '@/lib/auth/guard'
 import { familyShowsPhotos } from '@/lib/auth/tier'
 import { canAny } from '@/lib/auth/permissions'
 import { belongsToFamily } from '@/lib/auth/family'
@@ -10,7 +10,7 @@ import { pickProfileColumns } from '@/lib/profile-columns'
 import { inviteMember } from '@/app/actions/invitations'
 import {
   isTreeRelationshipType, inverseTypeFor, relationFor, relationshipMeta, placeholderEmail,
-  summarizeTree, isLinkKind, type LinkKind, type TreeRelation, type TreeSummary,
+  summarizeTree, type TreeRelation, type TreeSummary,
 } from '@/lib/family-tree'
 
 /**
@@ -115,6 +115,15 @@ export interface TreePerson {
   emailIsPlaceholder: boolean
   /** Why they have no address. Only meaningful with `emailIsPlaceholder`. */
   noEmailReason: string | null
+  /**
+   * `people.is_bloodline` — is this person in the family's bloodline.
+   *
+   * STATED, NOT DERIVED, since `20260902000000`. It used to be worked out on the client by
+   * `bloodlineIds()`, walking `person_relationships.link_kind` out from
+   * `families.bloodline_anchor_id`; that migration's header argues at length why a walk was
+   * the wrong shape for it. The Bloodline filter reads this and nothing else.
+   */
+  isBloodline: boolean
 }
 
 export interface TreeEdge {
@@ -124,9 +133,6 @@ export interface TreeEdge {
   to: string
   /** `from` HAS this relation TO `to`: 'parent' means `to` is `from`'s parent. */
   relation: TreeRelation
-  /** `person_relationships.link_kind` — only 'blood' conducts. Mirrored onto the
-   *  derived direction, because a step-son's step-father is still a step link. */
-  kind: LinkKind
   /**
    * The `relationship_types.name` naming `to` relative to `from` — 'Wife', 'Ex-Husband'.
    *
@@ -145,28 +151,9 @@ export interface FamilyTree {
   edges: TreeEdge[]
   /** The caller's own people.id, so the canvas can open on them. */
   myPersonId: string | null
-  /**
-   * The person the Bloodline view walks out from — the family's FOUNDER.
-   *
-   * It has to be one person for the whole family, not the caller, or two members would
-   * see different bloodlines and the toggle would mean something different on every
-   * screen. The founder is the defensible default: they created the family, and a family
-   * is usually named for the line it descends from.
-   *
-   * Null when the founder has left or never had a people row here, and the canvas then
-   * hides the toggle rather than guessing — see `bloodlineIds`, which returns null for
-   * the same reason. The case that forced `families.bloodline_anchor_id` (20260813000008)
-   * was not the predicted one — not a founder who married IN, but a founder who is a SON:
-   * anchored on him the walk goes up through his mother, so his father's former wife comes
-   * back as blood while the current wife correctly does not. The column is nullable and falls
-   * back to the founder, so a family that never sets it is unaffected.
-   */
-  bloodlineAnchorId: string | null
 }
 
-const EMPTY_TREE: FamilyTree = {
-  people: [], edges: [], myPersonId: null, bloodlineAnchorId: null,
-}
+const EMPTY_TREE: FamilyTree = { people: [], edges: [], myPersonId: null }
 
 type PersonRow = {
   id: string; first_name: string; last_name: string; nick_name: string | null
@@ -174,6 +161,7 @@ type PersonRow = {
   sunset_date: string | null; user_id: string | null
   membership_status: string | null
   email_is_placeholder: boolean | null; no_email_reason: string | null
+  is_bloodline: boolean | null
 }
 
 /**
@@ -200,25 +188,24 @@ export async function getFamilyTree(): Promise<FamilyTree> {
 
   const admin = createAdminClient()
 
-  const [peopleResult, edgeResult, typeResult, familyResult] = await Promise.all([
+  // THREE READS, NOT FOUR. The fourth was `families.created_by, bloodline_anchor_id`, to
+  // work out whom the Bloodline view should walk out from; `20260902000000` made the
+  // bloodline a column on `people`, so it arrives with the roster and there is nothing to
+  // resolve.
+  const [peopleResult, edgeResult, typeResult] = await Promise.all([
     admin
       .from('people')
-      .select('id, first_name, last_name, nick_name, gender, avatar_url, date_of_birth, sunset_date, user_id, membership_status, email_is_placeholder, no_email_reason')
+      .select('id, first_name, last_name, nick_name, gender, avatar_url, date_of_birth, sunset_date, user_id, membership_status, email_is_placeholder, no_email_reason, is_bloodline')
       .eq('family_code', g.familyCode)
       .order('last_name')
       .order('first_name'),
     admin
       .from('person_relationships')
-      .select('id, person_id, related_person_id, relationship_type_id, link_kind')
+      .select('id, person_id, related_person_id, relationship_type_id')
       .eq('family_code', g.familyCode),
     // The global lookup, unscoped by design — `relationship_types` has no family_code and
     // is the same twenty rows for everybody (20260602000003).
     admin.from('relationship_types').select('id, name'),
-    // THE BLOODLINE ANCHOR. `families.created_by` is an auth user id, so it takes a second
-    // hop to reach their people row IN THIS FAMILY — a founder who belongs to two families
-    // has a row in each, and `.eq('family_code', …)` is what picks the right one (§3).
-    admin.from('families').select('created_by, bloodline_anchor_id')
-      .eq('family_code', g.familyCode).maybeSingle(),
   ])
 
   // §8: an empty result and a refused query are different things and `data` cannot tell
@@ -257,6 +244,7 @@ export async function getFamilyTree(): Promise<FamilyTree> {
     membershipStatus: p.membership_status ?? 'approved',
     emailIsPlaceholder: Boolean(p.email_is_placeholder),
     noEmailReason: p.no_email_reason,
+    isBloodline: Boolean(p.is_bloodline),
   }))
 
   const known = new Set(people.map(p => p.id))
@@ -266,7 +254,6 @@ export async function getFamilyTree(): Promise<FamilyTree> {
 
   for (const row of (edgeResult.data ?? []) as {
     id: string; person_id: string; related_person_id: string; relationship_type_id: string
-    link_kind: string | null
   }[]) {
     const relation = relationFor(typeName.get(row.relationship_type_id) ?? '')
     // An unmapped type is skipped rather than guessed at. The grandparent rows the
@@ -277,25 +264,16 @@ export async function getFamilyTree(): Promise<FamilyTree> {
     // foreign key, but a row whose person was filtered out would draw an edge to nowhere.
     if (!known.has(row.person_id) || !known.has(row.related_person_id)) continue
 
-    // An unrecognised kind falls back to 'blood', matching the column default and the
-    // behaviour of every row written before 20260813000007. Failing closed here would be
-    // worse than it sounds: it would quietly drop people OUT of the bloodline, which is
-    // the answer nobody can tell is wrong by looking.
-    const kind: LinkKind = isLinkKind(row.link_kind ?? '') ? (row.link_kind as LinkKind) : 'blood'
-
     const storedName = typeName.get(row.relationship_type_id) ?? null
 
     push(edges, seen, {
-      id: row.id, from: row.person_id, to: row.related_person_id, relation, kind,
+      id: row.id, from: row.person_id, to: row.related_person_id, relation,
       typeName: storedName, derived: false,
     })
 
     // THE DERIVED HALF, and it is what makes the canvas correct rather than convenient.
     // The stored row says "A has a Father, B"; the tree also needs "B has a child, A", and
     // whether that second row was ever written depended on somebody knowing A's gender.
-    //
-    // `kind` is carried across UNCHANGED: a step-son's step-father is still a step link,
-    // so blood must not travel back up an edge it could not travel down.
     const mirror = MIRROR[relation]
     // The inverse WORD, named against the gender of the person the stored row is about —
     // the same call `linkRelationship` makes when it writes the second row.
@@ -303,41 +281,12 @@ export async function getFamilyTree(): Promise<FamilyTree> {
       ? inverseTypeFor(storedName, genderById.get(row.person_id) ?? null)
       : null
     push(edges, seen, {
-      id: row.id, from: row.related_person_id, to: row.person_id, relation: mirror, kind,
+      id: row.id, from: row.related_person_id, to: row.person_id, relation: mirror,
       typeName: mirrorName, derived: true,
     })
   }
 
-  // §8 again, and deliberately NOT fatal: a family whose founder row cannot be read still
-  // has a tree worth drawing. The anchor goes null, `bloodlineIds` answers null, and the
-  // canvas hides the toggle — one control missing rather than an empty page.
-  if (familyResult.error) {
-    console.error('[family-tree] could not read the founder for ' + g.familyCode
-      + ': ' + familyResult.error.message)
-  }
-  // THE FAMILY'S CHOICE FIRST, the founder only as a fallback (20260813000008).
-  //
-  // The founder is a poor default and was the reported bug: a family created by a SON
-  // walks up from him, so his mother — his father's former wife, and no blood relation to
-  // the line — comes back as blood, while the current wife correctly does not. One rule,
-  // two answers, decided by who happened to register.
-  //
-  // The set anchor is re-checked against the roster below rather than trusted: the column
-  // is ON DELETE SET NULL and guarded to this family, but a person filtered out of THIS
-  // query (there is no filter today, and that is not a promise) would leave the walk
-  // starting nowhere.
-  const familyRow = familyResult.data as
-    { created_by: string | null; bloodline_anchor_id: string | null } | null
-  const roster = (peopleResult.data ?? []) as PersonRow[]
-
-  const chosen = familyRow?.bloodline_anchor_id
-  const anchor = (chosen && roster.some(p => p.id === chosen))
-    ? chosen
-    : (familyRow?.created_by
-      ? roster.find(p => p.user_id === familyRow.created_by)?.id ?? null
-      : null)
-
-  return { people, edges, myPersonId: g.personId, bloodlineAnchorId: anchor }
+  return { people, edges, myPersonId: g.personId }
 }
 
 /**
@@ -409,13 +358,25 @@ export interface AddRelativeInput {
   /** A `relationship_types.name` the builder offers — see TREE_RELATIONSHIPS. */
   relationshipType: string
   /**
-   * What the link IS. Omitted means 'blood', matching the column default.
+   * Is the person being added in the family's bloodline? `people.is_bloodline`.
    *
-   * Only meaningful for parent, child and sibling links — a marriage is never blood, and
-   * `person_relationships_marriage_is_not_blood` corrects it in the database rather than
-   * trusting this, so a caller passing 'blood' for a Wife is fixed rather than refused.
+   * ── IT REPLACED `linkKind`, AND IT IS A FACT ABOUT THE PERSON ─────────────────────
+   * This used to be `linkKind: 'blood' | 'step' | 'adopted' | 'foster'` on the LINK, and
+   * `20260902000000` moved it. The dialog asks at creation for the reason the old field
+   * was asked at creation: somebody adding a step-son knows it at that moment and will not
+   * come back to correct it.
+   *
+   * ── ONLY FOR A PERSON THIS CALL CREATES ───────────────────────────────────────────
+   * Ignored for mode 'existing'. Linking somebody who is already on the tree must not
+   * restate a fact about them that the family has already recorded — a member added as
+   * somebody's blood daughter years ago does not stop being blood because a second
+   * relationship is drawn to her today. `setPersonBloodline` is the way to change it, and
+   * it resolves its own grant; this input would be a second, ungated path to the same
+   * column if it applied here.
+   *
+   * Omitted means false, matching the column default.
    */
-  linkKind?: LinkKind
+  isBloodline?: boolean
   mode: AddRelativeMode
   /** mode 'existing': the people.id to link. */
   existingPersonId?: string
@@ -579,6 +540,7 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
         date_of_birth: dateOfBirth,
         email_is_placeholder: true,
         no_email_reason: reason,
+        is_bloodline: Boolean(input.isBloodline),
       })
       if (!created.ok) return { success: false, message: created.message }
       personId = created.id
@@ -592,6 +554,7 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
         primary_email: email,
         gender: relationshipMeta(type)?.gender ?? null,
         date_of_birth: dateOfBirth,
+        is_bloodline: Boolean(input.isBloodline),
       })
       if (!created.ok) return { success: false, message: created.message }
       personId = created.id
@@ -628,7 +591,6 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
     // Validated rather than trusted: this is a `'use server'` export, so the segmented
     // control in the dialog is not in its request path and an arbitrary string can arrive.
     // The CHECK constraint would refuse it, but with a constraint-violation message.
-    linkKind: isLinkKind(input.linkKind ?? '') ? (input.linkKind as LinkKind) : 'blood',
   })
   if (!link.ok) return { success: false, message: link.message }
 
@@ -668,8 +630,7 @@ export async function addRelative(input: AddRelativeInput): Promise<AddRelativeR
           // A shared parent is a blood link by default for the same reason the main edge
           // is, and the caller's answer carries across: somebody adding a step-brother is
           // saying the parent link is a step one too.
-          linkKind: isLinkKind(input.linkKind ?? '') ? (input.linkKind as LinkKind) : 'blood',
-        })
+              })
       }
     }
   }
@@ -719,6 +680,17 @@ async function createPerson(
      */
     date_of_birth?: string | null
     email_is_placeholder?: boolean; no_email_reason?: string
+    /**
+     * `people.is_bloodline`, from the dialog that created them.
+     *
+     * ON THE INSERT AND NOT THROUGH `setPersonBloodline`, deliberately. That action is the
+     * only way to CHANGE the column — `people_guard_bloodline` refuses the browser role and
+     * leaves the admin client as the single path — and this is an INSERT, which the guard
+     * does not fire on (`BEFORE UPDATE OF is_bloodline`). Setting it here is one statement
+     * instead of two, and it means a newly recorded step-son is never briefly in the
+     * bloodline between the insert and a follow-up update.
+     */
+    is_bloodline?: boolean
   },
 ): Promise<{ ok: true; id: string } | { ok: false; message: string }> {
   const { data, error } = await createAdminClient()
@@ -762,7 +734,6 @@ async function linkRelationship(o: {
   personId: string
   typeId: string
   type: string
-  linkKind: LinkKind
 }): Promise<{ ok: true } | { ok: false; message: string }> {
   const admin = createAdminClient()
 
@@ -770,7 +741,6 @@ async function linkRelationship(o: {
     person_id: o.anchorPersonId,
     related_person_id: o.personId,
     relationship_type_id: o.typeId,
-    link_kind: o.linkKind,
     family_code: o.familyCode,
     created_by: o.userId,
   }, { onConflict: 'person_id,related_person_id,relationship_type_id' })
@@ -799,10 +769,6 @@ async function linkRelationship(o: {
     person_id: o.personId,
     related_person_id: o.anchorPersonId,
     relationship_type_id: inverseType.id,
-    // THE SAME KIND, both ways. A step-son's step-father is still a step link, and an
-    // inverse row written as 'blood' would put him back in the bloodline from the other
-    // side — where the walk reaches him just as happily.
-    link_kind: o.linkKind,
     family_code: o.familyCode,
     created_by: o.userId,
   }, { onConflict: 'person_id,related_person_id,relationship_type_id' })
@@ -972,80 +938,86 @@ export async function invitePersonRecord(
 }
 
 /**
- * Change what an existing relationship IS — blood, step, adopted or foster.
+ * Say whether a person is in the family's bloodline.
  *
- * ── WHY THIS IS NOT OPTIONAL ────────────────────────────────────────────────────────
- * `link_kind` defaults to 'blood', so every relationship recorded before 20260813000007
- * — and every one added without thinking about it since — claims to carry blood. A family
- * with three children, one of them theirs by blood, has two rows that are wrong the moment
- * the column exists. Without a way to correct them the Bloodline view is decorative: it
- * would answer confidently and be wrong, which is worse than not offering it.
+ * ── IT REPLACED A DERIVATION, AND `setRelationshipKind` WITH IT ─────────────────────
+ * `20260902000000` is the argument in full. In short: the bloodline was worked out by
+ * walking `person_relationships.link_kind` out from `families.bloodline_anchor_id`, the
+ * walk was reported wrong twice, and the only lever a member had — marking their own
+ * mother's link 'step' — recorded something false about her in order to fix a display.
+ * A family knows who is in its bloodline. This is where they say so.
  *
- * ── IT MOVES BOTH DIRECTIONS ────────────────────────────────────────────────────────
- * `linkRelationship` writes an inverse row whenever it can name one, and the two rows are
- * one fact. Updating only the stored direction would leave the inverse claiming blood, and
- * `bloodlineIds` walks whichever it meets first — so the toggle would keep including
- * somebody with no visible reason. Same `.or(...)` shape as `removeRelationship` below,
- * and for the same reason.
+ * ── THE GRANT IS THE TREE'S EDIT GRANT, NOT SELF-SERVICE ────────────────────────────
+ * `requireTreeEditor()` — `community/family-tree:edit` at `canAny`, which is what every
+ * other write on this canvas resolves. **`canAny` and not `can` is load-bearing here:**
+ * there is no coherent "own" version of this. A member editing their OWN row is precisely
+ * the abuse case, because `dues_schedules.bloodline_only` means this column decides
+ * whether they owe money — the same argument `canAny`'s own entry in AGENTS.md makes about
+ * a disbursement paying the caller.
  *
- * ── AUTHORIZATION ───────────────────────────────────────────────────────────────────
- * Self-service (`requireMember`), matching `addRelative` and `removeRelationship`: any
- * approved member may record a relationship, so any approved member may correct one. The
- * row is read family-scoped FIRST, so an id from another family finds nothing and is
- * refused with the message a missing row gets — telling a prober nothing.
+ * `people_guard_bloodline` refuses the `authenticated` role outright, so this action on
+ * the admin client is the ONLY path in. That guard is not this check's second line — it is
+ * what closes `saveProfileSection`, which writes a member's own `people` row through a
+ * policy that has no opinion about which column changed.
+ *
+ * ── §3 AND §4 BY HAND, BECAUSE THE ADMIN CLIENT IS THE ONLY CLIENT THAT WORKS ───────
+ * The guard means the user client cannot write this column at all, so there is no policy
+ * underneath: `belongsToFamily` and the `family_code` conjunct are the whole boundary. A
+ * `personId` from another family must find nothing — the same shape `editPersonRecord`
+ * keeps, and for the same reason its header gives.
+ *
+ * ── IT MAY BE SET ON ANYBODY, INCLUDING A MEMBER WITH AN ACCOUNT ────────────────────
+ * Deliberately unlike `editPersonRecord`, which refuses a row with a `user_id` because its
+ * owner is the authority on their own name. Whether somebody is in the family's bloodline
+ * is not a fact about them that they own — it is a fact about the family, which is why it
+ * was family-wide when it was derived and stays family-wide now.
  */
-export async function setRelationshipKind(
-  relationshipId: string,
-  kind: LinkKind,
+export async function setPersonBloodline(
+  personId: string,
+  isBloodline: boolean,
 ): Promise<{ success: boolean; message?: string }> {
   const g = await requireTreeEditor()
   if (!g.ok) return { success: false, message: g.message }
   const { t } = g
   if (!g.familyCode) return { success: false, message: t('act.noFamilySelected') }
 
-  // Validated here because this is a public endpoint and the CHECK constraint's message
-  // is not one to show somebody.
-  if (!isLinkKind(kind)) return { success: false, message: t('act.notRelationshipKind') }
+  if (!(await belongsToFamily('people', personId, g.familyCode))) {
+    return { success: false, message: t('act.personNotFound') }
+  }
 
   const admin = createAdminClient()
-  const { data: row, error: readError } = await admin
-    .from('person_relationships')
-    .select('id, person_id, related_person_id, family_code')
-    .eq('id', relationshipId)
-    .maybeSingle()
-
-  if (readError) {
-    console.error('[family-tree] could not read relationship ' + relationshipId
-      + ': ' + readError.message)
-    return { success: false, message: t('act.couldNotReadConnection') }
-  }
-  if (!row || row.family_code !== g.familyCode) {
-    return { success: false, message: t('act.relationshipNotFound') }
-  }
-
+  // ── `npm run audit:people` VERDICT ────────────────────────────────────────────────
+  // 1. FAMILY-SCOPED: `.eq('family_code', …)` from the caller's own membership, beside
+  //    `.eq('id', …)` — never the id alone.
+  // 2. COLUMNS: one column, named as a literal. There is no client-supplied object to
+  //    allow-list, and `isBloodline` is coerced to a boolean rather than passed through.
+  // 3. IDS: `personId` verified with `belongsToFamily` above.
   const { error } = await admin
-    .from('person_relationships')
-    .update({ link_kind: kind })
+    .from('people')
+    .update({ is_bloodline: Boolean(isBloodline) })
+    .eq('id', personId)
     .eq('family_code', g.familyCode)
-    .or(
-      `and(person_id.eq.${row.person_id},related_person_id.eq.${row.related_person_id}),`
-      + `and(person_id.eq.${row.related_person_id},related_person_id.eq.${row.person_id})`,
-    )
 
   if (error) return { success: false, message: error.message }
 
   revalidatePath('/community/family-tree')
+  // THE DUES SCREENS TOO, and this is the half easy to leave out: `bloodline_only` prices
+  // against this column, so a member who has just been marked owes a due their own
+  // /dues page was rendered without.
+  revalidatePath('/accounting/dues-and-donations')
+  revalidatePath('/reporting/dues-projections')
   return { success: true }
 }
 
 /**
  * Change WHAT a relationship is called — Wife to Ex-Wife, Partner to Husband.
  *
- * ── WHY THIS IS SEPARATE FROM `setRelationshipKind` ─────────────────────────────────
- * They answer different questions and only one of them is about blood. `link_kind` says
- * whether blood travels down the edge; this says which word names it. A marriage that
- * ends changes the word and not the kind — it was never blood and still is not — and a
- * step-son who is adopted changes the kind and not the word.
+ * ── IT CHANGES THE WORD, WHICH IS NOW THE ONLY THING AN EDGE CARRIES ────────────────
+ * This used to sit beside `setRelationshipKind`, and the pair needed distinguishing: one
+ * said which word names the link, the other whether blood travelled down it.
+ * `20260902000000` removed the second question from the edge entirely — the bloodline is
+ * `people.is_bloodline` — so a relationship is a word and two people, and this is the only
+ * thing that changes it.
  *
  * ── IT MOVES THE INVERSE ROW TOO, AND RENAMES IT ────────────────────────────────────
  * `linkRelationship` writes both directions where it can name them, and the two are one
@@ -1190,59 +1162,6 @@ export async function setRelationshipType(
   }
 
   revalidatePath('/community/family-tree')
-  return { success: true }
-}
-
-/**
- * Set the person the family's bloodline descends from (20260813000008).
- *
- * ── WHY A FAMILY DECIDES THIS RATHER THAN THE DATA ──────────────────────────────────
- * The Bloodline view walks up from an anchor and keeps everybody who shares an ancestor
- * with it. Anchored on the FOUNDER — which is what it did until this existed — a family
- * created by a son walks up through his mother, so his father's former wife comes back as
- * a blood relative of the line while the current wife correctly does not. Same rule, two
- * answers, decided by who happened to register first.
- *
- * There is no better guess available. "The oldest person" is wrong the moment a spouse's
- * parents are recorded; "the most descendants" is wrong until the tree is built. Which
- * line a family considers ITS line is a fact about the family, so they state it.
- *
- * ── THE GRANT ───────────────────────────────────────────────────────────────────────
- * `admin/family:edit`, the same as `renameFamily`, and for the same reason: this is
- * family-wide configuration that changes what every member sees, not a self-service
- * record like a relationship. Deliberately NOT the tree's own self-service rule — any
- * member may say who their father is, and that is a different kind of claim from
- * redefining whose line the family is.
- *
- * Passing null clears it, and the tree falls back to the founder — which is the behaviour
- * every family had before the column existed, so clearing is a real answer rather than a
- * broken state.
- */
-export async function setBloodlineAnchor(
-  personId: string | null,
-): Promise<{ success: boolean; message?: string }> {
-  const g = await requireEdit('admin/settings')
-  if (!g.ok) return { success: false, message: g.message }
-  const { t } = g
-  if (!g.familyCode) return { success: false, message: t('act.noFamilySelected') }
-
-  // §4: the id decides what every member sees on the tree, and the database guard
-  // (`families_guard_bloodline_anchor`) is the second layer rather than the only one —
-  // it raises, and a raised exception is a worse message than this one.
-  if (personId && !(await belongsToFamily('people', personId, g.familyCode))) {
-    return { success: false, message: t('act.personNotFound') }
-  }
-
-  const admin = createAdminClient()
-  const { error } = await admin
-    .from('families')
-    .update({ bloodline_anchor_id: personId })
-    .eq('family_code', g.familyCode)
-
-  if (error) return { success: false, message: error.message }
-
-  revalidatePath('/community/family-tree')
-  revalidatePath('/dashboard')
   return { success: true }
 }
 

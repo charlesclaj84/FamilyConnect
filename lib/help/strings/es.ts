@@ -2155,12 +2155,11 @@ export const helpEs: Catalogue = {
     + 'Cuotas en absoluto: una cuota que nunca es suya no se enumera como algo que no está '
     + 'pagando.',
   'help.accounting.dues.b5':
-    'El control no está disponible hasta que su familia haya dicho de qué antepasado '
-    + 'desciende su línea, porque sin eso no hay línea de sangre y la cuota no la debería '
-    + 'nadie. Fije **La línea de sangre desciende de** en el [árbol '
-    + 'familiar](/community/family-tree) primero. Quién está en la línea de sangre se calcula '
-    + 'del árbol cada vez, así que corregir una relación — o mover ese ajuste — cambia quién '
-    + 'debe la cuota.',
+    'El control no está disponible hasta que alguien de su familia haya sido marcado como '
+    + 'perteneciente a su linaje, porque hasta entonces la cuota no la debería nadie. '
+    + 'Marque **pertenece al linaje de la familia** en la ficha de un pariente en el [árbol '
+    + 'familiar](/community/family-tree) primero. Quién debe la cuota es exactamente quién '
+    + 'está marcado, así que marcar a alguien después lo añade a ella.',
   'help.accounting.dues.b6':
     '**Lo deben** dice qué parte de la familia la debe: Nacional — toda la familia — o una '
     + 'región, o un capítulo. Solo aparece cuando su familia tiene una región o un capítulo '
@@ -2929,58 +2928,67 @@ export const helpEs: Catalogue = {
     + '**Invitar** del editor de fichas. No hay un paso aparte de «convertir en adulto»: un '
     + 'niño que consigue una dirección de correo simplemente se invita como cualquier otra '
     + 'persona.',
-  'help.family-tree.blood.heading': 'Sangre, crianza, adopción y acogida',
+  'help.family-tree.blood.heading': 'Quién pertenece al linaje',
   'help.family-tree.blood.b0':
-    'Todas las conexiones llevan una de esas cuatro. Se fija en la *conexión*, no en la '
-    + 'persona, porque el mismo hijo puede ser hijastro de un progenitor e hijo de sangre del '
-    + 'otro.',
+    'Una marca por persona: **pertenece al linaje de la familia**, o no. Está en la '
+    + 'PERSONA y no en ninguna de sus conexiones, y es algo que su familia declara, no algo '
+    + 'que el producto deduzca.',
   'help.family-tree.blood.b1':
-    'El producto no puede deducirlo por sí solo y no lo intenta. Un hombre con tres hijos '
-    + 'tiene tres conexiones idénticas; solo una persona sabe cuáles de ellas son suyas de '
-    + 'sangre. Fíjelo cuando añada al familiar, o después en el cuadro de gestión.',
+    'Márquelo para un pariente de sangre. Déjelo sin marcar para alguien que se casó con '
+    + 'la familia, y para un pariente político, adoptivo o de acogida. El diálogo lo '
+    + 'pregunta cuando añade un pariente nuevo; después, abra la ficha de cualquiera y '
+    + 'márquelo ahí. Se guarda en cuanto lo marca.',
   'help.family-tree.blood.b2':
-    'El cuadro de gestión enumera **todas** las conexiones que tiene esa persona, desde la '
-    + 'tarjeta de quien sea que lo haya abierto, así que una abuelastra se corrige desde su '
-    + 'propia tarjeta y no pulsando hasta el progenitor al que está unida. Cada una se guarda '
-    + 'a medida que la cambia, y las dos direcciones se mueven juntas: el padrastro de un '
-    + 'hijastro sigue siendo una conexión de crianza leída al revés.',
+    'Decide dos cosas, y la segunda es dinero: quién aparece en **Linaje** en el árbol, y '
+    + 'quién debe una cuota fijada como **Solo linaje**. Si un pariente que usted espera '
+    + 'que deba una cuota de linaje no la debe, esto es lo primero que hay que comprobar.',
   'help.family-tree.blood.b3':
-    'Un matrimonio nunca es de sangre, y elegirlo no se ofrece: el producto registra una '
-    + 'conexión de cónyuge como de crianza y sigue adelante en vez de rechazar un «añadir a '
-    + 'mi esposa» ordinario por un campo que nadie escribió.',
+    '**Al principio no hay nadie marcado.** Es deliberado y no un descuido: una cuota '
+    + 'restringida al linaje la deben las personas marcadas, así que una familia que no ha '
+    + 'tocado nada no cobra a nadie en vez de cobrar a un pariente que se casó con la '
+    + 'familia.',
+  'help.family-tree.blood.b4':
+    '**Antes eran cuatro palabras en la conexión** — sangre, político, adoptivo o de '
+    + 'acogida — y el linaje se calculaba recorriendo esas conexiones hacia arriba desde un '
+    + 'antepasado nombrado. Eso ya no existe. El recorrido acertaba con el grafo y seguía '
+    + 'equivocándose con la familia: en una familia creada por un hijo subía por su madre, '
+    + 'así que la antigua esposa de su padre volvía a contar como sangre, y la única '
+    + 'palanca disponible era marcar a una madre real como madrastra, lo cual dejaba al '
+    + 'árbol equivocado sobre ella y sobre cada pariente suyo añadido después.',
+  'help.family-tree.blood.b5':
+    'Una cosa se perdió de verdad con ello: el árbol ya no imprime **Hijastro** ni **Hija '
+    + 'adoptiva** en una ficha. Una conexión es una relación y un nombre; cómo entró '
+    + 'alguien en la familia no se imprime en su cara.',
   'help.family-tree.bloodline.heading': 'El interruptor de Linaje',
   'help.family-tree.bloodline.b0':
-    '**Toda la familia** muestra a todo el mundo. **Linaje** muestra solo a las personas '
-    + 'que descienden de la línea de la familia, ocultando cónyuges y conexiones de crianza, '
-    + 'adopción y acogida.',
+    '**Familia completa** muestra a todos. **Linaje** muestra solo a las personas '
+    + 'marcadas como pertenecientes al linaje de la familia, y oculta a las demás.',
   'help.family-tree.bloodline.b1':
-    'Es una sola respuesta para toda la familia, no una por espectador: dos integrantes no '
-    + 'pueden estar en desacuerdo sobre quién está en el linaje de la familia. Se calcula '
-    + 'caminando desde una sola persona, y **El linaje desciende de** es donde alguien con el '
-    + 'permiso de Configuración la nombra.',
+    'Es una sola respuesta para toda la familia, no una por lector: dos miembros no '
+    + 'pueden discrepar sobre quién pertenece al linaje de la familia. Cualquiera que pueda '
+    + 'editar el árbol puede cambiar una marca, y eso cambia lo que ve cada miembro.',
   'help.family-tree.bloodline.b2':
-    'La opción por defecto — quien creó la familia — suele ser la elección equivocada. Una '
-    + 'familia empezada por un hijo camina hacia arriba a través de su madre, lo que vuelve a '
-    + 'traer dentro como sangre a la exesposa de su padre. Nombrar en su lugar al antepasado '
-    + 'registrado más antiguo es lo que hace que el interruptor signifique lo que la gente '
-    + 'espera.',
+    'El interruptor solo aparece cuando su familia ha marcado a ALGUNOS de sus parientes '
+    + 'y no a todos. Sin nadie marcado ocultaría a toda la familia, y con todos marcados no '
+    + 'haría nada, así que no se ofrece en ninguno de los dos casos.',
   'help.family-tree.bloodline.b3':
-    'El árbol lo dice cuando aplica: si la persona de la que desciende el linaje tiene '
-    + 'padres registrados, un aviso debajo del ajuste los nombra, explica que las dos líneas '
-    + 'cuentan como sangre, y ofrece el antepasado registrado más antiguo de cada una como '
-    + 'una elección de un solo clic.',
+    'Un pariente sin marcar queda OCULTO por el interruptor, no ausente del árbol. Vuelva '
+    + 'a **Familia completa** y ahí está; la marca decide lo que muestra esta vista y nada '
+    + 'más de su ficha.',
   'help.family-tree.bloodline.b4':
-    '**Alguien que aparece como sangre y entró en la familia por matrimonio es un problema '
-    + 'del punto de partida, no de la conexión.** La tentación es abrir su tarjeta y marcar '
-    + 'la conexión de progenitor como de crianza: no lo haga. Si de verdad es la madre de '
-    + 'alguien, esa conexión es de sangre, y registrar otra cosa hace que el árbol se '
-    + 'equivoque sobre ella y sobre todos los familiares de ella que añada después. Mueva en '
-    + 'cambio el ajuste una generación hacia arriba: el recorrido entonces nunca la alcanza, '
-    + 'y sus hijos conservan su gota porque su línea sigue pasando por su padre.',
+    '**Un pariente que debería estar y no está simplemente no se ha marcado todavía.** '
+    + 'Abra su ficha y márquelo. No hay nada que deducir ni nada más que pueda estar mal, '
+    + 'lo cual no era cierto del ajuste al que sustituye: allí, alguien que aparecía como '
+    + 'sangre por error era un problema del antepasado desde el que empezaba el recorrido, '
+    + 'no de ninguna conexión que usted pudiera ver.',
+  'help.family-tree.bloodline.b5':
+    'Una cuota fijada como **Solo linaje** la deben exactamente las personas marcadas '
+    + 'aquí, así que esta pantalla y esa cifra no pueden discrepar.',
   'help.family-tree.fixing.heading': 'Corregir un error',
   'help.family-tree.fixing.b0.i0':
-    'Relación equivocada: abra el cuadro de gestión de la conexión y cámbiela. De '
-    + '**Marido** a **Exmarido** se hace aquí, y de sangre a crianza también.',
+    'Relación equivocada: abra el diálogo de gestión de la conexión. Un matrimonio se '
+    + 'puede renombrar ahí, **Marido** a **Exmarido**. Que alguien pertenezca al linaje es '
+    + 'una marca en su propia ficha, en el mismo diálogo.',
   'help.family-tree.fixing.b0.i1':
     'Datos equivocados en una ficha: el control de editar de la tarjeta. Se ofrece solo '
     + 'para personas sin cuenta propia; un integrante es dueño de su propio nombre y lo '

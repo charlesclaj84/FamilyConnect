@@ -10,11 +10,11 @@ import { FormError } from '@/components/ui/form-message'
 import { GENDERS, GENDER_LABELS } from '@/lib/gender'
 import { cn } from '@/lib/utils'
 import {
-  editPersonRecord, invitePersonRecord, setRelationshipKind, setRelationshipType,
+  editPersonRecord, invitePersonRecord, setPersonBloodline, setRelationshipType,
   type TreeEdge, type TreePerson,
 } from '@/app/actions/family-tree'
 import {
-  LINK_KINDS, SPOUSE_TYPES, linkKindLabel, relationshipMeta, type LinkKind,
+  SPOUSE_TYPES, relationshipMeta,
 } from '@/lib/family-tree'
 import { useT } from '@/components/layout/LocaleProvider'
 
@@ -96,22 +96,27 @@ export function PersonRecordDialog({
    * record that a grandmother was a step-grandmother, on the one screen whose Bloodline
    * toggle depends on that answer.
    *
-   * Each connection gets the control its own relation admits, which is why they are one
-   * list rather than two props: a marriage can be RENAMED (Wife to Ex-Wife) and can never
-   * be blood — `person_relationships_marriage_is_not_blood` rewrites it if it claims to
-   * be — and everything else is exactly the other way round.
+   * ── ONE CONTROL LEFT, AND IT IS THE MARRIAGE ONE ──────────────────────────────────
+   * A marriage can be RENAMED — Wife to Ex-Wife — and that is the only thing about a
+   * relationship this dialog can change. Every other connection used to carry a four-way
+   * blood/step/adopted/foster picker; `20260902000000` moved that question off the link and
+   * onto the person, where it is the single checkbox above this list.
+   *
+   * The rows for those connections still render, with no control on them, deliberately: the
+   * list answers "who is this person attached to, and how", which is worth reading whether
+   * or not there is anything to change. A list that showed only marriages would look like a
+   * person with one relative.
    */
   connections: TreeConnection[]
 }) {
   const t = useT()
   const router = useRouter()
-  // Keyed by relationship id, so a person with four connections has four independent
-  // controls and a save on one does not put the others back. Seeded from the edges and
-  // corrected on refusal, which is what keeps a control showing what the database holds
+  // ONE BOOLEAN FOR THE PERSON, where this used to be a `Record<relationshipId, LinkKind>`
+  // — four independent controls on a person with four connections. Seeded from the row and
+  // corrected on refusal, which is what keeps the control showing what the database holds
   // rather than what was clicked.
-  const [kinds, setKinds] = useState<Record<string, LinkKind>>(
-    () => Object.fromEntries(connections.map(c => [c.edge.id, c.edge.kind])),
-  )
+  const [isBloodline, setIsBloodline] = useState(person.isBloodline)
+  const [bloodlineSaved, setBloodlineSaved] = useState(false)
   const [types, setTypes] = useState<Record<string, string>>(
     () => Object.fromEntries(
       connections.filter(c => c.edge.typeName).map(c => [c.edge.id, c.edge.typeName as string]),
@@ -161,18 +166,23 @@ export function PersonRecordDialog({
     })
   }
 
-  function saveKind(connection: TreeConnection, next: LinkKind) {
-    setKinds(prev => ({ ...prev, [connection.edge.id]: next }))
+  // OPTIMISTIC, AND PUT BACK ON REFUSAL. `setPersonBloodline` resolves
+  // `community/family-tree:edit` itself and `people_guard_bloodline` refuses the browser
+  // role outright, so a tick that is not allowed comes back false — and the control has to
+  // show what the database holds rather than what was clicked, or somebody reads a
+  // permission they do not have off their own screen.
+  function saveBloodline(next: boolean) {
+    setIsBloodline(next)
     setError('')
-    setSavedId(null)
+    setBloodlineSaved(false)
     startTransition(async () => {
-      const r = await setRelationshipKind(connection.edge.id, next)
+      const r = await setPersonBloodline(person.id, next)
       if (!r.success) {
-        setError(r.message ?? t('rec.connectionFailed'))
-        setKinds(prev => ({ ...prev, [connection.edge.id]: connection.edge.kind }))
+        setError(r.message ?? t('rec.bloodlineFailed'))
+        setIsBloodline(person.isBloodline)
         return
       }
-      setSavedId(connection.edge.id)
+      setBloodlineSaved(true)
       router.refresh()
     })
   }
@@ -230,16 +240,46 @@ export function PersonRecordDialog({
             First in the dialog, because it is the half offered for everybody: the details
             below are editable only for somebody with no account, so for a member with one
             this is the whole dialog. */}
+        {/* ── IS THIS PERSON IN THE FAMILY'S BLOODLINE ────────────────────────────
+            `people.is_bloodline`, and the whole of what four pickers over
+            `person_relationships.link_kind` used to be asking indirectly.
+
+            ABOVE THE CONNECTIONS, and offered whether or not there are any. A person
+            attached to nobody yet still has an answer to this — which the old design could
+            not express at all, because the question lived on links they did not have.
+
+            IT SAYS WHAT ELSE IT DECIDES. The tick drives the Bloodline view AND
+            `dues_schedules.bloodline_only`, so a family that ticks it is answering a money
+            question as well as a display one. Naming that here is the only place a person
+            doing it would find out. */}
+        <div className="space-y-2 rounded-xl border bg-muted/30 px-3 py-3">
+          <label className="flex items-start gap-2 text-sm font-medium">
+            <input
+              type="checkbox"
+              checked={isBloodline}
+              disabled={isPending}
+              onChange={e => saveBloodline(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-input disabled:opacity-60"
+            />
+            <span>{t('rec.inBloodline', { name })}</span>
+            {bloodlineSaved && (
+              <span className="font-medium text-brand-affirm">{t('rec.saved')}</span>
+            )}
+          </label>
+          <p className="text-xs text-muted-foreground">
+            {t('rec.inBloodlineHint', { view: t('tree.bloodline') })}
+          </p>
+        </div>
+
         {connections.length > 0 && (
           <div className="space-y-4">
             <div>
               <Label>{t('rec.howRelated', { name })}</Label>
-              <p className="mt-1 text-xs text-muted-foreground">{t('ui.onlyBloodLinksCarry')}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{t('rec.connectionsHint')}</p>
             </div>
 
             {connections.map(connection => {
               const isMarriage = connection.edge.relation === 'spouse'
-              const kind = kinds[connection.edge.id] ?? connection.edge.kind
               const type = types[connection.edge.id] ?? ''
               const saved = savedId === connection.edge.id
               return (
@@ -255,46 +295,41 @@ export function PersonRecordDialog({
                     </span>
                   </p>
 
-                  <div className={cn('grid gap-2', isMarriage ? 'sm:grid-cols-3' : 'sm:grid-cols-4')}>
-                    {(isMarriage ? SPOUSE_TYPES : LINK_KINDS).map(option => {
-                      const active = isMarriage ? type === option : kind === option
-                      return (
-                        <button
-                          key={option}
-                          type="button"
-                          onClick={() => isMarriage
-                            ? saveType(connection, option)
-                            : saveKind(connection, option as LinkKind)}
-                          disabled={isPending}
-                          aria-pressed={active}
-                          className={cn(
-                            'rounded-xl border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60',
-                            !isMarriage && 'capitalize',
-                            active
-                              ? 'border-brand-primary bg-brand-soft text-brand-on-soft'
-                              : 'border-input text-muted-foreground hover:border-brand-primary/40 hover:text-foreground',
-                          )}
-                        >
-                          {isMarriage ? (relationshipMeta(option)?.label ?? option) : option}
-                        </button>
-                      )
-                    })}
-                  </div>
+                  {/* ONLY A MARRIAGE HAS ANYTHING TO CHANGE. Everything else is a word
+                      naming a relationship somebody recorded, and the one thing that used
+                      to be adjustable about it — blood or step — is the person's own tick
+                      above now. */}
+                  {isMarriage && (
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      {SPOUSE_TYPES.map(option => {
+                        const active = type === option
+                        return (
+                          <button
+                            key={option}
+                            type="button"
+                            onClick={() => saveType(connection, option)}
+                            disabled={isPending}
+                            aria-pressed={active}
+                            className={cn(
+                              'rounded-xl border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60',
+                              active
+                                ? 'border-brand-primary bg-brand-soft text-brand-on-soft'
+                                : 'border-input text-muted-foreground hover:border-brand-primary/40 hover:text-foreground',
+                            )}
+                          >
+                            {relationshipMeta(option)?.label ?? option}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
 
-                  <p className="text-xs text-muted-foreground">
-                    {isMarriage
-                      ? t('rec.formerMarriageNote', { name })
-                      : t('rec.recordedAs', {
-                          name,
-                          kind: linkKindLabel(kind, connection.label).toLowerCase(),
-                        })
-                        + (kind === 'blood'
-                          ? t('rec.bloodCarries')
-                          : t('rec.noBloodThroughLink', {
-                              name: connection.otherName,
-                            }))}
-                    {saved && <span className="ms-1 font-medium text-brand-affirm">{t('rec.saved')}</span>}
-                  </p>
+                  {isMarriage && (
+                    <p className="text-xs text-muted-foreground">
+                      {t('rec.formerMarriageNote', { name })}
+                      {saved && <span className="ms-1 font-medium text-brand-affirm">{t('rec.saved')}</span>}
+                    </p>
+                  )}
                 </div>
               )
             })}

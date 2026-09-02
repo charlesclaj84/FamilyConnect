@@ -493,48 +493,50 @@ describe('when the rule does not apply at all', () => {
 // on a timer and `bloodline_only` is not: a child grows into a due, somebody who married
 // in never does. The one case that decides the design is the third — what an UNKNOWN
 // bloodline means.
+//
+// IT IS A TWO-STATE ANSWER SINCE `20260902000000`. The third, 'bloodline-unknown', existed
+// because the bloodline was DERIVED and the derivation could fail to have an answer at all.
+// It is a column now, and the direction that state protected — bill nobody rather than bill
+// the relatives a family ticked the box to exclude — is carried by `NOT NULL DEFAULT false`
+// instead. The last test below is what pins that.
 
 describe('duesEligibility', () => {
   const eligible = (over: {
     bloodlineOnly?: boolean | null
-    bloodline?: ReadonlySet<string> | null
-    personId?: string
+    isBloodline?: boolean | null
   }) => duesEligibility({
     bloodlineOnly: over.bloodlineOnly ?? false,
-    bloodline: over.bloodline === undefined ? null : over.bloodline,
-    personId: over.personId ?? 'ada',
+    isBloodline: over.isBloodline ?? false,
   })
 
   it('is owed by everybody when the due is not restricted', () => {
-    // And the bloodline is not even consulted — an unset anchor is irrelevant to a due
-    // open to the whole family, so this must not depend on it.
-    expect(eligible({ bloodlineOnly: false, bloodline: null })).toBe('owed')
-    expect(eligible({ bloodlineOnly: null, bloodline: null })).toBe('owed')
-    expect(eligible({ bloodlineOnly: undefined, bloodline: null })).toBe('owed')
+    // And the flag is not even consulted — whether somebody is in the bloodline is
+    // irrelevant to a due open to the whole family, so this must not depend on it.
+    expect(eligible({ bloodlineOnly: false, isBloodline: false })).toBe('owed')
+    expect(eligible({ bloodlineOnly: null, isBloodline: false })).toBe('owed')
+    expect(eligible({ bloodlineOnly: undefined, isBloodline: false })).toBe('owed')
   })
 
   it('is owed by somebody in the bloodline', () => {
-    expect(eligible({ bloodlineOnly: true, bloodline: new Set(['ada']) })).toBe('owed')
+    expect(eligible({ bloodlineOnly: true, isBloodline: true })).toBe('owed')
   })
 
   it('is not owed by somebody outside it', () => {
-    expect(eligible({ bloodlineOnly: true, bloodline: new Set(['ben']) }))
-      .toBe('not-in-bloodline')
+    expect(eligible({ bloodlineOnly: true, isBloodline: false })).toBe('not-in-bloodline')
   })
 
-  it('BILLS NOBODY when the bloodline is unknown, and says which of the two it is', () => {
-    // The case the whole function exists for. `bloodlineIds` returns null when the family
-    // has no anchor, and reading that as an empty set would be indistinguishable from
-    // "nobody is blood" — which is the same ANSWER here but a different FACT, and the
-    // screens have to be able to explain it. Billing everybody instead would charge the
-    // step-children the family ticked the box to exclude, silently.
-    expect(eligible({ bloodlineOnly: true, bloodline: null })).toBe('bloodline-unknown')
-  })
-
-  it('distinguishes an unknown bloodline from an empty one', () => {
-    // An empty set is a real answer — the anchor is set and nobody qualifies — and it is
-    // NOT the same state as having no anchor at all.
-    expect(eligible({ bloodlineOnly: true, bloodline: new Set() })).toBe('not-in-bloodline')
+  it('BILLS NOBODY for a member nobody has marked, which is the old caution kept', () => {
+    // ── THE TEST THIS REPLACED, AND WHY THE ANSWER IS THE SAME ─────────────────────
+    // There was a third outcome, 'bloodline-unknown', for the case `bloodlineIds()`
+    // answered NULL: the family had set no anchor, so there was no bloodline to apply and
+    // the safe direction was to bill nobody. `20260902000000` removed the anchor and the
+    // walk; `people.is_bloodline` is NOT NULL DEFAULT false, so the state that used to be
+    // "we cannot tell" is now "nobody has said yes", and it still bills nobody.
+    //
+    // What is asserted here is that the DEFAULT is doing that work. A nullish flag — which
+    // is what a caller reading an unreadable row hands over — must not read as eligible.
+    expect(eligible({ bloodlineOnly: true, isBloodline: null })).toBe('not-in-bloodline')
+    expect(eligible({ bloodlineOnly: true, isBloodline: undefined })).toBe('not-in-bloodline')
   })
 })
 

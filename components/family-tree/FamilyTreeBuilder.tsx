@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Unlink, Users, Crown, Sprout, Pencil, Droplet, AlertTriangle } from 'lucide-react'
+import { Plus, Unlink, Users, Crown, Sprout, Pencil, Droplet } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
@@ -15,15 +15,15 @@ import {
   PersonRecordDialog, type TreeConnection,
 } from '@/components/family-tree/PersonRecordDialog'
 import {
-  TREE_RELATIONSHIPS, leafIds, bloodlineIds, auditBloodlineAnchor, relationshipMeta,
+  TREE_RELATIONSHIPS, leafIds, relationshipMeta,
   generationsFrom, generationLabel,
   type TreeRelation,
 } from '@/lib/family-tree'
 import {
-  removeRelationship, setBloodlineAnchor,
+  removeRelationship,
   type FamilyTree, type TreeEdge, type TreePerson,
 } from '@/app/actions/family-tree'
-import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
+import { useT } from '@/components/layout/LocaleProvider'
 
 /**
  * The family-wide tree — the only tree in the product, since the per-member lineage view
@@ -86,12 +86,10 @@ import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
  */
 
 export function FamilyTreeBuilder({
-  tree, canEdit, canSetAnchor = false, canViewDirectory = true,
+  tree, canEdit, canViewDirectory = true,
 }: {
   tree: FamilyTree
   canEdit: boolean
-  /** `admin/family:edit` — see the page. Decides whether the anchor picker is offered. */
-  canSetAnchor?: boolean
   /**
    * `members:view` — the DIRECTORY's grant, not the tree's. Decides whether a card opens
    * the person panel at all; see the page, which argues why the two keys differ here.
@@ -105,8 +103,6 @@ export function FamilyTreeBuilder({
   canViewDirectory?: boolean
 }) {
   const t = useT()
-  // For `Intl.ListFormat` on the bloodline sentence below — "and" is copy.
-  const intl = useIntlTag()
   const router = useRouter()
   const confirm = useConfirm()
   const [error, setError] = useState('')
@@ -195,27 +191,32 @@ export function FamilyTreeBuilder({
     return map
   }, [tree.edges])
 
-  // WHO IS IN THE BLOODLINE. Null when the family has no anchor to walk from — the
-  // founder has left, or never had a row here — and the toggle is then not offered at
-  // all rather than answering with a guess.
+  // WHO IS IN THE BLOODLINE — `people.is_bloodline`, read rather than derived.
+  //
+  // IT WAS `bloodlineIds(tree.people, tree.edges, tree.bloodlineAnchorId)` UNTIL
+  // `20260902000000`: a walk over every relationship in the family, from an anchor the
+  // family had to name, recomputed on this client on every render. It is a `Set` still,
+  // because everything below tests membership and a set says so; what changed is that
+  // nothing here decides who is in it.
+  //
+  // THERE IS NO NULL ANY MORE. The old walk answered null for "do not know" — no anchor,
+  // or an anchor outside the roster — and every consumer below had to carry that case.
+  // `is_bloodline` is `NOT NULL DEFAULT false`, so the honest answer for a family that has
+  // said nothing is an EMPTY set, and `canFilterBlood` is what stops an empty set reading
+  // as "nobody is blood": with nobody marked there is nothing to filter to, so the toggle
+  // is not offered at all — the same judgement the null case produced, from a simpler fact.
   const bloodline = useMemo(
-    () => bloodlineIds(tree.people, tree.edges, tree.bloodlineAnchorId),
-    [tree.people, tree.edges, tree.bloodlineAnchorId],
+    () => new Set(tree.people.filter(p => p.isBloodline).map(p => p.id)),
+    [tree.people],
   )
-
-  // IS THE ANCHOR STANDING HIGH ENOUGH. Non-empty `parentIds` means the bloodline is being
-  // walked from somebody who has parents recorded, so BOTH their lines are in it — which is
-  // how a mother who married in comes back as blood. See `auditBloodlineAnchor`, and the
-  // block below, which is the only thing that ever said so on screen.
-  const anchorAudit = useMemo(
-    () => auditBloodlineAnchor(tree.people, tree.edges, tree.bloodlineAnchorId),
-    [tree.people, tree.edges, tree.bloodlineAnchorId],
-  )
-  const canFilterBlood = bloodline !== null && bloodline.size < tree.people.length
-  const showingBlood = bloodOnly && bloodline !== null
+  // OFFERED ONLY WHEN IT WOULD NARROW SOMETHING. Nobody marked means an empty set and a
+  // toggle that hides the whole family; everybody marked means a toggle that does nothing.
+  // Both are controls that exist to mislead, so neither is drawn.
+  const canFilterBlood = bloodline.size > 0 && bloodline.size < tree.people.length
+  const showingBlood = bloodOnly && canFilterBlood
 
   const inView = (personId: string): boolean =>
-    !showingBlood || bloodline!.has(personId)
+    !showingBlood || bloodline.has(personId)
 
   const related = (personId: string, relation: TreeRelation): TreeEdge[] =>
     (links.get(personId) ?? [])
@@ -546,9 +547,8 @@ export function FamilyTreeBuilder({
         </div>
       )}
 
-      {/* BLOODLINE OR EVERYONE. Offered only when the family HAS a bloodline that differs
-          from its roster: with no anchor there is no honest answer, and with everybody in
-          it the toggle is a control that does nothing. */}
+      {/* BLOODLINE OR EVERYONE. Offered only when the family has marked SOME of its
+          relatives and not all of them — see `canFilterBlood`. */}
       {canFilterBlood && (
         <div className="flex flex-wrap items-center gap-3">
           <div className="inline-flex rounded-xl border p-0.5" role="group" aria-label={t('tree.whichRelatives')}>
@@ -574,151 +574,28 @@ export function FamilyTreeBuilder({
           </div>
           <p className="text-xs text-muted-foreground">
             {showingBlood
-              ? t('tree.showingBloodline', { n: String(bloodline!.size) })
+              ? t('tree.showingBloodline', { n: String(bloodline.size) })
               : t('tree.showingEveryone', {
                   total: String(tree.people.length),
-                  blood: String(bloodline!.size),
+                  blood: String(bloodline.size),
                 })}
           </p>
-          {/* THE TOGGLE IS THE MOST MISREAD CONTROL ON THIS PAGE, which is why it gets one
-              of the seven placed help links in the app. The sentence beside it says what is
-              being shown; it cannot also explain that the answer is FAMILY-WIDE rather than
-              per viewer, that it is walked from one named anchor, and that somebody who
-              married in appearing as blood is an anchor problem to be fixed above the tree
-              rather than a connection to be mis-recorded as step. That last one is the
-              actual damage — the tree then carries a falsehood about her and about every
-              relative of hers added later — and `family-tree#bloodline` is where it is
-              spelled out. */}
+          {/* THE HELP LINK STAYS, AND WHAT IT HAS TO EXPLAIN HAS CHANGED COMPLETELY.
+              It was here because the toggle was the most misread control on the page: the
+              answer was walked from a named anchor, so somebody who married in could appear
+              as blood, and the lever a member reached for recorded a falsehood about their
+              own mother. `20260902000000` deleted all of that — the answer is now whatever
+              the family has ticked, one person at a time.
+              What is left to explain is smaller and still worth a paragraph: that the
+              setting is FAMILY-WIDE rather than per viewer, that an unmarked relative is
+              hidden rather than absent, and that `dues_schedules.bloodline_only` prices
+              against the same ticks. `family-tree#bloodline` carries it. */}
           <HelpLink
             slug="family-tree"
             section="bloodline"
             label={t('tree.bloodlineHelp')}
             className="size-6"
           />
-        </div>
-      )}
-
-      {/* WHOSE LINE. The single most consequential setting on this page and the one nobody
-          would think to look for, so it sits next to the thing it decides rather than in
-          Family Settings.
-
-          It matters because the default is a poor one: anchored on the FOUNDER, a family
-          created by a son walks up through his mother — so his father's former wife comes
-          back as blood while the current wife correctly does not, from the same rule. The
-          fix is to name the person the line descends from, usually the oldest recorded
-          ancestor rather than whoever signed up.
-
-          Offered on `admin/family:edit`, the grant that renames the family, because it is
-          the same kind of decision: one setting that changes what every member sees. */}
-      {canSetAnchor && bloodline !== null && (
-        <div className="space-y-2">
-        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-          <label htmlFor="bloodline-anchor" className="font-medium">
-            {t('tree.bloodlineFrom')}
-          </label>
-          <select
-            id="bloodline-anchor"
-            value={tree.bloodlineAnchorId ?? ''}
-            disabled={isPending}
-            onChange={e => {
-              const next = e.target.value || null
-              setError('')
-              startTransition(async () => {
-                const r = await setBloodlineAnchor(next)
-                if (!r.success) { setError(r.message ?? t('tree.changeFailed')); return }
-                router.refresh()
-              })
-            }}
-            className="rounded-lg border bg-transparent px-2 py-1 text-xs"
-          >
-            {/* An explicit "clear" rather than a blank first row, so the fallback is a
-                choice somebody can make on purpose and read back afterwards. */}
-            <option value="">{t('tree.whoeverCreated')}</option>
-            {tree.people.map(p => (
-              <option key={p.id} value={p.id}>
-                {nameOf.get(p.id) ?? `${p.firstName} ${p.lastName}`.trim()}
-              </option>
-            ))}
-          </select>
-          <span>{t('ui.everyoneWhoSharesAncestor')}</span>
-        </div>
-
-        {/* ── THE ANCHOR IS STANDING TOO LOW ────────────────────────────────────────
-            The one thing about this setting nobody could see, and the reason the whole
-            feature reads as broken the first time a family records a parent.
-
-            The bloodline is everybody who shares an ancestor WITH THE ANCHOR, and the
-            anchor's ancestors run up through both of its parents. So the moment the anchor
-            has a mother recorded, she and her whole line are blood — which is true of her
-            relationship to the anchor and is not what the family means by its line.
-
-            What a member reaches for instead is the mother connection's blood/step control,
-            and it is the wrong lever: she really is their blood mother, so marking it step
-            records a falsehood and mis-classifies her own relatives on the way past. This
-            block is what points at the right one.
-
-            A plain muted well with an AlertTriangle, matching the record-mode notice in
-            AddRelativeDialog. Deliberately NOT `--destructive` (nothing failed) and not
-            `--brand-withheld` (no capability is going away) — see AGENTS.md on both. */}
-        {anchorAudit && anchorAudit.parentIds.length > 0 && (
-          <div className="flex items-start gap-2 rounded-xl border bg-muted/40 px-4 py-3 text-xs text-muted-foreground">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <div className="space-y-1.5">
-              {/* ── ONE SENTENCE, ONE KEY, AND THE NAMES INTERPOLATED ──────────────
-                  It was assembled from six JSX fragments — an English clause, a name, another
-                  clause, a joined list, then two more clauses — which is untranslatable by
-                  construction: the word order it hard-codes is English word order, and no
-                  catalogue can hold a third of a sentence. So the whole thing is one key with
-                  `{anchor}` and `{parents}` in it, and each language decides where the names
-                  go. The bold on the anchor's name is the cost, and it is the right thing to
-                  give up: a name is already the most distinctive thing in the line.
-
-                  `Intl.ListFormat` joins the parents rather than `' and '`, for the reason
-                  AGENTS.md gives about conjunctions — "and", "y" and "et" are copy. */}
-              <p>
-                {t(
-                  anchorAudit.parentIds.length === 1
-                    ? 'tree.bloodlineFromOneParent'
-                    : 'tree.bloodlineFromParents',
-                  {
-                    anchor: nameOf.get(tree.bloodlineAnchorId ?? '') ?? t('tree.thePersonNamedAbove'),
-                    parents: new Intl.ListFormat(intl, { style: 'long', type: 'conjunction' })
-                      .format(anchorAudit.parentIds.map(id => nameOf.get(id) ?? t('tree.thatParent'))),
-                  },
-                )}
-              </p>
-              <p>{t('ui.ifFamilySLine')}</p>
-              {/* THE TOPMOST ANCESTORS, as one click each. Usually two — a father's line
-                  and a mother's — and which of them the family descends from is precisely
-                  the fact only the family knows, so nothing here picks. */}
-              {anchorAudit.rootIds.filter(id => id !== tree.bloodlineAnchorId).length > 0 && (
-                <p className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                  <span>{t('tree.oldestOnLine')}</span>
-                  {anchorAudit.rootIds
-                    .filter(id => id !== tree.bloodlineAnchorId)
-                    .map(id => (
-                      <button
-                        key={id}
-                        type="button"
-                        disabled={isPending}
-                        onClick={() => {
-                          setError('')
-                          startTransition(async () => {
-                            const r = await setBloodlineAnchor(id)
-                            if (!r.success) { setError(r.message ?? t('tree.changeFailed')); return }
-                            router.refresh()
-                          })
-                        }}
-                        className="rounded-lg border px-2 py-0.5 font-medium text-brand-accent transition-colors hover:bg-brand-soft/40 disabled:opacity-60"
-                      >
-                        Use {nameOf.get(id) ?? 'them'}
-                      </button>
-                    ))}
-                </p>
-              )}
-            </div>
-          </div>
-        )}
         </div>
       )}
 

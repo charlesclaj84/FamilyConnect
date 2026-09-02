@@ -437,7 +437,7 @@ have an account cannot file themselves:
 > Nothing else follows anybody, anywhere in the product.
 
 Three conjuncts, and each answers a different question — a `Son`/`Daughter` edge somebody
-RECORDED (never derived; §4c), `user_id IS NULL` because they cannot set their own chapter, and
+RECORDED (never derived), `user_id IS NULL` because they cannot set their own chapter, and
 under eighteen because an account-less adult cousin on the tree is still their own person. The
 middle one was the whole rule until 2026-08-22 and it is necessary rather than sufficient.
 
@@ -531,9 +531,11 @@ Two things about it that look like they should be otherwise:
   "bloodline members". Two reasons, and the second is decisive. `bloodline_only` on a schedule is
   the one place descent may decide who owes a due (§4c), so gating the ROSTER on descent would
   bill a step-son and not a blood son on a schedule that had said descent was irrelevant. And
-  `bloodlineIds()` answers `null` for a family with no anchor — a bloodline-gated roster would
-  therefore count *nobody* in most families, silently. The bloodline keeps its one job and the
-  two rules stay orthogonal.
+  `people.is_bloodline` is `false` until somebody says otherwise — a bloodline-gated roster
+  would therefore count *nobody* in a family that has marked nobody, silently. (That second
+  reason used to be about `bloodlineIds()` answering `null` for a family with no anchor;
+  `20260902000000` removed the anchor and the argument survives it unchanged.) The bloodline
+  keeps its one job and the two rules stay orthogonal.
 * **A pending, rejected or disabled membership is still excluded**, by the roster rather than by
   the status function. Somebody who has not been admitted has not joined, and nothing is owed by
   them yet.
@@ -545,47 +547,94 @@ matched on the ADDRESS as well as `invited_person_id`, because only `invitePerso
 that column: the invite-by-email dialog takes no person at all, and `resendInvitation` re-mints
 without carrying the link across.
 
-## 4c. Blood is a property of the LINK, and it is not derivable
+## 4c. The bloodline is a FLAG ON THE PERSON, and there is no link vocabulary
 
-`person_relationships.link_kind` — `blood | step | adopted | foster`, default `'blood'`
-(`20260813000007`). It is what the family tree's **Bloodline** toggle walks, through
-`bloodlineIds()` in `lib/family-tree.ts`.
+`people.is_bloodline` — `BOOLEAN NOT NULL DEFAULT false` (`20260902000000`). It is what the
+family tree's **Bloodline** toggle reads, and what `duesEligibility` prices
+`dues_schedules.bloodline_only` against. Set only by `setPersonBloodline`, behind
+`community/family-tree:edit` at `canAny`.
 
-**Do not try to compute this from the graph.** Two attempts fail, and the second is the
-one that matters:
+**THIS SECTION SAID THE EXACT OPPOSITE UNTIL 2026-09-02** — "Blood is a property of the
+LINK, and it is not derivable" — and the whole argument is in `20260902000000`'s header,
+because the reversal is instructive rather than a change of mind. What it said was:
 
-* *"anyone reachable without crossing a spouse edge"* — right for one generation. Add a
-  spouse's mother and she gains a `child` edge, so the walk reaches her through a
-  marriage.
-* *"a child edge means blood"* — a member with three children, one of them his by blood,
-  has three identical `child` rows. **Only a person knows which.** That is the fact the
-  database was missing and this column now holds.
+> **On the edge, never on the person.** The same child is a step-child of one parent and a
+> blood child of the other, so a `people.is_blood_relative` boolean would have to be wrong
+> about one of them.
 
-Four things follow:
+**That is true of a relationship LABEL and false of the BLOODLINE, and one column had been
+holding both.** `bloodlineIds()` walked from ONE anchor and collapsed every edge into a SET
+OF PEOPLE — family-wide by explicit decision, because "two members cannot disagree about who
+is in the family's bloodline". There was only ever one answer per person, so a per-person
+column holds it exactly.
 
-* **On the edge, never on the person.** The same child is a step-child of one parent and a
-  blood child of the other, so a `people.is_blood_relative` boolean would have to be wrong
-  about one of them — silently, about whichever parent was recorded second.
-* **Both directions carry it.** `linkRelationship` writes the inverse row with the same
-  kind, and `setRelationshipKind` updates both with the same `.or(...)` shape
-  `removeRelationship` uses. Blood must not travel back up an edge it could not travel
-  down.
-* **A marriage is never blood, and the database enforces it.**
-  `person_relationships_marriage_is_not_blood` rewrites `'blood'` to `'step'` on any
-  spouse-type edge, on insert and on update. It CORRECTS rather than refuses, because
-  failing an ordinary "add my wife" on a column nobody typed is the worse product. So the
-  UI does not offer the choice for a marriage — it would be offering a control that
-  undoes itself.
-* **`is_step` is superseded and must not be written.** It predates this, was never written
-  by anything, and two columns describing one fact is how they come to disagree. TODO.md
-  carries dropping it.
+### What is gone, and must not come back
 
-**The bloodline is family-wide, not per viewer.** `bloodlineIds` walks from ONE anchor —
-`families.created_by`'s people row, surfaced as `FamilyTree.bloodlineAnchorId`. A
-viewer-relative version would make the toggle mean something different on every screen,
-and two members cannot disagree about who is in the family's bloodline. `null` anchor
-means "do not know": `bloodlineIds` returns `null` and the canvas hides the toggle rather
-than guessing.
+`person_relationships.link_kind` (`blood | step | adopted | foster`), its CHECK, and
+`person_relationships_marriage_is_not_blood`. `families.bloodline_anchor_id` and
+`tg_family_guard_bloodline_anchor`. `bloodlineIds()`, `auditBloodlineAnchor()`,
+`linkKindLabel()`, `LINK_KINDS`, `setRelationshipKind`, `setBloodlineAnchor`, the anchor
+picker, the anchor-audit banner, and `familyBloodline()` in `app/actions/dues.ts` — 100 lines
+and four queries to answer one boolean per member. `is_step` was already gone
+(`20260822000024`) and is still forbidden.
+
+**A `TreeEdge`/`TreeLink` is two people and a direction.** Nothing on an edge says anything
+about blood, and a `kind` added back to either is the first half of the walk returning.
+
+### Why a derivation was the wrong shape, in three field reports
+
+Kept because they are the argument, and because each one reads as a reason to *fix* the walk
+rather than to delete it:
+
+1. The first walk was connected-component over blood edges. A child is blood to BOTH
+   parents, so it chained through a half-sibling and put a member's own **wife** in his
+   bloodline. Replaced by the shared-ancestor rule.
+2. The shared-ancestor rule computes the anchor's ancestors through both of the anchor's
+   parents, so a family created by a SON has his mother's whole line in the bloodline.
+   `auditBloodlineAnchor()` existed only to explain that on screen — and its own header said
+   the lever a member reaches for is the wrong one: *"she IS his blood mother, so marking it
+   'step' records something false and silently mis-classifies her own relatives too."*
+3. 2026-09-01: *"a sister added as the BLOOD sister of a brother got no droplet."* Correct —
+   only `parent` edges could conduct, precisely because of (1) — and unexplainable, so the
+   fix was a sentence in a dialog. Four tests defended that non-obviousness, including a
+   monotonicity argument against the tempting narrow fix.
+
+**The general rule this is an instance of: a derivation whose inputs a family cannot state
+correctly is worse than the fact it was deriving.** `link_kind` was not derivable from the
+graph — that part of the old section was right, and it is why the column existed — but it was
+not reliably STATEABLE either, because the thing a family wanted to change was the ANSWER and
+the only lever was a falsehood about somebody's mother.
+
+### Four things that follow now
+
+* **`NOT NULL DEFAULT false`, and there is no third state.** `bloodlineIds()` answered `null`
+  for "do not know" and `duesEligibility` turned that into `'bloodline-unknown'`, which
+  billed nobody. The direction is preserved by the DEFAULT instead: a family that has said
+  nothing bills nobody. **Do not make the column nullable** — the money question comes back
+  with it, and `duesEligibility` is where it would have to be answered again.
+* **IT DECIDES MONEY, SO THE BROWSER MAY NOT WRITE IT.** `people_guard_bloodline` refuses any
+  change made by the `authenticated` role, so `setPersonBloodline` on the admin client is the
+  only path. Without it, `saveProfileSection({ is_bloodline: false })` is a member exempting
+  themselves from a blood-only due with every policy satisfied — the `people` UPDATE policy
+  admits a member's own row and has no opinion about which column changed. Same shape as
+  `people_guard_membership_status` and `people_guard_permission_template`, and the reason the
+  column is NOT in `lib/profile-columns.ts`.
+* **`canAny`, never `can`.** There is no coherent "own" version of this, and a member editing
+  their own row is the abuse case. Note that the General template holds
+  `community/family-tree: edit = any`, so in practice every approved member may set it —
+  unchanged from `setRelationshipKind`, and a family that wants it narrower narrows that
+  grant rather than the code hard-coding a second one.
+* **It is family-wide, not per viewer**, which is the one thing that did NOT change. Two
+  members cannot disagree about who is in the family's bloodline, so anybody who may edit the
+  tree changes what every member sees.
+
+### And the toggle is offered only when it narrows something
+
+Nobody marked means an empty set and a toggle that hides the whole family; everybody marked
+means one that does nothing. `canFilterBlood` refuses both — the same judgement the old
+`null` anchor produced, from a simpler fact. On the projection row, `bloodlineEmpty` is what
+tells a treasurer that a blood-only due is billing nobody, and it is the exact parallel of
+`scopeEmpty` beside it.
 
 ## 4d. The tree opens where there is something to see
 
@@ -1096,13 +1145,16 @@ arriving by accident.** `family_invitations` has **three** paths to `people` —
 in TypeScript rather than embedding it: filing every invited relative under "nobody has asked
 them" is the silent `[]` this rule exists to prevent.
 
-And `families` now has **two**, which it did not before: `bloodline_anchor_id`
-(`20260813000008`) and `removed_by` (`20260817000006`). Adding one column to one table made a bare
-`people(...)` embed on `families` PGRST201 everywhere — verified against the live stack, and the
-error names both constraints. Nothing in the tree embeds it today, so nothing broke; the point is
-that nothing had to, and next time it might. That is the `announcements` lesson in a second
-costume, and it is why the sweep below is worth running after ANY migration that adds a foreign
-key, not only after one that adds a junction table.
+And `families` had **two** for a fortnight: `bloodline_anchor_id` (`20260813000008`) and
+`removed_by` (`20260817000006`), which made a bare `people(...)` embed on `families` PGRST201
+everywhere — verified against the live stack, and the error names both constraints.
+`20260902000000` dropped the first with the bloodline anchor, so that embed resolves again,
+and the lesson is the one this section is about rather than the current count: adding one
+column to one table made an embed ambiguous everywhere. Nothing in the tree embedded it, so
+nothing broke — and nothing should start now on the strength of the ambiguity having gone,
+because the next column with a foreign key to `people` puts it straight back. That is the
+`announcements` lesson in a third costume, and it is why the sweep below is worth running
+after ANY migration that adds OR DROPS a foreign key.
 
 **A DROPPED TABLE'S EMBED FAILS THE SAME WAY, AND THAT IS HOW `/photos` BROKE.** Retiring
 Events took `events` with it, and `getPhotoCollections` was still asking for

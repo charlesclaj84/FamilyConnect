@@ -181,10 +181,6 @@ export const en: Catalogue = {
   'set.onlySupportRestores': 'only GENORRA support can bring a family back.',
   'tree.dashedCardsAreGaps': '· Dashed cards are gaps you can fill',
   'tree.removingNeverRemoves': '· Removing a connection never removes anyone from the family',
-  'tree.thePersonNamedAbove': 'the person named above',
-  'tree.thatParent': 'that parent',
-  'tree.bloodlineFromOneParent': 'The bloodline is being worked out from {anchor}, who has a parent on the tree — so {parents} and everybody they descend from count as blood, on both sides. A spouse who married in is included that way.',
-  'tree.bloodlineFromParents': 'The bloodline is being worked out from {anchor}, who has parents on the tree — so {parents} and everybody they descend from count as blood, on both sides. A spouse who married in is included that way.',
   // ── THE TRANSACTIONS LEDGER, 2026-08-29 ────────────────────────────────────
   // This screen carried a note saying it was "not translated yet — on Phase 5's admin
   // pass", and it was the densest concentration of English left in the product: every
@@ -720,8 +716,7 @@ export const en: Catalogue = {
   'tree.moreInGeneration': '+ {n} more in this generation. Find them under',
   'tree.removeLinkConfirm':
     'Remove the link between {a} and {b}? This only removes the connection — nobody is removed from the family, and nothing they have recorded is deleted.',
-  'tree.showingBloodline':
-    'Showing the {n} people descended from this family’s line. Spouses, step and adopted relatives are hidden.',
+  'tree.showingBloodline': 'Showing the {n} people marked as being in this family’s bloodline. Everybody else is hidden.',
   'tree.showingEveryone': 'Everyone in the family — {total} people, {blood} of them by blood.',
   'tree.addSomeonesFather': 'Add {who}’s father',
   'tree.addSomeonesMother': 'Add {who}’s mother',
@@ -878,8 +873,6 @@ export const en: Catalogue = {
   'proj.outstandingMany': '{n} members have something outstanding',
   'proj.pendingSettlement':
     '{amount} is awaiting settlement — started and not yet confirmed. It is not counted as collected, and it has not been taken off what is still owed.',
-  'proj.bloodlineUnknownNote':
-    'Nobody owes this: your family has not said which ancestor its line descends from, so there is no bloodline to charge. Set {control} on the family tree.',
   'proj.thatPartOfTheFamily': 'that part of the family',
   'proj.scopeEmptyNote':
     'Nobody owes this: no member of the family is in {where}. Members choose their chapter on their own profile, and anybody with no chapter is under National.',
@@ -956,10 +949,6 @@ export const en: Catalogue = {
   'gath.removeDayAria': 'Remove day {n}',
   'gath.everyDayOwnEntry':
     'Every day here is its own entry on the calendar, all named this gathering.',
-  'rel.bloodLinkNote': 'A blood relationship — the bloodline travels down this link.',
-  'rel.nonBloodLinkNote': 'Recorded as {kind}. The bloodline does not travel down this link.',
-  'rel.parentBloodlineNote':
-    ' {decidedBy} {control}, above the tree — a parent of yours is your blood relative without being part of your family’s line.',
   'rel.siblingNeedsSharedParent':
     'Nobody is recorded as {name}’s parent yet, so this brother or sister will not show '
     + 'under {view} — the tree has been told they are siblings, not whose children they '
@@ -1082,9 +1071,6 @@ export const en: Catalogue = {
   'rec.howRelated': 'How {name} is related',
   'rec.formerMarriageNote':
     'A former marriage stays on the tree beside {name} — it is usually where half the children came from. A marriage never carries blood.',
-  'rec.recordedAs': 'Recorded as {name}’s {kind}.',
-  'rec.bloodCarries': ' Blood links carry the bloodline.',
-  'rec.noBloodThroughLink': ' {name} does not reach the bloodline through this link.',
   'rem.nobodyCanOpen':
     'Nobody can open it, join it or accept an invitation to it. {nothingDeleted} — every payment, photograph, event and person is exactly where it was. Only {app} support can bring it back; write to them and ask.',
   'set.codeSentTo':
@@ -1214,6 +1200,13 @@ export const en: Catalogue = {
     'Change what this album is called, and how it is described. The photographs in it are untouched.',
   'gal.renameNamedAlbumAria': 'Rename the album “{name}”',
   'gal.renameFailed': 'Could not rename that album.',
+  'rel.inBloodlineQuestion': 'This person is in the family’s bloodline',
+  'rel.inBloodlineHint': 'Tick this for a blood relative. Leave it clear for somebody who married in, and for a step, adopted or foster relative. It decides who appears under {control} on the tree, and who owes a due restricted to the bloodline.',
+  'rec.inBloodline': '{name} is in the family’s bloodline',
+  'rec.inBloodlineHint': 'Decides who appears under {view} on the tree, and who owes a due restricted to the bloodline. Saved as soon as you tick it.',
+  'rec.bloodlineFailed': 'Could not change that.',
+  'rec.connectionsHint': 'Who this person is attached to. A marriage can be renamed; the rest are the relationships somebody recorded.',
+  'proj.bloodlineEmptyNote': 'Nobody owes this: your family has not marked anybody as being in its bloodline, so there is nobody to charge. Tick {control} on the family tree.',
   'gal.fileTooLarge': '{name} is larger than 10 MB.',
   'gal.albumGoneFilesLeftOne':
     'The album is gone, but 1 of its image files could not be removed from storage. It is no longer listed anywhere; tell an administrator so it can be swept.',
@@ -2318,9 +2311,6 @@ export const en: Catalogue = {
   'gal.removeTagFailed': 'Could not remove that tag.',
   'gal.addedByGone': 'Added by somebody no longer in this family',
   'tree.nobodyToBuild': 'There is nobody in this family to build a tree from yet.',
-  'tree.bloodlineFrom': 'Bloodline descends from',
-  'tree.whoeverCreated': 'Whoever created the family',
-  'tree.oldestOnLine': 'Oldest recorded on each line:',
   'tree.centreOnMe': 'Centre on me',
   'tree.children': 'Children',
   'tree.notOnTree': 'Not on the tree yet',
@@ -2347,7 +2337,6 @@ export const en: Catalogue = {
     + 'or change a connection.',
   'tree.fullFamily': 'Full family',
   'tree.bloodline': 'Bloodline',
-  'tree.changeFailed': 'Could not change that.',
   'tree.father': 'Father',
   'tree.mother': 'Mother',
   'tree.thisAndMarriages': 'This person, and their marriages',
@@ -2356,9 +2345,7 @@ export const en: Catalogue = {
   'tree.siblings': 'Brothers and sisters',
   'tree.thisPersonIs': 'This person is',
   'tree.thesePeopleAre': 'These people are',
-  'tree.decidedBy': 'Who actually appears in the Bloodline view is decided by',
   'rel.how': 'How',
-  'rel.howRelated': 'How are they related?',
   'rel.chooseHow': 'Choose how this person joins the tree.',
   'rel.alreadyHere': 'Someone already here',
   'rel.alreadyHereHint': 'Link a relative who is already in your family.',
@@ -3508,9 +3495,7 @@ export const en: Catalogue = {
   'inc.frequency': 'Frequency',
   'inc.startAge': 'Members start paying at age (optional)',
   'inc.bloodlineOnly': 'Bloodline only',
-  'inc.noBloodline':
-    'Your family has not said which ancestor its line descends from, so there is no bloodline '
-    + 'to restrict this to. Set',
+  'inc.noBloodline': 'Nobody has been marked as being in your family’s bloodline yet, so a due restricted to it would be owed by nobody. Tick {control} on the family tree first.',
   'inc.owedBy': 'Owed by',
   'inc.nationalWhole': 'National — the whole family',
   'inc.goal': 'Goal',
@@ -3532,9 +3517,7 @@ export const en: Catalogue = {
     'Members can opt out of this from their Summary, and it will not count toward what they '
     + 'owe.',
   'inc.blankAge': 'Leave blank and every member owes this, whatever their age.',
-  'inc.bloodlineHint':
-    'Only members descended from the family’s line owe this. Anybody who married in, and any '
-    + 'step, adopted or foster relative, owes nothing and will not see it on their Dues screen.',
+  'inc.bloodlineHint': 'Only members marked as being in the family’s bloodline owe this. Anybody who married in, and anybody the family has not marked, owes nothing and will not see it on their Dues screen.',
   'inc.howeverCame': 'Every member owes this, however they came into the family.',
   'inc.everyMember': 'Every member of the family owes this.',
   'inc.regionHint':
@@ -4193,7 +4176,6 @@ export const en: Catalogue = {
   'act.notNotificationWeSend': 'That is not a notification we send.',
   'act.notPlanCanBought': 'That is not a plan that can be bought.',
   'act.notPlan': 'That is not a plan.',
-  'act.notRelationshipKind': 'That is not a relationship kind',
   'act.notRelationshipTreeRecords': 'That is not a relationship this tree records',
   'act.notTimeWeCanRead': 'That is not a time we can read',
   'act.notTimezoneWeRecognise': 'That is not a timezone we recognise',
@@ -4770,7 +4752,6 @@ export const en: Catalogue = {
     'No dues schedules are active, so there is nothing to project. Add one '
     + 'under Accounting → Dues.',
   'dues.bloodlineOnly': 'Bloodline only',
-  'dues.bloodlineDescendsFrom': 'Bloodline descends from',
   'dues.member': 'By member',
   'dues.onlyThoseWhoOwe': 'Only those who owe',
   'dues.nobodyFamilyBeenApproved': 
@@ -4808,20 +4789,9 @@ export const en: Catalogue = {
     + 'we never send anything to it — so this person cannot sign in, and '
     + 'nothing will reach them. If they might ever want an account, invite them '
     + 'instead.',
-  'ui.everyoneWhoSharesAncestor': 
-    'Everyone who shares an ancestor with them is a blood relative; their '
-    + 'spouses are not.',
-  'ui.ifFamilySLine': 
-    'If your family\'s line runs through one of them, name that person '
-    + 'instead. Do not mark a real parent as step to get them out of the view — '
-    + 'they are a blood parent, and recording otherwise makes the tree wrong in '
-    + 'a way nothing else can correct.',
   'ui.siblingsSharePersonS': 
     'Siblings share this person\'s generation, so they are listed here rather '
     + 'than drawn in the row above.',
-  'ui.onlyBloodLinksCarry': 
-    'Only blood links carry the bloodline, so this is what the Bloodline view '
-    + 'walks. Each connection is saved as you change it.',
   'ui.decidesWhetherTheyFill': 
     'This decides whether they fill the father or the mother slot, and lets '
     + 'us name the connection back to them.',

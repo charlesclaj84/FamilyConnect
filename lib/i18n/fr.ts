@@ -193,10 +193,6 @@ export const fr: Catalogue = {
   'set.onlySupportRestores': 'seul le support GENORRA peut rétablir une famille.',
   'tree.dashedCardsAreGaps': '· Les cartes en pointillés sont des vides que vous pouvez combler',
   'tree.removingNeverRemoves': '· Retirer un lien ne retire jamais personne de la famille',
-  'tree.thePersonNamedAbove': 'la personne nommée ci-dessus',
-  'tree.thatParent': 'ce parent',
-  'tree.bloodlineFromOneParent': 'La lignée est établie à partir de {anchor}, qui a un parent sur l’arbre — donc {parents} et tous ceux dont ils descendent comptent comme du sang, des deux côtés. Un conjoint entré par mariage est inclus de cette façon.',
-  'tree.bloodlineFromParents': 'La lignée est établie à partir de {anchor}, qui a des parents sur l’arbre — donc {parents} et tous ceux dont ils descendent comptent comme du sang, des deux côtés. Un conjoint entré par mariage est inclus de cette façon.',
   // ── THE TRANSACTIONS LEDGER, 2026-08-29 ────────────────────────────────────
   // This screen carried a note saying it was "not translated yet — on Phase 5's admin
   // pass", and it was the densest concentration of English left in the product: every
@@ -729,8 +725,7 @@ export const fr: Catalogue = {
   'tree.moreInGeneration': '+ {n} de plus dans cette génération. Retrouvez-les sous',
   'tree.removeLinkConfirm':
     'Supprimer le lien entre {a} et {b} ? Ceci ne supprime que la connexion — personne n’est retiré de la famille et rien de ce qu’ils ont enregistré n’est supprimé.',
-  'tree.showingBloodline':
-    'Affichage des {n} personnes descendant de la lignée de cette famille. Les conjoints et les parents par alliance ou adoption sont masqués.',
+  'tree.showingBloodline': 'Affichage des {n} personnes marquées comme faisant partie de la lignée de cette famille. Tous les autres sont masqués.',
   'tree.showingEveryone': 'Toute la famille — {total} personnes, dont {blood} par le sang.',
   'tree.addSomeonesFather': 'Ajouter le père de {who}',
   'tree.addSomeonesMother': 'Ajouter la mère de {who}',
@@ -884,8 +879,6 @@ export const fr: Catalogue = {
   'proj.outstandingMany': '{n} membres ont un solde impayé',
   'proj.pendingSettlement':
     '{amount} est en attente de règlement — engagé et pas encore confirmé. Ce montant n’est pas compté comme encaissé et n’a pas été retiré de ce qui reste dû.',
-  'proj.bloodlineUnknownNote':
-    'Personne ne doit ceci : votre famille n’a pas indiqué de quel ancêtre sa lignée descend, il n’y a donc aucune lignée à facturer. Réglez {control} sur l’arbre familial.',
   'proj.thatPartOfTheFamily': 'cette partie de la famille',
   'proj.scopeEmptyNote':
     'Personne ne doit ceci : aucun membre de la famille n’est dans {where}. Les membres choisissent leur section sur leur propre profil, et quiconque n’a pas de section relève du National.',
@@ -963,10 +956,6 @@ export const fr: Catalogue = {
   'gath.removeDayAria': 'Retirer le jour {n}',
   'gath.everyDayOwnEntry':
     'Chaque jour ici est sa propre entrée dans le calendrier, toutes nommées d’après ce rassemblement.',
-  'rel.bloodLinkNote': 'Une relation de sang — la lignée passe par ce lien.',
-  'rel.nonBloodLinkNote': 'Enregistré comme {kind}. La lignée ne passe pas par ce lien.',
-  'rel.parentBloodlineNote':
-    ' {decidedBy} {control}, au-dessus de l’arbre — l’un de vos parents est votre parent par le sang sans faire partie de la lignée de votre famille.',
   'rel.siblingNeedsSharedParent':
     'Aucun parent n’est encore enregistré pour {name} ; ce frère ou cette sœur '
     + 'n’apparaîtra donc pas dans {view} — l’arbre sait qu’ils sont frères et sœurs, mais '
@@ -1094,9 +1083,6 @@ export const fr: Catalogue = {
   'rec.howRelated': 'Comment {name} est apparenté',
   'rec.formerMarriageNote':
     'Un ancien mariage reste sur l’arbre à côté de {name} — c’est généralement d’où vient la moitié des enfants. Un mariage ne transmet jamais le sang.',
-  'rec.recordedAs': 'Enregistré comme {kind} de {name}.',
-  'rec.bloodCarries': ' Les liens de sang transmettent la lignée.',
-  'rec.noBloodThroughLink': ' {name} n’atteint pas la lignée par ce lien.',
   'rem.nobodyCanOpen':
     'Personne ne peut l’ouvrir, la rejoindre ni accepter une invitation. {nothingDeleted} — chaque paiement, photographie, évènement et personne est exactement là où il était. Seul le support {app} peut la rétablir ; écrivez-leur pour le demander.',
   'set.codeSentTo':
@@ -1227,6 +1213,13 @@ export const fr: Catalogue = {
     'Changez le nom de cet album et sa description. Les photographies qu’il contient ne sont pas touchées.',
   'gal.renameNamedAlbumAria': 'Renommer l’album « {name} »',
   'gal.renameFailed': 'Impossible de renommer cet album.',
+  'rel.inBloodlineQuestion': 'Cette personne fait partie de la lignée de la famille',
+  'rel.inBloodlineHint': 'Cochez ceci pour un parent par le sang. Laissez décoché pour quelqu’un qui a épousé un membre de la famille, et pour un parent par alliance, adoptif ou d’accueil. Cela décide qui apparaît sous {control} dans l’arbre, et qui doit une cotisation réservée à la lignée.',
+  'rec.inBloodline': '{name} fait partie de la lignée de la famille',
+  'rec.inBloodlineHint': 'Décide qui apparaît sous {view} dans l’arbre, et qui doit une cotisation réservée à la lignée. Enregistré dès que vous cochez.',
+  'rec.bloodlineFailed': 'Impossible de changer cela.',
+  'rec.connectionsHint': 'À qui cette personne est rattachée. Un mariage peut être renommé ; les autres sont les relations que quelqu’un a enregistrées.',
+  'proj.bloodlineEmptyNote': 'Personne ne doit ceci : votre famille n’a marqué personne comme faisant partie de sa lignée, il n’y a donc personne à facturer. Cochez {control} dans l’arbre familial.',
   'gal.fileTooLarge': '{name} dépasse 10 Mo.',
   'gal.albumGoneFilesLeftOne':
     'L’album a disparu, mais 1 de ses fichiers image n’a pas pu être retiré du stockage. Il n’est plus listé nulle part ; prévenez un administrateur pour qu’il soit nettoyé.',
@@ -2321,9 +2314,6 @@ export const fr: Catalogue = {
   'gal.removeTagFailed': 'Cette identification n’a pas pu être retirée.',
   'gal.addedByGone': 'Ajoutée par une personne qui n’est plus dans cette famille',
   'tree.nobodyToBuild': 'Il n’y a encore personne dans cette famille pour bâtir un arbre.',
-  'tree.bloodlineFrom': 'La lignée descend de',
-  'tree.whoeverCreated': 'La personne qui a créé la famille',
-  'tree.oldestOnLine': 'La personne la plus ancienne enregistrée sur chaque ligne :',
   'tree.centreOnMe': 'Centrer sur moi',
   'tree.children': 'Enfants',
   'tree.notOnTree': 'Pas encore sur l’arbre',
@@ -2350,7 +2340,6 @@ export const fr: Catalogue = {
     + 'Modifier pour ajouter des parents ou changer un lien.',
   'tree.fullFamily': 'Toute la famille',
   'tree.bloodline': 'Lignée',
-  'tree.changeFailed': 'Cela n’a pas pu être modifié.',
   'tree.father': 'Père',
   'tree.mother': 'Mère',
   'tree.thisAndMarriages': 'Cette personne et ses mariages',
@@ -2359,9 +2348,7 @@ export const fr: Catalogue = {
   'tree.siblings': 'Frères et sœurs',
   'tree.thisPersonIs': 'Cette personne est',
   'tree.thesePeopleAre': 'Ces personnes sont',
-  'tree.decidedBy': 'Qui apparaît réellement dans la vue Lignée est déterminé par',
   'rel.how': 'Comment',
-  'rel.howRelated': 'Quel est le lien de parenté ?',
   'rel.chooseHow': 'Choisissez comment cette personne rejoint l’arbre.',
   'rel.alreadyHere': 'Une personne déjà présente',
   'rel.alreadyHereHint': 'Reliez un parent déjà présent dans votre famille.',
@@ -3508,9 +3495,7 @@ export const fr: Catalogue = {
   'inc.frequency': 'Fréquence',
   'inc.startAge': 'Les membres commencent à payer à l’âge de (facultatif)',
   'inc.bloodlineOnly': 'Lignée seulement',
-  'inc.noBloodline':
-    'Votre famille n’a pas indiqué de quel ancêtre sa lignée descend, il n’y a donc pas de '
-    + 'lignée à laquelle restreindre ceci. Définissez',
+  'inc.noBloodline': 'Personne n’a encore été marqué comme faisant partie de la lignée de votre famille, donc une cotisation qui y est réservée ne serait due par personne. Cochez d’abord {control} dans l’arbre familial.',
   'inc.owedBy': 'Dû par',
   'inc.nationalWhole': 'National — toute la famille',
   'inc.goal': 'Objectif',
@@ -3532,10 +3517,7 @@ export const fr: Catalogue = {
     'Les membres peuvent la refuser depuis leur Résumé, et elle ne comptera pas dans ce '
     + 'qu’ils doivent.',
   'inc.blankAge': 'Laissez vide et chaque membre doit ceci, quel que soit son âge.',
-  'inc.bloodlineHint':
-    'Seuls les membres descendant de la lignée de la famille doivent ceci. Toute personne '
-    + 'entrée par mariage, et tout parent par alliance, adoptif ou d’accueil, ne doit rien et '
-    + 'ne le verra pas sur son écran Cotisations.',
+  'inc.bloodlineHint': 'Seuls les membres marqués comme faisant partie de la lignée de la famille doivent ceci. Quelqu’un qui a épousé un membre de la famille, et quelqu’un que la famille n’a pas marqué, ne doit rien et ne le verra pas sur son écran Cotisations.',
   'inc.howeverCame':
     'Chaque membre doit ceci, quelle que soit la façon dont il est entré dans la famille.',
   'inc.everyMember': 'Chaque membre de la famille doit ceci.',
@@ -4233,7 +4215,6 @@ export const fr: Catalogue = {
   'act.notNotificationWeSend': 'Ce n’est pas une notification que nous envoyons.',
   'act.notPlanCanBought': 'Ce n’est pas un forfait que l’on peut acheter.',
   'act.notPlan': 'Ce n’est pas un forfait.',
-  'act.notRelationshipKind': 'Ce n’est pas un type de lien',
   'act.notRelationshipTreeRecords': 'Ce n’est pas un lien de parenté que cet arbre enregistre',
   'act.notTimeWeCanRead': 'Ce n’est pas une heure que nous pouvons lire',
   'act.notTimezoneWeRecognise': 'Ce n’est pas un fuseau horaire que nous reconnaissons',
@@ -4848,7 +4829,6 @@ export const fr: Catalogue = {
     'Aucun barème de cotisations n’est actif, il n’y a donc rien à projeter. '
     + 'Ajoutez-en un dans Comptabilité → Cotisations.',
   'dues.bloodlineOnly': 'Filiation uniquement',
-  'dues.bloodlineDescendsFrom': 'La filiation descend de',
   'dues.member': 'Par membre',
   'dues.onlyThoseWhoOwe': 'Seulement ceux qui la doivent',
   'dues.nobodyFamilyBeenApproved': 
@@ -4889,22 +4869,9 @@ export const fr: Catalogue = {
     + 'puisse exister et nous n’y envoyons jamais rien — cette personne ne peut '
     + 'donc pas se connecter et rien ne lui parviendra. Si elle pourrait un '
     + 'jour vouloir un compte, invitez-la plutôt.',
-  'ui.everyoneWhoSharesAncestor': 
-    'Toute personne partageant un ancêtre avec elle est un parent par le sang '
-    + '; leurs conjoints ne le sont pas.',
-  'ui.ifFamilySLine': 
-    'Si la lignée de votre famille passe par l’un d’eux, désignez plutôt '
-    + 'cette personne. Ne marquez pas un véritable parent comme beau-parent '
-    + 'pour l’écarter de la vue : c’est un parent par le sang, et enregistrer '
-    + 'autre chose rend l’arbre faux d’une manière que rien d’autre ne peut '
-    + 'corriger.',
   'ui.siblingsSharePersonS': 
     'Les frères et sœurs partagent la génération de cette personne ; ils sont '
     + 'donc listés ici plutôt que dessinés dans la rangée du dessus.',
-  'ui.onlyBloodLinksCarry': 
-    'Seuls les liens du sang portent la filiation, et c’est donc ce que '
-    + 'parcourt la vue Filiation. Chaque lien est enregistré au fur et à mesure '
-    + 'que vous le modifiez.',
   'ui.decidesWhetherTheyFill': 
     'Cela détermine si cette personne occupe la place du père ou celle de la '
     + 'mère, et nous permet de nommer le lien en retour vers elle.',

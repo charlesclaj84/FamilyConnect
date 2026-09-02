@@ -389,15 +389,21 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                         </span>
                       )}
                       {/* THE ONE STATE ON THIS SCREEN A TREASURER CANNOT DIAGNOSE FROM THE
-                          NUMBERS. Bloodline-only with no bloodline to apply means nobody
-                          owes it, so Expected reads $0.00 and there is nothing in the
-                          figures to say why. `--brand-withheld` and not `--destructive`:
-                          nothing has failed and nothing was deleted — a capability is
-                          being withheld, which is exactly what that role is for. */}
-                      {s.bloodlineUnknown && (
+                          NUMBERS. Bloodline-only and nobody is marked as being in it, so
+                          Expected reads $0.00 and there is nothing in the figures to say
+                          why. `--brand-withheld` and not `--destructive`: nothing has
+                          failed and nothing was deleted — a capability is being withheld,
+                          which is exactly what that role is for.
+
+                          IT ASKED A DIFFERENT QUESTION UNTIL `20260902000000` — "the family
+                          has not said which ancestor its line descends from" — because the
+                          bloodline was derived from an anchor. There is no anchor now; the
+                          state it warned about is a family that has not marked anybody, and
+                          the sentence names the control that fixes it either way. */}
+                      {s.bloodlineEmpty && (
                         <p className="mt-1 text-xs text-brand-withheld">
-                          {t('proj.bloodlineUnknownNote', {
-                            control: t('dues.bloodlineDescendsFrom'),
+                          {t('proj.bloodlineEmptyNote', {
+                            control: t('tree.inBloodline'),
                           })}
                         </p>
                       )}

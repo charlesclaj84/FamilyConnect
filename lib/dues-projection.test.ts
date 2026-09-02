@@ -87,9 +87,13 @@ const LEVY: ProjectionSchedule = {
  * arithmetic, which is identical for all three states; the three states have their own block
  * at the end of this file.
  */
+// `isBloodline` STATED ON BOTH, for `hasAccount`'s reason: the module gives it no default.
+// ADA IS IN THE BLOODLINE AND BEN IS NOT, which is what makes the blood-only block at the
+// end of this file able to say anything — it used to be expressed by passing a `bloodline`
+// SET to `projectDues`, and `20260902000000` moved it onto the member.
 const ADULTS: ProjectionMember[] = [
-  { personId: 'ada', dateOfBirth: null, hasAccount: true },
-  { personId: 'ben', dateOfBirth: null, hasAccount: true },
+  { personId: 'ada', dateOfBirth: null, hasAccount: true, isBloodline: true },
+  { personId: 'ben', dateOfBirth: null, hasAccount: true, isBloodline: false },
 ]
 
 const run = (over: {
@@ -97,18 +101,13 @@ const run = (over: {
   members?: readonly ProjectionMember[]
   payments?: readonly ProjectionPayment[]
   plans?: readonly ProjectionPlan[]
-  bloodline?: ReadonlySet<string> | null
   chapterRegions?: ReadonlyMap<string, string | null>
 }) => projectDues({
   schedules: over.schedules ?? [ANNUAL],
   members: over.members ?? ADULTS,
   payments: over.payments ?? [],
   plans: over.plans ?? [],
-  // Passed straight through, `undefined` included: "not supplied" has to stay
-  // distinguishable from `null`, because one of the cases below is precisely that a caller
-  // who never loaded the tree must not accidentally bill the whole family.
-  bloodline: over.bloodline,
-  // Also passed straight through. Omitted is the same as a family with no chapters, which
+  // Passed straight through. Omitted is the same as a family with no chapters, which
   // is a case below rather than a default worth hiding.
   chapterRegions: over.chapterRegions,
 })
@@ -206,7 +205,7 @@ describe('the age rule', () => {
   it('bills nothing to a member below the age', () => {
     const p = run({
       schedules: [FROM_18],
-      members: [{ personId: 'kid', dateOfBirth: `${YEAR - 8}-04-01`, hasAccount: true }],
+      members: [{ personId: 'kid', dateOfBirth: `${YEAR - 8}-04-01`, hasAccount: true, isBloodline: false }],
     })
 
     expect(p.expectedCents).toBe(0)
@@ -220,7 +219,7 @@ describe('the age rule', () => {
     // Eighteen this July: the months after their birthday month, five twelfths of $120.
     const p = run({
       schedules: [FROM_18],
-      members: [{ personId: 'kid', dateOfBirth: `${YEAR - 18}-07-04`, hasAccount: true }],
+      members: [{ personId: 'kid', dateOfBirth: `${YEAR - 18}-07-04`, hasAccount: true, isBloodline: false }],
     })
 
     expect(p.expectedCents).toBe(5_000)
@@ -232,7 +231,7 @@ describe('the age rule', () => {
     // The product never guesses at an age, so an unrecorded birthday is an adult. This is
     // the figure a treasurer must be able to explain, which is why the screen says it.
     const p = run({
-      schedules: [FROM_18], members: [{ personId: 'ada', dateOfBirth: null, hasAccount: true }],
+      schedules: [FROM_18], members: [{ personId: 'ada', dateOfBirth: null, hasAccount: true, isBloodline: true }],
     })
     expect(p.expectedCents).toBe(12_000)
   })
@@ -315,8 +314,8 @@ describe('the answers about who was counted', () => {
     // smaller one. `membersCounted` is now the Member Directory's own count.
     const p = run({
       members: [
-        { personId: 'ada', dateOfBirth: null, hasAccount: true },
-        { personId: 'gran', dateOfBirth: null, hasAccount: false },
+        { personId: 'ada', dateOfBirth: null, hasAccount: true, isBloodline: true },
+        { personId: 'gran', dateOfBirth: null, hasAccount: false, isBloodline: false },
       ],
     })
 
@@ -338,20 +337,33 @@ describe('the answers about who was counted', () => {
 describe('a due the bloodline alone owes', () => {
   const BLOOD: ProjectionSchedule = { ...ANNUAL, bloodline_only: true }
 
+  // ── IT WAS A SET PASSED IN; IT IS A COLUMN ON THE MEMBER ─────────────────────────
+  // `projectDues` took `bloodline?: ReadonlySet<string> | null` and tested membership.
+  // `20260902000000` replaced the whole derivation behind that set with
+  // `people.is_bloodline`, so the fact now arrives on the member row — `ADULTS` above marks
+  // Ada and not Ben.
+  //
+  // TWO TESTS WENT WITH IT and one arrived, and the swap is worth reading. The two asserted
+  // that a NULL set and an OMITTED set both meant "do not know" and both billed nobody;
+  // there is no third state to distinguish now. What replaced them asserts the same
+  // OUTCOME — a blood-only due with nobody marked bills nobody — plus the thing that state
+  // could never express: which schedule row says so.
+
   it('bills the bloodline and nobody else', () => {
-    const p = run({ schedules: [BLOOD], bloodline: new Set(['ada']) })
+    const p = run({ schedules: [BLOOD] })
 
     expect(p.expectedCents).toBe(12_000)     // Ada's, not Ada's and Ben's
     expect(p.payingMembers).toBe(1)
     expect(p.schedules[0].counts).toMatchObject({ unpaid: 1, excluded: 1 })
     expect(p.schedules[0].bloodlineOnly).toBe(true)
-    expect(p.schedules[0].bloodlineUnknown).toBe(false)
+    // Somebody IS marked, so the row is not the empty case.
+    expect(p.schedules[0].bloodlineEmpty).toBe(false)
   })
 
   it('reports the excluded member as "not theirs", never as settled or exempt', () => {
     // Both would be answers to a question nobody asked. Settled says they paid; exempt
     // says they will pay later. Neither is true of somebody who married in.
-    const p = run({ schedules: [BLOOD], bloodline: new Set(['ada']) })
+    const p = run({ schedules: [BLOOD] })
     const ben = p.members.find(m => m.personId === 'ben')!
 
     expect(ben.standing).toBe('excluded')
@@ -365,47 +377,67 @@ describe('a due the bloodline alone owes', () => {
     // separate standings rather than one.
     const p = run({
       schedules: [{ ...BLOOD, start_age: 18 }],
-      members: [{ personId: 'kid', dateOfBirth: `${YEAR - 8}-04-01`, hasAccount: true }],
-      bloodline: new Set(['someone-else']),
+      members: [{
+        personId: 'kid', dateOfBirth: `${YEAR - 8}-04-01`,
+        hasAccount: true, isBloodline: false,
+      }],
     })
 
     expect(p.schedules[0].counts).toMatchObject({ excluded: 1, exempt: 0 })
   })
 
-  it('BILLS NOBODY when the family has no bloodline, and says so', () => {
-    // The direction that matters. Billing everybody would charge the step-children the
-    // family ticked this box to exclude, silently. Billing nobody is visible — and
-    // `bloodlineUnknown` is what makes it explicable rather than an unexplained zero.
-    const p = run({ schedules: [BLOOD], bloodline: null })
+  it('BILLS NOBODY when the family has marked nobody, and says so on the row', () => {
+    // THE DIRECTION THAT MATTERS, and it is the one the deleted 'bloodline-unknown' state
+    // existed to protect: billing everybody would charge the relatives the family ticked
+    // this box to exclude, silently. Billing nobody is visible — and `bloodlineEmpty` is
+    // what makes it explicable rather than an unexplained zero.
+    //
+    // The old version of this test passed `bloodline: null`. There is no null; a family
+    // that has said nothing has an all-false column, which is what this roster is.
+    const p = run({
+      schedules: [BLOOD],
+      members: [
+        { personId: 'ada', dateOfBirth: null, hasAccount: true, isBloodline: false },
+        { personId: 'ben', dateOfBirth: null, hasAccount: true, isBloodline: false },
+      ],
+    })
 
     expect(p.expectedCents).toBe(0)
     expect(p.payingMembers).toBe(0)
-    expect(p.schedules[0].bloodlineUnknown).toBe(true)
+    expect(p.schedules[0].bloodlineEmpty).toBe(true)
     expect(p.schedules[0].counts.excluded).toBe(2)
   })
 
-  it('treats an omitted bloodline as not knowing, not as an empty set', () => {
-    // A caller that never loaded the tree must not accidentally bill the whole family.
-    const p = run({ schedules: [BLOOD] })
-    expect(p.expectedCents).toBe(0)
-    expect(p.schedules[0].bloodlineUnknown).toBe(true)
-  })
-
   it('says nothing about the bloodline on a due open to everybody', () => {
-    // The flag is off, so an unset anchor is irrelevant and a warning here would be a
-    // warning about nothing.
-    const p = run({ schedules: [ANNUAL], bloodline: null })
+    // The flag is off, so nobody being marked is irrelevant and a warning here would be a
+    // warning about nothing. The FIRST CONJUNCT of `bloodlineEmpty` is what this pins —
+    // unlike `scopeEmpty`'s, it is not redundant: this roster would satisfy the other two.
+    const p = run({
+      schedules: [ANNUAL],
+      members: [
+        { personId: 'ada', dateOfBirth: null, hasAccount: true, isBloodline: false },
+        { personId: 'ben', dateOfBirth: null, hasAccount: true, isBloodline: false },
+      ],
+    })
 
     expect(p.schedules[0].bloodlineOnly).toBe(false)
-    expect(p.schedules[0].bloodlineUnknown).toBe(false)
+    expect(p.schedules[0].bloodlineEmpty).toBe(false)
     expect(p.expectedCents).toBe(24_000)
+  })
+
+  it('is not the empty case for a family with no members at all', () => {
+    // The third conjunct. Nothing to report either way, which the zero member count
+    // already says — the same judgement `scopeEmpty` makes, and the reason both carry it.
+    const p = run({ schedules: [BLOOD], members: [] })
+
+    expect(p.schedules[0].bloodlineEmpty).toBe(false)
   })
 
   it('leaves a member owing a second, unrestricted due', () => {
     // Ben is outside the line, so he owes nothing on the restricted due and everything on
     // the open one. His row reports the least settled standing he holds, which is the
     // levy's — not 'excluded', which would read as owing nothing at all.
-    const p = run({ schedules: [BLOOD, LEVY], bloodline: new Set(['ada']) })
+    const p = run({ schedules: [BLOOD, LEVY] })
     const ben = p.members.find(m => m.personId === 'ben')!
 
     expect(ben.expectedCents).toBe(6_000)
@@ -423,8 +455,8 @@ describe('a due one region or chapter owes', () => {
     ['atlanta', null],
   ])
   const PLACED: ProjectionMember[] = [
-    { personId: 'ada', dateOfBirth: null, chapterId: 'houston', hasAccount: true },
-    { personId: 'ben', dateOfBirth: null, chapterId: 'atlanta', hasAccount: true },
+    { personId: 'ada', dateOfBirth: null, chapterId: 'houston', hasAccount: true, isBloodline: true },
+    { personId: 'ben', dateOfBirth: null, chapterId: 'atlanta', hasAccount: true, isBloodline: false },
   ]
   const CHAPTER_DUE: ProjectionSchedule = {
     ...ANNUAL, scope: 'chapter', chapter_id: 'houston', region_id: null,
@@ -458,7 +490,7 @@ describe('a due one region or chapter owes', () => {
     // under National. They owe the national due in full and neither scoped one.
     const p = run({
       schedules: [ANNUAL, CHAPTER_DUE, REGION_DUE],
-      members: [{ personId: 'nomad', dateOfBirth: null, chapterId: null, hasAccount: true }],
+      members: [{ personId: 'nomad', dateOfBirth: null, chapterId: null, hasAccount: true, isBloodline: false }],
       chapterRegions: CHAPTER_REGIONS,
     })
 
@@ -477,7 +509,6 @@ describe('a due one region or chapter owes', () => {
       schedules: [{ ...CHAPTER_DUE, bloodline_only: true }],
       members: PLACED,
       chapterRegions: CHAPTER_REGIONS,
-      bloodline: new Set(['ada']),
     })
 
     expect(p.schedules[0].counts).toMatchObject({ 'out-of-scope': 1, excluded: 0, unpaid: 1 })
@@ -559,9 +590,9 @@ describe('Active, Invited and Pending Invite', () => {
   it('puts the state on every member row and counts it once', () => {
     const p = run({
       members: [
-        { personId: 'ada', dateOfBirth: null, hasAccount: true },
-        { personId: 'asked', dateOfBirth: null, hasAccount: false, invitationOpen: true },
-        { personId: 'gran', dateOfBirth: null, hasAccount: false },
+        { personId: 'ada', dateOfBirth: null, hasAccount: true, isBloodline: true },
+        { personId: 'asked', dateOfBirth: null, hasAccount: false, invitationOpen: true, isBloodline: false },
+        { personId: 'gran', dateOfBirth: null, hasAccount: false, isBloodline: false },
       ],
     })
 
@@ -581,9 +612,9 @@ describe('Active, Invited and Pending Invite', () => {
     // which is the bug the roster change exists to fix.
     const p = run({
       members: [
-        { personId: 'ada', dateOfBirth: null, hasAccount: true },
-        { personId: 'asked', dateOfBirth: null, hasAccount: false, invitationOpen: true },
-        { personId: 'gran', dateOfBirth: null, hasAccount: false },
+        { personId: 'ada', dateOfBirth: null, hasAccount: true, isBloodline: true },
+        { personId: 'asked', dateOfBirth: null, hasAccount: false, invitationOpen: true, isBloodline: false },
+        { personId: 'gran', dateOfBirth: null, hasAccount: false, isBloodline: false },
       ],
     })
 
@@ -598,9 +629,9 @@ describe('Active, Invited and Pending Invite', () => {
     // see a due, let alone pay one.
     const p = run({
       members: [
-        { personId: 'ada', dateOfBirth: null, hasAccount: true },
-        { personId: 'asked', dateOfBirth: null, hasAccount: false, invitationOpen: true },
-        { personId: 'gran', dateOfBirth: null, hasAccount: false },
+        { personId: 'ada', dateOfBirth: null, hasAccount: true, isBloodline: true },
+        { personId: 'asked', dateOfBirth: null, hasAccount: false, invitationOpen: true, isBloodline: false },
+        { personId: 'gran', dateOfBirth: null, hasAccount: false, isBloodline: false },
       ],
     })
 
@@ -614,8 +645,8 @@ describe('Active, Invited and Pending Invite', () => {
     // and the table cannot disagree.
     const p = run({
       members: [
-        { personId: 'ada', dateOfBirth: null, hasAccount: true },
-        { personId: 'gran', dateOfBirth: null, hasAccount: false },
+        { personId: 'ada', dateOfBirth: null, hasAccount: true, isBloodline: true },
+        { personId: 'gran', dateOfBirth: null, hasAccount: false, isBloodline: false },
       ],
       payments: [pay('gran', 'annual', 12_000, 'waived')],
     })
@@ -639,10 +670,9 @@ describe('Active, Invited and Pending Invite', () => {
     const p = run({
       schedules: [{ ...ANNUAL, bloodline_only: true }, LEVY],
       members: [
-        { personId: 'blood-record', dateOfBirth: null, hasAccount: false },
-        { personId: 'gran', dateOfBirth: null, hasAccount: false },
+        { personId: 'blood-record', dateOfBirth: null, hasAccount: false, isBloodline: true },
+        { personId: 'gran', dateOfBirth: null, hasAccount: false, isBloodline: false },
       ],
-      bloodline: new Set(['blood-record']),
     })
 
     const [blood, levy] = p.schedules

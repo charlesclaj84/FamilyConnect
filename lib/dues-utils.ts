@@ -93,7 +93,7 @@ export interface DuesScheduleLike {
    */
   start_age?: number | null
   /**
-   * TRUE: only members in the family's bloodline owe this. Read by `duesEligibility` and
+   * TRUE: only members with `people.is_bloodline` owe this. Read by `duesEligibility` and
    * by nothing else — a set-membership question rather than arithmetic, which is why it
    * does not touch any of the figures in this module.
    */
@@ -220,42 +220,40 @@ export function currentPeriodStart(schedule: DuesScheduleLike): string {
  * pay this", and a screen that folded them together would tell somebody's wife she was
  * "not yet due" on a due she will never owe.
  *
- * ── 'unknown' IS THE ANSWER THAT MATTERS ────────────────────────────────────────────
- * `bloodlineIds` returns null when the family has no anchor to walk from, and its own
- * header is explicit that callers must not read that as an empty set. Here the stakes are
- * money: an unknown bloodline could plausibly mean "bill nobody" or "bill everybody", and
- * the two are wrong in opposite directions.
+ * ── IT USED TO HAVE A THIRD ANSWER, AND `20260902000000` REMOVED THE REASON FOR IT ──
+ * The bloodline was DERIVED — a walk from `families.bloodline_anchor_id` over
+ * `person_relationships.link_kind` — and `bloodlineIds()` answered NULL for "do not know":
+ * no anchor, an anchor outside the roster, or a failed read. This function turned that into
+ * `'bloodline-unknown'` and billed nobody, on the argument that under-collecting loudly
+ * beats over-billing quietly.
  *
- * BILL NOBODY, and say so. Billing everybody would charge the step-children the family
- * ticked this box to exclude, silently and with no way to notice — the failure lands on the
- * people it was meant to protect. Billing nobody is visible: the family collects less than
- * they expected and the projection reports why. Under-collecting loudly beats over-billing
- * quietly, and the Accounting form refuses to set the flag without an anchor so this state
- * is hard to reach in the first place.
+ * It is `people.is_bloodline` now, stated by somebody in the family rather than inferred, so
+ * there is no unknown left to be careful with: a person is in the bloodline or is not. The
+ * column is `NOT NULL DEFAULT false`, so the direction of the old caution is preserved by
+ * the DEFAULT rather than by a third branch — a family that has said nothing bills nobody,
+ * exactly as before, and the migration's backfill wrote down whatever the walk had been
+ * answering so no family's bill moved.
  *
- * Pure, and takes the bloodline as an argument, because computing it needs the whole tree
- * and this needs to be checkable without one.
+ * **Do not reintroduce a nullable third state here.** If `is_bloodline` ever becomes
+ * nullable, the money question comes back with it and this is where it has to be answered.
+ *
+ * Pure, and takes the flag as an argument rather than a person id and a set, because the
+ * caller has the member's own row in hand — reading it costs one column on a query already
+ * being made, where the walk it replaced cost four queries and the whole roster.
  */
 export type DuesEligibility =
   /** They owe it — either it is open to everybody, or they are in the bloodline. */
   | 'owed'
   /** Bloodline-only, and they are not in it. They will never owe it. */
   | 'not-in-bloodline'
-  /** Bloodline-only, and the family has not said which line it descends from. */
-  | 'bloodline-unknown'
 
 export function duesEligibility(input: {
   bloodlineOnly: boolean | null | undefined
-  /**
-   * `bloodlineIds(...)` for this family. NULL means "do not know" and is not an empty
-   * set — see the header.
-   */
-  bloodline: ReadonlySet<string> | null
-  personId: string
+  /** `people.is_bloodline` for the member being priced. */
+  isBloodline: boolean | null | undefined
 }): DuesEligibility {
   if (!input.bloodlineOnly) return 'owed'
-  if (input.bloodline === null) return 'bloodline-unknown'
-  return input.bloodline.has(input.personId) ? 'owed' : 'not-in-bloodline'
+  return input.isBloodline ? 'owed' : 'not-in-bloodline'
 }
 
 /**

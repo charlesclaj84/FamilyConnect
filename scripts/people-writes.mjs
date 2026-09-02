@@ -153,6 +153,29 @@ const REVIEWED = {
       + 'upsertAncestor for, which this action inherited when they were deleted. '
       + 'tests/rls covers each id with its own case.',
   },
+  'app/actions/family-tree.ts::setPersonBloodline': {
+    op: 'update',
+    writes: 'is_bloodline, and nothing else',
+    verdict:
+      'All three answered, and the column is the reason to read them carefully: '
+      + 'dues_schedules.bloodline_only prices against people.is_bloodline, so this write '
+      + 'decides whether somebody owes money. (1) .eq(family_code) from the caller\'s own '
+      + 'membership beside .eq(id), never the id alone. (2) One column, named as a literal — '
+      + 'there is no client-supplied object to allow-list, and the value is coerced with '
+      + 'Boolean() rather than passed through. (3) personId is verified with '
+      + 'belongsToFamily before the write. '
+      + 'THE ADMIN CLIENT IS THE ONLY CLIENT THAT CAN DO THIS, which is deliberate rather '
+      + 'than convenient: people_guard_bloodline (20260902000000) refuses any change to the '
+      + 'column made by the `authenticated` role, so there is no policy underneath this and '
+      + 'the three answers above are the whole boundary. That guard is what closes '
+      + 'saveProfileSection, which writes a member\'s own people row through a policy with '
+      + 'no opinion about which column changed — without it, a member could exempt '
+      + 'themselves from a blood-only due. '
+      + 'THE GRANT IS canAny, NOT can: there is no coherent "own" version of this, and a '
+      + 'member editing their own row is precisely the abuse case. requireTreeEditor() '
+      + 'resolves community/family-tree:edit at canAny, the same as every other write on '
+      + 'that canvas.',
+  },
   'app/actions/family-tree.ts::editPersonRecord': {
     op: 'update',
     writes: 'pickProfileColumns only',

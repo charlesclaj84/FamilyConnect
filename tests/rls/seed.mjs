@@ -2507,7 +2507,11 @@ export async function seed() {
     // their successors (editPersonRecord, invitePersonRecord) address the PERSON. The
     // relationship rows themselves are still seeded above — the tree needs the edges.
     f.spouseRelId = rels.find(r => r.related_person_id === other.personId).id
-    f.ancestorRelId = rels.find(r => r.related_person_id === f.ancestor.id).id
+    // `ancestorRelId` went the same way on 2026-09-02: `setRelationshipKind` addressed a
+    // relationship row by id to set its blood/step/adopted/foster kind, and
+    // `20260902000000` replaced it with `setPersonBloodline`, which addresses the PERSON.
+    // `setRelationshipType` is the only action left that takes a relationship id, and
+    // `spouseRelId` is the row it renames.
   }
 
   return fx

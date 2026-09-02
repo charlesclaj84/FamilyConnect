@@ -3555,26 +3555,93 @@ export const MORE_CASES = [
     positive: 'not-applicable',
     why: 'a successful control mints a real invitation and mutates family_invitations for later cases; the attack half is what this guards',
   },
+  // ── `setPersonBloodline`, WHICH REPLACED `setRelationshipKind` (20260902000000) ──
+  //
+  // The case is MOVED rather than dropped, and what it asserts is stronger than before. It
+  // used to aim at `person_relationships.link_kind` on ALPHA's Father edge; the bloodline is
+  // `people.is_bloodline` now, so the target is a PERSON.
+  //
+  // WHAT A SUCCESSFUL ATTACK WOULD DO, which is worth stating because it is quieter than
+  // most and is no longer only about a display: it changes who another family counts as
+  // descended from them — and `dues_schedules.bloodline_only` prices against exactly this
+  // column, so it changes who that family BILLS.
+  //
+  // THERE IS NO POLICY UNDERNEATH THIS AT ALL, which makes the case the whole story rather
+  // than one of two boundaries. `people_guard_bloodline` refuses the `authenticated` role
+  // outright, so the action runs on the ADMIN client by necessity; `belongsToFamily` and the
+  // `family_code` conjunct are all that stand between BRAVO's administrator and ALPHA's
+  // bloodline. Compare `updateCollection`, where deleting the hand-written conjunct leaves a
+  // policy still refusing — here it leaves nothing.
+  //
+  // ── MUTATION-CHECKED 2026-09-02, AND THE RESULT IS NOT THE OBVIOUS ONE ───────────
+  // Four mutations, because the first two each looked like the case was weak and the third
+  // is what shows it is not:
+  //
+  //   1. drop `belongsToFamily`                      -> the PROBE stays green and the
+  //                                                     `told` half goes RED. The write
+  //                                                     still carries `family_code`, so it
+  //                                                     matches zero rows and the row is
+  //                                                     untouched — but the action reports
+  //                                                     `{ success: true }` over a write
+  //                                                     that did not happen. §8b exactly,
+  //                                                     and `expectRefusal` is the only
+  //                                                     thing that sees it.
+  //   2. drop the `.eq('family_code', …)` conjunct   -> STAYS GREEN. `belongsToFamily`
+  //                                                     refuses first.
+  //   3. drop BOTH                                   -> RED on all three phases, and the
+  //                                                     probe prints ALPHA's row flipped by
+  //                                                     BRAVO's administrator.
+  //   4. drop the `canAny` grant check               -> STAYS GREEN, and see below.
+  //
+  // SO THE TWO GUARDS ARE REDUNDANT WITH EACH OTHER AND NEITHER IS REMOVABLE, which is the
+  // useful thing to know: this case is evidence that AT LEAST ONE holds, in the shape
+  // `documents.getDocumentDownloadUrl`'s header describes, and `expectRefusal` is what
+  // separates them. Do not read (1) or (2) as licence to delete either.
+  //
+  // ── WHAT MUTATION 4 MEANS, AND IT IS A FACT ABOUT THE PRODUCT RATHER THAN THE TEST ──
+  // The grant check cannot be exercised by ANY actor in this fixture, because ALPHA's
+  // General template holds `community/family-tree: edit = any` — measured. So every approved
+  // member may call this on anybody, themselves included, and there is no
+  // "same family, member with no grant" case to write: the grant is not a boundary anybody
+  // is on the wrong side of.
+  //
+  // THAT IS NOT A REGRESSION AND IS WORTH BEING EXACT ABOUT. `setRelationshipKind`, which
+  // this replaced, resolved the SAME `requireTreeEditor()`, so a member could always mark
+  // their own parent link 'step' and walk themselves out of a `bloodline_only` due. And
+  // `person_relationships` maps to the tree key with an `own_expr` of
+  // `person_id = auth_person_id()`, so they could PATCH `link_kind` on their own edge
+  // directly as well — a route `people_guard_bloodline` now closes outright. The exposure is
+  // narrower than it was, not wider.
+  //
+  // A FAMILY THAT WANTS IT NARROWER HAS THE LEVER: `community/family-tree: edit` on the
+  // General template. Nothing here should hard-code a second grant for it.
   {
     kind: 'write',
-    id: 'family-tree.setRelationshipKind',
-    mod: 'app/actions/family-tree.ts', fn: 'setRelationshipKind',
-    // ALPHA's Father edge, by id. The row is an ordinary person_relationships row and the
-    // action runs on the ADMIN client, so the only thing between BRAVO's administrator and
-    // ALPHA's bloodline is the family_code test on the row it read.
-    //
-    // WHAT A SUCCESSFUL ATTACK WOULD DO is worth stating, because it is quieter than most:
-    // it does not delete anything or reveal anything. It changes who another family counts
-    // as descended from them, on a screen they will believe.
-    args: fx => [fx.alpha.ancestorRelId, 'adopted'],
-    positiveArgs: fx => [fx.alpha.ancestorRelId, 'foster'],
-    // link_kind IS IN THE PROJECTION — the column the control changes. Leaving it out is
+    id: 'family-tree.setPersonBloodline',
+    mod: 'app/actions/family-tree.ts', fn: 'setPersonBloodline',
+    args: fx => [fx.alpha.child.id, true],
+    positiveArgs: fx => [fx.alpha.child.id, true],
+    // is_bloodline IS IN THE PROJECTION — the column the control changes. Leaving it out is
     // the failure mode AGENTS.md §7 names: the write succeeds, the probe cannot see it, and
     // a real change reads as a no-op.
-    probe: (db, fx) => snapshot('person_relationships', 'id, link_kind',
-      { id: fx.alpha.ancestorRelId })(db),
-    // A plain member: recording a relationship is self-service, so correcting one is too.
-    positiveActor: 'alphaMember',
+    probe: (db, fx) => snapshot('people', 'id, is_bloodline',
+      { id: fx.alpha.child.id })(db),
+    // §8b: the row is untouched either way, because `belongsToFamily` refuses before a
+    // statement is sent — so the probe alone cannot tell a refusal from an action that
+    // changed nothing and said it saved.
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    // NOT a plain member, and this is the one thing that CHANGED with the move.
+    // `setRelationshipKind` was self-service (`requireMember`) on the argument that
+    // recording a relationship is, so correcting one is too. Marking somebody as blood is
+    // not that: it decides a bill, and a member marking their OWN row is the abuse case. So
+    // `requireTreeEditor()` — `community/family-tree:edit` at `canAny`.
+    //
+    // IF `alphaMember` EVER MAKES THIS CONTROL GO GREEN, somebody has widened who may
+    // decide who owes a blood-only due. The General template grants the tree at 'own',
+    // which `canAny` refuses, so this is a live assertion rather than a formality.
+    positiveActor: 'alphaAdmin',
   },
   {
     kind: 'write',
@@ -3588,26 +3655,13 @@ export const MORE_CASES = [
     // relationship_type_id IS the column that moves, so it has to be in the projection —
     // §7's second failure mode, where a real write reads as a no-op because the probe
     // could not see it.
-    probe: (db, fx) => snapshot('person_relationships', 'id, relationship_type_id, link_kind',
+    // `link_kind` was in this projection too and is gone with the column
+    // (`20260902000000`). `relationship_type_id` IS the column that moves, so it has to
+    // stay — §7's second failure mode, where a real write reads as a no-op because the
+    // probe could not see it.
+    probe: (db, fx) => snapshot('person_relationships', 'id, relationship_type_id',
       { id: fx.alpha.spouseRelId })(db),
     positiveActor: 'alphaMember',
-  },
-  {
-    kind: 'write',
-    id: 'family-tree.setBloodlineAnchor',
-    mod: 'app/actions/family-tree.ts', fn: 'setBloodlineAnchor',
-    // BRAVO's administrator anchoring ALPHA's bloodline on an ALPHA person. Two things
-    // have to hold and they are separate: the write must land on the caller's OWN
-    // families row (the `.eq('family_code', …)`), and the id must be checked into that
-    // family (§4). Neither is RLS — this runs on the admin client.
-    args: fx => [fx.alpha.child.id],
-    positiveArgs: fx => [fx.alpha.child.id],
-    probe: db => snapshot('families', 'family_code, bloodline_anchor_id',
-      { family_code: 'ALPHATEST' })(db),
-    // NOT a plain member: this is family-wide configuration on `admin/family:edit`, the
-    // same grant renameFamily uses. If alphaMember ever makes this control go green,
-    // somebody has widened who may redefine the family's line.
-    positiveActor: 'alphaAdmin',
   },
   {
     kind: 'write',
@@ -4723,20 +4777,27 @@ export const PENDING_CASES = [
     why: 'an approved member editing this row is asserted by the cross-family editPersonRecord case above, whose control is alphaMember',
   },
 
-  // [crux] Same shape as editPersonRecord above and the same argument: self-service, so
-  // no grant is being withheld, and it writes on the ADMIN client so no policy is
-  // underneath it. An applicant who has merely typed the family code could otherwise
-  // rewrite which of a family's children it counts as its own.
+  // [crux] Same shape as editPersonRecord above, and it writes on the ADMIN client so no
+  // policy is underneath it. An applicant who has merely typed the family code could
+  // otherwise rewrite which of a family's relatives it counts as its own blood — and, since
+  // `dues_schedules.bloodline_only` prices against that column, whom it bills.
+  //
+  // TWO GATES REFUSE THEM AND ONLY ONE IS EVIDENCE HERE. `requireTreeEditor()` opens with
+  // `requireMember()`, which refuses an unapproved membership before any grant is resolved,
+  // so this is evidence for the membership gate rather than for `canAny` — AGENTS.md §7's
+  // "A GUARD HIDES A POLICY EXACTLY AS A HAND-WRITTEN FILTER DOES", stated rather than left
+  // to be discovered. `auth_person_id()` gates on `membership_status` as well, so a pending
+  // caller collapses every own/self expression in the database too.
   {
     kind: 'write',
-    id: 'family-tree.setRelationshipKind (pending member)',
-    mod: 'app/actions/family-tree.ts', fn: 'setRelationshipKind',
+    id: 'family-tree.setPersonBloodline (pending member)',
+    mod: 'app/actions/family-tree.ts', fn: 'setPersonBloodline',
     attacker: 'alphaPending',
-    args: fx => [fx.alpha.ancestorRelId, 'step'],
-    probe: (db, fx) => snapshot('person_relationships', 'id, link_kind',
-      { id: fx.alpha.ancestorRelId })(db),
+    args: fx => [fx.alpha.child.id, true],
+    probe: (db, fx) => snapshot('people', 'id, is_bloodline',
+      { id: fx.alpha.child.id })(db),
     positive: 'not-applicable',
-    why: 'an approved member changing this row is asserted by the cross-family setRelationshipKind case above, whose control is alphaMember',
+    why: 'an entitled caller changing this row is asserted by the cross-family setPersonBloodline case above, whose control is alphaAdmin — an approved MEMBER is deliberately refused too, since 20260902000000 moved this from requireMember to the tree\'s edit grant',
   },
 
   // NOT [crux], and labelled so rather than left looking like evidence. An applicant is
@@ -5123,6 +5184,33 @@ export const SWEEP_CASES = [
       { id: fx.users.alphaPending.personId })(db),
     positive: 'not-applicable',
     why: 'people_guard_permission_template refuses the `authenticated` role outright; apply_permission_template() is the only way in and admin/permissions.applyTemplate exercises it',
+  },
+  // [crux] THE THIRD GUARDED COLUMN ON `people`, and the only assertion anywhere that
+  // `people_guard_bloodline` (20260902000000) is wired. `family-tree.setPersonBloodline`
+  // above cannot be: that action runs on the admin client, so the trigger — which fires only
+  // for the `authenticated` role — is never reached by it.
+  //
+  // AN APPROVED MEMBER, DELIBERATELY. `alphaMember`'s own row is one the composed `people`
+  // UPDATE policy admits them to write (`own_expr` is `user_id = auth.uid()`), and a policy
+  // has no opinion about which column changed — so this is the PATCH that would let a member
+  // decide whether they owe a `bloodline_only` due. An applicant would be refused by the
+  // policy's approval conjunct first, which is a different claim.
+  //
+  // MUTATION-CHECKED: drop the trigger and this line goes red with `is_bloodline` true.
+  {
+    kind: 'write',
+    id: 'raw:people PATCH is_bloodline (member exempting themselves from a due)',
+    mod: 'tests/rls/raw/sweep.mjs', fn: 'selfExemptFromBloodline',
+    attacker: 'alphaMember',
+    args: fx => [fx.users.alphaMember.personId],
+    probe: (db, fx) => snapshot('people', 'id, is_bloodline',
+      { id: fx.users.alphaMember.personId })(db),
+    expectRefusal: v => /insufficient_privilege|42501|setPersonBloodline/i.test(
+      JSON.stringify(v ?? {}))
+      ? { ok: true, detail: 'the guard refused it' }
+      : { ok: false, detail: `expected the guard's refusal, got ${JSON.stringify(v)}` },
+    positive: 'not-applicable',
+    why: 'people_guard_bloodline refuses the `authenticated` role outright, so there is no caller for whom this PATCH succeeds; setPersonBloodline on the admin client is the only way in and its own case is the control for that. MUTATION-CHECKED 2026-09-02: DROP TRIGGER people_guard_bloodline turns this line red with the row visibly flipped from false to true, so the trigger is demonstrably the only thing refusing it',
   },
 
   // ── The fail-closed admin default (20260817000004) ────────────────────────────────

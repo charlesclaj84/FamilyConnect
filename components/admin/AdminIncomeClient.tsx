@@ -443,12 +443,18 @@ function ScheduleFields({
       {/* ── OWED BY THE BLOODLINE ALONE ──────────────────────────────────────────────
           Dues only: nobody owes a gift, so there is nothing for a bloodline to narrow.
 
-          IT DEPENDS ON A SETTING ON ANOTHER SCREEN, which is the whole reason this control
-          is not a bare checkbox. Who is in the bloodline is worked out by walking blood
-          relationships up from the person the family says its line descends from, and a
-          family that has not named that person has no bloodline — so the due would be owed
-          by NOBODY. The control is therefore disabled until the anchor is set, with the way
-          to set it, rather than offered and then silently collecting nothing.
+          IT DEPENDS ON WORK DONE ON ANOTHER SCREEN, which is the whole reason this control
+          is not a bare checkbox. Who is in the bloodline is `people.is_bloodline`, ticked
+          per person on the family tree, and a family that has marked nobody would be
+          creating a due owed by NOBODY. The control is therefore disabled until somebody is
+          marked, with the way to do it, rather than offered and then silently collecting
+          nothing.
+
+          IT USED TO DEPEND ON `families.bloodline_anchor_id` — one setting naming the
+          ancestor the line descended from, which the bloodline was then WALKED from.
+          `20260902000000` removed the walk. The shape of this control is unchanged and its
+          gate is stricter: `created_by` is never null in practice, so the old test passed
+          for effectively every family and disabled this for nobody.
 
           Frozen once payments exist, alongside the amount and the starting age: moving it
           restates what every member owed for the periods already posted against. */}
@@ -466,8 +472,14 @@ function ScheduleFields({
             <span className="text-sm font-medium">{t('inc.bloodlineOnly')}</span>
           </label>
           <p className="text-xs text-muted-foreground">
+            {/* ONE KEY, not a JSX sandwich. It was five fragments — an English clause, a
+                bolded control name, "on the", a link, "first." — which is untranslatable by
+                construction: the word order it hard-codes is English word order and no
+                catalogue can hold a third of a sentence. The same repair
+                `tree.bloodlineFromOneParent` had, and that key is deleted with the anchor
+                it described. */}
             {!hasBloodline
-              ? <>{t('inc.noBloodline')} <strong className="font-medium">{t('tree.bloodlineFrom')}</strong> on the <a href="/community/family-tree">family tree</a> first.</>
+              ? t('inc.noBloodline', { control: t('tree.inBloodline') })
               : form.bloodlineOnly
                 ? t('inc.bloodlineHint')
                 : t('inc.howeverCame')}
