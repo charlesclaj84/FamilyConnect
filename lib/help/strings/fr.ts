@@ -861,10 +861,11 @@ export const helpFr: Catalogue = {
   'help.members-and-access.tabs.heading': 'Quatre onglets, quatre travaux',
   'help.members-and-access.tabs.b0.i0.term': 'Membres',
   'help.members-and-access.tabs.b0.i0.text':
-    'Toutes les personnes de la famille, sur quel modèle d’autorisations chacune se trouve, '
-    + 'et quel poste au conseil chacune occupe. Quatre colonnes — Nom, Fonction, Section et '
-    + 'Groupe — avec tout le reste concernant une personne derrière son nom, exactement comme '
-    + 'sur le [Répertoire](/help/directory#columns).',
+    'Toutes les personnes ayant un compte : sur quel modèle de permissions chacune se '
+    + 'trouve et quel poste du conseil elle occupe. Quatre colonnes — Nom, Poste, Section '
+    + 'et Groupe — avec tout le reste au sujet d’une personne derrière son nom, exactement '
+    + 'comme dans l’[Annuaire](/help/directory#columns). Un sélecteur au-dessus du tableau '
+    + 'liste aussi les **Fiches** — voyez [fiches](#records).',
   'help.members-and-access.tabs.b0.i1.term': 'Organisation',
   'help.members-and-access.tabs.b0.i1.text':
     'Quelle forme la famille a : ses régions et sections, et les postes au conseil qu’elle '
@@ -882,6 +883,37 @@ export const helpFr: Catalogue = {
     + '— quelqu’un peut traiter la file d’approbation sans pouvoir modifier de modèles, et '
     + 'quelqu’un peut tenir les sections de la famille en ordre sans pouvoir voir la liste '
     + 'des membres du tout.',
+  'help.members-and-access.records.b4':
+    'Deux choses sont refusées plutôt que proposées. Une personne ayant un COMPTE ne peut '
+    + 'pas être supprimée ici : désactivez-la depuis le menu de sa ligne, ce qui conserve '
+    + 'tout ce qui lui est rattaché. Et une fiche à laquelle de l’ARGENT est rattaché — un '
+    + 'paiement, une contribution ou un versement — est refusée en nommant ce qui y est '
+    + 'rattaché, car le registre d’une famille ne s’édite ni ne se supprime jamais.',
+  'help.members-and-access.records.b3':
+    '**Supprimer une fiche est définitif et se fait ici.** Cela retire la personne et '
+    + 'tout ce qui a été enregistré à son sujet : sa place dans l’arbre familial, les '
+    + 'étiquettes de photographie qui la nomment, et toute réunion ou vérification où elle '
+    + 'figurait. La confirmation la nomme avant que vous ne validiez. Cela requiert la '
+    + 'permission de suppression sur Membres, distincte de celle de modification.',
+  'help.members-and-access.records.b2':
+    '**Toutes les fiches n’en ont pas.** Inviter quelqu’un depuis l’arbre familial lui '
+    + 'donne aussitôt une adresse réelle, et il reste une fiche jusqu’à ce qu’il accepte — '
+    + 'cette ligne montre donc l’adresse réelle et aucune étiquette.',
+  'help.members-and-access.records.b1':
+    'Le tableau montre autre chose à leur sujet, parce que presque tout ce que montre le '
+    + 'tableau des Membres serait vide : une fiche n’occupe aucun poste du conseil, n’a pas '
+    + 'de modèle de permissions, et n’a rien à désactiver. Ce qu’il montre à la place est '
+    + 'leur **adresse**, et si c’est une adresse que le produit a **générée** pour eux — '
+    + 'c’est ce que signifie **Adresse générée** dans cette colonne. Une adresse générée ne '
+    + 'peut pas recevoir de courrier ; elle existe pour que la fiche ait quelque chose '
+    + 'd’unique.',
+  'help.members-and-access.records.b0':
+    'Le sélecteur au-dessus du tableau a deux positions. **Avec un compte** est celle sur '
+    + 'laquelle l’onglet s’ouvre et correspond à tout ce qui précède. **Fiches** est '
+    + 'l’autre liste : des parents que quelqu’un a inscrits dans l’[arbre '
+    + 'familial](/community/family-tree) et qui ne se sont jamais connectés — une '
+    + 'grand-mère, un enfant, quiconque a été inscrit pour que l’arbre ait du sens.',
+  'help.members-and-access.records.heading': 'Les personnes sans compte',
   'help.members-and-access.approving.heading': 'Admettre quelqu’un',
   'help.members-and-access.approving.b0.i0': 'Ouvrez **Approbations en attente**.',
   'help.members-and-access.approving.b0.i1':
@@ -2564,6 +2596,12 @@ export const helpFr: Catalogue = {
     'Les options de section et de région ne veulent dire quelque chose qu’une fois que '
     + 'votre famille a mis en place des sections. Si elle ne l’a pas fait, tout est pour '
     + 'toute la famille.',
+  'help.announcements.posting.b2':
+    '**Toutes les personnes concernées reçoivent une notification dans la cloche**, et le '
+    + 'tableau se met à jour pour quiconque l’a déjà ouvert : sans rechargement. Un avis de '
+    + 'section ne fait sonner la cloche que de cette section, si bien que la cloche et le '
+    + 'tableau ne sont jamais en désaccord sur les destinataires d’un avis. Vous n’êtes pas '
+    + 'notifié de votre propre avis.',
   'help.announcements.pinning.heading': 'Épingler',
   'help.announcements.pinning.b0':
     '**Il y a une seule épingle, et elle appartient à la famille.** À côté d’elle, sur une '

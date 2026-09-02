@@ -20,7 +20,7 @@ import { RowMenu } from '@/components/ui/row-menu'
 import { cn } from '@/lib/utils'
 import {
   createTemplate, renameTemplate, deleteTemplate, setTemplatePermission,
-  applyTemplate, setMemberEnabled, searchMembers,
+  applyTemplate, setMemberEnabled, searchMembers, deletePersonRecord,
   type TemplateSummary, type ResourceSummary, type PolicyMap, type MemberSummary,
 } from '@/app/actions/admin/permissions'
 import { usePagedMembers, MemberSearchBox, Pager } from '@/components/admin/MemberSearch'
@@ -552,8 +552,37 @@ function MembersTab({ templates, rights, board, onError }: {
   const router = useRouter()
   const confirm = useConfirm()
   const [isPending, startTransition] = useTransition()
+
+  /**
+   * WHICH PEOPLE THIS TAB IS LISTING — the people with accounts, or the RECORDS.
+   *
+   * ── ASKED FOR 2026-09-02: "members created without an actual email" ─────────────
+   * Those are `addRelative`'s 'record' mode — a recorded grandmother, a child — with no
+   * `user_id` and, usually, a generated `@genorra.com` address. `searchMembers` listed
+   * accounts only, deliberately and for a good reason: this tab is about ACCESS, and a
+   * relative somebody entered holds no permissions and has nothing to switch off.
+   *
+   * A SWITCH RATHER THAN ONE MERGED LIST. Folding records in would put rows into a table
+   * whose four columns and whose entire row menu are about access — every one would read
+   * "No template" and offer a menu of things that cannot apply to them. Two questions, one
+   * tab, and the caller says which.
+   *
+   * UI-LOCAL AND DELIBERATELY NOT KEYED ON `familyCode` (AGENTS.md's rule about a family
+   * switch): nothing here is seeded from a family-scoped prop and nothing is written back —
+   * it is the same kind of state as which pane of a rail is open.
+   */
+  const [view, setView] = useState<'accounts' | 'records'>('accounts')
+  const records = view === 'records'
+
+  // `records` IS IN THE DEPS, which is what re-runs the query and resets nothing else. The
+  // hook already resets to page 0 when the QUERY changes; a view change has to do it too, and
+  // `setPage(0)` below is where that happens rather than inside the hook — one more dep in
+  // there would reset the page on any future caller's unrelated dependency.
   const { query, setQuery, page, setPage, data, isPending: loading, reload } =
-    usePagedMembers(({ query, offset }) => searchMembers({ query, offset }))
+    usePagedMembers(
+      ({ query, offset }) => searchMembers({ query, offset, withoutAccounts: records }),
+      [records],
+    )
   /**
    * Which member's detail dialog is open, held as a person id rather than as the row.
    *
@@ -598,13 +627,51 @@ function MembersTab({ templates, rights, board, onError }: {
 
   return (
     <div className="space-y-3">
+      {/* WITH ACCOUNTS, OR THE RECORDS. Two answers to "which people", in the segmented
+          control this codebase already uses for a two-way view switch — the family tree's
+          Bloodline toggle, and `MainRail`'s own active marker. Not a rail item: the four
+          rail items above are separately GRANTED panes, and this is one pane looking at two
+          populations. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="inline-flex rounded-xl border p-0.5" role="group"
+          aria-label={t('access.whichPeople')}>
+          {([
+            { id: 'accounts' as const, label: t('access.viewAccounts') },
+            { id: 'records' as const, label: t('access.viewRecords') },
+          ]).map(o => (
+            <button
+              key={o.id}
+              type="button"
+              onClick={() => { setView(o.id); setPage(0) }}
+              aria-pressed={view === o.id}
+              className={cn(
+                'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                view === o.id
+                  ? 'bg-brand-primary text-brand-on-primary'
+                  : 'text-muted-foreground hover:text-foreground',
+              )}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
+        {records && (
+          <p className="text-xs text-muted-foreground">{t('access.recordsLede')}</p>
+        )}
+      </div>
+
       <MemberSearchBox value={query} onChange={setQuery} pending={loading}
         placeholder={t('access.filterPh')} />
 
       {data.rows.length === 0 ? (
         <p className="py-10 text-center text-sm text-muted-foreground">
-          {query ? t('access.noMatch') : t('access.noAccounts')}
+          {records
+            ? (query ? t('access.noRecordMatch') : t('access.noRecords'))
+            : (query ? t('access.noMatch') : t('access.noAccounts'))}
         </p>
+      ) : records ? (
+        <RecordTable rows={data.rows} rights={rights} busy={isPending} run={run}
+          onView={setViewingId} onEdit={setEditingId} reload={reload} />
       ) : (
         <MemberTable rows={data.rows} templates={templates} rights={rights} board={board}
           busy={isPending} run={run} onView={setViewingId}
@@ -746,6 +813,151 @@ function accessDetails(member: MemberSummary, t: T): MemberDetails {
  * Member Directory renders the same four and folds the same three, so the two lists still
  * match column for column at every width.
  */
+/**
+ * The people with no account, and the one thing that can be done to them.
+ *
+ * ── A DIFFERENT TABLE, AND "A TABLE IS A TABLE" IS WHY RATHER THAN WHY NOT ─────────
+ * AGENTS.md's rule is that Members & Access and the Member Directory list the SAME people
+ * answering the SAME question, so a column added to one is owed to the other. This lists a
+ * different population — `user_id IS NULL` — answering a different question, and three of
+ * `MemberTable`'s four columns have no meaning here: a record holds no board position, no
+ * permission template, and its status is always the `'approved'` the stamp trigger leaves on
+ * a row with no account. Rendering them would be four columns of em-dashes and a row menu
+ * offering templates to somebody who cannot sign in.
+ *
+ * So: Name, the address, Chapter, and Delete.
+ *
+ * ── THE ADDRESS IS THE POINT OF THE VIEW, AND IT IS LABELLED ───────────────────────
+ * The request was "members created without an actual email", and `email_is_placeholder` is
+ * what answers it. A generated address is shown WITH a badge rather than hidden: it is a real
+ * value on the row that mail would hard-bounce against (`placeholderEmail()` builds them on
+ * `@genorra.com`, a real domain), and an administrator looking at this list needs to tell it
+ * from a real address somebody typed.
+ *
+ * NOT EVERY RECORD HAS A GENERATED ONE. `invitePersonRecord` writes a real address the moment
+ * somebody is asked to join, and they stay a record until they accept — which is exactly why
+ * this view filters on `user_id` rather than on the flag. Those rows show their real address
+ * and no badge.
+ *
+ * ── DELETE IS A BUTTON, NOT A ROW MENU ITEM ───────────────────────────────────────
+ * There is one action, so a menu holding one thing is a menu. It is also the only destructive
+ * control on this pane, and `RowMenu` here is gated on `rights.edit` while this needs
+ * `rights.remove` — putting it inside would tie it to the wrong grant.
+ */
+function RecordTable({ rows, rights, busy, run, onView, onEdit, reload }: {
+  rows: MemberSummary[]
+  rights: Rights
+  busy: boolean
+  run: (o: ConfirmOptions, a: () => Promise<{ success: boolean; message?: string }>) => void
+  onView: (personId: string) => void
+  onEdit: (personId: string) => void
+  reload: () => void
+}) {
+  const t = useT()
+  // The two columns worth sorting. `lib/sort-rows.ts` puts blanks last in both directions, so
+  // sorting by chapter surfaces the records somebody has placed rather than the ninety who
+  // are in none. Name sorts on the LAST name, matching both member tables.
+  const { rows: sorted, sortProps } = useTableSort(rows, {
+    name: m => m.name,
+    chapter: m => m.chapterName,
+  }, 'name')
+
+  return (
+    <div className="overflow-visible rounded-xl border">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr className="border-b bg-muted/40 text-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <SortTh label={t('field.name')} {...sortProps('name')} className="px-3 py-2 font-semibold" />
+            <th scope="col" className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)}>
+              {t('field.email')}
+            </th>
+            <SortTh label={t('field.chapter')} {...sortProps('chapter')}
+              className={cn('px-3 py-2 font-semibold', COLLAPSING_CELL)} />
+            <th scope="col" className="px-3 py-2 font-semibold">
+              <span className="sr-only">{t('money.actions')}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map(person => (
+            <tr key={person.personId} className="border-b last:border-0 align-top sm:align-middle">
+              <td className="px-3 py-2.5">
+                {/* THE NAME IS THE BUTTON, exactly as on the member table: one keyboard-
+                    reachable target into the same detail dialog, and no handler on the row. */}
+                <MemberDetailsTrigger name={person.name} onOpen={() => onView(person.personId)} />
+                {/* The folded columns, below `sm`. The address is labelled because a bare
+                    generated address on its own line reads as something somebody typed. */}
+                <RowMeta className="flex-col items-start gap-y-0.5">
+                  <MetaIf
+                    value={person.emailIsPlaceholder ? t('access.generatedEmail') : person.email}
+                    prefix={t('field.email')}
+                  />
+                  <MetaIf value={person.chapterName} prefix={t('field.chapter')} />
+                </RowMeta>
+              </td>
+              <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
+                {person.emailIsPlaceholder ? (
+                  <span className="inline-block whitespace-nowrap rounded-full border border-brand-warm px-2 py-0.5 text-[11px] font-medium text-brand-warm">
+                    {t('access.generatedEmail')}
+                  </span>
+                ) : (person.email ?? '—')}
+              </td>
+              <td className={cn('px-3 py-2.5 text-muted-foreground', COLLAPSING_CELL)}>
+                {person.chapterName ?? '—'}
+              </td>
+              <td className="w-10 px-3 py-2.5 text-end">
+                {/* `rights.remove`, not `rights.edit`: this is `admin/members:delete`, and
+                    `deletePersonRecord` resolves it itself — a `'use server'` export has a URL
+                    whether or not a button exists. Edit is offered beside it for a caller who
+                    holds that instead, since correcting a name is the commoner reason to be
+                    looking at this list at all. */}
+                <div className="flex items-center justify-end gap-1">
+                  {rights.edit && (
+                    <button
+                      type="button"
+                      onClick={() => onEdit(person.personId)}
+                      disabled={busy}
+                      aria-label={t('access.editProfileFor', { name: person.name })}
+                      title={t('action.edit')}
+                      className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                  {rights.remove && (
+                    <button
+                      type="button"
+                      onClick={() => run(
+                        {
+                          title: t('access.deleteRecordTitle'),
+                          description: t('access.deleteRecordBody', { name: person.name }),
+                          confirmLabel: t('access.deleteRecord'),
+                          destructive: true,
+                        },
+                        async () => {
+                          const r = await deletePersonRecord(person.personId)
+                          if (r.success) reload()
+                          return r
+                        },
+                      )}
+                      disabled={busy}
+                      aria-label={t('access.deleteRecordNamedAria', { name: person.name })}
+                      title={t('access.deleteRecord')}
+                      className="rounded-md p-1.5 text-destructive transition-colors hover:bg-muted disabled:opacity-50"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function MemberTable({ rows, templates, rights, board, busy, run, onView, onEdit, onPosition }: {
   rows: MemberSummary[]
   templates: TemplateSummary[]

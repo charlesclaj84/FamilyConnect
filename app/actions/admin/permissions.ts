@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { getMyActiveMembership } from '@/lib/auth/family'
+import { getMyActiveMembership, belongsToFamily } from '@/lib/auth/family'
+import { moneyAttachedTo, moneyAttachedMessage } from '@/lib/money-attached'
 import { callerI18n } from '@/lib/i18n/server'
 import type { T } from '@/lib/i18n/t'
 import { isFeatureFuture, requiredTier } from '@/lib/features'
@@ -12,6 +13,7 @@ import { tierMeets } from '@/lib/tiers'
 import { MEMBER_PAGE_SIZE } from '@/lib/pagination'
 import {
   can,
+  canAny,
   getMyPermissionSet,
   PERMISSION_ACTIONS,
   type PermissionAction,
@@ -117,12 +119,165 @@ export interface MemberSummary {
   status: MembershipStatus
   /** True for the caller's own row, which they may not disable. */
   isSelf: boolean
+  /**
+   * `people.user_id IS NULL` — nobody has ever signed in as this person.
+   *
+   * ── WHY THE ROSTER NEEDED A WORD FOR THIS ────────────────────────────────────────
+   * `searchMembers` listed accounts only, deliberately: this tab is about ACCESS, and a
+   * relative somebody entered on the family tree holds no permissions and has nothing to
+   * switch off. AGENTS.md's *"'Member' and 'person' are now different words"* names this tab
+   * on the accounts-only side of that line.
+   *
+   * It is opt-in rather than a change of default (see `withoutAccounts`), and this field is
+   * what lets one table render both answers without a second component.
+   */
+  hasAccount: boolean
+  /**
+   * `people.email_is_placeholder` — the address was GENERATED because they have none.
+   *
+   * `addRelative`'s 'record' mode mints one on `@genorra.com` and stores a stated reason, so
+   * this is the flag that answers "which of these people has no real email address" — the
+   * question this pane grew a view for. It is never true of somebody with an account:
+   * `redeem_family_invitation` clears it as the account attaches.
+   */
+  emailIsPlaceholder: boolean
+  /** Why they have no address, from `people.no_email_reason`. Only with the flag above. */
+  noEmailReason: string | null
 }
 
 export interface MemberPage {
   rows: MemberSummary[]
   /** Total matching the query, for paging controls. */
   total: number
+}
+
+/**
+ * Delete a person RECORD — somebody a relative entered, who has never had an account.
+ *
+ * ── WHY IT EXISTS, AND WHY IT IS NOT "DELETE A MEMBER" ──────────────────────────────
+ * Asked for on 2026-09-02 alongside the records view: a family that entered a relative twice,
+ * or entered one by mistake, had no way to take the row back out. The tree's
+ * `removeRelationship` detaches an EDGE and says so at length — *"IT DELETES THE PERSON'S
+ * EDGE, NOT THE PERSON. Removing somebody from a tree must never remove them from the
+ * family"* — which is right for that canvas and leaves the row in the Directory for good.
+ *
+ * ── FIRST BOUNDARY: A ROW WITH A `user_id` IS REFUSED ───────────────────────────────
+ * Deleting somebody's ACCOUNT is a different act with different consequences and a different
+ * home: `setMemberEnabled` switches a member off and keeps every record they carry. The row is
+ * read family-scoped FIRST, so the decision is made against what the database holds rather
+ * than against anything the caller sent — `editPersonRecord`'s rule, which refuses the same
+ * rows for the same reason.
+ *
+ * ── SECOND BOUNDARY: MONEY, WHICH IS THE ONE THE SCHEMA GETS WRONG ─────────────────
+ * `dues_payments.person_id` is ON DELETE **CASCADE**, and `dues_payments` is append-only
+ * (`20260806000002`): a correction is a negative row, and `dues_payments_immutable` refuses an
+ * UPDATE or a DELETE.
+ *
+ * MEASURED 2026-09-02 rather than reasoned about, and the result is not the one this comment
+ * first claimed. A bare `DELETE FROM people` against the fixture's own member does NOT destroy
+ * the ledger — it is refused, and the rows survive (checked: 2 payments still against them).
+ * But what refuses is a guard trigger on **`gathering_task_submissions`**, complaining that a
+ * `reviewed_by` belongs to a family — a table the administrator has never touched, about a
+ * column they have never seen, on a screen about members. Whichever guard fires first is an
+ * accident of trigger order, and every one of them produces a sentence nobody can act on.
+ *
+ * So the money check is not what makes the delete SAFE — the schema already refuses. It is
+ * what makes the refusal LEGIBLE, and what catches the one case the schema is happy with:
+ * `fund_contributions.contributor_person_id` is SET NULL, so that money survives and quietly
+ * stops being attributed to anybody.
+ *
+ * `moneyAttachedTo('person', …)` is what gets there first and says it in a sentence. Its
+ * `person` case counts a third table for a quieter reason:
+ * `fund_contributions.contributor_person_id` is SET NULL, so the money SURVIVES and stops
+ * being attributed to anybody — nothing errors, the family's total is unchanged, and a
+ * contribution can no longer be credited.
+ *
+ * FAIL TOWARD REFUSING: that helper reports a refused count as money present, because a false
+ * "nothing attached" is irreversible and a false "money attached" is a retry.
+ *
+ * ── WHAT IT DOES DESTROY, AND IT IS NOT NOTHING ────────────────────────────────────
+ * Everything cascading off the row — their relationships on the family tree, photo tags naming
+ * them, meeting-attendee and safety-check-in rows, notification preferences. That is the point
+ * of the act, and it is why the screen asks with the person's name in the question.
+ *
+ * ── `canAny`, ON TOP OF THE GUARD, AND THE REASON IS THE HELPER'S OWN ──────────────
+ * `requireAccessAdmin` resolves through `can()`, which is TRUE for scope 'own'. There is no
+ * coherent "own" version of deleting a record nobody owns — the row has no `user_id`, so
+ * "their own" cannot name it — and AGENTS.md's rule for exactly this shape is `canAny`. The
+ * guard call stays because it is what resolves the family and the translator; the second check
+ * is what makes 'own' not a way in. (`admin/members` has no `permission_table_map` row, so
+ * nothing narrows this in SQL either: these two checks are the whole gate.)
+ *
+ * ── §3 AND §4 BY HAND ──────────────────────────────────────────────────────────────
+ * The admin client, so `belongsToFamily` plus `.eq('family_code', …)` beside `.eq('id', …)`
+ * are the entire family boundary. No policy is underneath this.
+ */
+export async function deletePersonRecord(
+  personId: string,
+): Promise<{ success: boolean; message?: string }> {
+  const auth = await requireAccessAdmin(RESOURCE, 'delete')
+  if (!auth.ok) return { success: false, message: auth.message }
+  const { t } = auth
+
+  if (!(await canAny(auth.userId, RESOURCE, 'delete'))) {
+    return { success: false, message: t('act.youDoNotPermissionManage') }
+  }
+
+  // §4: the id decides which row is destroyed.
+  if (!(await belongsToFamily('people', personId, auth.familyCode))) {
+    return { success: false, message: t('act.personNotFound') }
+  }
+
+  const admin = createAdminClient()
+  const { data: row, error: readError } = await admin
+    .from('people')
+    .select('id, user_id, first_name, last_name, family_code')
+    .eq('id', personId)
+    .eq('family_code', auth.familyCode)
+    .maybeSingle()
+
+  // §8: a refused read must not read as a missing row and let the delete proceed on a guess.
+  if (readError) {
+    console.error(`[access] could not read ${personId} before deleting: ${readError.message}`)
+    return { success: false, message: t('act.couldNotReadJustNow') }
+  }
+  if (!row) return { success: false, message: t('act.personNotFound') }
+
+  const person = row as {
+    id: string; user_id: string | null; first_name: string | null; last_name: string | null
+  }
+  if (person.user_id) {
+    return { success: false, message: t('access.cannotDeleteAccount') }
+  }
+
+  const name = [person.first_name, person.last_name].filter(Boolean).join(' ').trim()
+    || t('access.thisRecord')
+
+  const attached = await moneyAttachedTo('person', personId, auth.familyCode)
+  if (attached.any) {
+    return { success: false, message: moneyAttachedMessage(name, attached) }
+  }
+
+  // `confirmWrite` is deliberately NOT used: it retries, and it reads the affected rows back
+  // through the SELECT policy. Neither fits here — the guards above are what authorize this,
+  // there is no policy to be narrowed by, and `.select()` on a DELETE returning the row is all
+  // the confirmation available. A zero-row result IS the failure and is reported as one.
+  const { data: deleted, error } = await admin
+    .from('people')
+    .delete()
+    .eq('id', personId)
+    .eq('family_code', auth.familyCode)
+    .select('id')
+
+  if (error) return { success: false, message: error.message }
+  // §8b: PostgREST does not treat an empty match as an error, so a delete that touched nothing
+  // would otherwise report success over a row that is still there.
+  if (!deleted?.length) return { success: false, message: t('act.personNotFound') }
+
+  revalidatePath('/admin/members')
+  revalidatePath('/community/directory')
+  revalidatePath('/community/family-tree')
+  return { success: true }
 }
 
 export interface ResourceSummary {
@@ -307,6 +462,10 @@ interface PersonRow {
   chapter_id: string | null
   membership_status: MembershipStatus | null
   permission_template_id: string | null
+  /* The three added 2026-09-02 with the records view — see `MemberSummary`. */
+  user_id: string | null
+  email_is_placeholder: boolean | null
+  no_email_reason: string | null
 }
 
 /** "City, State", either half on its own, or null when neither is recorded. */
@@ -356,6 +515,29 @@ export async function searchMembers(opts: {
   query?: string
   offset?: number
   limit?: number
+  /**
+   * List the people with NO account instead of the people with one.
+   *
+   * ── IT IS A SWITCH, NOT A WIDENING, AND THAT IS THE DECISION ─────────────────────
+   * Asked for on 2026-09-02: *"I need to see members created without an actual email."*
+   * Those are `addRelative`'s 'record' mode — a recorded grandmother, a child — carrying a
+   * generated `@genorra.com` address and no `user_id`.
+   *
+   * The default is UNCHANGED and stays accounts-only. Folding records into the same list
+   * would put rows with no template, no status worth showing and no access to manage into a
+   * table whose four columns and whose entire row menu are about access: every one of them
+   * would read "No template" and offer a menu of things that cannot apply. Two answers, one
+   * table, chosen by the caller.
+   *
+   * WHICH SIDE OF `user_id` AND NOT WHICH SIDE OF THE EMAIL FLAG. The request named the
+   * email, and `user_id IS NULL` is the sounder test of the same population: a placeholder
+   * address only exists BEFORE an account attaches, so every placeholder row is
+   * account-less, while the reverse is not true — `invitePersonRecord` gives a record a real
+   * address the moment somebody is asked to join, and it is still a record until they
+   * accept. Filtering on the flag would hide exactly the people who are half-way in.
+   * `emailIsPlaceholder` rides on the row so the screen can still say which is which.
+   */
+  withoutAccounts?: boolean
 } = {}): Promise<MemberPage> {
   const auth = await requireAccessAdmin(RESOURCE, 'view')
   if (!auth.ok) return { rows: [], total: 0 }
@@ -386,18 +568,24 @@ export async function searchMembers(opts: {
       // Kept as ONE literal rather than split across lines: supabase-js parses the select
       // at the type level, and a concatenated string is just `string` to it, which
       // collapses the result to GenericStringError and takes the PersonRow cast with it.
-      'id, first_name, last_name, primary_email, primary_phone, city, state, chapter_id, membership_status, permission_template_id',
+      'id, user_id, first_name, last_name, primary_email, primary_phone, city, state, chapter_id, membership_status, permission_template_id, email_is_placeholder, no_email_reason',
       { count: 'exact' },
     )
     .eq('family_code', auth.familyCode)
-    // Rows with no user_id are relatives entered by somebody else — a child, an
-    // ancestor. They hold no permissions and have no access to switch off.
-    .not('user_id', 'is', null)
     // A declined application is not a member. Member Approvals owns those rows and is
     // the only place that can reverse the decision, so listing them here would offer a
     // menu with nothing in it for every applicant a family has ever turned away.
     // PENDING rows stay: their template can usefully be set before they are admitted.
     .neq('membership_status', 'rejected')
+
+  // ── ONE SIDE OF `user_id` OR THE OTHER, NEVER BOTH ────────────────────────────────
+  // Rows with no `user_id` are relatives entered by somebody else — a recorded grandmother,
+  // a child. They hold no permissions and have no access to switch off, which is why this
+  // tab listed only accounts until 2026-09-02 and why the two are still separate answers
+  // rather than one merged list. See `withoutAccounts` on the input.
+  builder = opts.withoutAccounts
+    ? builder.is('user_id', null)
+    : builder.not('user_id', 'is', null)
 
   if (q) {
     builder = builder.or(
@@ -484,6 +672,9 @@ export async function searchMembers(opts: {
         templateName: templateId ? names.get(templateId)! : null,
         status: (p.membership_status ?? 'approved') as MembershipStatus,
         isSelf: p.id === myPersonId,
+        hasAccount: Boolean(p.user_id),
+        emailIsPlaceholder: Boolean(p.email_is_placeholder),
+        noEmailReason: p.no_email_reason,
       }
     }),
     total: count ?? 0,

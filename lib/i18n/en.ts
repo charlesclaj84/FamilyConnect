@@ -286,6 +286,8 @@ export const en: Catalogue = {
   // Rendered at READ time from `notifications.title_key` / `body_key` / `params`, so a
   // relative reads the bell in their own language rather than in the language of whoever
   // happened to trigger the event. The English on the row is the fallback and matches these.
+  'notify.announcement.title': 'A new announcement was posted',
+  'notify.announcement.body': '{title}.',
   'notify.membershipRequest.title': 'A new member is waiting for approval',
   'notify.membershipRequest.body': '{who} has asked to join {family}.',
   'notify.membershipAppeal.title': 'A declined request has been appealed',
@@ -3205,6 +3207,23 @@ export const en: Catalogue = {
   'access.approved': 'Approved',
   'access.disabledNoAccess': 'Disabled — no access to this family',
   'access.noMatch': 'No members match that filter.',
+  'access.cannotDeleteAccount':
+    'This person has an account, so their record cannot be deleted here. Switch them off instead, from their row menu.',
+  'access.thisRecord': 'this record',
+  'access.viewAccounts': 'With accounts',
+  'access.viewRecords': 'Records',
+  'access.whichPeople': 'Which people to list',
+  'access.recordsLede':
+    'Relatives somebody entered on the family tree who have never had an account. They hold no permissions, and most have an address the product generated for them.',
+  'access.noRecords': 'Nobody in this family has been entered without an account.',
+  'access.noRecordMatch': 'No records match that.',
+  'access.generatedEmail': 'Generated address',
+  'access.editProfileFor': 'Edit {name}’s profile',
+  'access.deleteRecord': 'Delete record',
+  'access.deleteRecordNamedAria': 'Delete the record for {name}',
+  'access.deleteRecordTitle': 'Delete this record?',
+  'access.deleteRecordBody':
+    'This permanently deletes {name} and everything recorded about them — their place on the family tree, any photo tags naming them, and any meeting or check-in they were listed on. It cannot be undone. Nobody else is affected.',
   'access.noAccounts': 'No members with accounts in this family yet.',
   'access.noTemplate': 'No template',
   'access.applyTemplate': 'Apply permissions template',

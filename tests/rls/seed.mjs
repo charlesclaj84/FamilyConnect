@@ -1894,6 +1894,28 @@ export async function seed() {
     //
     // The birthday stays and is load-bearing in a new way: `computeIsMinor` derives from
     // it now, so a row with no date would make the Directory's Minor badge untestable.
+    // A RECORD WHOSE ONLY JOB IS TO BE DELETED, and it exists for `deletableChild`'s reason:
+    // `admin/permissions.deletePersonRecord`'s positive control genuinely destroys the row it
+    // is given, so pointing it at `f.child` would take a person several later cases assert
+    // about out from under them — the ordering hazard this fixture has been bitten by twice.
+    //
+    // NO `user_id`, which is what makes it a RECORD rather than a member and is the first
+    // thing that action refuses on. A GENERATED-looking address paired with
+    // `email_is_placeholder`, because that is the population the Members pane's records view
+    // lists and the reason the flag is on `MemberSummary` at all.
+    //
+    // AND NO MONEY, deliberately: `moneyAttachedTo('person', …)` refuses a delete for a row
+    // carrying a payment, a contribution or a disbursement, so a fixture with any of those
+    // would make the control fail for the right reason and the case prove nothing. The
+    // money-attached refusal is its own assertion and belongs on its own row if it is ever
+    // written.
+    f.deletableRecord = must('deletable record', await db.from('people').insert({
+      family_code: code, first_name: `${code}Spare`, last_name: 'Record',
+      primary_email: `${code.toLowerCase()}.spare.record@genorra.com`,
+      email_is_placeholder: true, no_email_reason: 'Seeded with no address on purpose',
+      created_by: familyAdmin.userId,
+    }).select().single())
+
     f.child = must('child', await db.from('people').insert({
       family_code: code, first_name: `${code}Child`, last_name: code,
       date_of_birth: '2015-04-04', created_by: familyAdmin.userId,

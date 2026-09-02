@@ -211,7 +211,7 @@ function AvatarUpload({ initials, existingUrl, allowed }: {
 /**
  * One section's body.
  *
- * NO BOX, and NO EDIT BUTTON.
+ * NO BOX, NO EDIT BUTTON, AND SINCE 2026-09-02 NO HEADER EITHER.
  *
  * The box was a `rounded-xl border bg-card` panel, which made sense when all three
  * sections stacked down the page and the border was the only thing saying where one
@@ -223,21 +223,17 @@ function AvatarUpload({ initials, existingUrl, allowed }: {
  * belongs with the rail rather than floating above the fields; see PersonalInfoForm for
  * what that cost, which is that `editing` had to move up with it.
  *
- * What is left is a header row that exists only for the avatar, and only General has one.
+ * `headerLeft` was the third thing to go, and it existed for exactly one caller: the avatar,
+ * on General only. That is why the member's own picture vanished the moment they opened
+ * Address — reported, and repaired by hoisting `AvatarUpload` above the RAIL rather than by
+ * giving the other four a header of their own. A shared thing rendered once cannot disagree
+ * with itself, and five copies of an upload control is five places for the tier check and the
+ * optimistic preview to drift.
+ *
+ * So this is now a plain vertical stack, and the type says so.
  */
-function SectionCard({
-  headerLeft,
-  children,
-}: {
-  headerLeft?: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <div className="space-y-4">
-      {headerLeft && <div className="flex items-center gap-3">{headerLeft}</div>}
-      {children}
-    </div>
-  )
+function SectionCard({ children }: { children: React.ReactNode }) {
+  return <div className="space-y-4">{children}</div>
 }
 
 // ── Form action row ────────────────────────────────────────────────────────────
@@ -354,7 +350,6 @@ function GeneralSection({
   existing,
   chapters,
   familyName,
-  photosAllowed,
   onSaved,
   visible,
   editing,
@@ -362,8 +357,8 @@ function GeneralSection({
 }: {
   existing: PersonalInfoRecord | null
   chapters: Chapter[]
-  /** Does this family's plan include profile pictures? Threaded from the page. */
-  photosAllowed: boolean
+  /* `photosAllowed` LEFT ON 2026-09-02 with the avatar. It gated `AvatarUpload`, which is
+     rendered once above the rail now, so this section has nothing to gate — see SectionCard. */
   /** Names the chapter block's scope. See ChapterBlock. */
   familyName: string
   onSaved: () => void
@@ -379,8 +374,6 @@ function GeneralSection({
   const existingChapterId = existing?.chapter_id
   const [chapterId, setChapterId]   = useState(existingChapterId ?? '')
 
-  const initials = [existing?.first_name?.[0], existing?.last_name?.[0]].filter(Boolean).join('').toUpperCase()
-  const avatarUrl = existing?.avatar_url ?? null
   const currentChapter = chapters.find(c => c.id === existingChapterId)
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<GeneralData>({
@@ -468,7 +461,7 @@ function GeneralSection({
   if (!visible) return null
 
   return (
-    <SectionCard headerLeft={<AvatarUpload initials={initials} existingUrl={avatarUrl} allowed={photosAllowed} />}>
+    <SectionCard>
       {!editing ? (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-3 pt-1">
@@ -795,6 +788,22 @@ function AdditionalInfoSection({ existing, onSaved, visible, editing, onEditDone
           </div>
           <Field label={t('field.tshirt')} value={shirtDisplay} />
           <Field label={t('field.timeZone')} value={existing?.time_zone ? timezoneLabel(t, existing.time_zone) : null} />
+          {/* LANGUAGE, added 2026-09-02. The edit form has offered a `locale` picker since
+              `20260826000002` and the view state never showed one, so a member could choose
+              their language, save, and find nothing on the page saying they had.
+
+              THE ENDONYM, NOT A TRANSLATED NAME. `Español` reads as itself in every locale,
+              which is the whole reason `LOCALES` carries the field — the same list the picker
+              above renders, so the two cannot disagree about what a code is called.
+
+              NULL RENDERS "Not set" through `Field`, and that is the honest answer rather than
+              a guess: an unset locale means the reader is followed by their browser, which is
+              what the edit form's own hint says. Naming the negotiated language here would
+              claim they had chosen it. */}
+          <Field
+            label={t('field.language')}
+            value={LOCALES.find(l => l.code === existing?.locale)?.endonym ?? null}
+          />
         </div>
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -958,8 +967,30 @@ export function PersonalInfoForm({
 
   const editing = editingSection === section
 
+  // ── THE MEMBER'S OWN PICTURE, ONCE, FOR EVERY SECTION ──────────────────────────
+  // It used to be `SectionCard`'s `headerLeft` inside `GeneralSection`, so it was on General
+  // and nowhere else: opening Address, Additional Info, Notifications or Sign-in made it
+  // disappear. Reported 2026-09-02.
+  //
+  // ABOVE THE RAIL, not repeated per pane. The panes each `return null` when they are not the
+  // active one, so "render it on all five" by copying would mean five `AvatarUpload`s — five
+  // instances of the tier check, the optimistic preview and the 2 MB refusal, four of them
+  // unmounted at any moment and all five free to drift. One instance outside the panes is the
+  // same judgement `MainRail` itself embodies.
+  //
+  // NOT INSIDE `<MainRail>`. Its `action` slot is the ACTIVE PANE's one action — Edit lives
+  // there — and an avatar is not an action; putting it there would also make it move when the
+  // rail stacks below `sm`.
+  const initials = [existing?.first_name?.[0], existing?.last_name?.[0]]
+    .filter(Boolean).join('').toUpperCase()
+
   return (
     <div className="space-y-5">
+      <AvatarUpload
+        initials={initials}
+        existingUrl={existing?.avatar_url ?? null}
+        allowed={photosAllowed}
+      />
       <MainRail
         label={t('profile.rail')}
         items={railItems(t)}
@@ -980,7 +1011,6 @@ export function PersonalInfoForm({
       {/* All three stay MOUNTED and hide themselves — see GeneralSection on why. */}
       <GeneralSection
         existing={existing} chapters={chapters} familyName={familyName} onSaved={handleSaved}
-        photosAllowed={photosAllowed}
         visible={section === 'general'}
         editing={editingSection === 'general'}
         onEditDone={() => setEditingSection(null)}

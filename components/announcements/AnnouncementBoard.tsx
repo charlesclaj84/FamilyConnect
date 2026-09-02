@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Eye, EyeOff, Pin, PinOff, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
+import { createClient } from '@/lib/supabase/client'
 import { AnnouncementCard } from '@/components/announcements/AnnouncementCard'
 import { NewAnnouncementForm } from '@/components/announcements/NewAnnouncementForm'
 import {
@@ -99,6 +100,57 @@ export function AnnouncementBoard({
   const [announcements, setAnnouncements] = useServerState(initialAnnouncements)
   const [error, setError] = useState('')
   const [isPending, startTransition] = useTransition()
+
+  /**
+   * A NEW OR CHANGED ANNOUNCEMENT ARRIVES WITHOUT A RELOAD (`20260902000001`).
+   *
+   * Until then the board only moved when the READER did something: `router.refresh()` after
+   * their own post, pin or delete, and otherwise a full navigation. So an announcement posted
+   * by somebody else sat unseen on an open board indefinitely.
+   *
+   * ── IT REFRESHES; IT DOES NOT SPLICE THE PAYLOAD IN ────────────────────────────────
+   * The obvious version reads `payload.new` and adds it to the list, and it cannot work here.
+   * An `Announcement` carries `author_name` and `chapter_name`, which are EMBEDS resolved
+   * server-side — a raw WAL row has `author_id` and `chapter_id` and nothing to render. And
+   * the AUDIENCE rule (`addressedTo`, `lib/announcement-audience.ts`) needs the reader's own
+   * `chapter_id`, which this component is not given and should not be: putting it here would
+   * be a third expression of a rule AGENTS.md already calls a stated exception at two.
+   *
+   * So the event is a TRIGGER and the payload is deliberately ignored. `router.refresh()`
+   * re-runs the server, which resolves the embeds and applies the audience, and
+   * `useServerState` is what lets the new list land — which is the same mechanism this
+   * component's own header already relies on for its optimistic pin.
+   *
+   * `router.refresh()` MERGES WITHOUT DISCARDING CLIENT STATE, so a half-typed announcement in
+   * `NewAnnouncementForm` survives one. That is the property AGENTS.md's ShellWatcher note
+   * asks to be re-checked before widening a refresh, and it is checked: nothing on this pane
+   * loses work.
+   *
+   * ── UNFILTERED, AND RLS IS THE BOUNDARY ───────────────────────────────────────────
+   * `ChatShell`'s precedent, and AGENTS.md states the rule: a client-side `filter` is a
+   * bandwidth decision, never the boundary. Realtime evaluates this table's SELECT policy as
+   * the subscribing role, so an INSERT or UPDATE in another family is never delivered here —
+   * the bandwidth is already bounded by the thing that also makes it safe.
+   *
+   * DELETE IS THE EXCEPTION AND IS WHY THERE IS NO FILTER TO ADD. Realtime does not authorize
+   * DELETE events: they go to every subscriber, carrying whatever the replica identity says —
+   * the primary key alone, since `20260902000001` asserts the table is not `FULL`. So a
+   * `family_code=eq.…` filter could not match a delete's payload at all (the column is not in
+   * it), and adding one would silently stop a deleted announcement from disappearing. Taking
+   * the uuid and ignoring it is the correct read of an event we are told about and cannot use.
+   */
+  useEffect(() => {
+    const supabase = createClient()
+    const channel = supabase
+      .channel('announcement_board')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'announcements' },
+        () => router.refresh(),
+      )
+      .subscribe()
+    return () => { supabase.removeChannel(channel) }
+  }, [router])
 
   const mayDelete = (a: Announcement): boolean =>
     deleteScope === 'any' || (deleteScope === 'own' && Boolean(myPersonId) && a.author_id === myPersonId)

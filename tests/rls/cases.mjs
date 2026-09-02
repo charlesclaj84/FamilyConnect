@@ -968,8 +968,15 @@ export const CASES = [
   // down. WHEN THE FIXTURE GROWS A PERSON, THESE GO RED and the repair is to update them —
   // that is the cost of an absolute, and it is the price of the case meaning anything.
   //
-  //   ALPHA  11 people · 5 active, 1 invited, 5 pending invite · 2 regions, 3 chapters
-  //   BRAVO  10 people · 4 active, 1 invited, 5 pending invite · 2 regions, 3 chapters
+  //   ALPHA  14 people · 5 active, 1 invited, 8 pending invite · 2 regions, 3 chapters
+  //   BRAVO  11 people · 4 active, 1 invited, 6 pending invite · 2 regions, 3 chapters
+  //
+  // THAT TABLE HAS BEEN WRONG BEFORE, which is worth knowing before trusting it: it read
+  // "ALPHA 11" while the assertion below said 13, because two rows were added for
+  // `setMemberChapter` and only the assertion was updated. The ASSERTIONS are the record;
+  // this is a summary of them and has to be re-read against them, not instead of them.
+  // Measured 2026-09-02 straight after `seed()` — counting the database after a whole suite
+  // run gives a different roster, because later cases both add and delete people.
   //
   // TO SEE IT FAIL — required before treating this as evidence (§7). Three mutations, run
   // with `node --import ./tests/rls/register.mjs ./tests/rls/run.mjs getMembershipReport`,
@@ -1004,7 +1011,11 @@ export const CASES = [
       && r.byChapter.every(s => s.label !== `${ALPHA} chapter`)
       && r.byRegion.every(s => s.label !== `${ALPHA} region`)
       // THE ROSTER, EXACTLY. Nothing else in this case can see an unscoped `people` read.
-      && r.total === 10
+      // 11 SINCE 2026-09-02: `f.deletableRecord` was added to every family for
+      // `admin/permissions.deletePersonRecord`'s control, which destroys the row it is given
+      // and so cannot share one. It is account-less with no invitation, so it lands in
+      // `pending-invite` and nowhere else.
+      && r.total === 11
       && r.chapterCount === 3 && r.regionCount === 2
       // THE INVITATION SPLIT, EXACTLY, which is what sees an unscoped `family_invitations`
       // read: ALPHA holds an open invitation to BRAVO's uninvited record's address (see
@@ -1012,7 +1023,7 @@ export const CASES = [
       // bucket to the second and both these numbers move with them.
       && (r.byInvitation.find(s => s.key === 'active')?.count ?? -1) === 4
       && (r.byInvitation.find(s => s.key === 'invited')?.count ?? -1) === 1
-      && (r.byInvitation.find(s => s.key === 'pending-invite')?.count ?? -1) === 5
+      && (r.byInvitation.find(s => s.key === 'pending-invite')?.count ?? -1) === 6
       // The four breakdowns are four reductions of one roster and must each account for all
       // of it — a person who fell out of a bucket is a person the screen does not mention.
       && r.byInvitation.reduce((n, s) => n + s.count, 0) === r.total
@@ -1021,12 +1032,23 @@ export const CASES = [
       && r.byRegion.reduce((n, s) => n + s.count, 0) === r.total,
     expectPositive: (r) =>
       r !== null
-      // 13, NOT 11: `movableForPerson` and `movableForChapter` were added to ALPHA on
-      // 2026-08-21 for `setMemberChapter`'s two positive controls, which each MOVE somebody
-      // and so cannot share a row (AGENTS.md §7 on a control that mutates a row a later case
-      // reads). Both are account-less records with no invitation, so they land in
+      // 14, AND EVERY ONE ABOVE 11 IS A ROW SOME CONTROL HAD TO HAVE TO ITSELF —
+      // AGENTS.md §7 on a control that mutates a row a later case reads:
+      //
+      //   +2  `movableForPerson` and `movableForChapter` (2026-08-21), for
+      //       `setMemberChapter`'s two positive controls, which each MOVE somebody
+      //   +1  `deletableRecord` (2026-09-02), for
+      //       `admin/permissions.deletePersonRecord`'s control, which DESTROYS it
+      //
+      // All three are account-less records with no invitation, so they land in
       // `pending-invite` and nowhere else.
-      && r.total === 13
+      //
+      // THE LAST ONE IS ORDER-DEPENDENT AND THAT IS DELIBERATE RATHER THAN OVERLOOKED. The
+      // delete case runs LATER in this file, so this read sees the row and counts it; moving
+      // that case above this one would make this line read 13 and go RED with the number in
+      // the failure. Loud, and self-explaining — which is the only reason an absolute is
+      // affordable here at all.
+      && r.total === 14
       // ALPHA's own geography resolves for a caller reading it through the admin client —
       // the same property `members.getMembers`'s control asserts about `chapterPlaces`, and
       // the one that fails silently as "everybody is National" if an embed is refused (§8).
@@ -1043,7 +1065,7 @@ export const CASES = [
       // an open invitation, uninvitedRecord has neither.
       && (r.byInvitation.find(s => s.key === 'active')?.count ?? -1) === 5
       && (r.byInvitation.find(s => s.key === 'invited')?.count ?? -1) === 1
-      && (r.byInvitation.find(s => s.key === 'pending-invite')?.count ?? -1) === 7
+      && (r.byInvitation.find(s => s.key === 'pending-invite')?.count ?? -1) === 8
       && r.byInvitation.reduce((n, s) => n + s.count, 0) === r.total
       && r.byAge.reduce((n, s) => n + s.count, 0) === r.total,
   }),
@@ -3376,6 +3398,44 @@ export const MORE_CASES = [
         && !!national && national.chapterName === null && national.regionName === null
     },
   }),
+
+  // ── THE SAME ACTION, ASKED FOR THE OTHER SIDE OF `user_id` (2026-09-02) ───────────
+  //
+  // `withoutAccounts: true` lists the RECORDS — people a relative entered on the family tree
+  // who have never signed in. The Members pane's view switch is the one caller.
+  //
+  // WHY THIS IS A SECOND CASE AND NOT A WIDER FIRST ONE. The case above asserts that this
+  // roster carries only accounts, and its own comment leans on that: *"this action filters
+  // `user_id IS NOT NULL`, deliberately, so the account-less records `members.getMembers`
+  // lists are not here to be asserted about."* That sentence is now true of ONE BRANCH, and a
+  // branch nothing exercises is a branch that can invert without anything going red — so the
+  // pair of cases is what keeps the two answers separate rather than merely different.
+  //
+  // THE ATTACK IS THE DEFAULT MARKER SCAN, and it is stronger on this branch than on the
+  // other: the records are exactly the rows carrying `ALPHATEST`-shaped generated addresses,
+  // which `alphaMarkers()` already scans for. A cross-family read here is caught by the
+  // address as well as by the ids.
+  read('admin/permissions.searchMembers (the records, not the accounts)',
+    'app/actions/admin/permissions.ts', 'searchMembers', {
+      args: () => [{ withoutAccounts: true }],
+      positiveActor: 'alphaAdmin',
+      expectPositive: (r, fx) => {
+        const rows = r?.rows ?? []
+        return rows.length > 0
+          // EVERY row is account-less. The one assertion that would catch the filter being
+          // dropped, inverted, or applied to the wrong column.
+          && rows.every(m => m.hasAccount === false)
+          // The spare record the delete case consumes is here, and is flagged as carrying a
+          // GENERATED address — which is the fact the pane's own column renders and the reason
+          // `emailIsPlaceholder` is on the row at all.
+          && rows.some(m => m.personId === fx.alpha.deletableRecord.id
+            && m.emailIsPlaceholder === true)
+          // AND SOMEBODY WITH AN ACCOUNT IS ABSENT, stated positively rather than left to
+          // `every` above: the two views must not overlap, and `alphaOther` is the row the
+          // case above asserts IS in the default one.
+          && !rows.some(m => m.personId === fx.users.alphaOther.personId)
+      },
+    }),
   read('admin/permissions.getTemplates', 'app/actions/admin/permissions.ts', 'getTemplates', {
     positiveActor: 'alphaAdmin',
   }),
@@ -3615,6 +3675,37 @@ export const MORE_CASES = [
   //
   // A FAMILY THAT WANTS IT NARROWER HAS THE LEVER: `community/family-tree: edit` on the
   // General template. Nothing here should hard-code a second grant for it.
+  // ── DELETING A PERSON RECORD (2026-09-02) ────────────────────────────────────────
+  //
+  // The only DELETE of a `people` row in the product, and the most destructive thing on
+  // Members & Access: it takes the row and everything cascading off it — relationships, photo
+  // tags, meeting-attendee and check-in rows, notification preferences.
+  //
+  // THERE IS NO POLICY UNDERNEATH IT. The `people` DELETE policy admits nothing a browser can
+  // use for this, so the action runs on the admin client and `belongsToFamily` plus the
+  // `family_code` conjunct are the entire family boundary. This case is therefore the whole
+  // story rather than one of two layers.
+  //
+  // ITS OWN ROW, `f.deletableRecord`. The control genuinely destroys what it is given, so
+  // aiming it at `f.child` would remove somebody several later cases assert about — the
+  // ordering hazard `deletableChild` exists for and that this fixture has been bitten by
+  // twice.
+  {
+    kind: 'write',
+    id: 'admin/permissions.deletePersonRecord (a record from another family)',
+    mod: 'app/actions/admin/permissions.ts', fn: 'deletePersonRecord',
+    args: fx => [fx.alpha.deletableRecord.id],
+    probe: (db, fx) => snapshot('people', 'id, first_name, last_name',
+      { id: fx.alpha.deletableRecord.id })(db),
+    // §8b: `belongsToFamily` refuses before a statement is sent, so the row is untouched
+    // either way and the probe alone cannot tell a refusal from an action that deleted
+    // nothing and said it had. On a DESTRUCTIVE action that distinction is the whole point —
+    // an administrator told "deleted" about a row that is still there will go looking for it.
+    expectRefusal: v => v?.success === false
+      ? { ok: true, detail: 'reported the refusal' }
+      : { ok: false, detail: `expected a refusal, got ${JSON.stringify(v)}` },
+    positiveActor: 'alphaAdmin',
+  },
   {
     kind: 'write',
     id: 'family-tree.setPersonBloodline',

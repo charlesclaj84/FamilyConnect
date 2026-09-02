@@ -252,8 +252,21 @@ password_requirements = ""
 # figure for its shared built-in sender, not a judgement about this app; a family onboarding
 # together in one sitting clears it before lunch.
 #
-# Set this in the DASHBOARD too (Authentication → Rate Limits). Hosted does not read this
-# file — see the SMTP block below for why config push is not the way to get it there.
+# HOSTED IS 500 SINCE 2026-09-02, set in the dashboard when the project moved to Pro. This
+# file is deliberately NOT raised to match, and the divergence is the point rather than an
+# oversight — the same shape `max_frequency` below carries, and recorded for the same reason
+# its comment gives: *an unrecorded intentional divergence is indistinguishable from a bug.*
+#
+#   hosted   500/hour   a real family onboarding, on a paid sender
+#   local     30/hour    every recipient is Mailpit, so the only thing a cap can catch here
+#                        is a loop that would have mailed 500 strangers from production
+#
+# Raising the local figure buys nothing and removes that backstop. If you need to exercise
+# the limit itself, raise it for the run and put it back.
+#
+# HOSTED DOES NOT READ THIS FILE — the value above governs the local stack alone, and the
+# dashboard is the only thing that moves the hosted one (Authentication → Rate Limits). See
+# the SMTP block below for why `supabase config push` is not the way to get it there.
 email_sent = 30
 # Number of SMS messages that can be sent per hour. Requires auth.sms to be enabled.
 sms_sent = 30

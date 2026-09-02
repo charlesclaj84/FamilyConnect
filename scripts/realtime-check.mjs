@@ -5,6 +5,11 @@
  *
  * ── WHY THIS EXISTS ─────────────────────────────────────────────────────────────────
  * `20260821000002` put `notifications` and `chat_messages` into the `supabase_realtime`
+ * publication, and `20260902000001` added `announcements`. (The sentence below predates the
+ * third and its argument covers all of them.)
+ *
+ * Original:
+ * `20260821000002` put `notifications` and `chat_messages` into the `supabase_realtime`
  * publication, which is what three long-standing `postgres_changes` subscriptions had been
  * missing since they shipped. That migration can assert the CATALOGUE — the table is a member,
  * the replica identity is not FULL, the policy helpers are executable — and it cannot assert
@@ -326,6 +331,81 @@ async function main() {
     'auth_uid_is_room_participant() is the only conjunct that can refuse it',
   )
   await chat.close()
+
+  // ── announcements ─────────────────────────────────────────────────────────
+  // Published by `20260902000001` so `AnnouncementBoard` updates without a reload.
+  //
+  // THE WITHHELD HALF IS A CROSS-FAMILY ROW, and that is the only attack available here —
+  // unlike `notifications`, where a same-family row addressed to somebody else is the sharper
+  // one. The `announcements` SELECT policy has no per-recipient conjunct to test: every
+  // approved member of a family may read every one of its announcements, and who a notice is
+  // ADDRESSED to (national / regional / chapter) is a §5 fetch-narrowing applied in
+  // TypeScript, not a policy. That migration's verify block asserts the policy still does not
+  // read `chapter_id`, precisely so this stays true.
+  //
+  // SO WHAT THIS PAIR IS EVIDENCE FOR: `family_code = auth_family_code()` narrowing a realtime
+  // stream, and the three policy helpers being executable by `authenticated` — a missing grant
+  // makes the policy ERROR rather than refuse, which on this path is indistinguishable from a
+  // withheld row and is exactly what no HTTP response would ever show.
+  console.log('\n  ── announcements ──')
+  const ann = await listen(me.client, 'announcements')
+
+  const annReady = await awaitLive(ann, async n => {
+    const title = `realtime-check ready ${n} ${Date.now()}`
+    const { error } = await db.from('announcements').insert({
+      family_code: fx.alpha.familyCode, title, body: 'readiness probe', scope: 'national',
+    })
+    if (error) throw new Error(`readiness probe insert: ${error.message}`)
+    return r => r.title === title
+  })
+  record(
+    annReady.live,
+    'announcements: the socket becomes live at all',
+    annReady.live
+      ? `delivered a readiness probe on attempt ${annReady.attempts}`
+      : `nothing arrived in ${READY_ATTEMPTS} attempts — the table is probably not in the`
+        + ' supabase_realtime publication (20260902000001)',
+  )
+
+  const annMine = `realtime-check own family ${Date.now()}`
+  const annTheirs = `realtime-check other family ${Date.now()}`
+  const { error: annError } = await db.from('announcements').insert([
+    { family_code: fx.alpha.familyCode, title: annMine, body: 'in the subscriber\'s family',
+      scope: 'national' },
+    { family_code: fx.bravo.familyCode, title: annTheirs, body: 'in another family',
+      scope: 'national' },
+  ])
+  if (annError) throw new Error(`inserting the probe announcements: ${annError.message}`)
+
+  record(
+    await ann.waitFor(r => r.title === annMine, ARRIVE_MS),
+    'announcements: a member receives their own family\'s announcement',
+    `waited up to ${ARRIVE_MS}ms · ${ann.received.length} event(s) on the socket`,
+  )
+  await sleep(WITHHELD_MS)
+  record(
+    !ann.received.some(r => r.title === annTheirs),
+    'announcements: another family\'s announcement is withheld by RLS',
+    'family_code = auth_family_code() is the only conjunct that can refuse it',
+  )
+
+  // A CHAPTER-SCOPED NOTICE STILL ARRIVES, and asserting it is the point rather than an
+  // oversight. The audience is NOT a boundary — `addressedTo` drops it for a member of another
+  // chapter when the board renders — so realtime delivering it is correct, and the client
+  // filter is what withholds it. If this ever goes red, somebody has moved the audience into
+  // the SELECT policy and the two surfaces now disagree about what the rule IS.
+  const annChapter = `realtime-check chapter scoped ${Date.now()}`
+  const { error: chapterError } = await db.from('announcements').insert({
+    family_code: fx.alpha.familyCode, title: annChapter, body: 'for one chapter',
+    scope: 'chapter', chapter_id: fx.alpha.occupiedChapter.id,
+  })
+  if (chapterError) throw new Error(`inserting the chapter probe: ${chapterError.message}`)
+  record(
+    await ann.waitFor(r => r.title === annChapter, ARRIVE_MS),
+    'announcements: a chapter-scoped notice is DELIVERED, because the audience is not a policy',
+    'the client applies addressedTo — see 20260902000001 on why that must stay true',
+  )
+  await ann.close()
 
   await me.client.auth.signOut()
   await me.client.removeAllChannels()

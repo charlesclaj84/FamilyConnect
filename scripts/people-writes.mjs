@@ -140,6 +140,28 @@ const REVIEWED = {
   // endpoint is the unit that gets reviewed, because it is the thing with a URL and the
   // thing whose guards decide whether the write happens at all. A private helper's own
   // name would move with a refactor and tell a reviewer less.
+  'app/actions/admin/permissions.ts::deletePersonRecord': {
+    op: 'delete',
+    writes: 'the whole row, and everything cascading off it',
+    verdict:
+      'All three answered, and this is the only DELETE of a `people` row in the product, so '
+      + 'it is worth being exact. (1) .eq(family_code) from the caller\'s own membership '
+      + 'beside .eq(id), on both the pre-read and the delete. (2) No columns to allow-list — '
+      + 'the row goes — but the row is READ FIRST, family-scoped, and refused unless '
+      + '`user_id IS NULL`: deleting somebody\'s account is a different act and lives '
+      + 'elsewhere (setMemberEnabled). (3) personId verified with belongsToFamily. '
+      + 'THE FOURTH QUESTION THIS ONE RAISES, which the three do not cover: what the CASCADE '
+      + 'destroys. `dues_payments.person_id` is ON DELETE CASCADE against an append-only '
+      + 'table whose trigger refuses a DELETE. MEASURED 2026-09-02: the bare delete is '
+      + 'refused and the ledger survives, but what refuses is a guard trigger on '
+      + '`gathering_task_submissions` about a `reviewed_by` column — so the schema is safe '
+      + 'and its message is unusable. '
+      + '`moneyAttachedTo(\'person\', …)` refuses first and names what is attached — and it '
+      + 'counts `fund_contributions.contributor_person_id` too, which is SET NULL and would '
+      + 'silently strip the attribution off money that survives. It fails toward refusing. '
+      + 'The delete ends in .select(\'id\') and a zero-row result is reported as a failure '
+      + '(§8b), because PostgREST does not treat an empty match as an error.',
+  },
   'app/actions/family-tree.ts::addRelative': {
     op: 'insert',
     writes: 'a new account-less record (family_code, created_by, and the caller\'s fields)',

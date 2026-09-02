@@ -1,5 +1,9 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatDate } from '@/lib/date-utils'
+// `addressedTo` is a PURE predicate and the one definition of who an announcement reaches —
+// see `notifyAnnouncement` on why applying it per member is not a third copy of the rule.
+// The module also exports server-only helpers; only the pure one is imported here.
+import { addressedTo, type AnnouncementAudience } from '@/lib/announcement-audience'
 // TYPE-ONLY, and it has to stay that way. `lib/auth/permissions.ts` imports `next/navigation`
 // and React's `cache`, and one call site of this module — registerUser — runs on a request
 // with no session at all; an `import type` is erased before the bundle is built, so nothing
@@ -93,37 +97,81 @@ export async function createNotification(opts: {
   if (error) reportFailure(`createNotification(${opts.type})`, error.message)
 }
 
-/** Notify every member of a family except the actor — event publish, announcements. */
-export async function notifyAllMembers(opts: {
+/**
+ * An announcement has been posted. Tell the people it is addressed to.
+ *
+ * ── IT REPLACED `notifyAllMembers`, WHICH HAD NO CALLERS AT ALL ────────────────────
+ * That function's doc comment read "event publish, announcements" and it was called by
+ * neither: Events was retired (`20260819000006`) and `createAnnouncement` never called it.
+ * So until 2026-09-02, posting an announcement was SILENT on every channel — no bell entry,
+ * no live board — and a member found out by happening to open the page. The function was
+ * dead code describing a feature the product did not have, which is worse than an absence,
+ * because a reader of `lib/notifications.ts` would conclude announcements notified.
+ *
+ * ── IT HONOURS THE AUDIENCE, AND DOES NOT BECOME A THIRD COPY OF THE RULE ──────────
+ * `notifyAllMembers` would have mailed the bell of every approved member, which is wrong for
+ * a chapter-scoped post: `addressedTo` drops it for a member of a different chapter, so the
+ * board would show one thing and the bell another. A member would be told about something
+ * they cannot find.
+ *
+ * AGENTS.md's rule about `lib/announcement-audience.ts` is that the audience already has TWO
+ * expressions — the TypeScript predicate and its PostgREST twin — and that the pair is a
+ * stated exception rather than a licence. So this adds no third: it reads each candidate's
+ * `chapter_id` and applies `addressedTo(theirChapter)(announcement)`, the SAME function the
+ * board renders through, once per member. The direction is inverted; the rule is not copied.
+ *
+ * ── WHO IS A CANDIDATE ─────────────────────────────────────────────────────────────
+ * Approved members with an account, except the author. An applicant awaiting approval is not
+ * part of the family yet, and a notification is family data — the title and body of an
+ * announcement, plus a link into a page they cannot open. It would also be the one thing that
+ * reached them through the gate, since the bell is otherwise suppressed for them.
+ *
+ * A member with NO account is skipped because there is nobody to read a bell: `recipient_id`
+ * is a `people.id`, so a row for a recorded great-uncle is a row nothing will ever render.
+ *
+ * ── NO `person_notification_prefs` ENTRY, DELIBERATELY ─────────────────────────────
+ * That registry is for things that REACH OUT — email, SMS, push — and its own header says
+ * not to add a row for something that does not send: "a switch nothing consults reads as a
+ * control being honoured." The bell is pull. If an announcement ever emails, that is when the
+ * row is owed, along with a `mayNotify` call at the send site.
+ */
+export async function notifyAnnouncement(opts: {
   familyCode: string
+  /** The author's `people.id`, so they are not told about their own post. */
   excludePersonId?: string
-  type: string
+  /** The announcement's own `scope` and `chapter_id` — the two columns the rule reads. */
+  audience: AnnouncementAudience
   title: string
   body?: string
   link?: string
 } & NotificationText): Promise<void> {
   const admin = createAdminClient()
 
-  // Approved members only. An applicant awaiting approval is not part of the family
-  // yet, and a notification is family data: the title and body of an announcement or
-  // a published event, plus a link into a page they cannot open. It would also be the
-  // one thing that reached them through the gate, since the bell is otherwise
-  // suppressed for them.
-  const { data: members } = await admin
+  // `chapter_id` RIDES ALONG, and it is what makes the audience answerable here. §3 by hand:
+  // `family_code` comes from the caller's own membership, never from a parameter.
+  const { data: members, error: readError } = await admin
     .from('people')
-    .select('id')
+    .select('id, chapter_id')
     .eq('family_code', opts.familyCode)
     .eq('membership_status', 'approved')
     .not('user_id', 'is', null)
 
+  // §8: an empty result and a refused read are different things and `data` cannot tell them
+  // apart. Discarding the error here would make a refused roster read look like a family with
+  // no members — the announcement posts, nobody is told, and nothing anywhere says why.
+  if (readError) {
+    reportFailure('notifyAnnouncement (roster read)', readError.message)
+    return
+  }
   if (!members?.length) return
 
-  const rows = members
+  const rows = (members as { id: string; chapter_id: string | null }[])
     .filter(m => m.id !== opts.excludePersonId)
+    .filter(m => addressedTo(m.chapter_id)(opts.audience))
     .map(m => ({
       family_code: opts.familyCode,
       recipient_id: m.id,
-      type: opts.type,
+      type: 'announcement',
       title: opts.title,
       body: opts.body ?? null,
       link: opts.link ?? null,
@@ -132,9 +180,11 @@ export async function notifyAllMembers(opts: {
       params: opts.params ?? null,
     }))
 
+  // NOT A FAILURE. A chapter announcement in a chapter of one, posted by that one member,
+  // legitimately reaches nobody — and so does a family of one. There is nothing to report.
   if (!rows.length) return
   const { error } = await admin.from('notifications').insert(rows)
-  if (error) reportFailure(`notifyAllMembers(${opts.type})`, error.message)
+  if (error) reportFailure('notifyAnnouncement', error.message)
 }
 
 /**

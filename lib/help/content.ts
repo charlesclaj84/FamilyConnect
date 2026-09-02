@@ -659,6 +659,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 'Post.',
               ),
               p('The chapter and region options only mean anything once your family has set chapters up. If it has not, everything is family-wide.'),
+              p('**Everybody it is addressed to gets a bell notification**, and the board updates for anybody with it already open — no reload. A chapter post rings the bell of that chapter only, so the bell and the board never disagree about who a notice is for. You are not notified about your own post.'),
             ],
           },
           {
@@ -2569,12 +2570,23 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Four tabs, four jobs',
             blocks: [
               defs(
-                { term: 'Members', text: 'Everybody in the family, which permission template each is on, and which board position each holds. Four columns — Name, Position, Chapter and Group — with everything else about a person behind their name, exactly as on the [Directory](/help/directory#columns).' },
+                { term: 'Members', text: 'Everybody with an account: which permission template each is on, and which board position each holds. Four columns — Name, Position, Chapter and Group — with everything else about a person behind their name, exactly as on the [Directory](/help/directory#columns). A switch above the table also lists the **Records** — see [records](#records).' },
                 { term: 'Organization', text: 'What shape the family is: its regions and chapters, and the board positions it keeps. It sits second because the regions and chapters are what the Members table\'s Region and Chapter columns are read against. Two chapters cover it: [Organization](/help/regions-and-chapters) and [Board Positions](/help/board-positions).' },
                 { term: 'Pending Approval', text: 'The people asking to join, and the invitations you have sent.' },
                 { term: 'Permission Templates', text: 'The templates themselves, and what each one grants.' },
               ),
               p('The four are granted separately and the page opens for any of them — somebody can work the approvals queue without being able to edit templates, and somebody can keep the family\'s chapters in order without being able to see the roster at all.'),
+            ],
+          },
+          {
+            id: 'records',
+            heading: 'People with no account',
+            blocks: [
+              p('The switch above the table has two settings. **With accounts** is what the tab opens on and is everything above. **Records** is the other list: relatives somebody entered on the [family tree](/community/family-tree) who have never signed in — a grandmother, a child, anybody recorded so the tree makes sense.'),
+              p('The table shows different things about them, because most of what the Members table shows would be blank: a record holds no board position and no permission template, and has nothing to switch off. What it shows instead is their **address**, and whether it is one the product **generated** for them — which is what **Generated address** in that column means. A generated address cannot receive mail; it exists so the record has something unique on it.'),
+              p('**Not every record has one.** Inviting somebody from the family tree gives them a real address straight away, and they stay a record until they accept — so that row shows the real address and no badge.'),
+              p('**Deleting a record is permanent and is offered here.** It removes the person and everything recorded about them: their place on the family tree, photo tags naming them, and any meeting or check-in they were listed on. The confirmation names them before you commit. It needs the delete permission on Members, which is separate from editing.'),
+              note('Two things are refused rather than offered. A person with an ACCOUNT cannot be deleted here — switch them off from their row menu instead, which keeps everything they carry. And a record with MONEY against it — a payment, a contribution, or a disbursement — is refused with what is attached named, because a family’s ledger is never edited or removed.'),
             ],
           },
           {

@@ -8,6 +8,7 @@ import { getMyFamilyCode, belongsToFamily } from '@/lib/auth/family'
 import { requireEdit, requireOwn, requireMember, requireRead } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addressedTo, readMyChapterId } from '@/lib/announcement-audience'
+import { notifyAnnouncement } from '@/lib/notifications'
 import { resolveFamilyZone } from '@/lib/auth/zone'
 import { todayIn } from '@/lib/tz'
 import { upcomingBirthdays, type UpcomingBirthday } from '@/lib/birthdays'
@@ -589,6 +590,44 @@ export async function createAnnouncement(
   }).select('id').single()
 
   if (error) return { success: false, message: error.message }
+
+  // ── TELL THE PEOPLE IT IS ADDRESSED TO ───────────────────────────────────────────
+  // Added 2026-09-02, because until then posting an announcement was SILENT: no bell entry
+  // and no live board, so a relative found out by happening to open the page.
+  // `lib/notifications.ts` had a `notifyAllMembers` whose own comment said "announcements"
+  // and which nothing called.
+  //
+  // TRY/CATCH, AND THE SWALLOWING IS THE POINT. The announcement is already written; a
+  // failed bell entry must never undo it, which is the rule every call site in
+  // `lib/notifications.ts` follows. Note that supabase-js RETURNS its errors rather than
+  // throwing, so this catch is for a genuine exception and the writer reads `error` itself —
+  // AGENTS.md's own note about these two halves being needed together.
+  //
+  // THE AUDIENCE IS PASSED, NOT RE-DERIVED. `scope` and the resolved `chapter_id` are exactly
+  // what went onto the row, so the bell and the board answer from one set of values — a
+  // second read here would be a second chance to disagree about who this post is for.
+  //
+  // THE ENGLISH IS THE FALLBACK AND THE KEY IS THE MESSAGE (`20260901000004`): a notification
+  // is composed now and read later by somebody else, so the writer's language is the wrong
+  // reader's. `params` carries the title, which is the author's own words and therefore not
+  // translatable by anybody.
+  try {
+    await notifyAnnouncement({
+      familyCode,
+      excludePersonId: myPerson?.id ?? undefined,
+      audience: { scope, chapter_id: scope === 'chapter' ? (input.chapter_id ?? null) : null },
+      titleKey: 'notify.announcement.title',
+      bodyKey: 'notify.announcement.body',
+      params: { title: input.title.trim() },
+      title: 'A new announcement was posted',
+      body: `${input.title.trim()}.`,
+      link: '/community/announcements',
+    })
+  } catch (e) {
+    console.error('[announcements] posted, but nobody was told: '
+      + (e instanceof Error ? e.message : String(e)))
+  }
+
   revalidatePath('/community/announcements')
   revalidatePath('/dashboard')
   return { success: true, id: data?.id }

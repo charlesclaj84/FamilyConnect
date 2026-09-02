@@ -824,10 +824,11 @@ export const helpEs: Catalogue = {
   'help.members-and-access.tabs.heading': 'Cuatro pestañas, cuatro trabajos',
   'help.members-and-access.tabs.b0.i0.term': 'Miembros',
   'help.members-and-access.tabs.b0.i0.text':
-    'Todas las personas de la familia, en qué plantilla de permisos está cada una y qué '
-    + 'cargo de la directiva ocupa. Cuatro columnas — Nombre, Cargo, Capítulo y Grupo — con '
-    + 'todo lo demás sobre una persona detrás de su nombre, exactamente como en el '
-    + '[Directorio](/help/directory#columns).',
+    'Todos los que tienen cuenta: en qué plantilla de permisos está cada uno y qué cargo '
+    + 'de la junta ocupa. Cuatro columnas: Nombre, Cargo, Sección y Grupo, con todo lo '
+    + 'demás sobre una persona detrás de su nombre, igual que en el '
+    + '[Directorio](/help/directory#columns). Un interruptor encima de la tabla también '
+    + 'lista las **Fichas**: vea [fichas](#records).',
   'help.members-and-access.tabs.b0.i1.term': 'Organización',
   'help.members-and-access.tabs.b0.i1.text':
     'Qué forma tiene la familia: sus regiones y capítulos, y los cargos de la directiva que '
@@ -845,6 +846,36 @@ export const helpEs: Catalogue = {
     + 'alguien puede trabajar la cola de aprobaciones sin poder editar plantillas, y alguien '
     + 'puede mantener en orden los capítulos de la familia sin poder ver la lista de '
     + 'integrantes en absoluto.',
+  'help.members-and-access.records.b4':
+    'Dos cosas se rechazan en vez de ofrecerse. Una persona con CUENTA no se puede '
+    + 'eliminar aquí: desactívela desde el menú de su fila, lo cual conserva todo lo que '
+    + 'tenga asociado. Y una ficha con DINERO asociado (un pago, una aportación o un '
+    + 'desembolso) se rechaza nombrando lo que tiene asociado, porque el libro de cuentas '
+    + 'de una familia nunca se edita ni se elimina.',
+  'help.members-and-access.records.b3':
+    '**Eliminar una ficha es permanente y se ofrece aquí.** Quita a la persona y todo lo '
+    + 'anotado sobre ella: su lugar en el árbol familiar, las etiquetas de fotografía que '
+    + 'la nombran, y cualquier junta o comprobación en la que estuviera incluida. La '
+    + 'confirmación la nombra antes de que usted se comprometa. Requiere el permiso de '
+    + 'eliminación en Miembros, que es distinto del de edición.',
+  'help.members-and-access.records.b2':
+    '**No todas las fichas tienen una.** Invitar a alguien desde el árbol familiar le da '
+    + 'una dirección real de inmediato, y sigue siendo una ficha hasta que acepte, así que '
+    + 'esa fila muestra la dirección real y ninguna etiqueta.',
+  'help.members-and-access.records.b1':
+    'La tabla muestra otras cosas sobre ellos, porque casi todo lo que muestra la tabla '
+    + 'de Miembros estaría vacío: una ficha no ocupa ningún cargo de la junta ni tiene '
+    + 'plantilla de permisos, y no hay nada que desactivar. Lo que muestra en su lugar es '
+    + 'su **dirección**, y si es una que el producto **generó** para ellos: eso es lo que '
+    + 'significa **Dirección generada** en esa columna. Una dirección generada no puede '
+    + 'recibir correo; existe para que la ficha tenga algo único.',
+  'help.members-and-access.records.b0':
+    'El interruptor encima de la tabla tiene dos posiciones. **Con cuenta** es la que '
+    + 'abre la pestaña y es todo lo anterior. **Fichas** es la otra lista: parientes que '
+    + 'alguien anotó en el [árbol familiar](/community/family-tree) y que nunca han '
+    + 'iniciado sesión: una abuela, un niño, cualquiera anotado para que el árbol tenga '
+    + 'sentido.',
+  'help.members-and-access.records.heading': 'Personas sin cuenta',
   'help.members-and-access.approving.heading': 'Admitir a alguien',
   'help.members-and-access.approving.b0.i0': 'Abra **Aprobaciones pendientes**.',
   'help.members-and-access.approving.b0.i1':
@@ -2459,6 +2490,11 @@ export const helpEs: Catalogue = {
   'help.announcements.posting.b1':
     'Las opciones de capítulo y región solo significan algo cuando su familia ha '
     + 'configurado capítulos. Si no lo ha hecho, todo es para toda la familia.',
+  'help.announcements.posting.b2':
+    '**Todos los destinatarios reciben una notificación en la campana**, y el tablón se '
+    + 'actualiza para quien lo tenga abierto: sin recargar. Un aviso de sección hace sonar '
+    + 'la campana solo de esa sección, así que la campana y el tablón nunca discrepan sobre '
+    + 'a quién va dirigido un aviso. A usted no se le notifica su propio aviso.',
   'help.announcements.pinning.heading': 'Fijar',
   'help.announcements.pinning.b0':
     '**Hay una sola chincheta, y pertenece a la familia.** A su lado, en una publicación '

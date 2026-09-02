@@ -126,6 +126,7 @@ export type MoneyBearing =
   | 'dues_schedule'
   | 'fund'
   | 'fund_milestone'
+  | 'person'
 
 /**
  * COUNT-ONLY QUERIES, one per referencing table, `head: true` so no rows come back.
@@ -216,6 +217,41 @@ export async function moneyAttachedTo(
     case 'fund_milestone': {
       const disbursements = await count('fund_disbursements', `milestone_id.eq.${id}`)
       return { ...NONE, disbursements, any: disbursements > 0 }
+    }
+    case 'person': {
+      // ── ADDED 2026-09-02 FOR `deletePersonRecord` ────────────────────────────────
+      // A `people` row is the fourth money-bearing record, and it is the one where the
+      // schema does the MOST damage on its own: `dues_payments.person_id` is ON DELETE
+      // CASCADE, so deleting a person destroys their ledger. `dues_payments` is append-only
+      // by design (`20260806000002`) — a correction is a negative row, never an edit — and a
+      // cascade walks straight past that intent.
+      //
+      // MEASURED rather than reasoned about, because the outcome is not the obvious one:
+      // `dues_payments_immutable` refuses a DELETE, and an RI cascade is not exempt, so the
+      // parent delete comes back as a bare trigger exception naming a table the administrator
+      // has never heard of. So this count is what gets there first and says it in a sentence —
+      // the same job it does for `gatherings` on a fund.
+      //
+      // THREE TABLES, and the third is the quiet one. Payments and disbursements CASCADE, so
+      // the rows would go; `fund_contributions.contributor_person_id` is SET NULL, so the
+      // money SURVIVES and stops being attributed to anybody — a contribution the family can
+      // still see in its total and can no longer credit. Counted for that reason: losing the
+      // attribution silently is the harm, and it is exactly the asymmetry this file's header
+      // is about.
+      //
+      // NOT `fund_transfers` — it has no person column, only `recorded_by`, which is SET NULL
+      // and is a fact about who typed it rather than about whose money it is. NOT
+      // `gatherings` either, for the same reason: `created_by`, not a beneficiary.
+      const [payments, contributions, disbursements] = await Promise.all([
+        count('dues_payments', `person_id.eq.${id}`),
+        count('fund_contributions', `contributor_person_id.eq.${id}`),
+        count('fund_disbursements', `person_id.eq.${id}`),
+      ])
+      return {
+        ...NONE,
+        payments, contributions, disbursements,
+        any: payments + contributions + disbursements > 0,
+      }
     }
   }
 }
