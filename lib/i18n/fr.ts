@@ -1852,6 +1852,7 @@ export const fr: Catalogue = {
   'history.duesPayment': 'Paiement de cotisation',
   'history.donationPayment': 'Paiement de don',
   'history.paymentMethod': 'Mode de paiement',
+  'history.processingFee': 'Frais de traitement de carte',
   'history.reference': 'N° de chèque / Référence',
   'history.recorded': 'Enregistré',
   'history.reversed': 'Annulé',
@@ -3038,7 +3039,21 @@ export const fr: Catalogue = {
   'proc.feeExplainFamily': 'Un membre devant 40,00 $ est débité de 40,00 $, et sa cotisation diminue de 40,00 $. Votre famille reçoit ce qui reste après les frais de Stripe.',
   'proc.feeExplainMember': 'Un membre devant {owed} est débité de {charged}, votre famille reçoit donc l’intégralité des {owed} et sa cotisation diminue de {owed}. Le supplément apparaît sur sa propre ligne avant le paiement.',
   'proc.feeRateUnusable': 'Ce taux ne peut pas être ajouté à un paiement. Baissez le pourcentage.',
-  'proc.feesPaidSoFar': 'Stripe a prélevé {amount} de frais à cette famille jusqu’à présent.',
+  'proc.feesRecordedSoFar': 'GENORRA a enregistré {amount} de frais de carte sur les paiements qu’il a inscrits.',
+  'proc.billShowTotal': 'Afficher le total propre de Stripe pour ce compte',
+  'proc.billAsking': 'Interrogation de Stripe…',
+  'proc.billTotal': 'Le total propre de Stripe pour ce compte est de {amount}, sur {n} transactions.',
+  'proc.billTotalAtLeast':
+    'Le total propre de Stripe est d’au moins {amount} — les {n} premières transactions. '
+    + 'L’historique est plus long que ce qui peut être lu d’un coup ; considérez-le comme un plancher.',
+  'proc.billDifference':
+    'L’écart de {amount} correspond aux frais de paiements que GENORRA n’a pas inscrits, '
+    + 'plus ce que Stripe facture au compte lui-même. Cela n’est pas au compte de résultat, à dessein.',
+  'proc.billBelowRecorded':
+    'Le total de Stripe est {amount} INFÉRIEUR à ce qui est enregistré ici, ce qui ne '
+    + 'devrait pas arriver — le compte de résultat surestime peut-être les frais de cette famille.',
+  'proc.billNoAccount': 'Il n’y a aucun compte Stripe connecté à totaliser.',
+  'proc.billUnavailable': 'Stripe est injoignable. Le chiffre enregistré ci-dessus n’est pas affecté.',
   'proc.feePolicySaved': 'Enregistré',
   'proc.continueStripe': 'Continuer dans Stripe',
   'proc.checkStripe': 'Vérifier auprès de Stripe',

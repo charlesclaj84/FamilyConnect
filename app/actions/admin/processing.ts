@@ -7,7 +7,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 // read family data, which every query here does through the admin client with §3 by hand.
 import { requireEdit, requireRead } from '@/lib/auth/guard'
 import { SECTION_RESOURCE } from '@/components/admin/account-sections'
-import { intentKey, stripeClient, stripeUnavailableKey } from '@/lib/stripe/client'
+import { intentKey, onAccount, stripeClient, stripeUnavailableKey } from '@/lib/stripe/client'
 import { connectConfigured } from '@/lib/stripe/config'
 import { cancelFamilyDuesAutopay } from '@/lib/stripe/cancel-family'
 import {
@@ -258,6 +258,137 @@ export async function getProcessorStatus(): Promise<ProcessorStatus | null> {
  * the answer true — but a 42501 is not a sentence anybody can act on, so this asks first and
  * says which lock applies. `families_guard_currency` refuses the change regardless.
  */
+/**
+ * The family's WHOLE Stripe bill, from Stripe, on demand.
+ *
+ * ── WHY THIS EXISTS, AND WHY IT IS NOT THE FIGURE BESIDE IT ────────────────────────
+ * `ProcessorStatus.feesPaidCents` sums `stripe_charge_fees`, and that table records fees for
+ * charges THIS PRODUCT posted and nothing else — deliberately, because a family's own
+ * unrelated charges on their own account must not become an expense on a P&L that never
+ * counted the income. The consequence is that the figure is GENORRA's view of their fees and
+ * NOT their Stripe bill, and the panel used to print it as *"Stripe has taken {amount} in fees
+ * from this family so far"* — which is a claim about Stripe's books that our books cannot make.
+ *
+ * This is the other half of that sentence: Stripe's own total for the account, so the two can
+ * be read side by side and the difference named rather than left as a discrepancy a treasurer
+ * discovers in their bank.
+ *
+ * ── IT IS AN ACTION AND NOT PART OF `getProcessorStatus`, WHICH IS THE POINT ───────
+ * `getProcessorStatus` is on the render path of `/admin/accounting`. Putting a Stripe call
+ * there would make the page slower for everybody, make it fail to DRAW when Stripe is
+ * unreachable, and spend an API call every time somebody opens Accounting for any reason —
+ * the same argument `priceShapeError`'s header makes about being off the render path. So the
+ * panel asks for this when somebody presses the button, and the screen works without it.
+ *
+ * ── WHAT "WHOLE BILL" MEANS HERE, PRECISELY ───────────────────────────────────────
+ * Two things, and missing the second is the commonest way this figure comes out too low:
+ *
+ *   * The `fee` on every balance transaction — per-charge processing, refund fees, dispute
+ *     fees. This is the part that overlaps with `stripe_charge_fees`.
+ *   * Transactions whose TYPE is `stripe_fee`, which are account-level charges (monthly
+ *     billing, Radar, Connect) and carry `fee: 0` with a NEGATIVE `amount`. Summing `fee`
+ *     alone reports none of them.
+ *
+ * `payout` transactions are excluded from neither: a payout's `fee` is a real Stripe charge
+ * where one applies, and its `amount` is the money leaving — which is not a fee and is not
+ * added.
+ *
+ * ── IT IS BOUNDED, AND SAYS SO WHEN IT RUNS OUT ───────────────────────────────────
+ * Stripe has no aggregate endpoint for this; it is pagination or nothing. `MAX_PAGES` caps the
+ * walk, and `truncated` is returned so the screen can say the total is a floor rather than
+ * printing a number that quietly stops mid-history. A silent cap on a money figure is the
+ * failure this whole section of AGENTS.md is about — "no silent caps".
+ *
+ * ── AND IT READS, SO IT NEEDS ONLY `view` ─────────────────────────────────────────
+ * `requireRead(PROCESSING)`, like `getProcessorStatus`. It changes nothing at Stripe and
+ * nothing here; a treasurer who may see the stated rate may see what was actually charged.
+ */
+const MAX_PAGES = 20
+
+export interface FullStripeBill {
+  /** Stripe's own total, in the account's currency's minor units. */
+  totalCents: number
+  /** What `stripe_charge_fees` holds, so the screen can name the difference without a second call. */
+  recordedCents: number
+  /** How many balance transactions were walked. Shown so a floor reads as a floor. */
+  transactions: number
+  /** True when `MAX_PAGES` ran out before the history did. */
+  truncated: boolean
+}
+
+export async function getFullStripeBill(): Promise<
+  { ok: true; bill: FullStripeBill } | { ok: false; messageKey: string }
+> {
+  const g = await requireRead(PROCESSING)
+  if (!g.ok || !g.familyCode) return { ok: false, messageKey: 'act.notAuthorized' }
+
+  const stripe = stripeClient()
+  if (!stripe) return { ok: false, messageKey: stripeUnavailableKey() ?? 'act.onlinePaymentsNotSetUp2' }
+
+  const admin = createAdminClient()
+  // §3 BY HAND. The code comes from the caller's own membership through the guard, never from
+  // an argument — so there is no id here for a caller to point at another family's account.
+  const { data: row, error } = await admin
+    .from('family_stripe_accounts')
+    .select('stripe_account_id, disconnected_at')
+    .eq('family_code', g.familyCode)
+    .maybeSingle()
+
+  // §8: the error is READ. Reporting "no account" over a refused query would tell a treasurer
+  // their family has no processor when it has one.
+  if (error) {
+    console.error(`[processing] could not read the account for ${g.familyCode}: ${error.message}`)
+    return { ok: false, messageKey: 'act.couldNotReadProcessor' }
+  }
+  if (!row?.stripe_account_id || row.disconnected_at) {
+    return { ok: false, messageKey: 'proc.billNoAccount' }
+  }
+
+  const { data: feeRows, error: feeError } = await admin
+    .from('stripe_charge_fees')
+    .select('fee_cents')
+    .eq('family_code', g.familyCode)
+  if (feeError) {
+    console.error(`[processing] could not read recorded fees for ${g.familyCode}: ${feeError.message}`)
+    return { ok: false, messageKey: 'act.couldNotReadProcessor' }
+  }
+  const recordedCents = (feeRows ?? []).reduce((n, r) => n + (r.fee_cents as number), 0)
+
+  let totalCents = 0
+  let transactions = 0
+  let truncated = false
+  let startingAfter: string | undefined
+
+  try {
+    for (let page = 0; ; page++) {
+      if (page >= MAX_PAGES) { truncated = true; break }
+      const batch = await stripe.balanceTransactions.list(
+        { limit: 100, ...(startingAfter ? { starting_after: startingAfter } : {}) },
+        onAccount(row.stripe_account_id),
+      )
+      for (const txn of batch.data) {
+        transactions += 1
+        // The per-transaction fee. Negative is not a thing Stripe returns here, and `max(0)`
+        // is a guard rather than an expectation: a negative would SUBTRACT from a bill.
+        totalCents += Math.max(0, txn.fee ?? 0)
+        // The account-level charges, which carry `fee: 0` and a negative `amount`.
+        if (txn.type === 'stripe_fee') totalCents += Math.max(0, -(txn.amount ?? 0))
+      }
+      if (!batch.has_more) break
+      startingAfter = batch.data[batch.data.length - 1]?.id
+      // A `has_more` with no last id would loop forever asking for the same page.
+      if (!startingAfter) { truncated = true; break }
+    }
+  } catch (e) {
+    // A Stripe failure is an OUTAGE, not a finding: the recorded figure is still on screen and
+    // still true. Reported as its own sentence so nobody reads a missing total as a zero one.
+    console.error(`[processing] could not total Stripe's fees for ${g.familyCode}: ${describe(e)}`)
+    return { ok: false, messageKey: 'proc.billUnavailable' }
+  }
+
+  return { ok: true, bill: { totalCents, recordedCents, transactions, truncated } }
+}
+
 export async function setProcessorCountry(country: string): Promise<ProcessorActionResult> {
   const g = await requireEdit(PROCESSING)
   if (!g.ok) return { success: false, message: g.message }

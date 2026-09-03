@@ -164,6 +164,29 @@ export interface DuesPayment {
   reverses_id: string | null
   /** Set when another row reverses THIS one — so the ledger can say so. */
   reversed_by_id: string | null
+  /**
+   * This payment's share of Stripe's fee, in cents — or null.
+   *
+   * ── NULL FOR ALMOST EVERY ROW, AND THAT IS NOT AN ABSENCE OF DATA ────────────────
+   * Four ways, and none of them is a failure: the payment was cash or a cheque, so no
+   * processor was involved; it was a card payment whose `charge.succeeded` has not landed
+   * yet (`settleChargeFee` is the only writer of `dues_payment_fees`); it predates
+   * `20260831000003`; or the family absorbs the fee, in which case it is the FAMILY's cost
+   * and this action does not put it on a member's receipt at all — see below.
+   *
+   * ── WHOSE FIGURE IT IS, WHICH IS THE DECISION THIS FIELD ENCODES ────────────────
+   * `family_stripe_accounts.fee_payer` decides. Under `'member'` the charge was grossed up
+   * and the member genuinely paid it, so it belongs on their receipt and its absence would
+   * make the receipt disagree with their card statement. Under `'family'` the family
+   * absorbed it out of the funds the payment routed into — a cost the member never bore and
+   * has no business seeing on their own history, where it would read as a deduction from
+   * what they paid.
+   *
+   * So a member-facing surface gets this populated ONLY under `'member'`, and an organizer's
+   * screen sees it either way. That is not the same as hiding a column: the read is skipped
+   * (§5), so the figure is never sent.
+   */
+  fee_cents: number | null
 }
 
 /**
@@ -638,6 +661,8 @@ function mapPayment(row: unknown): DuesPayment {
     recorded_by_name: recorder ? `${recorder.first_name} ${recorder.last_name}`.trim() : null,
     reverses_id: p.reverses_id ?? null,
     reversed_by_id: null,
+    // Filled in by the caller that resolved whether this reader may see it — see the field.
+    fee_cents: null,
   }
 }
 
@@ -2115,7 +2140,51 @@ export async function getMyPaymentHistory(): Promise<DuesPayment[]> {
 
   // Dues and donations both live here, tagged by schedule_kind so the member's
   // history can say which each row was.
-  return (data ?? []).map(p => ({ ...mapPayment(p), person_name: null }))
+  const rows = (data ?? []).map(p => ({ ...mapPayment(p), person_name: null }))
+
+  // ── AND THE MEMBER'S OWN SHARE OF STRIPE'S FEE, WHEN THEY PAID IT ────────────────
+  //
+  // ONLY UNDER `fee_payer = 'member'`, and the read is SKIPPED otherwise rather than the
+  // figure being fetched and hidden (§5). Under `'family'` the fee came out of the funds the
+  // payment routed into: it is the family's cost, the member never bore it, and putting it on
+  // their own history would read as a deduction from what they paid.
+  //
+  // THE ADMIN CLIENT, because `dues_payment_fees` has RLS enabled and NO POLICY — §2c, and
+  // `20260831000003` argues it: a policy there would be the first step toward publishing a
+  // family's processing costs to its whole membership. So this is §3 by hand, and it is
+  // narrowed by BOTH the family code and this member's own payment ids — the ids come out of
+  // the read above, which RLS already scoped to their own rows, so the verdict is TRANSITIVE.
+  const familyCode = await getMyFamilyCode(user.id)
+  if (familyCode && rows.length > 0) {
+    const admin = createAdminClient()
+    const { data: account, error: accountError } = await admin
+      .from('family_stripe_accounts')
+      .select('fee_payer')
+      .eq('family_code', familyCode)
+      .maybeSingle()
+
+    // §8: the error is READ. A refused read here must leave every `fee_cents` null — which is
+    // the same thing the screen shows for a cash payment, and is the safe direction: a
+    // MISSING fee line is a receipt that says less, where a WRONG one is a receipt that
+    // disagrees with a card statement.
+    if (accountError) {
+      console.error(`[dues] could not read the fee policy for ${familyCode}: ${accountError.message}`)
+    } else if (account?.fee_payer === 'member') {
+      const { data: fees, error: feeError } = await admin
+        .from('dues_payment_fees')
+        .select('payment_id, fee_cents')
+        .eq('family_code', familyCode)
+        .in('payment_id', rows.map(r => r.id))
+      if (feeError) {
+        console.error(`[dues] could not read fee shares for ${familyCode}: ${feeError.message}`)
+      } else {
+        const byPayment = new Map((fees ?? []).map(f => [f.payment_id as string, f.fee_cents as number]))
+        for (const row of rows) row.fee_cents = byPayment.get(row.id) ?? null
+      }
+    }
+  }
+
+  return rows
 }
 
 /**

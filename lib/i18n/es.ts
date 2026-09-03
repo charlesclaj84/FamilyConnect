@@ -1808,6 +1808,7 @@ export const es: Catalogue = {
   'history.duesPayment': 'Pago de cuotas',
   'history.donationPayment': 'Pago de donación',
   'history.paymentMethod': 'Método de pago',
+  'history.processingFee': 'Comisión por procesamiento de tarjeta',
   'history.reference': 'N.º de cheque / Referencia',
   'history.recorded': 'Registrado',
   'history.reversed': 'Revertido',
@@ -2962,7 +2963,21 @@ export const es: Catalogue = {
   'proc.feeExplainFamily': 'A un integrante que debe $40.00 se le cobran $40.00, y su cuota baja $40.00. Su familia recibe lo que queda después de la comisión de Stripe.',
   'proc.feeExplainMember': 'A un integrante que debe {owed} se le cobran {charged}, así que su familia recibe los {owed} completos y su cuota baja {owed}. El importe adicional se muestra en una línea aparte antes de pagar.',
   'proc.feeRateUnusable': 'Esa tasa no se puede añadir a un pago. Reduzca el porcentaje.',
-  'proc.feesPaidSoFar': 'Stripe ha cobrado {amount} en comisiones a esta familia hasta ahora.',
+  'proc.feesRecordedSoFar': 'GENORRA ha registrado {amount} en comisiones de tarjeta sobre los pagos que registró.',
+  'proc.billShowTotal': 'Mostrar el total propio de Stripe para esta cuenta',
+  'proc.billAsking': 'Consultando a Stripe…',
+  'proc.billTotal': 'El total propio de Stripe para esta cuenta es {amount}, en {n} transacciones.',
+  'proc.billTotalAtLeast':
+    'El total propio de Stripe es de al menos {amount}: las primeras {n} transacciones. '
+    + 'El historial es más largo de lo que se puede leer de una vez, así que tómelo como un mínimo.',
+  'proc.billDifference':
+    'La diferencia de {amount} son comisiones de cargos que GENORRA no registró, más lo '
+    + 'que Stripe cobre a la cuenta en sí. Eso no está en el estado de resultados, a propósito.',
+  'proc.billBelowRecorded':
+    'El total de Stripe es {amount} MENOR que lo registrado aquí, lo cual no debería ocurrir: '
+    + 'el estado de resultados podría estar exagerando las comisiones de esta familia.',
+  'proc.billNoAccount': 'No hay ninguna cuenta de Stripe conectada que totalizar.',
+  'proc.billUnavailable': 'No se pudo contactar con Stripe. La cifra registrada arriba no se ve afectada.',
   'proc.feePolicySaved': 'Guardado',
   'proc.continueStripe': 'Continuar en Stripe',
   'proc.checkStripe': 'Comprobar con Stripe',

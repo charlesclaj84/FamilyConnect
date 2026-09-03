@@ -1865,6 +1865,7 @@ export const en: Catalogue = {
   'history.duesPayment': 'Dues payment',
   'history.donationPayment': 'Donation payment',
   'history.paymentMethod': 'Payment method',
+  'history.processingFee': 'Card processing fee',
   'history.reference': 'Check # / Reference',
   'history.recorded': 'Recorded',
   'history.reversed': 'Reversed',
@@ -3060,7 +3061,21 @@ export const en: Catalogue = {
   'proc.feeExplainFamily': 'A member owing $40.00 is charged $40.00, and their dues fall by $40.00. Your family receives what is left after Stripe’s fee.',
   'proc.feeExplainMember': 'A member owing {owed} is charged {charged}, so your family receives the full {owed} and their dues fall by {owed}. The extra is shown as its own line before they pay.',
   'proc.feeRateUnusable': 'That rate cannot be added on top of a payment. Lower the percentage.',
-  'proc.feesPaidSoFar': 'Stripe has taken {amount} in fees from this family so far.',
+  'proc.feesRecordedSoFar': 'GENORRA has recorded {amount} in card fees on the payments it posted.',
+  'proc.billShowTotal': 'Show Stripe’s own total for this account',
+  'proc.billAsking': 'Asking Stripe…',
+  'proc.billTotal': 'Stripe’s own total for this account is {amount}, across {n} transactions.',
+  'proc.billTotalAtLeast':
+    'Stripe’s own total is at least {amount} — the first {n} transactions. The history '
+    + 'is longer than this could read in one go, so treat it as a floor.',
+  'proc.billDifference':
+    'The {amount} difference is fees on charges GENORRA did not post, plus anything Stripe '
+    + 'bills the account itself. Those are not in the P&L, on purpose.',
+  'proc.billBelowRecorded':
+    'Stripe’s total is {amount} LOWER than what has been recorded here, which should not '
+    + 'happen — the P&L may be overstating this family’s fees.',
+  'proc.billNoAccount': 'There is no connected Stripe account to total.',
+  'proc.billUnavailable': 'Stripe could not be reached. The recorded figure above is unaffected.',
   'proc.feePolicySaved': 'Saved',
   'proc.continueStripe': 'Continue in Stripe',
   'proc.checkStripe': 'Check with Stripe',

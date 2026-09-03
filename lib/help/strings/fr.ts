@@ -2393,6 +2393,35 @@ export const helpFr: Catalogue = {
     'Si votre famille s’est déconnectée, le panneau le dit et le bouton indique '
     + '**Reconnecter Stripe** plutôt que **Connecter un compte Stripe** — car c’est '
     + 'réellement le même compte qui revient, non un nouveau qui se crée.',
+  'help.accounting.processing.b10':
+    '**Qui paie les frais de Stripe est un choix de votre famille, et il se fait sur ce '
+    + 'panneau.** Les paiements par carte coûtent un pourcentage plus quelques centimes, à '
+    + 'chaque fois. **La famille les absorbe** est le réglage par défaut : un proche qui doit '
+    + '40 $ est débité de 40 $, et les frais sont repris sur les fonds vers lesquels ce '
+    + 'paiement a été acheminé — les fonds reçoivent donc un peu moins que le montant '
+    + 'enregistré. **Le membre les prend en charge** le débite un peu plus, si bien que les '
+    + 'fonds reçoivent les 40 $ entiers. Le panneau calcule l’exemple avec votre propre taux '
+    + 'à mesure que vous le saisissez, car le résultat n’est pas celui auquel on s’attend : '
+    + 'majorer 40 $ à 2,9 % + 30c donne 41,50 $, et non 41,46 $, puisque les frais '
+    + 's’appliquent aussi au montant majoré.',
+  'help.accounting.processing.b11':
+    '**Le taux que vous saisissez ne sert qu’à calculer un montant ; il n’est jamais '
+    + 'utilisé comme frais.** Ce que Stripe a réellement pris est relu auprès de Stripe à '
+    + 'chaque paiement, et c’est ce chiffre que vos comptes utilisent. Un taux légèrement '
+    + 'faux coûte donc à votre famille quelques centimes par paiement plutôt que d’inscrire '
+    + 'un mauvais chiffre au grand livre — et le panneau affiche ce qui a vraiment été '
+    + 'facturé à côté de votre taux déclaré, ce qui est le seul moyen de s’en apercevoir.',
+  'help.accounting.processing.b12':
+    '**Deux totaux de frais apparaissent ici et ils répondent à des questions '
+    + 'différentes.** Le premier est ce que GENORRA a enregistré — les frais des paiements '
+    + 'que ce produit a inscrits, soit ce que [Compte de résultat](/reporting/pl-summary) '
+    + 'compte en charge. **Afficher le total propre de Stripe pour ce compte** interroge '
+    + 'Stripe, et il sera plus élevé si votre famille a utilisé son compte Stripe pour '
+    + 'autre chose, ou si Stripe facture directement le compte pour la facturation '
+    + 'mensuelle ou les outils antifraude. Ces frais ne sont volontairement PAS dans les '
+    + 'comptes de votre famille : GENORRA n’a jamais compté les revenus auxquels ils se '
+    + 'rapportent, donc compter la charge rendrait le rapport faux dans l’autre sens. Pour '
+    + 'la facture détaillée, connectez-vous à votre propre tableau de bord Stripe.',
   'help.accounting.not-yet.heading': 'Coordonnées bancaires',
   'help.accounting.not-yet.b0':
     'La section existe dans le menu et n’est pas encore raccordée. C’est là que vivront les '

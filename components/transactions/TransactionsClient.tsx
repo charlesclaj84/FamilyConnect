@@ -691,6 +691,12 @@ export function TransactionsClient({
         recorded_by_name: myName,
         reverses_id: null,
         reversed_by_id: null,
+        // NULL, AND IT STAYS NULL UNTIL THE SERVER SAYS OTHERWISE. This row is a payment
+        // somebody keyed in by hand, so no processor was involved and there is no fee — and
+        // even for a card payment the share is written by `settleChargeFee` from a webhook
+        // that has not arrived yet. `router.refresh()` below is what replaces this row with
+        // the real one.
+        fee_cents: null,
       }, ...prev])
       setRpPersonId(''); setRpAmount(''); setRpScheduleId(''); setRpReference(''); setRpNotes('')
       setRecording(null)

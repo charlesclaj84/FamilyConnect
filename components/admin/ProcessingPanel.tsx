@@ -20,8 +20,9 @@ import { EmailedCodeField, PasswordReauthField } from '@/components/ui/challenge
 import { verifyCurrentPassword } from '@/lib/supabase/client'
 import { grossUpCents } from '@/lib/stripe-fees'
 import {
-  disconnectProcessor, refreshProcessorStatus, requestProcessorDisconnectCode,
-  startProcessorOnboarding, setProcessingFeePolicy, setProcessorCountry, type ProcessorStatus,
+  disconnectProcessor, getFullStripeBill, refreshProcessorStatus,
+  requestProcessorDisconnectCode, startProcessorOnboarding, setProcessingFeePolicy,
+  setProcessorCountry, type FullStripeBill, type ProcessorStatus,
 } from '@/app/actions/admin/processing'
 import { useT } from '@/components/layout/LocaleProvider'
 import { useMoney } from '@/components/layout/MoneyProvider'
@@ -621,6 +622,96 @@ function Panel({ children }: { children: React.ReactNode }) {
  * no `t` prop and calls `useT()` because it is only ever rendered by `ProcessingPanel`, which
  * is itself a client component — the second row of AGENTS.md's table, not the first.
  */
+/**
+ * Two fee figures, and the difference between them named.
+ *
+ * ── WHY IT IS TWO NUMBERS AND NOT ONE ────────────────────────────────────────────
+ * `stripe_charge_fees` is what GENORRA recorded, and it is the figure the P&L is built from —
+ * so it has to be the one shown by default, because it is the one that reconciles with every
+ * other money screen in the product. Stripe's own total is larger whenever the family has
+ * used their account for anything else, or whenever Stripe has billed them at the account
+ * level (monthly billing, Radar, Connect), and those are charges this product deliberately
+ * does not book.
+ *
+ * Printing one number and calling it "Stripe's fees" is what made this misleading. Printing
+ * both, with the gap explained, is the only version that is true of either.
+ *
+ * ── THE STRIPE TOTAL IS ASKED FOR, NEVER FETCHED ON RENDER ───────────────────────
+ * A button. `/admin/accounting` must not get slower for everybody, must not fail to DRAW when
+ * Stripe is unreachable, and must not spend an API call every time somebody opens Accounting
+ * for an unrelated reason. Same argument `priceShapeError` makes about staying off the render
+ * path.
+ *
+ * ── AND A FLOOR IS LABELLED AS A FLOOR ───────────────────────────────────────────
+ * The walk is bounded (`MAX_PAGES` in the action), so a long history can run out. `truncated`
+ * is what the sentence changes on — a money figure that silently stops mid-history is worse
+ * than no figure, and "no silent caps" is the rule it would break.
+ */
+function RecordedAndActualFees({ recordedCents }: { recordedCents: number }) {
+  const t = useT()
+  const money = useMoney()
+  const [bill, setBill] = useState<FullStripeBill | null>(null)
+  const [error, setError] = useState('')
+  const [pending, startTransition] = useTransition()
+
+  function ask() {
+    setError('')
+    startTransition(async () => {
+      const result = await getFullStripeBill()
+      // A REFUSAL IS ITS OWN SENTENCE, never a zero. `getFullStripeBill` returns a message KEY
+      // rather than English — the rule `stripeUnavailableKey` was renamed for.
+      if (!result.ok) { setError(t(result.messageKey)); return }
+      setBill(result.bill)
+    })
+  }
+
+  const difference = bill ? bill.totalCents - bill.recordedCents : 0
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-xs text-muted-foreground">
+        {t('proc.feesRecordedSoFar', { amount: money(recordedCents) })}
+      </p>
+
+      {bill ? (
+        <>
+          <p className="text-xs text-muted-foreground">
+            {t(bill.truncated ? 'proc.billTotalAtLeast' : 'proc.billTotal', {
+              amount: money(bill.totalCents),
+              n: String(bill.transactions),
+            })}
+          </p>
+          {/* ONLY WHEN THERE IS A GAP, and only in that direction. A total BELOW what we
+              recorded would mean our own books are overstated, which is a different and worse
+              finding than an unexplained surplus — it is not silently folded into the same
+              sentence. */}
+          {difference > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {t('proc.billDifference', { amount: money(difference) })}
+            </p>
+          )}
+          {difference < 0 && (
+            <p className="text-xs text-brand-withheld">
+              {t('proc.billBelowRecorded', { amount: money(-difference) })}
+            </p>
+          )}
+        </>
+      ) : (
+        <button
+          type="button"
+          onClick={ask}
+          disabled={pending}
+          className="text-xs font-medium text-brand-accent underline underline-offset-2 disabled:opacity-60"
+        >
+          {pending ? t('proc.billAsking') : t('proc.billShowTotal')}
+        </button>
+      )}
+
+      <FormError message={error} />
+    </div>
+  )
+}
+
 function FeePolicyFields({ status }: { status: ProcessorStatus }) {
   const t = useT()
   const money = useMoney()
@@ -724,11 +815,19 @@ function FeePolicyFields({ status }: { status: ProcessorStatus }) {
             : t('proc.feeRateUnusable')}
       </p>
 
-      {status.feesPaidCents > 0 && (
-        <p className="text-xs text-muted-foreground">
-          {t('proc.feesPaidSoFar', { amount: money(status.feesPaidCents) })}
-        </p>
-      )}
+      {/* ── WHAT WE RECORDED, AND WHAT STRIPE ACTUALLY BILLED ─────────────────────
+          The sentence here read *"Stripe has taken {amount} in fees from this family so
+          far"*, and that was a claim about Stripe's books which our books cannot make:
+          `stripe_charge_fees` records fees for charges THIS PRODUCT posted and nothing else
+          — deliberately, because a family's own unrelated charges on their own account must
+          not become an expense on a P&L that never counted the income. So the figure is
+          GENORRA's view of their fees, and a treasurer reading it as their Stripe bill would
+          reconcile against their bank and find it short.
+
+          It now says which figure it is, and offers the other one. `getFullStripeBill` walks
+          the account's balance transactions on demand — a button, never the render path, so
+          this panel still draws when Stripe is unreachable (see that action's header). */}
+      {status.feesPaidCents > 0 && <RecordedAndActualFees recordedCents={status.feesPaidCents} />}
 
       <FormError message={error} />
 

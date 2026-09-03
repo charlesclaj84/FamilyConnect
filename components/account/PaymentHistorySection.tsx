@@ -56,6 +56,24 @@ function viewOfMyPayment(p: DuesPayment, zone: string, t: T, intl: string): {
     subtitle: isReversal ? t('history.correctingEntry', { kind: kindWord }) : kindWord,
     fields: [
       { label: t('money.amount'), value: formatMoney(p.amount_cents, { locale: intl }) },
+      // ── STRIPE'S FEE, AND ONLY WHERE THE MEMBER PAID IT ──────────────────────────
+      // `fee_cents` is populated by `getMyPaymentHistory` ONLY under
+      // `family_stripe_accounts.fee_payer = 'member'` — that action's field carries the whole
+      // argument. Under `'family'` the fee came out of the funds the payment routed into and
+      // the member never bore it, so nothing is fetched and there is nothing to render.
+      //
+      // IN THE DIALOG AND NOT AS A COLUMN. It applies to a card payment and to nothing else,
+      // so a column would be a heading of em dashes on every family that takes cheques — and
+      // this is a receipt, read one payment at a time, which is where a breakdown belongs.
+      //
+      // `...(cond ? [row] : [])` rather than a null value: the dialog renders a null as an em
+      // dash, which would say "there was a fee and it is unknown" for every cash payment.
+      ...(p.fee_cents != null
+        ? [{
+            label: t('history.processingFee'),
+            value: formatMoney(p.fee_cents, { locale: intl }),
+          }]
+        : []),
       { label: t('money.status'), value: paymentStatusLabel(t, p.status) },
       { label: t('money.date'), value: formatDate(p.payment_date, intl) },
       // Both null on a waived row by design — no money moved, so there was no method

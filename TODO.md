@@ -8,60 +8,6 @@ Everything here is open. Completed work is deleted rather than archived — the 
 are in git history, and the lessons worth keeping have been promoted to AGENTS.md.
 GO LIVE is a checklist rather than a backlog.
 
-## Scrubbed 2026-09-01
-
-Four entries were CLOSED by work done on the day, and are deleted rather than annotated — a
-closed entry that stays is what makes the rest of this file untrustworthy:
-
-| | |
-|---|---|
-| Table sorting | done 2026-08-31; the whole entry removed at the owner's request |
-| Birthday greetings | BUILT. All three decisions in that entry were made and shipped — the product PROMPTS rather than posting in the family's name, it lands on the dashboard, and it is confetti and a gold band. **No cron was built and none is wanted:** both surfaces render when somebody opens the app, which `20260831000002`'s header states as the reason. |
-| The sitemap's three languages | BUILT. `absoluteLocaleAlternates` and `alternates.languages` on every entry. |
-| Automatic dues reminders | BUILT. `20260901000007` and `lib/dues/reminders.ts` — the last unbuilt Premium bullet. |
-| A purge leaving its bytes | BUILT. `20260901000006` and `lib/billing/storage-reaper.ts`. |
-
-**One entry was rewritten rather than closed, and the rewrite is the point.** The weather
-poller's blocker was named as the scheduler for months. The scheduler exists now, so the entry
-would have read as ready to build — and it is not: it is blocked on a ZIP-to-county crosswalk,
-with the state-level alternative documented as too coarse to be worth having. *"`http` is not
-installed"* now says which half is missing.
-
-## Scrubbed 2026-08-29
-
-Every remaining entry was re-checked against the tree. **Nothing was newly closed** — each one
-is still real work. What moved is the Send Email hook, which is now ON and whose entry has been
-narrowed to what genuinely remains, plus six references that had gone stale under features that
-shipped after they were written:
-
-| | |
-|---|---|
-| Send Email hook | steps 1–3 done; narrowed to proving it and deleting the frozen templates |
-| SMS | My Profile → **Text Messages** is **Notifications** since `20260826000000` |
-| Photo thumbnails | `/review/photos` is `/community/gallery`; the three `<img>` sites are under `components/gallery/` |
-| Advisors | `family_removal_challenges` is `family_action_challenges` since `20260825000000` |
-| Privacy policy | no longer "one route, one link" — `LOCALIZED_ROOTS` and three catalogues, and it fails `npm test` without the first |
-| Sorting | `useTableSort` threads the reader's collation for free; the 14 remaining are unchanged and were counted one by one |
-| `http` | "the last extension anything wants" was falsified four days later by `unaccent` |
-
-Two figures were off by one and are corrected in place: `BACKLOG_CEILING` is 69, and the
-"Three smaller Stripe follow-ups" heading listed four.
-
-**This pass landed on top of an earlier, uncommitted one** that had already deleted the four
-`RESOLVED` blocks (the admin-who-could-pay invariant, `pg_cron`, Meta's money half, and the five
-mutable `search_path` functions) — which is what this file's own header prescribes for completed
-work. So `git diff` against `master` shows ~270 deleted lines that are not from this scrub. That
-pass left one dangling cross-reference, *"see the resolved item above"* in the birthday entry,
-now repointed at the `http` item; it was the only one.
-
-**What this scrub could NOT check, and nobody reading it should assume otherwise:** every GO
-LIVE item is a setting in somebody's dashboard, and by construction nothing in this repo can
-see any of them. Their code-side halves were verified — `TIER_IS_SOLD.premium` is still
-`false`, `CONNECT_ACCOUNT_COUNTRY` is still `'us'`, `smsConfigured()` still reads four
-variables, `app/sitemap.ts` still emits one URL per route, `withheld_since` still does not
-exist, `LINK_EXISTING_PERSON_ENABLED` is still `false`, and `setTemplatePermission` still
-validates no scope — but "is the flag set on hosted" is answered by a person or by nobody.
-
 ## GO LIVE
 
 Things that must be true of the **hosted project** before real families use it. These
@@ -268,110 +214,18 @@ thumbnail's path is `photoThumbPath(file_path)` and nothing else (a second defin
 naming scheme is how live thumbnails get reaped), and a row whose object cannot be read is
 SKIPPED rather than written with a guess.
 
-### [ ] Stripe: two flags, seven variables, two webhook endpoints, one Dashboard switch, one tax decision
+### [ ] Stripe: watch a real payment land, once per mode
 
-**Action:** set the environment variables, create the two webhook endpoints, and flip one
-constant. The integration is built and inert; every item below lives in somebody's Stripe
-account or on Vercel, and nothing in this repo can detect any of it.
+**Action:** run the eleven checks below against the account being brought up. Everything else
+in this item was configuration or a decision and **all of it is settled** (2026-09-03) — the
+keys, the two endpoints, the six Prices, Managed Payments, the tax position and the product
+flags. Deleted rather than annotated, per this file's header.
 
-Both flows are implemented and merged — `lib/stripe/`, `app/actions/billing.ts`,
-`app/actions/pay-dues.ts`, `app/actions/admin/processing.ts`, `app/api/stripe/*`, and
-`20260823000004` / `20260823000005`. `payment_info.md` is the architecture and AGENTS.md's
-"MONEY HAS TWO DIRECTIONS" section is the rule.
+What a settled setting leaves behind is the one thing no gate in this repo can answer: whether
+it works. `npm run stripe:check` asks Stripe about the CATALOGUE (its own item above); nothing
+asks whether a payment reaches the database, because that needs a card.
 
-**1. THE PRODUCT FLAG — DONE for Standard and Plus (2026-08-23), still `false` for Premium.**
-`TIER_IS_SOLD` in `lib/plans.ts` is the decision and it is not a credential. Both edits were
-made in one commit, as this item required: `TIER_IS_SOLD` and `PLANS[].available` on
-`/pricing`. `npm run marketing:check` does not catch that pair — it compares claim SETS, not
-availability — so the two were checked by hand and the pricing page's header now says they
-move together.
-
-Premium stays off deliberately: it is sold on a mailbox and a website, and nothing provisions
-either. Flipping it is the same two edits plus whatever delivers those two things.
-
-**WHAT WENT WITH IT, because enabling a plan is not only a flag.** `setFamilyTier` — the plan
-picker on Settings — used to move `families.tier` in both directions with nothing charged,
-which was harmless while nothing was for sale and became a free upgrade for every family
-administrator the moment it was. It now refuses **every** move up (its header carries the
-argument), the Plan rows no longer render an upgrade button, and the only route into a paid
-tier is Billing. Do not undo that to restore the "put a family on Plus to see the gates work"
-affordance — on a laptop, `psql` and the service role still move the column.
-
-**AND THE SIGNUP HALF.** `/pricing`'s two sellable cards now link to `/register?plan=<tier>`,
-the registration form offers the same choice, and the answer is recorded on
-`platform_billing_accounts.signup_tier` (`20260823000008`) rather than charged — there is no
-family to bill and, with `enable_confirmations` on, no session to authorize a checkout. The
-dashboard prompts for it afterwards (`PlanSetupBanner`, `lib/signup-plan.ts`). **Nothing in
-that path grants a tier**, so it needs no item on this list; it needs the variables below,
-like everything else here.
-
-**2. Environment variables**, on Vercel. Nothing is `NEXT_PUBLIC_` and nothing may become so —
-this integration uses hosted Checkout, so the browser never loads Stripe.js and needs no
-publishable key at all. `lib/meta/no-client-secrets.test.ts` asserts none of them is reachable
-from a client bundle.
-
-> **PREVIEW IS DONE (2026-08-23); PRODUCTION IS NOT, AND THIS ITEM IS ABOUT PRODUCTION.**
-> The Preview environment — which builds off `dev` — has the keys, both webhook endpoints and
-> the Products, against the **Stripe sandbox**. So the flow below can be walked end to end on a
-> preview URL today, and every check in §3 is worth doing there FIRST, because a sandbox is
-> where a wrong signing secret is cheap.
->
-> None of it carries over. Vercel environment variables are per-environment and a sandbox
-> Product has no live counterpart, so production needs its own keys, its own two endpoints
-> (pointed at `genorra.com`, not a preview URL) and its own six Prices — created again, by
-> hand, at the same figures. **Leave this item open until that is done.**
-
-| Variable | Notes |
-|---|---|
-| `STRIPE_SECRET_KEY` | **Prefer a restricted key (`rk_`)** over `sk_`. It needs write on Checkout Sessions, Customers, Subscriptions, Prices (read), Billing Portal, and Connect accounts/account links. |
-| `STRIPE_PLATFORM_WEBHOOK_SECRET` | The signing secret of the endpoint in §3. Not interchangeable with the next one. |
-| `STRIPE_CONNECT_WEBHOOK_SECRET` | The **Connect** endpoint's. One shared secret would make the two endpoints indistinguishable, which is the mix-up that would credit a family's ledger with our revenue. |
-| `STRIPE_PRICE_{STANDARD,PLUS,PREMIUM}_RECURRING` | A monthly recurring Price per tier: **$10 / $20 / $30**. |
-| `STRIPE_PRICE_{STANDARD,PLUS,PREMIUM}_PREPAID` | A ONE-TIME Price per tier whose unit is **one month**, same figures. Prepaid terms are `quantity: months` against it, up to 60. |
-
-> **EVERY ONE OF THOSE SIX IS A `price_…`, NEVER A `prod_…`.** This is the mistake the sandbox
-> setup actually made (2026-08-23) and it is worth its own paragraph, because the error it
-> produces argues the opposite of the truth: Stripe answers `resource_missing`, *"No such
-> price: 'prod_…'"*, while the Dashboard shows a perfectly healthy Product under that very id.
-> A Product is the thing being sold; a Price is the amount charged for it. The id you want is
-> on the Product page under **Pricing**, or from `GET /v1/prices?product=prod_…`.
->
-> `priceShapeError` in `app/actions/billing.ts` now refuses a non-`price_` id before any API
-> call and says which mistake it is, so this costs a log line rather than an afternoon. It
-> also catches the other four: the `_RECURRING`/`_PREPAID` slots swapped, an archived price, a
-> non-monthly interval, and — the one that would NOT have failed at Stripe — an amount that
-> disagrees with `TIER_PRICE`, which would have opened a hosted page asking for a figure the
-> button did not promise.
-| `STRIPE_API_VERSION` | Leave unset. Pinned to `2026-07-29.dahlia` in code; this is the override for testing a bump. |
-
-**One Product per plan, not one Product with three prices.** Checkout and every invoice print
-the Product name on the line item, so three tiers sharing one Product gives every family a
-receipt that cannot tell them apart. Both Prices for a tier belong to that tier's Product, and
-**both must equal `TIER_PRICE[tier].monthlyCents`** — nothing in this repo can check that, and
-the screen quotes `TIER_PRICE`, so a mismatch shows up as a hosted page asking for a different
-number than the button promised.
-
-**A LIVE KEY IS REFUSED ON A PREVIEW DEPLOYMENT** (`liveKeyOnNonProduction` in
-`lib/stripe/config.ts`), so QA cannot charge a real card. A sandbox `sk_test_`/`rk_test_` key
-is what Preview is meant to hold and is accepted there, which is why the sandbox setup above
-works — the guard reads the key's PREFIX and `VERCEL_ENV`, nothing else.
-
-**The opposite cannot be detected from inside the process and is the expensive one:** a TEST
-key on production means every checkout succeeds, every webhook fires, every tier is granted and
-no money is ever collected, with the product working perfectly. **Now that a sandbox key exists
-in the project this is a live hazard rather than a hypothetical one** — the two variables differ
-by four characters and are set in the same UI. Check the key prefix on production by eye.
-
-**3. Two webhook endpoints.** Both are `POST` only and both verify a signature before parsing
-anything.
-
-| Endpoint | URL | Events |
-|---|---|---|
-| Account | `https://genorra.com/api/stripe/platform` | `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted` |
-| **Connect** | `https://genorra.com/api/stripe/connect` | the first four above, plus `customer.subscription.updated`, `customer.subscription.deleted`, `account.updated`, **`charge.succeeded`**, **`charge.updated`** |
-
-Then **turn a real payment on and watch it land.** "The endpoint returned 200" is not
-validation; these are:
+**"The endpoint returned 200" is not validation.** These are:
 
 | Check | What wrong looks like |
 |---|---|
@@ -384,54 +238,19 @@ validation; these are:
 | Upgrade a family with a live prepaid term | Often **nothing to pay**: the unused term is valued at the old rate and spent first. Anything left is a NEGATIVE customer balance transaction at Stripe |
 | Move down a tier | The tier does NOT change today, and **Billing** names the date it will |
 | Connect a family account and pay a due | A `dues_payments` row with `source='stripe'`, `recorded_by` NULL, and `fund_contributions` rows against it |
+| Pay a due by card, then reload `/reporting/pl-summary` | **Processing fees** is non-zero. $0.00 means the Connect endpoint is not subscribed to `charge.succeeded` — `settleChargeFee` is the only writer of `stripe_charge_fees` and nothing errors when the event never arrives |
 | Compare a charge against `platform_payments.amount_cents` | Cents, not dollars. A $5.00 charge stored as `5` is the failure |
 
-**3b. MANAGED PAYMENTS MUST BE OFF, AND IT IS ON BY DEFAULT — IN BOTH MODES SEPARATELY.**
-Found the hard way on the first sandbox checkout (2026-08-23), which was refused with *"the
-product tax code is missing … Product tax code is required for Managed Payments, which is
-enabled by default on your account."*
+**ONE HAZARD SURVIVES THE CONFIGURATION BEING DONE, and it is the expensive one.** A live key
+on a preview deployment is refused (`liveKeyOnNonProduction` in `lib/stripe/config.ts`). The
+OPPOSITE cannot be detected from inside the process: a TEST key on production means every
+checkout succeeds, every webhook fires, every tier is granted and no money is ever collected,
+with the product working perfectly. The two variables differ by four characters and are set in
+the same UI. **Check the key's prefix on production by eye**, and the first check in the table
+is what catches it in practice — the tier is granted either way, so it is the Stripe dashboard
+that has to show the charge.
 
-**This account is not eligible for it in the first place.** Stripe's own eligibility page says
-Managed Payments *"supports direct integrations only"* and does **not** support **Connect
-platforms** — which is exactly what GENORRA is, the moment one family connects an account. So
-the default is switched on for something that cannot legitimately be used here.
-
-**And it conflicts with rule 2, which is no refunds.** Under Managed Payments *"Stripe can
-issue refunds within 60 days of purchase in certain cases"* and applies regional cooling-off
-periods. There is no refund column, no credit-note table and `amount_cents > 0` is a CHECK, so
-a Stripe-initiated refund is a movement the ledger cannot represent.
-
-Turn it off at `dashboard.stripe.com/<acct>/settings/managed-payments`, **once per mode**. The
-setting is per-mode, so a sandbox that works proves nothing about live — and the failure is a
-refused checkout on the first real customer.
-
-*Why not `managed_payments[enabled]=false` per session, which the error suggests:* it is the
-wrong lever twice over. It would have to be added to all four session calls and remembered on
-the fifth, and the pinned SDK (22.5.0) does not type the parameter at all, so it would need an
-unchecked cast on the money path. An account-level setting for an account-level ineligibility.
-
-**4. Stripe Tax is a decision nobody has taken, and it is not a code change alone.**
-`automatic_tax` is NOT enabled on any session in this integration. Turning it on without an
-active tax registration in the buyer's jurisdiction collects nothing and reports no error — the
-single most common Stripe Tax mistake — so it needs a registration first, and a plan
-subscription sold across US states may need several. Read
-[Collect taxes for recurring payments](https://docs.stripe.com/billing/taxes/collect-taxes.md)
-before touching it. **The family side is not ours to decide at all:** on a direct charge the
-family is the merchant of record, so their tax position is theirs.
-
-**AND THE AUTOMATIC OPTION IS NOT AVAILABLE TO US, which narrows this item rather than
-answering it.** Managed Payments is the arrangement where Stripe takes on the indirect-tax
-liability, and §3b above records why this account cannot use it: it is a Connect platform.
-Stripe's eligibility page names the fallback in as many words — *"If you don't think your
-product is eligible for Managed Payments, you can use Stripe Tax to manage your compliance
-requirements."* So the choice is Stripe Tax with real registrations, or a considered decision
-not to collect; there is no third door where somebody else handles it.
-
-**5. Set a CSP header if Stripe.js is ever loaded.** It is not today — hosted Checkout is a
-redirect — and that is why `next.config.ts` needs no `frame-src`. An embedded Payment Element
-would change that.
-
-Recorded 2026-08-23.
+Recorded 2026-08-23; narrowed to the validations 2026-09-03.
 
 ### [ ] Meta advertising: two credentials, four dashboard settings, one decision
 
@@ -665,41 +484,6 @@ English by `20260618000000` and `20260807000003`, so a Spanish family sees Engli
 things they never chose. They are excused in `EXPECTED_SAME` because a per-family row cannot be
 keyed — the honest fixes are seeding in the family's language at creation, or letting a family
 rename them, and both are product decisions nobody has taken.
-
-## Stripe fees: the two halves that are NOT built
-
-**Action:** surface the fee on the member-facing dues screens, and subscribe the live webhook.
-
-`20260831000003` and `lib/stripe-fees.ts` shipped the mechanism on 2026-08-31 — the actual fee
-is captured from `balance_transaction`, apportioned per due, taken back out of the funds it was
-routed into, and reported on the P&L as its own expense line. `family_stripe_accounts.fee_payer`
-decides whether the family absorbs it or the charge is grossed up so the member covers it. Two
-things were deliberately left.
-
-**1. THE STRIPE ENDPOINT MUST BE SUBSCRIBED TO `charge.succeeded` AND `charge.updated`, and
-until it is this feature is inert in a way nothing reports.** `settleChargeFee` is the only
-writer of `stripe_charge_fees` and it runs only from those two events. An endpoint without them
-keeps working perfectly — members pay, dues are credited, funds are routed — and the fee is
-never recorded, fund balances stay overstated by it forever, and the P&L's processing-fee line
-reads $0.00 over money Stripe demonstrably took. Nothing errors, because from the app's side no
-event arrived. The endpoint table in the GO LIVE section above now names both.
-
-**2. THE DUES STATEMENTS DO NOT SHOW IT YET.** The P&L does; `/reporting/dues-projections`,
-`/dues` and `/payment-history` do not. The data is there — `dues_payment_fees` carries each
-payment's share — so this is presentation, not plumbing. The decision it needs is whose figure
-it is: under `fee_payer = 'family'` the fee is the FAMILY's cost and has no business on a
-member's own payment history, while under `'member'` they were charged it and it belongs on
-their receipt. So the member-facing surfaces probably show it only for the second, and the
-projections (an organizer's screen) show it for both.
-
-**And two smaller ones.** The manual says nothing about the setting — `help:check` passes
-because Processing is not a new screen, so nothing gates this. And `stripe_charge_fees` records
-only fees for charges this product posted (no matching `dues_payments` row, no fee row), which
-is deliberate — a family's own unrelated charges on their account must not become an expense on
-a P&L that never counted the income — but it means the figure is GENORRA's view of their fees
-and not their whole Stripe bill. The panel's caption should probably say so.
-
-Recorded 2026-08-31.
 
 ## WHERE THIS GOES NEXT: fifteen languages and fifteen countries, in priority order
 
@@ -1479,58 +1263,6 @@ cannot skip. Mutation-checked by reverting the seed function in place: the new c
   remains the cheaper half of the original entry and is untouched.
 
 Recorded 2026-08-19; narrowed 2026-08-20 and again 2026-08-23.
-
-## Photo thumbnails download at full size
-
-**Action:** pick one of the three below. It is an infrastructure decision, not a code change.
-
-`npm run lint` is `eslint --max-warnings 0` since 2026-08-20 and the Lint step in
-`verify.yml` blocks on a single warning. What that closed was the *reporting* question; this
-is the thing the last of those warnings was actually pointing at, and it is real.
-
-`/community/gallery` renders a grid of thumbnails at a quarter width, and each `<img>` fetches
-the **whole uploaded file** — `uploadPhoto` caps at 10 MB, so a twenty-photograph album can
-be 200 MB of downloads to show twenty thumbnails. On a phone, on a family's data plan.
-
-*(It was `/review/photos` until 2026-08-22, and the components moved with it: the three sites
-carrying the disable are `components/gallery/CollectionCard.tsx` and two in
-`components/gallery/CollectionView.tsx`. Re-checked 2026-08-29 — still three, still plain
-`<img>`, still no `images.remotePatterns` in `next.config.ts` and still no thumbnail column
-on `photos`.)*
-
-**Why a plain `<img>` was the right pick anyway, and is not the problem.** Every `next/image`
-in this tree is a STATIC import of a file in the repo; there is no `images.remotePatterns` in
-`next.config.ts` at all, and `components/ui/Avatar.tsx` had already made the same call for the
-same class of image — a member's upload in a public Supabase bucket, remote, unknown intrinsic
-size. Reaching for `next/image` to clear a lint warning would have introduced the first remote
-image pipeline in the product as a side effect of a tidy-up. The three sites now carry a
-disable **with the reason written next to it**, which is what makes this entry findable.
-
-Three ways out, and each has a real cost rather than a caveat:
-
-1. **`next/image` with `images.remotePatterns`.** Standard, and it fixes it properly —
-   resizing, lazy loading, modern formats. Costs: a pattern derived from
-   `NEXT_PUBLIC_SUPABASE_URL`, which means `next.config.ts` (which *ships inside the build* —
-   see its own header) gains an environment-dependent rule; and every family photograph goes
-   through Vercel's **metered** optimizer.
-2. **Supabase Storage image transformations** — `getPublicUrl(path, { transform: { width } })`.
-   Resizes at the source, so no remote patterns and no Vercel metering, and it keeps the plain
-   `<img>`. Costs: it is a **paid** Supabase add-on, and the container that serves it is
-   `imgproxy`, which is **not running** in this local stack (`supabase status` lists it under
-   "Stopped services") — so it would work on hosted and silently 404 on every laptop, which is
-   the divergence this repo dislikes most.
-3. **Generate a thumbnail on upload.** `uploadPhoto` writes a second, small object beside the
-   original and `photos` gains a column for it. No new dependency, no metering, works
-   identically everywhere. Costs: the most code, and it does nothing for the photographs
-   already uploaded without a backfill.
-
-**(3) is probably right for this product** — a family gallery's thumbnails never need to be
-recomputed, so paying per-render for something that could be computed once is the wrong shape.
-Nobody has decided, which is why this is here.
-
-**The lightbox should keep its `<img>` under every option.** Somebody has clicked a
-photograph in order to look at it, so the full-size file is the point; and it has no fixed box
-to fill, which is exactly what `next/image`'s `fill` cannot express.
 
 ## Authorization
 

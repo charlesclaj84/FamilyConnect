@@ -191,6 +191,12 @@ const NO_CASE_YET = {
   'app/actions/admin/processing.ts': {
     startProcessorOnboarding: 'STRIPE-INERT', refreshProcessorStatus: 'STRIPE-INERT',
     disconnectProcessor: 'STRIPE-INERT',
+    // `getFullStripeBill` resolves `stripeClient()` before it reads anything, so with no key
+    // in the harness it returns a messageKey and never touches the database. Note that the
+    // account id it works with is read off the CALLER'S OWN family through the guard rather
+    // than taken as an argument, so there is no id here for a case to point at another
+    // family — the shape a case would assert does not exist.
+    getFullStripeBill: 'STRIPE-INERT',
   },
   'app/actions/billing.ts': {
     startPlanCheckout: 'STRIPE-INERT', changePlanTier: 'STRIPE-INERT',
@@ -238,13 +244,25 @@ const NO_CASE_YET = {
  * assert the credential check and stay green with `getDonationProgress`'s family conjunct
  * deleted, which is worse than no case because it LOOKS like coverage.
  *
- * HOW TO LOWER IT BY ELEVEN: give the harness a Stripe TEST key and a stub or sandbox to talk
+ * ── RAISED FROM 69 TO 70 ON 2026-09-03, AND HERE IS ITS SENTENCE ───────────────────────
+ * One entry: `admin/processing.getFullStripeBill`, which totals the family's own Stripe fees
+ * from Stripe on demand. The thirteenth `STRIPE-INERT` action, and inert first: `stripeClient()`
+ * answers before it reads a row, so with no key in the harness it returns a message key and
+ * never touches the database.
+ *
+ * IT IS ALSO THE ONE ENTRY WHERE THE SHAPE A CASE WOULD ASSERT DOES NOT EXIST. Every other
+ * verdict here is "unreachable without a key"; this one is additionally parameterless — the
+ * account id it works with is read off the CALLER'S OWN family through the guard, so there is
+ * no id for an attacker to pass and no cross-family reference to check (§4's rule satisfied by
+ * having nothing to validate, the way `open_default_family` satisfies §2b's).
+ *
+ * HOW TO LOWER IT BY TWELVE: give the harness a Stripe TEST key and a stub or sandbox to talk
  * to. The actions become reachable, their family conjuncts become assertable, and every one of
  * these verdicts turns into a case. That is a real piece of work — a suite that makes network
  * calls is a slower and flakier suite — and TODO.md carries it rather than this comment
  * pretending it is a five-minute job.
  */
-const BACKLOG_CEILING = 69
+const BACKLOG_CEILING = 70
 
 // ---------------------------------------------------------------- reading both sides
 

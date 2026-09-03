@@ -260,6 +260,13 @@ const KNOWN_DYNAMIC = [
     + 'renamed from `…Reason` is that it used to return the English sentence instead.'],
   ['act.connectNotSetUpDeployment', 'The third reason from the same function, on '
     + '`getProcessorStatus`. Same shape and same reason.'],
+  ['proc.bill', 'getFullStripeBill() RETURNS one of these as a `messageKey` and '
+    + '`RecordedAndActualFees` hands it to `t`. The same shape as the two entries above and '
+    + 'for the same reason — the action must not return an English sentence, because it is '
+    + 'the one place that knows WHY the total is unavailable and the reader\'s language is '
+    + 'only known at render. `proc.billShowTotal`, `…Total`, `…TotalAtLeast`, `…Difference` '
+    + 'and `…BelowRecorded` are named at the call site and are not covered by this prefix '
+    + 'being here; only `…NoAccount` and `…Unavailable` are returned.'],
   ['email.dunning.day', 'dunningEmail() picks the rung: t(`email.dunning.${stage}.subject`), '
     + 'where `stage` is one of the five in 20260901000002 §A. ONE template rather than five, '
     + 'because every rung says the same three things and differs only in the middle paragraph '

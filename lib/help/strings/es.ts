@@ -2298,6 +2298,34 @@ export const helpEs: Catalogue = {
     'Si su familia se ha desconectado, el panel lo dice y el botón dice **Reconectar '
     + 'Stripe** en vez de **Conectar una cuenta de Stripe**, porque de verdad es la misma '
     + 'cuenta volviendo y no una nueva que se crea.',
+  'help.accounting.processing.b10':
+    '**Quién paga la comisión de Stripe es una decisión de su familia, y está en este '
+    + 'panel.** Los pagos con tarjeta cuestan un porcentaje más unos centavos, cada vez. '
+    + '**La familia la absorbe** es la opción predeterminada: a un familiar que debe $40 se '
+    + 'le cobran $40, y la comisión sale de los fondos a los que se encaminó ese pago — así '
+    + 'que los fondos reciben algo menos que el importe registrado. **El miembro la cubre** '
+    + 'le cobra un poco más, de modo que los fondos reciben los $40 completos. El panel '
+    + 'calcula el ejemplo con su propia tarifa mientras la escribe, porque el resultado no '
+    + 'es el que casi nadie espera: subir $40 al 2,9% + 30c da $41,50, no $41,46, ya que la '
+    + 'comisión también se aplica al cargo mayor.',
+  'help.accounting.processing.b11':
+    '**La tarifa que escribe solo sirve para calcular un cargo; nunca se usa como la '
+    + 'comisión.** Lo que Stripe realmente cobró se lee de Stripe en cada pago, y esa es la '
+    + 'cifra que usan sus libros. Así, una tarifa algo equivocada le cuesta a su familia unos '
+    + 'centavos por pago en lugar de meter un número erróneo en el libro mayor — y el panel '
+    + 'imprime lo que de verdad se ha cobrado junto a su tarifa declarada, que es la única '
+    + 'forma en que alguien lo notaría.',
+  'help.accounting.processing.b12':
+    '**Aquí aparecen dos totales de comisiones y responden a preguntas distintas.** El '
+    + 'primero es lo que GENORRA registró — las comisiones de los pagos que este producto '
+    + 'asentó, que es lo que [Resumen de resultados](/reporting/pl-summary) cuenta como '
+    + 'gasto. **Mostrar el total propio de Stripe para esta cuenta** se lo pregunta a '
+    + 'Stripe, y será mayor si su familia ha usado su cuenta de Stripe para otra cosa, o si '
+    + 'Stripe le cobra directamente a la cuenta por facturación mensual o herramientas '
+    + 'antifraude. Esos cargos deliberadamente NO están en los libros de su familia: '
+    + 'GENORRA nunca contó los ingresos con los que se relacionan, así que contar el costo '
+    + 'haría que el informe estuviera mal en el otro sentido. Para la factura detallada, '
+    + 'entre en su propio panel de Stripe.',
   'help.accounting.not-yet.heading': 'Datos bancarios',
   'help.accounting.not-yet.b0':
     'La sección existe en el menú y todavía no está conectada. Es donde vivirán los datos '
