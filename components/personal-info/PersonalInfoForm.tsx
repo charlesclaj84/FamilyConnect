@@ -1,22 +1,19 @@
 'use client'
 
-import { useState, useRef, useTransition } from 'react'
+import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 // `useWatch`, never the `watch()` the same hook returns — see the note below the imports.
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import {
-  Pencil, Camera, Loader2, User, MapPin, Info, Bell, ShieldCheck,
-} from 'lucide-react'
+import { Pencil, User, MapPin, Info, Bell, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { useConfirm } from '@/components/ui/confirm'
-import { saveProfileSection, saveChapterAndPropagate, uploadAvatar, type PersonalInfoRecord } from '@/app/actions/personal-info'
+import { saveProfileSection, saveChapterAndPropagate, type PersonalInfoRecord } from '@/app/actions/personal-info'
 import type { Chapter } from '@/app/actions/admin/chapters'
-import { Avatar } from '@/components/ui/Avatar'
 import { FieldError, FormError } from '@/components/ui/form-message'
 import { TSHIRT_CATEGORIES, TSHIRT_SIZES, PREFIXES, SUFFIXES, type TshirtCategory } from '@/lib/tshirt-sizes'
 import { GENDERS, GENDER_LABELS, genderLabel } from '@/lib/gender'
@@ -71,137 +68,6 @@ function Field({ label, value }: { label: string; value?: string | null }) {
       <p className="text-sm">
         {value || <span className="text-muted-foreground/40 italic text-xs">{t('action.notSet')}</span>}
       </p>
-    </div>
-  )
-}
-
-// ── Avatar with upload ─────────────────────────────────────────────────────────
-
-/**
- * The profile photo, and the one control that changes it.
- *
- * ── IT NOW SAYS WHEN IT FAILS, AND IT DID NOT ───────────────────────────────────────
- * `uploadAvatar`'s result was read only to revert the preview: `if (!result.success)
- * setPreview(existingUrl)`. So every refusal — over 2 MB, wrong type, storage down, the
- * `people` update refused — looked identical from the member's side: the picture flickered to
- * the new one and back, with nothing said. The photo they chose simply did not stick, twice,
- * and then they gave up.
- *
- * That was survivable while the action's only refusals were size and transport. It stopped
- * being survivable on 2026-08-20, when the type check moved server-side — "Choose a JPEG, PNG
- * or WebP image" is a sentence a member can act on, and it was being thrown away.
- *
- * `FormError` and not `FieldError`: the file input is `hidden` and the camera button is the
- * control, so there is no field for a quiet message to sit under, and what failed is the
- * OPERATION rather than one input (AGENTS.md, "Telling somebody something went wrong is a
- * component").
- */
-/**
- * ── `allowed` IS THE PLAN, NOT A PERMISSION (2026-08-22) ────────────────────────────
- * Profile pictures are Standard. When the family being viewed is on Free this renders the
- * portrait frame and NO control — the member sees their initials, exactly as somebody who has
- * not uploaded one does, and there is no camera button to press.
- *
- * NOTHING IS SAID ON THIS SCREEN ABOUT WHY. An upsell on a member's own profile page is aimed
- * at the wrong person — most members cannot change their family's plan — and `/upgrade` is the
- * screen that exists for the one who can. The absent control is the same silence every other
- * tier boundary keeps.
- *
- * IT IS NOT THE GATE. `uploadAvatar` refuses on the tier itself, because a `'use server'`
- * export has a URL whether or not a button exists (AGENTS.md §2), and its header carries the
- * one argument in this product for tier-checking a WRITE.
- */
-function AvatarUpload({ initials, existingUrl, allowed }: {
-  initials: string
-  existingUrl?: string | null
-  /** Does the family being viewed include profile pictures? `familyShowsPhotos`. */
-  allowed: boolean
-}) {
-  const t = useT()
-  const confirm = useConfirm()
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [preview, setPreview] = useState<string | null>(existingUrl ?? null)
-  const [error, setError] = useState('')
-  const [isPending, startTransition] = useTransition()
-
-  async function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const ok = await confirm({
-      title: existingUrl ? t('profile.photo.replaceLong') : t('profile.photo.setLong'),
-      description: existingUrl
-        ? t('profile.photo.replaceConfirm', { name: file.name })
-        : t('profile.photo.setConfirm', { name: file.name }),
-      confirmLabel: existingUrl ? t('profile.photo.replace') : t('profile.photo.set'),
-    })
-    if (!ok) { if (fileRef.current) fileRef.current.value = ''; return }
-    setError('')
-    setPreview(URL.createObjectURL(file))
-    const fd = new FormData()
-    fd.append('file', file)
-    startTransition(async () => {
-      const result = await uploadAvatar(fd)
-      if (!result.success) {
-        setPreview(existingUrl ?? null)
-        setError(result.message ?? t('profile.photo.failed'))
-      }
-      // THE INPUT IS CLEARED EITHER WAY. Without it, choosing the same file again after a
-      // refusal fires no `change` event at all — the value has not changed — so the member's
-      // second attempt does nothing and the message they are looking at stays put, which reads
-      // as the control being broken rather than as the file being wrong.
-      if (fileRef.current) fileRef.current.value = ''
-    })
-  }
-
-  // Before the control, and after the hooks — a conditional return above `useState` would
-  // change the hook order between a Free family and a Standard one, and switching family
-  // re-renders this component rather than remounting the tree above it.
-  if (!allowed) {
-    return (
-      <div className="shrink-0">
-        <Avatar url={null} initials={initials} size="md" />
-      </div>
-    )
-  }
-
-  return (
-    <div className="relative shrink-0">
-      <Avatar url={preview} initials={initials} size="md" />
-      <button
-        type="button"
-        onClick={() => fileRef.current?.click()}
-        disabled={isPending}
-        className="absolute -bottom-1 -end-1 rounded-full bg-muted border border-border p-1 hover:bg-accent transition-colors disabled:opacity-50"
-        aria-label={t('profile.photo.upload')}
-      >
-        {isPending
-          ? <Loader2 className="h-3 w-3 text-muted-foreground animate-spin" />
-          : <Camera className="h-3 w-3 text-muted-foreground" />}
-      </button>
-      {/* `hidden`, NOT `sr-only`. Both hide it from the eye; only `display: none` takes
-          it out of the tab order and the accessibility tree. Under `sr-only` this was a
-          second, UNNAMED "choose file" control sitting immediately after the camera
-          button that already does the job — a keyboard or screen-reader user tabbed
-          into it and was told nothing about what it was for.
-
-          The button above is the real control and `.click()` still reaches a
-          `display: none` input in every browser this app supports. */}
-      <input
-        ref={fileRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        className="hidden"
-        onChange={handleChange}
-      />
-      {/* ABSOLUTELY POSITIONED, because this component is the `headerLeft` of a SectionCard and
-          sits in a flex row beside the member's name — a message in the normal flow would push
-          the heading sideways every time it appeared. `w-max` with a `max-w` so a long sentence
-          wraps into a block rather than stretching the row, and `z-10` to sit above the card
-          edge it overhangs. It renders nothing at all when there is no message, which is what
-          `FormError` guarantees and is why there is no `{error && …}` here. */}
-      <div className="absolute start-0 top-full z-10 w-max max-w-[16rem] pt-2">
-        <FormError message={error} />
-      </div>
     </div>
   )
 }
@@ -913,19 +779,18 @@ const NO_EDIT_TRIGGER: ReadonlySet<ProfileSection> =
   new Set<ProfileSection>(['security'])
 
 export function PersonalInfoForm({
-  existing, chapters = [], familyName = '', photosAllowed, initialSection, signInEmail,
+  existing, chapters = [], familyName = '', initialSection, signInEmail,
   notificationSettings,
 }: {
   existing: PersonalInfoRecord | null
   chapters?: Chapter[]
   familyName?: string
-  /**
-   * Does the family being viewed include profile pictures? Resolved on the page with
-   * `familyShowsPhotos` and threaded down, rather than read here: this is a client component
-   * and the tier is a database fact. NOT optional — a default of `true` is the value that
-   * would silently re-open the boundary on the next surface that forgets to pass it.
-   */
-  photosAllowed: boolean
+  /* `photosAllowed` LEFT WITH THE AVATAR — 2026-09-03. It was resolved on the page with
+     `familyShowsPhotos` and threaded through here to reach `AvatarUpload`; that component is
+     rendered by the page directly now, so the page passes the tier straight to it and this
+     form never sees it. Its old note is worth keeping as a rule for whoever adds the next
+     tier-gated field here: NOT optional, because a default of `true` is the value that
+     silently re-opens the boundary on the first surface that forgets to pass it. */
   /** Resolved from `?section=` on the server, so the first paint is already right. */
   initialSection: ProfileSection
   /** `auth.users.email` — the address the account signs in with, not `primary_email`. */
@@ -967,30 +832,24 @@ export function PersonalInfoForm({
 
   const editing = editingSection === section
 
-  // ── THE MEMBER'S OWN PICTURE, ONCE, FOR EVERY SECTION ──────────────────────────
-  // It used to be `SectionCard`'s `headerLeft` inside `GeneralSection`, so it was on General
-  // and nowhere else: opening Address, Additional Info, Notifications or Sign-in made it
-  // disappear. Reported 2026-09-02.
+  // ── THE MEMBER'S OWN PICTURE IS IN THE PAGE HEADER — 2026-09-03 ────────────────
+  // `AvatarUpload` was rendered here, above the rail, and is now `components/personal-info/
+  // AvatarUpload.tsx` rendered by the PAGE beside the `h1` and the office chips. That is
+  // where a portrait belongs on a profile screen: the heading, the offices somebody holds and
+  // their face are one identity block, and the rail underneath is the document.
   //
-  // ABOVE THE RAIL, not repeated per pane. The panes each `return null` when they are not the
-  // active one, so "render it on all five" by copying would mean five `AvatarUpload`s — five
-  // instances of the tier check, the optimistic preview and the 2 MB refusal, four of them
-  // unmounted at any moment and all five free to drift. One instance outside the panes is the
-  // same judgement `MainRail` itself embodies.
+  // IT HAS MOVED TWICE AND THE INVARIANT IS THE SAME EACH TIME: exactly ONE instance. It was
+  // `SectionCard`'s `headerLeft` inside `GeneralSection`, so it appeared on General and
+  // nowhere else and vanished when a member opened Address (reported 2026-09-02); "render it
+  // per pane" would mean five copies of the tier check, the optimistic preview and the 2 MB
+  // refusal, four unmounted at any moment and all five free to drift.
   //
-  // NOT INSIDE `<MainRail>`. Its `action` slot is the ACTIVE PANE's one action — Edit lives
-  // there — and an avatar is not an action; putting it there would also make it move when the
-  // rail stacks below `sm`.
-  const initials = [existing?.first_name?.[0], existing?.last_name?.[0]]
-    .filter(Boolean).join('').toUpperCase()
+  // `photosAllowed` LEFT WITH IT, because nothing here reads the tier any more — the page
+  // passes it straight to `AvatarUpload`. Lint is what said so: the first version of this
+  // note claimed the prop stayed, and `no-unused-vars` disagreed.
 
   return (
     <div className="space-y-5">
-      <AvatarUpload
-        initials={initials}
-        existingUrl={existing?.avatar_url ?? null}
-        allowed={photosAllowed}
-      />
       <MainRail
         label={t('profile.rail')}
         items={railItems(t)}

@@ -10,6 +10,7 @@ import { getViewingMembership } from '@/lib/auth/family'
 import { familyShowsPhotos } from '@/lib/auth/tier'
 import { getMyNotificationSettings } from '@/app/actions/notification-prefs'
 import { PersonalInfoForm } from '@/components/personal-info/PersonalInfoForm'
+import { AvatarUpload } from '@/components/personal-info/AvatarUpload'
 import { resolveProfileSection } from '@/components/personal-info/profile-sections'
 import { PageShell } from '@/components/layout/PageShell'
 import { callerI18n } from '@/lib/i18n/server'
@@ -75,19 +76,42 @@ export default async function PersonalInfoPage({
       getMyNotificationSettings(),
     ])
 
+  // The fallback the portrait draws when there is no photograph — moved here with
+  // `AvatarUpload`, which used to be rendered by the form and compute this itself. Both
+  // initials are optional: a `people` row can legitimately hold one name, and `.filter`
+  // rather than a template string is what keeps that from rendering as "A undefined".
+  const initials = [existing?.first_name?.[0], existing?.last_name?.[0]]
+    .filter(Boolean).join('').toUpperCase()
+
   return (
     <PageShell>
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold mb-1">{t('page./personal-info.title')}</h1>
-        {myRoles.length > 0 && (
-          <div className="flex flex-wrap gap-2 mt-2 mb-1">
-            {myRoles.map((r, i) => (
-              <span key={i} className="inline-flex items-center text-sm font-medium bg-brand-primary text-brand-on-primary px-3 py-1 rounded-full">
-                {formatRoleTitle(r)}
-              </span>
-            ))}
-          </div>
-        )}
+      {/* ── AN IDENTITY BLOCK: FACE, NAME OF THE SCREEN, OFFICES HELD — 2026-09-03 ──────
+          The portrait was rendered by `PersonalInfoForm` above the rail, where it read as a
+          floating element belonging to nothing. Asked for to the LEFT of the heading and the
+          office chips, and that is the right grouping: those three things are all answers to
+          "who is this", and the rail underneath is the document.
+
+          `items-center` rather than `items-start`, so a member with no office has their face
+          centred on the one line of text rather than hanging above it. `min-w-0` on the text
+          column because the chips wrap and a flex child will not shrink without it. */}
+      <div className="mb-8 flex items-center gap-4">
+        <AvatarUpload
+          initials={initials}
+          existingUrl={existing?.avatar_url ?? null}
+          allowed={photosAllowed}
+        />
+        <div className="min-w-0">
+          <h1 className="text-3xl font-bold">{t('page./personal-info.title')}</h1>
+          {myRoles.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {myRoles.map((r, i) => (
+                <span key={i} className="inline-flex items-center text-sm font-medium bg-brand-primary text-brand-on-primary px-3 py-1 rounded-full">
+                  {formatRoleTitle(r)}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {pending && (
@@ -127,7 +151,6 @@ export default async function PersonalInfoPage({
         existing={existing}
         chapters={chapters}
         familyName={membership?.familyName ?? ''}
-        photosAllowed={photosAllowed}
         initialSection={initialSection}
         signInEmail={user.email ?? ''}
         notificationSettings={notificationSettings}

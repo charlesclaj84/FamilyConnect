@@ -121,6 +121,7 @@ export const es: Catalogue = {
   'account.staff': 'Consola de personal de GENORRA',
   'account.staffHint': 'Todas las familias · se abre en una ventana nueva',
   'account.signOut': 'Cerrar sesión',
+  'account.signOutFailed': 'No pudimos cerrar su sesión ahora. Inténtelo de nuevo.',
 
   // ── THE THEME TOGGLE ─────────────────────────────────────────────────────────────
   'theme.light': 'Claro',
@@ -1612,7 +1613,6 @@ export const es: Catalogue = {
   'profile.section.security': 'Inicio de sesión y seguridad',
   'profile.rail': 'Secciones de mi perfil',
   'profile.editSection': 'Editar {section}',
-  'profile.photo.upload': 'Subir foto de perfil',
   'profile.photo.replaceLong': 'Cambiar la foto de perfil',
   'profile.photo.setLong': 'Poner una foto de perfil',
   'profile.photo.replace': 'Cambiar la foto',
@@ -3589,7 +3589,6 @@ export const es: Catalogue = {
   'auth.nothingArrived': '¿No llegó nada?',
   'auth.backToSignIn': 'Volver a iniciar sesión',
   'auth.sendReset': 'Enviar el enlace',
-  'auth.signOut': 'Cerrar sesión',
   'auth.chooseNew': 'Elija una contraseña nueva',
   'auth.expiredLink': 'Ese enlace para restablecer venció. Pida uno nuevo e inténtelo otra vez.',
   'auth.tooShort': 'La contraseña debe tener al menos 8 caracteres',

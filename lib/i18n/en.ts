@@ -118,6 +118,10 @@ export const en: Catalogue = {
   'account.staff': 'GENORRA staff console',
   'account.staffHint': 'Every family · opens in a new window',
   'account.signOut': 'Sign out',
+  // A REFUSED SIGN-OUT, which used to be invisible: the button navigated to Home, and Home
+  // renders perfectly well for somebody still signed in. It lands on /login now, so a silent
+  // failure would show a login form to a live session — see lib/sign-out.ts.
+  'account.signOutFailed': 'We could not sign you out just now. Please try again.',
 
   // ── THE THEME TOGGLE ──────────────────────────────────────────────────────────────
   'theme.light': 'Light',
@@ -1666,7 +1670,6 @@ export const en: Catalogue = {
   'profile.section.security': 'Sign-in & Security',
   'profile.rail': 'My Profile sections',
   'profile.editSection': 'Edit {section}',
-  'profile.photo.upload': 'Upload profile photo',
   'profile.photo.replaceLong': 'Replace profile photo',
   'profile.photo.setLong': 'Set profile photo',
   'profile.photo.replace': 'Replace photo',
@@ -3682,7 +3685,6 @@ export const en: Catalogue = {
   'auth.nothingArrived': 'Nothing arrived?',
   'auth.backToSignIn': 'Back to sign in',
   'auth.sendReset': 'Send Reset Link',
-  'auth.signOut': 'Sign Out',
   'auth.chooseNew': 'Choose a new password',
   'auth.expiredLink': 'That reset link has expired. Request a new one and try again.',
   'auth.tooShort': 'Password must be at least 8 characters',

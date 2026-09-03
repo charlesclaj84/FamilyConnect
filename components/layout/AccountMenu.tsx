@@ -5,8 +5,7 @@ import { useT } from '@/components/layout/LocaleProvider'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ChevronDown, ExternalLink, LogOut, ShieldCheck, UserCircle, Users } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
-import { clearIdleActivity } from '@/lib/idle-timeout'
+import { signOutThisDevice } from '@/lib/sign-out'
 import { Avatar } from '@/components/ui/Avatar'
 import { ThemeToggle } from '@/components/layout/ThemeToggle'
 import {
@@ -70,6 +69,7 @@ export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false 
   const t = useT()
   const router = useRouter()
   const [open, setOpen] = useState(false)
+  const [signOutFailed, setSignOutFailed] = useState(false)
   const trigger = useRef<HTMLButtonElement>(null)
   const panel = useRef<HTMLDivElement>(null)
 
@@ -92,18 +92,18 @@ export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false 
     parts: () => [trigger.current, panel.current],
   })
 
+  // ── SIGNING OUT IS `lib/sign-out.ts`, NOT A HANDLER HERE ──────────────────────────
+  // The three decisions it owns — `scope: 'local'`, clearing the idle marker only on
+  // success, and landing on `/login` rather than on Home — were written out twice, here
+  // and in a `SignOutButton` that turned out to have no call sites at all. One copy now.
+  //
+  // THE FAILURE IS SHOWN, and it is this menu that has somewhere to show it. A refused
+  // sign-out leaves the session live, and the destination change is what made that worth
+  // reporting: Home rendered fine for a signed-in member, so the old silence cost nothing,
+  // where a login form in front of a live session reads as the button half-working.
   async function handleSignOut() {
-    const supabase = createClient()
-    // `scope: 'local'` — THIS device, not the account. `signOut()` defaults to `'global'`,
-    // which revokes every session the account has: signing out on a laptop was also
-    // signing the member out of their phone, with nothing on screen suggesting it would.
-    await supabase.auth.signOut({ scope: 'local' })
-    // The idle timer's marker belongs to the session that just ended. Left behind, it is
-    // however old this member's last click was, and the next person to sign in on this
-    // browser inherits it — see lib/idle-timeout.ts.
-    clearIdleActivity()
-    router.push('/')
-    router.refresh()
+    setSignOutFailed(false)
+    if (!(await signOutThisDevice(router))) setSignOutFailed(true)
   }
 
   return (
@@ -225,6 +225,16 @@ export function AccountMenu({ name, email, initials, avatarUrl, isStaff = false 
               >
                 <LogOut className="h-4 w-4 shrink-0" /> {t('account.signOut')}
               </button>
+              {/* A REFUSED OPERATION, so `role="alert"` and the destructive treatment — the
+                  rule `components/ui/form-message.tsx` owns. `FormError` itself is not used
+                  here: it carries its own tinted box and metrics for a form, and this is a
+                  9rem-wide menu row under the control that failed. Rendered only when it has
+                  something to say, which is that component's other rule. */}
+              {signOutFailed && (
+                <p role="alert" className="px-3 pb-1 text-xs text-destructive">
+                  {t('account.signOutFailed')}
+                </p>
+              )}
             </div>
           </div>
         </>

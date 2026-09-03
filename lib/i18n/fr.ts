@@ -141,6 +141,8 @@ export const fr: Catalogue = {
   'account.staff': 'Console du personnel GENORRA',
   'account.staffHint': 'Toutes les familles · s’ouvre dans une nouvelle fenêtre',
   'account.signOut': 'Se déconnecter',
+  'account.signOutFailed':
+    'Nous n’avons pas pu vous déconnecter pour le moment. Veuillez réessayer.',
 
   // ── THE THEME TOGGLE ─────────────────────────────────────────────────────────────
   'theme.light': 'Clair',
@@ -1651,7 +1653,6 @@ export const fr: Catalogue = {
   'profile.section.security': 'Connexion et sécurité',
   'profile.rail': 'Sections de mon profil',
   'profile.editSection': 'Modifier : {section}',
-  'profile.photo.upload': 'Téléverser une photo de profil',
   'profile.photo.replaceLong': 'Remplacer la photo de profil',
   'profile.photo.setLong': 'Ajouter une photo de profil',
   'profile.photo.replace': 'Remplacer la photo',
@@ -3678,7 +3679,6 @@ export const fr: Catalogue = {
   'auth.nothingArrived': 'Rien n’est arrivé ?',
   'auth.backToSignIn': 'Retour à la connexion',
   'auth.sendReset': 'Envoyer le lien de réinitialisation',
-  'auth.signOut': 'Se déconnecter',
   'auth.chooseNew': 'Choisissez un nouveau mot de passe',
   'auth.expiredLink': 'Ce lien de réinitialisation a expiré. Demandez-en un nouveau et réessayez.',
   'auth.tooShort': 'Le mot de passe doit compter au moins 8 caractères',
