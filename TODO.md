@@ -802,6 +802,45 @@ it. That is the next build, and it is a build rather than a config change.
 
 Recorded 2026-08-23, rewritten 2026-09-01 and 2026-09-03.
 
+## `setRelationshipType` HAS NO CALLER, AND THAT IS A LIVE ENDPOINT
+
+**Action:** decide whether renaming a marriage — Wife to Ex-Wife — comes back somewhere, or
+whether the action is deleted. Recorded 2026-09-03.
+
+The "How xyz is related" section was removed from **Manage xyz** on the family tree, asked for
+directly. What that list carried, besides the read-only roll of who somebody is attached to,
+was the ONE control anywhere in the product for renaming a marriage: three buttons over
+`SPOUSE_TYPES`, calling `setRelationshipType`.
+
+**SO A CAPABILITY WENT WITH THE SECTION, AND IT IS NOT RECOVERABLE FROM ANOTHER SCREEN.**
+`AddRelativeDialog` takes its `relationshipType` from the caller — the canvas decides it from
+which "+" slot was pressed — so a marriage is drawn as Wife or Husband and there is now no way
+to say that it ended. A family with a divorce in it cannot record one.
+
+**AND THE ACTION IS STILL PUBLISHED.** `app/actions/family-tree.ts` exports it, so it keeps its
+URL and stays callable by anyone signed in, which is AGENTS.md's *"COMING SOON WITHHOLDS A PAGE.
+IT DOES NOT WITHHOLD AN ACTION"* arriving from the other direction — a screen was removed rather
+than never built, and the endpoint underneath is unchanged. It is not a hole today: it resolves
+`community/family-tree:edit` at `canAny`, checks both ids with `belongsToFamily`, and
+`tests/rls` covers it. It is simply an endpoint nobody exercises, which is the state that
+section says goes stale.
+
+**IT WAS NOT DELETED IN THE SAME COMMIT, DELIBERATELY.** Where that control belongs is a product
+decision — the person dialog, a control on the marriage edge itself, or the add dialog learning
+to offer the word — and deleting the action would settle it by attrition. Three ways out, and
+the middle one is the cheapest:
+
+* **Put the marriage control back on its own**, without the connection list around it. A
+  marriage is the one edge with something to change, so a single row per spouse in the person
+  dialog says nothing about the rest of the tree.
+* **Let the add dialog offer the word** for a spouse. Cheapest, and wrong on its own: it records
+  a marriage that was ALREADY over and still cannot end a live one.
+* **Delete the action and the three `SPOUSE_TYPES` rows with it**, and say in the manual that
+  the tree records marriages and not divorces. Honest, and a loss.
+
+`relationLabelFor` and `connectionsFor` went with the section; `SPOUSE_TYPES` and
+`relationshipMeta` are still exported from `lib/family-tree.ts` and still used elsewhere.
+
 ## `tests/rls` has no member who has replied STOP
 
 **Action:** add a `stop_received` consent event to one ALPHA actor in the fixture, and a case

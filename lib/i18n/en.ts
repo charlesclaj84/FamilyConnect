@@ -1084,9 +1084,6 @@ export const en: Catalogue = {
   'gal.albumIsASet':
     'An album is a set of photographs the family keeps together — a reunion, a wedding, a year.',
   'gal.deleteNamedAlbumAria': 'Delete the album “{name}”',
-  'rec.howRelated': 'How {name} is related',
-  'rec.formerMarriageNote':
-    'A former marriage stays on the tree beside {name} — it is usually where half the children came from. A marriage never carries blood.',
   'rem.nobodyCanOpen':
     'Nobody can open it, join it or accept an invitation to it. {nothingDeleted} — every payment, photograph, event and person is exactly where it was. Only {app} support can bring it back; write to them and ask.',
   'set.codeSentTo':
@@ -1221,7 +1218,6 @@ export const en: Catalogue = {
   'rec.inBloodline': '{name} is in the family’s bloodline',
   'rec.inBloodlineHint': 'Decides who appears under {view} on the tree, and who owes a due restricted to the bloodline. Saved as soon as you tick it.',
   'rec.bloodlineFailed': 'Could not change that.',
-  'rec.connectionsHint': 'Who this person is attached to. A marriage can be renamed; the rest are the relationships somebody recorded.',
   'proj.bloodlineEmptyNote': 'Nobody owes this: your family has not marked anybody as being in its bloodline, so there is nobody to charge. Tick {control} on the family tree.',
   'gal.fileTooLarge': '{name} is larger than 10 MB.',
   'gal.albumGoneFilesLeftOne':
@@ -2398,9 +2394,7 @@ export const en: Catalogue = {
   'rel.onTreeNoInvite':
     'They are on the tree, but we could not create an invitation — most often because that '
     + 'address is already in your family. Link the existing person instead.',
-  'rec.saved': 'Saved.',
   'rec.savedShort': 'Saved',
-  'rec.connectionFailed': 'Could not change that connection.',
   'rec.needNames': 'Enter a first and last name',
   'rec.saveFailed': 'Could not save that.',
   'rec.inviteFailed': 'Could not invite them.',
@@ -2408,7 +2402,6 @@ export const en: Catalogue = {
     'They manage their own profile, so only the connection is yours to change.',
   'rec.noAccountAnyone':
     'They have no account, so anyone in the family can keep this record right.',
-  'rec.saveDetails': 'Save details',
   'rec.inviting': 'Inviting…',
   'rec.sendInvitation': 'Send invitation',
   'chat.messages': 'Messages',

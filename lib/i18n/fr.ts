@@ -1090,9 +1090,6 @@ export const fr: Catalogue = {
   'gal.albumIsASet':
     'Un album est un ensemble de photographies que la famille conserve ensemble — un rassemblement, un mariage, une année.',
   'gal.deleteNamedAlbumAria': 'Supprimer l’album « {name} »',
-  'rec.howRelated': 'Comment {name} est apparenté',
-  'rec.formerMarriageNote':
-    'Un ancien mariage reste sur l’arbre à côté de {name} — c’est généralement d’où vient la moitié des enfants. Un mariage ne transmet jamais le sang.',
   'rem.nobodyCanOpen':
     'Personne ne peut l’ouvrir, la rejoindre ni accepter une invitation. {nothingDeleted} — chaque paiement, photographie, évènement et personne est exactement là où il était. Seul le support {app} peut la rétablir ; écrivez-leur pour le demander.',
   'set.codeSentTo':
@@ -1228,7 +1225,6 @@ export const fr: Catalogue = {
   'rec.inBloodline': '{name} fait partie de la lignée de la famille',
   'rec.inBloodlineHint': 'Décide qui apparaît sous {view} dans l’arbre, et qui doit une cotisation réservée à la lignée. Enregistré dès que vous cochez.',
   'rec.bloodlineFailed': 'Impossible de changer cela.',
-  'rec.connectionsHint': 'À qui cette personne est rattachée. Un mariage peut être renommé ; les autres sont les relations que quelqu’un a enregistrées.',
   'proj.bloodlineEmptyNote': 'Personne ne doit ceci : votre famille n’a marqué personne comme faisant partie de sa lignée, il n’y a donc personne à facturer. Cochez {control} dans l’arbre familial.',
   'gal.fileTooLarge': '{name} dépasse 10 Mo.',
   'gal.albumGoneFilesLeftOne':
@@ -2402,9 +2398,7 @@ export const fr: Catalogue = {
     'La personne est sur l’arbre, mais nous n’avons pas pu créer d’invitation — le plus '
     + 'souvent parce que cette adresse est déjà dans votre famille. Reliez plutôt la personne '
     + 'existante.',
-  'rec.saved': 'Enregistré.',
   'rec.savedShort': 'Enregistré',
-  'rec.connectionFailed': 'Ce lien n’a pas pu être modifié.',
   'rec.needNames': 'Saisissez un prénom et un nom',
   'rec.saveFailed': 'Cela n’a pas pu être enregistré.',
   'rec.inviteFailed': 'Cette personne n’a pas pu être invitée.',
@@ -2412,7 +2406,6 @@ export const fr: Catalogue = {
   'rec.noAccountAnyone':
     'Elle n’a pas de compte, donc n’importe qui dans la famille peut tenir cette fiche à '
     + 'jour.',
-  'rec.saveDetails': 'Enregistrer les informations',
   'rec.inviting': 'Invitation…',
   'rec.sendInvitation': 'Envoyer l’invitation',
   'chat.messages': 'Messages',

@@ -1055,9 +1055,6 @@ export const es: Catalogue = {
   'gal.albumIsASet':
     'Un álbum es un conjunto de fotografías que la familia guarda juntas: una reunión, una boda, un año.',
   'gal.deleteNamedAlbumAria': 'Eliminar el álbum «{name}»',
-  'rec.howRelated': 'Cómo está relacionado {name}',
-  'rec.formerMarriageNote':
-    'Un matrimonio anterior se queda en el árbol junto a {name}: normalmente es de donde vino la mitad de los hijos. Un matrimonio nunca lleva sangre.',
   'rem.nobodyCanOpen':
     'Nadie puede abrirla, unirse a ella ni aceptar una invitación. {nothingDeleted}: cada pago, fotografía, evento y persona está exactamente donde estaba. Solo el soporte de {app} puede recuperarla; escríbales y pídalo.',
   'set.codeSentTo':
@@ -1191,7 +1188,6 @@ export const es: Catalogue = {
   'rec.inBloodline': '{name} pertenece al linaje de la familia',
   'rec.inBloodlineHint': 'Decide quién aparece en {view} en el árbol, y quién debe una cuota restringida al linaje. Se guarda en cuanto lo marca.',
   'rec.bloodlineFailed': 'No se pudo cambiar eso.',
-  'rec.connectionsHint': 'A quién está vinculada esta persona. Un matrimonio se puede renombrar; el resto son las relaciones que alguien registró.',
   'proj.bloodlineEmptyNote': 'Nadie debe esto: su familia no ha marcado a nadie como perteneciente a su linaje, así que no hay a quién cobrar. Marque {control} en el árbol familiar.',
   'gal.fileTooLarge': '{name} pesa más de 10 MB.',
   'gal.albumGoneFilesLeftOne':
@@ -2338,9 +2334,7 @@ export const es: Catalogue = {
   'rel.onTreeNoInvite':
     'Están en el árbol, pero no pudimos crear una invitación: casi siempre porque esa '
     + 'dirección ya está en su familia. Vincule a la persona existente en su lugar.',
-  'rec.saved': 'Guardado.',
   'rec.savedShort': 'Guardado',
-  'rec.connectionFailed': 'No se pudo cambiar esa conexión.',
   'rec.needNames': 'Escriba un nombre y un apellido',
   'rec.saveFailed': 'No se pudo guardar eso.',
   'rec.inviteFailed': 'No se pudo invitarlos.',
@@ -2348,7 +2342,6 @@ export const es: Catalogue = {
     'Esa persona administra su propio perfil, así que solo la conexión es suya para cambiar.',
   'rec.noAccountAnyone':
     'No tiene cuenta, así que cualquiera en la familia puede mantener esta ficha al día.',
-  'rec.saveDetails': 'Guardar los datos',
   'rec.inviting': 'Invitando…',
   'rec.sendInvitation': 'Enviar la invitación',
   'chat.messages': 'Mensajes',

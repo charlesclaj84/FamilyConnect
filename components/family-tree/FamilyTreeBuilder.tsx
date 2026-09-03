@@ -12,7 +12,7 @@ import { disambiguatedName } from '@/lib/name-utils'
 import { HelpLink } from '@/components/help/HelpLink'
 import { AddRelativeDialog } from '@/components/family-tree/AddRelativeDialog'
 import {
-  PersonRecordDialog, type TreeConnection,
+  PersonRecordDialog,
 } from '@/components/family-tree/PersonRecordDialog'
 import {
   TREE_RELATIONSHIPS, leafIds, relationshipMeta,
@@ -144,7 +144,15 @@ export function FamilyTreeBuilder({
   // had clicked: a grandparent, reached through a parent, arrived with no edge at all and
   // offered nothing, and the tree's own instruction to mark a step-relationship had
   // nowhere to be carried out. The dialog is handed EVERY connection this person has and
-  // offers each of them (see `connectionsFor`).
+  // nowhere to be carried out.
+  //
+  // THE CONNECTION LIST LEFT THE DIALOG ON 2026-09-03, asked for: "Manage xyz" no longer
+  // shows a "How xyz is related" section. What that section still carried was the one
+  // control for renaming a marriage — Wife to Ex-Wife — so `setRelationshipType` has no
+  // caller in the product now. TODO.md records that rather than the action being deleted
+  // in passing: a caller-less `'use server'` export is still a live HTTP endpoint
+  // (AGENTS.md, "COMING SOON WITHHOLDS A PAGE"), and where the control should re-appear is
+  // a product decision rather than a tidy-up.
   const [managing, setManaging] = useState<TreePerson | null>(null)
 
   // Bloodline or the whole family. UI-local and deliberately NOT keyed on familyCode: it
@@ -434,31 +442,6 @@ export function FamilyTreeBuilder({
 
   const displayName = (person: TreePerson) =>
     nameOf.get(person.id) ?? `${person.firstName} ${person.lastName}`.trim()
-
-  /**
-   * Every connection this person has, as the manage dialog needs them.
-   *
-   * `getFamilyTree` normalizes each stored row into BOTH directions, so the edges out of
-   * one person are the whole of their adjacency however the rows were written. Taking
-   * them from the PERSON rather than from the card that was clicked is what lets a
-   * grandparent's link be re-classified: their edge is to a parent, not to the focus, so
-   * the card the tree drew them on carried nothing to hand over.
-   *
-   * `label` names the OTHER person relative to this one, which is what the edge's own
-   * direction already says: `relation` reads "`to` is `from`'s parent", and `to` is who
-   * we are labelling.
-   */
-  const connectionsFor = (person: TreePerson): TreeConnection[] =>
-    (links.get(person.id) ?? []).flatMap(edge => {
-      const other = byId.get(edge.to)
-      if (!other) return []
-      return [{
-        edge,
-        otherId: other.id,
-        otherName: displayName(other),
-        label: relationLabelFor(edge, other),
-      }]
-    })
 
   const card = (person: TreePerson, opts?: {
     edge?: TreeEdge
@@ -996,37 +979,27 @@ export function FamilyTreeBuilder({
       )}
 
       {managing && (
+        /* ── KEYED ON THE PERSON, AND THAT IS NOW LOAD-BEARING — 2026-09-03 ──────────
+           React reconciles by position, so `managing` moving from one person straight to
+           another re-renders this component rather than remounting it — and every field in
+           it is seeded by a `useState` initializer, which runs once. That was survivable
+           while each control wrote as it was touched; it is not now the dialog HOLDS
+           unsaved edits, because one relative's half-typed name would be sitting in the
+           form over another relative's record with Save enabled.
+
+           The `key` is the fix rather than an effect that re-imposes the props: an effect
+           would fight the member's own typing. Same judgement as `<main key={familyCode}>`
+           in the protected layout, one scope down. */
         <PersonRecordDialog
+          key={managing.id}
           open
           onClose={() => setManaging(null)}
           person={managing}
           name={displayName(managing)}
-          // EVERY connection they have, not the one their card was reached by. That is
-          // what makes "is this person in the bloodline?" answerable from anywhere on the
-          // canvas rather than only from the card of somebody they are directly linked to.
-          connections={connectionsFor(managing)}
         />
       )}
     </div>
   )
-}
-
-/**
- * "Son", "Daughter", "Father" — the specific word for an edge, given the person it points
- * at.
- *
- * `TreeEdge.relation` is the folded form ('parent', 'child', 'sibling'), which is what the
- * canvas lays out with and is the wrong thing to show somebody: "How is Ada Charles's
- * child?" reads as a riddle. `TREE_RELATIONSHIPS` maps back the other way through gender.
- *
- * Falls back to the folded word when the gender is not recorded, which is most of a real
- * tree and is why this returns a string rather than insisting.
- */
-function relationLabelFor(edge: TreeEdge, person: TreePerson): string {
-  const match = TREE_RELATIONSHIPS.find(
-    r => r.relation === edge.relation && r.gender === person.gender,
-  )
-  return match?.label ?? relationshipMeta(edge.relation)?.label ?? edge.relation
 }
 
 /**

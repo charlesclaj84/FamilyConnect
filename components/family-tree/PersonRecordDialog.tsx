@@ -10,30 +10,10 @@ import { FormError } from '@/components/ui/form-message'
 import { GENDERS, GENDER_LABELS } from '@/lib/gender'
 import { cn } from '@/lib/utils'
 import {
-  editPersonRecord, invitePersonRecord, setPersonBloodline, setRelationshipType,
-  type TreeEdge, type TreePerson,
+  editPersonRecord, invitePersonRecord, setPersonBloodline,
+  type TreePerson,
 } from '@/app/actions/family-tree'
-import {
-  SPOUSE_TYPES, relationshipMeta,
-} from '@/lib/family-tree'
 import { useT } from '@/components/layout/LocaleProvider'
-
-/**
- * One connection this person has, as the dialog needs it.
- *
- * The EDGE plus the name and the word for the person at the other end — everything the
- * two controls need, resolved by the canvas where the adjacency and the disambiguated
- * names already are. Declared here rather than in the builder because this is the shape's
- * consumer; the builder imports the type.
- */
-export interface TreeConnection {
-  edge: TreeEdge
-  /** The `people.id` at the far end. `edge.typeName` names THEM. */
-  otherId: string
-  otherName: string
-  /** "Son", "Father", "Wife" — the word for the other person relative to this one. */
-  label: string
-}
 
 /**
  * Managing somebody on the tree: how they are related, and — for a record nobody has
@@ -78,36 +58,13 @@ export interface TreeConnection {
  * is what lets the connection controls be seeded straight from the edges.
  */
 export function PersonRecordDialog({
-  open, onClose, person, name, connections,
+  open, onClose, person, name,
 }: {
   open: boolean
   onClose: () => void
   person: TreePerson
   /** The disambiguated name, so two Martha Allens are told apart in the title. */
   name: string
-  /**
-   * EVERY connection this person has, in the canvas's own order.
-   *
-   * ── WHY ALL OF THEM AND NOT THE ONE THE CARD WAS REACHED BY ──────────────────────
-   * This used to take a single `edge` — the link from the focus person — plus a separate
-   * `spouseEdge`, and what could be corrected therefore depended on which card had been
-   * clicked. A grandparent is drawn from their child's card and has no edge to the focus
-   * at all, so their card offered nothing: there was no way anywhere in the product to
-   * record that a grandmother was a step-grandmother, on the one screen whose Bloodline
-   * toggle depends on that answer.
-   *
-   * ── ONE CONTROL LEFT, AND IT IS THE MARRIAGE ONE ──────────────────────────────────
-   * A marriage can be RENAMED — Wife to Ex-Wife — and that is the only thing about a
-   * relationship this dialog can change. Every other connection used to carry a four-way
-   * blood/step/adopted/foster picker; `20260902000000` moved that question off the link and
-   * onto the person, where it is the single checkbox above this list.
-   *
-   * The rows for those connections still render, with no control on them, deliberately: the
-   * list answers "who is this person attached to, and how", which is worth reading whether
-   * or not there is anything to change. A list that showed only marriages would look like a
-   * person with one relative.
-   */
-  connections: TreeConnection[]
 }) {
   const t = useT()
   const router = useRouter()
@@ -116,13 +73,6 @@ export function PersonRecordDialog({
   // corrected on refusal, which is what keeps the control showing what the database holds
   // rather than what was clicked.
   const [isBloodline, setIsBloodline] = useState(person.isBloodline)
-  const [bloodlineSaved, setBloodlineSaved] = useState(false)
-  const [types, setTypes] = useState<Record<string, string>>(
-    () => Object.fromEntries(
-      connections.filter(c => c.edge.typeName).map(c => [c.edge.id, c.edge.typeName as string]),
-    ),
-  )
-  const [savedId, setSavedId] = useState<string | null>(null)
   const [firstName, setFirstName] = useState(person.firstName ?? '')
   const [lastName, setLastName] = useState(person.lastName ?? '')
   const [nickName, setNickName] = useState(person.nickName ?? '')
@@ -134,78 +84,106 @@ export function PersonRecordDialog({
   const [invited, setInvited] = useState<{ emailed: boolean } | null>(null)
   const [isPending, startTransition] = useTransition()
 
+  /**
+   * Close, discarding anything unsaved.
+   *
+   * IT RESETS THE FIELDS NOW, which it did not have to while every control wrote as it was
+   * touched. `FamilyTreeBuilder` renders this as `{managing && <PersonRecordDialog …>}` and
+   * keys it on the person, so a fresh dialog gets fresh state — but Cancel must not leave a
+   * half-typed name behind for the same person reopened, which would read as the product
+   * having saved it.
+   */
   function close() {
-    onClose()
+    setIsBloodline(person.isBloodline)
+    setFirstName(person.firstName ?? '')
+    setLastName(person.lastName ?? '')
+    setNickName(person.nickName ?? '')
+    setDateOfBirth(person.dateOfBirth ?? '')
+    setGender(person.gender ?? '')
     setError('')
     setSaved(false)
-    setSavedId(null)
     setInvited(null)
     setEmail('')
+    onClose()
   }
 
-  function saveType(connection: TreeConnection, next: string) {
-    const previous = types[connection.edge.id] ?? ''
-    setTypes(prev => ({ ...prev, [connection.edge.id]: next }))
-    setError('')
-    setSavedId(null)
-    startTransition(async () => {
-      // THE SUBJECT IS THE OTHER PERSON, because `next` is the word for them: the edge
-      // points out of the person this dialog is about, and `typeName` on it names the far
-      // end. The action turns the word round when the stored row runs the other way — see
-      // `subjectPersonId` there, and note that getting this wrong is a SILENT inversion
-      // rather than an error.
-      const r = await setRelationshipType(connection.edge.id, next, connection.otherId)
-      if (!r.success) {
-        setError(r.message ?? t('rec.connectionFailed'))
-        // Put the control back where the database still is.
-        setTypes(prev => ({ ...prev, [connection.edge.id]: previous }))
-        return
-      }
-      setSavedId(connection.edge.id)
-      router.refresh()
-    })
-  }
+  // Whose row this is decides what Save may touch. `editPersonRecord` refuses a row with a
+  // `user_id` — its owner is the authority on their own name, which is what
+  // `saveProfileSection` is for (AGENTS.md §4b's three editing surfaces) — so for a member
+  // with an account the bloodline tick is the whole of this dialog.
+  const canEditDetails = !person.hasAccount
 
-  // OPTIMISTIC, AND PUT BACK ON REFUSAL. `setPersonBloodline` resolves
-  // `community/family-tree:edit` itself and `people_guard_bloodline` refuses the browser
-  // role outright, so a tick that is not allowed comes back false — and the control has to
-  // show what the database holds rather than what was clicked, or somebody reads a
-  // permission they do not have off their own screen.
-  function saveBloodline(next: boolean) {
-    setIsBloodline(next)
-    setError('')
-    setBloodlineSaved(false)
-    startTransition(async () => {
-      const r = await setPersonBloodline(person.id, next)
-      if (!r.success) {
-        setError(r.message ?? t('rec.bloodlineFailed'))
-        setIsBloodline(person.isBloodline)
-        return
-      }
-      setBloodlineSaved(true)
-      router.refresh()
-    })
-  }
+  // ── NOTHING HERE SAVES UNTIL SAVE IS PRESSED — 2026-09-03 ──────────────────────
+  // The bloodline tick used to write on `change` and the marriage-type buttons wrote on
+  // `click`, so this dialog committed three different things at three different moments and
+  // its only footer button said "Done" — which is a word for a dialog that has already
+  // saved. Asked for as: the popups should not autosave, you must click Save, and Cancel
+  // simply closes.
+  //
+  // WHAT IS DIRTY IS DERIVED, never a `hasChanges` flag. A stored flag is the `is_minor`
+  // trap in miniature — it goes stale the first time a field is edited back to its original
+  // value, and then Save is offered for a write that would change nothing.
+  const bloodlineDirty = isBloodline !== person.isBloodline
+  const detailsDirty = canEditDetails && (
+    firstName !== (person.firstName ?? '')
+    || lastName !== (person.lastName ?? '')
+    || nickName !== (person.nickName ?? '')
+    || dateOfBirth !== (person.dateOfBirth ?? '')
+    || gender !== (person.gender ?? '')
+  )
+  const dirty = bloodlineDirty || detailsDirty
 
-  function saveDetails() {
+  /**
+   * Save what changed, and only what changed.
+   *
+   * ── ONLY WHAT CHANGED, BECAUSE THE TWO WRITES HAVE DIFFERENT GATES ───────────────
+   * Not an optimisation. `setPersonBloodline` is `canAny('community/family-tree', 'edit')`
+   * — it decides money through `dues_schedules.bloodline_scope`, so the browser role is
+   * refused outright by `people_guard_bloodline` and it runs on the admin client.
+   * `editPersonRecord` needs only `requireMember()`. So a member who may correct a
+   * grandmother's birthday but not answer the bloodline question would, under a
+   * save-everything button, be refused for a field they never touched.
+   *
+   * ── THE BLOODLINE GOES FIRST, AND IS NOT REVERTED IF THE DETAILS THEN FAIL ───────
+   * A partial success is reported as one rather than tidied away: the tick really is saved
+   * at that point, so putting the control back would be the screen lying about the
+   * database. The same judgement `saveChapterAndPropagate` makes about a propagation that
+   * half-worked.
+   */
+  function save() {
     setError('')
     setSaved(false)
-    if (!firstName.trim() || !lastName.trim()) {
+    // Only when the details are actually part of this save. A person WITH an account has no
+    // details form at all, so validating their names would refuse a bloodline change over
+    // fields that are not on screen.
+    if (detailsDirty && (!firstName.trim() || !lastName.trim())) {
       setError(t('rec.needNames'))
       return
     }
     startTransition(async () => {
-      const r = await editPersonRecord(person.id, {
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        // Empty means "not recorded", and the columns are nullable — '' would be a
-        // birthday of the empty string, which `computeIsMinor` and every date format
-        // helper would then have to defend against.
-        nick_name: nickName.trim() || null,
-        date_of_birth: dateOfBirth || null,
-        gender: gender || null,
-      })
-      if (!r.success) { setError(r.message ?? t('rec.saveFailed')); return }
+      if (bloodlineDirty) {
+        const r = await setPersonBloodline(person.id, isBloodline)
+        if (!r.success) {
+          setError(r.message ?? t('rec.bloodlineFailed'))
+          // Put the control back where the database still is, so nobody reads a permission
+          // they do not have off their own screen.
+          setIsBloodline(person.isBloodline)
+          return
+        }
+      }
+      if (detailsDirty) {
+        const r = await editPersonRecord(person.id, {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          // Empty means "not recorded", and the columns are nullable — '' would be a
+          // birthday of the empty string, which `isMinorOn` and every date format helper
+          // would then have to defend against.
+          nick_name: nickName.trim() || null,
+          date_of_birth: dateOfBirth || null,
+          gender: gender || null,
+        })
+        if (!r.success) { setError(r.message ?? t('rec.saveFailed')); return }
+      }
       setSaved(true)
       router.refresh()
     })
@@ -258,88 +236,20 @@ export function PersonRecordDialog({
               type="checkbox"
               checked={isBloodline}
               disabled={isPending}
-              onChange={e => saveBloodline(e.target.checked)}
+              onChange={e => { setIsBloodline(e.target.checked); setSaved(false) }}
               className="mt-0.5 h-4 w-4 rounded border-input disabled:opacity-60"
             />
             <span>{t('rec.inBloodline', { name })}</span>
-            {bloodlineSaved && (
-              <span className="font-medium text-brand-affirm">{t('rec.saved')}</span>
-            )}
           </label>
           <p className="text-xs text-muted-foreground">
             {t('rec.inBloodlineHint', { view: t('tree.bloodline') })}
           </p>
         </div>
 
-        {connections.length > 0 && (
-          <div className="space-y-4">
-            <div>
-              <Label>{t('rec.howRelated', { name })}</Label>
-              <p className="mt-1 text-xs text-muted-foreground">{t('rec.connectionsHint')}</p>
-            </div>
-
-            {connections.map(connection => {
-              const isMarriage = connection.edge.relation === 'spouse'
-              const type = types[connection.edge.id] ?? ''
-              const saved = savedId === connection.edge.id
-              return (
-                <div key={connection.edge.id} className="space-y-2 rounded-xl border px-3 py-3">
-                  <p className="text-xs font-medium">
-                    {/* WHO, THEN WHAT THEY ARE TO THIS PERSON. `label` names the far end
-                        relative to the person this dialog is about — that is the direction
-                        the edge itself carries — so it reads "Samuel Allen · Charles's
-                        father". A bare "father" would be unreadable in a list of four. */}
-                    {connection.otherName}
-                    <span className="text-muted-foreground">
-                      {' · '}{name}&apos;s {connection.label.toLowerCase()}
-                    </span>
-                  </p>
-
-                  {/* ONLY A MARRIAGE HAS ANYTHING TO CHANGE. Everything else is a word
-                      naming a relationship somebody recorded, and the one thing that used
-                      to be adjustable about it — blood or step — is the person's own tick
-                      above now. */}
-                  {isMarriage && (
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      {SPOUSE_TYPES.map(option => {
-                        const active = type === option
-                        return (
-                          <button
-                            key={option}
-                            type="button"
-                            onClick={() => saveType(connection, option)}
-                            disabled={isPending}
-                            aria-pressed={active}
-                            className={cn(
-                              'rounded-xl border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60',
-                              active
-                                ? 'border-brand-primary bg-brand-soft text-brand-on-soft'
-                                : 'border-input text-muted-foreground hover:border-brand-primary/40 hover:text-foreground',
-                            )}
-                          >
-                            {relationshipMeta(option)?.label ?? option}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-
-                  {isMarriage && (
-                    <p className="text-xs text-muted-foreground">
-                      {t('rec.formerMarriageNote', { name })}
-                      {saved && <span className="ms-1 font-medium text-brand-affirm">{t('rec.saved')}</span>}
-                    </p>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-
         {!person.hasAccount && (
         <form
           className="space-y-4"
-          onSubmit={e => { e.preventDefault(); saveDetails() }}
+          onSubmit={e => { e.preventDefault(); save() }}
         >
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -400,21 +310,11 @@ export function PersonRecordDialog({
             <p className="text-xs text-muted-foreground">{t('ui.decidesWhetherTheyFill')}</p>
           </div>
 
-          <div className="flex items-center justify-end gap-3">
-            {saved && (
-              <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                <Check className="h-4 w-4 text-brand-affirm" aria-hidden="true" />
-                {t('rec.savedShort')}
-              </span>
-            )}
-            <button
-              type="submit"
-              disabled={isPending}
-              className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
-            >
-              {isPending ? t('action.saving') : t('rec.saveDetails')}
-            </button>
-          </div>
+          {/* NO BUTTON OF ITS OWN. There is one Save for the whole dialog, in the footer,
+              because the bloodline tick and these fields are two writes a member makes in
+              one sitting — a "Save details" button beside a tick that saved itself was
+              exactly the inconsistency this change removes. The `<form>` stays for the
+              keyboard: Enter in any field submits, which `onSubmit` routes to that one Save. */}
         </form>
         )}
 
@@ -473,13 +373,37 @@ export function PersonRecordDialog({
 
         <FormError message={error} />
 
-        <div className="flex justify-end">
+        {/* ── CANCEL DISCARDS, SAVE COMMITS — 2026-09-03 ───────────────────────────
+            This was a single button reading "Done", which is the right word for a dialog
+            whose controls have already written and the wrong one for a dialog holding
+            unsaved edits: it says the work is finished where Cancel says it is being thrown
+            away. Both are `type="button"` — the footer sits OUTSIDE the details form, so a
+            submit here would do nothing at all.
+
+            SAVE IS DISABLED UNTIL SOMETHING IS DIRTY, so pressing it can never be a write
+            that changes nothing, and a member who opened the dialog to read it is not
+            invited to save. */}
+        <div className="flex items-center justify-end gap-3">
+          {saved && (
+            <span className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <Check className="h-4 w-4 text-brand-affirm" aria-hidden="true" />
+              {t('rec.savedShort')}
+            </span>
+          )}
           <button
             type="button"
             onClick={close}
             className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
           >
-            {t('action.done')}
+            {t('action.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={save}
+            disabled={isPending || !dirty}
+            className="rounded-lg bg-brand-primary px-3 py-1.5 text-sm font-medium text-brand-on-primary transition-opacity hover:opacity-90 disabled:opacity-60"
+          >
+            {isPending ? t('action.saving') : t('action.save')}
           </button>
         </div>
       </div>
