@@ -3629,6 +3629,20 @@ export const helpFr: Catalogue = {
     + 'pourquoi, avec **Effacer les filtres** pour toutes les remettre. Aucun des deux '
     + 'filtres ne change quoi que ce soit pour quiconque d’autre — c’est ce que vous '
     + 'regardez, non ce que l’album contient.',
+  'help.gallery.finding.b3':
+    '**Chercher dans tous les albums** est un champ à part, en haut de la '
+    + '[Galerie](/community/gallery) plutôt qu’à l’intérieur d’un album. Il prend les deux '
+    + 'mêmes choses — des mots d’une légende et toute personne identifiée — et parcourt en '
+    + 'une fois toutes les photographies de la famille. Chaque résultat indique dans quel '
+    + 'album il se trouve, et l’ouvrir ouvre cet album.',
+  'help.gallery.finding.b4':
+    'Les deux champs se comportent différemment, et c’est voulu. À l’intérieur d’un album, '
+    + 'choisir trois personnes identifiées ÉLARGIT le résultat : vous obtenez les '
+    + 'photographies où figure l’une quelconque d’entre elles. En cherchant dans tous les '
+    + 'albums, en choisir trois le RESTREINT : vous n’obtenez que les photographies où '
+    + 'figurent les trois. Le premier est un filtre sur un ensemble que vous regardez '
+    + 'déjà ; le second est une question, et en dire plus sur ce que vous cherchez devrait '
+    + 'renvoyer moins.',
   'help.gallery.who-can-change-what.heading': 'Qui peut changer quoi',
   'help.gallery.who-can-change-what.b0':
     '**Une photographie appartient à celui qui l’a téléversée.** Il peut changer sa légende '

@@ -3485,6 +3485,19 @@ export const helpEs: Catalogue = {
     + 'mostrando y por qué, con **Limpiar filtros** para volver a poner todas. Ninguno de los '
     + 'dos filtros cambia nada para nadie más: es lo que usted está mirando, no lo que '
     + 'contiene el álbum.',
+  'help.gallery.finding.b3':
+    '**Buscar en todos los álbumes** es un recuadro aparte, arriba en '
+    + '[Galería](/community/gallery) y no dentro de un álbum. Toma las mismas dos cosas '
+    + '— palabras de una descripción y cualquiera etiquetado — y recorre de una vez todas '
+    + 'las fotografías de la familia. Cada resultado indica en qué álbum está, y al '
+    + 'pulsarlo se abre ese álbum.',
+  'help.gallery.finding.b4':
+    'Los dos recuadros se comportan de forma distinta a propósito. Dentro de un álbum, '
+    + 'elegir a tres personas etiquetadas AMPLÍA el resultado: obtiene las fotografías en '
+    + 'las que aparezca cualquiera de ellas. Al buscar en todos los álbumes, elegir a tres '
+    + 'lo REDUCE: obtiene solo las fotografías en las que aparezcan las tres. El primero '
+    + 'es un filtro sobre un conjunto que ya está mirando; el segundo es una pregunta, y '
+    + 'decir más sobre lo que busca debería devolver menos.',
   'help.gallery.who-can-change-what.heading': 'Quién puede cambiar qué',
   'help.gallery.who-can-change-what.b0':
     '**Una fotografía pertenece a quien la subió.** Esa persona puede cambiar su pie y '

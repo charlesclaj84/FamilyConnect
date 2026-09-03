@@ -3353,6 +3353,62 @@ export const MORE_CASES = [
   read('gallery.getCollectionDetail', 'app/actions/gallery.ts', 'getCollectionDetail', {
     args: fx => [fx.alpha.collection.id],
   }),
+
+  // ── SEARCHING EVERY ALBUM AT ONCE ─────────────────────────────────────────────
+  //
+  // `searchPhotos` is the only read in this module that is deliberately NOT scoped to one
+  // album — it reads the family's photo rows and filters them in TypeScript, because
+  // `matchesCaption` is the rule this product already uses for captions and reimplementing it
+  // in SQL would be a second definition of it. So the ONLY thing standing between one family's
+  // photographs and another's is the `photos` SELECT policy on the user client. There is no
+  // hand-written `family_code` conjunct here to hide it (§7's "an action that narrows a write
+  // by hand hides its own policy") and no album id to scope it: this case reads the policy
+  // itself, which makes it one of the more load-bearing reads in the suite.
+  //
+  // `'photo'` matches ALPHA's fixture caption (`ALPHATEST photo`) and BRAVO's own
+  // (`BRAVOTEST photo`), so both halves return SOMETHING — which is the point. The attacker
+  // gets their own family's photograph and no `fx.alpha.photo.id`; the control gets ALPHA's.
+  // A query that matched nothing for either would pass the attack assertion trivially.
+  read('gallery.searchPhotos', 'app/actions/gallery.ts', 'searchPhotos', {
+    args: () => ['photo'],
+  }),
+
+  // AND THE SAME CALL WITH A PERSON ID FROM THE OTHER FAMILY.
+  //
+  // `personIds` is the one parameter here that names a row, and it is §4's shape asked as a
+  // READ: the caller sends an id, and the question is whether the answer can be about a
+  // person in a family that is not theirs. It cannot, and the reason is worth stating rather
+  // than assuming — the ids are only ever COMPARED against tags on rows RLS has already
+  // narrowed, never used to find a row — so a cross-family id matches nothing instead of
+  // reaching anything.
+  //
+  // THE CONTROL IS WHAT MAKES THIS EVIDENCE. ALPHA's member passes ALPHA's own tagged person
+  // and must get the photograph back; without that, an action that answered `{hits: []}` to
+  // everybody would pass the attack half perfectly.
+  //
+  // ── AND IT IS EVIDENCE FOR `photo_tags`, NOT FOR `photos`. MEASURED. ──────────────
+  // Widening `perm:family can view photos` to `USING (true)` turns the case ABOVE red and
+  // leaves this one GREEN — because the tags arrive through an EMBED, which is narrowed by
+  // `photo_tags`' own policy, so BRAVO's caller gets ALPHA's photo ROW with an empty tag list
+  // and the person filter then matches nothing. Both have to come out before this line moves:
+  // with `perm:family can view photo_tags` widened as well, it goes red.
+  //
+  // Which makes the pair worth having rather than redundant — one reads each policy — and is
+  // why that is written down instead of left as two similar-looking green ticks.
+  read('gallery.searchPhotos (by a person in the other family)',
+    'app/actions/gallery.ts', 'searchPhotos', {
+      args: fx => ['', [fx.alpha.otherPersonId]],
+      // EXPLICIT, NOT THE MARKER SCAN, and the reason is worth writing down. `f.rawPhoto` is
+      // the one photograph in this fixture carrying a TAG that nothing mutates — `f.photo`'s
+      // tag is added and removed by `tagPersonInPhoto`/`untagPersonFromPhoto` further down,
+      // so a case reading it would pass or fail on ORDERING, which is §8b's named trap. And
+      // `f.rawPhoto.id` is deliberately not in `alphaMarkers`, so the default scan would
+      // report the control as seeing none of its own data.
+      expectPositive: (r, fx) =>
+        Boolean(r) && r.hits.some(h => h.id === fx.alpha.rawPhoto.id),
+      expectAttack: (r, fx) =>
+        r === null || !r.hits.some(h => h.id === fx.alpha.rawPhoto.id),
+    }),
   read('funds.getFundWithMilestones', 'app/actions/funds.ts', 'getFundWithMilestones', {
     args: fx => [fx.alpha.fund.id],
   }),

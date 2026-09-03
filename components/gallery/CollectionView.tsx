@@ -4,7 +4,7 @@ import { useMemo, useRef, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Check, ChevronLeft, ChevronRight, LayoutGrid, List, Loader2, Pencil, Search, SlidersHorizontal,
-  Tag, Trash2, Upload, X,
+  Trash2, Upload, X,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -14,19 +14,17 @@ import { PersonMultiSelect } from '@/components/ui/person-multi-select'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
 import { useServerState } from '@/lib/use-server-state'
-import { formatPersonName } from '@/lib/name-utils'
-import { matchesPersonQuery } from '@/lib/person-search'
 import { matchesCaption } from '@/lib/photo-search'
 import { cn } from '@/lib/utils'
 import { IMAGE_FORMATS, acceptAttribute, formatList, isAllowedUpload } from '@/lib/upload-types'
 import {
-  createPhotoUploadTickets, deletePhoto, recordUploadedPhotos, tagPersonInPhoto,
-  untagPersonFromPhoto, updatePhotoCaption,
+  createPhotoUploadTickets, deletePhoto, recordUploadedPhotos, updatePhotoCaption,
   type GalleryRights, type Photo,
 } from '@/app/actions/gallery'
 import { PHOTO_UPLOAD_CHUNK } from '@/lib/photo-upload'
 import { createClient } from '@/lib/supabase/client'
 import { makeThumbnail } from '@/lib/image-thumbnail'
+import { PhotoTagEditor } from '@/components/gallery/PhotoTagEditor'
 import { useT } from '@/components/layout/LocaleProvider'
 
 interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null }
@@ -401,9 +399,13 @@ export function CollectionView({
           onClose={() => setLightbox(null)}
           onPrev={() => setLightbox(i => (i !== null && i > 0 ? i - 1 : i))}
           onNext={() => setLightbox(i => (i !== null && i < shown.length - 1 ? i + 1 : i))}
+          allMembers={allMembers}
+          mayEdit={mayEdit(currentPhoto)}
           mayDelete={mayDelete(currentPhoto)}
           onDelete={() => handleDelete(currentPhoto)}
           busy={isPending}
+          onChanged={afterChange}
+          onError={setError}
         />
       )}
     </div>
@@ -616,46 +618,15 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
   onDelete: () => void
 }) {
   const t = useT()
-  const confirm = useConfirm()
   const [caption, setCaption] = useState(photo.caption ?? '')
   const [editing, setEditing] = useState(false)
-  const [tagging, setTagging] = useState(false)
-  const [query, setQuery] = useState('')
   const [isPending, startTransition] = useTransition()
-
-  const untagged = allMembers.filter(m =>
-    !photo.tags.some(t => t.person_id === m.id)
-    && matchesPersonQuery(m, formatPersonName(m), query))
 
   function saveCaption() {
     startTransition(async () => {
       const result = await updatePhotoCaption(photo.id, caption)
       if (!result.success) { onError(result.message ?? t('gal.captionFailed')); return }
       setEditing(false)
-      onChanged()
-    })
-  }
-
-  function addTag(personId: string) {
-    startTransition(async () => {
-      const result = await tagPersonInPhoto(photo.id, personId)
-      if (!result.success) { onError(result.message ?? t('gal.tagFailed')); return }
-      setTagging(false); setQuery('')
-      onChanged()
-    })
-  }
-
-  async function removeTag(personId: string, name: string) {
-    const ok = await confirm({
-      title: t('gal.removeTag'),
-      description: t('gal.removeTagForConfirm', { name }),
-      confirmLabel: t('gal.removeTag'),
-      destructive: true,
-    })
-    if (!ok) return
-    startTransition(async () => {
-      const result = await untagPersonFromPhoto(photo.id, personId)
-      if (!result.success) { onError(result.message ?? t('gal.removeTagFailed')); return }
       onChanged()
     })
   }
@@ -704,61 +675,19 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
             : t('gal.addedByGone')}
         </p>
 
-        <div className="flex flex-wrap items-center gap-1.5">
-          {/* `tag`, not `t` — the translator is `t` in every file in this tree, and a map
-              callback called `t` shadows it. See AGENTS.md's i18n section. */}
-          {photo.tags.map(tag => (
-            <span key={tag.person_id}
-              className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2 py-0.5 text-xs text-brand-on-soft">
-              {tag.person_name}
-              {mayEdit && (
-                <button type="button" onClick={() => removeTag(tag.person_id, tag.person_name)}
-                  aria-label={t('gal.removeTagForAria', { name: tag.person_name })}
-                  disabled={isPending || busy}
-                  className="hover:text-destructive">
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-            </span>
-          ))}
-          {mayEdit && !tagging && (
-            <button type="button" onClick={() => { setTagging(true); setQuery('') }}
-              className="inline-flex items-center gap-1 rounded-full border border-dashed px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground">
-              <Tag className="h-3 w-3" /> {t('gal.tagSomebody')}
-            </button>
-          )}
-        </div>
-
-        {tagging && (
-          <div className="max-w-xs space-y-1 rounded-lg border bg-muted/30 p-2">
-            {/* `matchesPersonQuery` — the SHARED matcher, so this searches accents and
-                punctuation the same way both person pickers do. This component was named in
-                AGENTS.md's "Known gaps" as the third hand-rolled `.includes()` copy; it is
-                the shared one now. */}
-            <Input value={query} onChange={e => setQuery(e.target.value)}
-              placeholder={t('gal.searchFamily')} className="h-7 text-sm" autoFocus
-              aria-label={t('gal.searchToTag')} />
-            <ul className="max-h-40 space-y-0.5 overflow-y-auto">
-              {untagged.length === 0 ? (
-                <li className="px-2 py-1 text-xs text-muted-foreground">{t('gal.nobodyMatches')}</li>
-              ) : untagged.slice(0, 40).map(m => (
-                <li key={m.id}>
-                  <button type="button" onClick={() => addTag(m.id)} disabled={isPending}
-                    className="w-full rounded px-2 py-1 text-start text-sm hover:bg-brand-soft">
-                    {formatPersonName(m)}
-                  </button>
-                </li>
-              ))}
-            </ul>
-            {untagged.length > 40 && (
-              <p className="px-2 text-xs text-muted-foreground">
-                {t('gal.moreKeepTyping', { n: String(untagged.length - 40) })}
-              </p>
-            )}
-            <button type="button" onClick={() => setTagging(false)}
-              className="px-2 text-xs text-muted-foreground">{t('action.cancel')}</button>
-          </div>
-        )}
+        {/* THE TAGS, AND THE PICKER, FROM THE SHARED EDITOR. Sixty lines of chips and a
+            filtered list lived here and are `components/gallery/PhotoTagEditor.tsx` now,
+            because the lightbox needed the same thing — see that file for the half of the
+            "not in the lightbox" argument that was reversed and the half that was not. */}
+        <PhotoTagEditor
+          photo={photo}
+          allMembers={allMembers}
+          mayEdit={mayEdit}
+          busy={isPending || busy}
+          onChanged={onChanged}
+          onError={onError}
+          tone="card"
+        />
       </div>
 
       {mayDelete && (
@@ -772,16 +701,25 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
 }
 
 /** The full-size view. The one place the whole file is the point. */
-function Lightbox({ photo, index, total, onClose, onPrev, onNext, mayDelete, onDelete, busy }: {
+function Lightbox({
+  photo, index, total, onClose, onPrev, onNext,
+  allMembers, mayEdit, mayDelete, onDelete, busy, onChanged, onError,
+}: {
   photo: Photo
   index: number
   total: number
   onClose: () => void
   onPrev: () => void
   onNext: () => void
+  /** Every member this caller may tag — the same list the list view is given. */
+  allMembers: Person[]
+  /** `community/gallery:edit` at scope 'any'. Withholds the ✕ and the picker, not the names. */
+  mayEdit: boolean
   mayDelete: boolean
   onDelete: () => void
   busy: boolean
+  onChanged: (message?: string) => void
+  onError: (message: string) => void
 }) {
   const t = useT()
   return (
@@ -804,19 +742,36 @@ function Lightbox({ photo, index, total, onClose, onPrev, onNext, mayDelete, onD
 
         {photo.caption && <p className="mt-2 text-center text-sm text-white/80">{photo.caption}</p>}
 
-        {photo.tags.length > 0 && (
-          <p className="mt-3 flex flex-wrap justify-center gap-2">
-            {photo.tags.map(t => (
-              <span key={t.person_id} className="rounded-full bg-white/20 px-2 py-1 text-xs text-white">
-                {t.person_name}
-              </span>
-            ))}
-          </p>
-        )}
+        {/* ── WHO IS IN IT, AND WHO YOU CAN ADD (2026-09-03) ─────────────────────────
+            This was a read-only row of names, under a comment saying tagging was
+            deliberately elsewhere:
 
-        {/* TAGGING AND CAPTIONING ARE NOT HERE, DELIBERATELY. They were, and it meant opening a
-            photograph full-screen to fix a typo — and then doing it again for the next one.
-            They live in the list view, which is the surface for that job. */}
+              > TAGGING AND CAPTIONING ARE NOT HERE, DELIBERATELY. They were, and it meant
+              > opening a photograph full-screen to fix a typo — and then doing it again for
+              > the next one.
+
+            HALF OF THAT IS REVERSED AND HALF IS NOT, which is the whole of the change. The
+            CAPTION stays in the list view: it is text somebody is correcting, and correcting
+            several in a row is what that surface is for. The TAGS come here, because a tag
+            answers "who is that?" and the only place that question can be answered is in
+            front of a photograph big enough to recognise a face in. Tagging from a 96px tile
+            is guessing.
+
+            `tone="scrim"` rather than a `className`: the chips sit on near-black here and on
+            a card there, and `--brand-on-soft` on this ground is the unreadable-`on-`-token
+            failure AGENTS.md measured on the calendar. See `PhotoTagEditor`. */}
+        <div className="mt-3">
+          <PhotoTagEditor
+            photo={photo}
+            allMembers={allMembers}
+            mayEdit={mayEdit}
+            busy={busy}
+            onChanged={onChanged}
+            onError={onError}
+            tone="scrim"
+          />
+        </div>
+
         <div className="mt-3 flex justify-center gap-2">
           {mayDelete && (
             <Button size="sm" variant="destructive" onClick={onDelete} disabled={busy}>
@@ -824,7 +779,12 @@ function Lightbox({ photo, index, total, onClose, onPrev, onNext, mayDelete, onD
             </Button>
           )}
         </div>
-        <p className="mt-2 text-center text-xs text-white/50">{index + 1} of {total}</p>
+        {/* KEYED. It was `{index + 1} of {total}` — a mixed JSX text node with an English
+            preposition in it, which is the shape AGENTS.md names as the biggest of the four
+            the literal gate was blind to. */}
+        <p className="mt-2 text-center text-xs text-white/50">
+          {t('gal.nOfTotal', { n: String(index + 1), total: String(total) })}
+        </p>
 
         {index > 0 && (
           <button onClick={onPrev} aria-label={t('gal.prevPhoto')}

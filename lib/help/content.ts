@@ -1870,6 +1870,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Who is in it', text: 'Pick as many tagged people as you like. A photograph shows when it has ANY of them in it, so choosing three widens the result rather than narrowing it. The button carries a count while the filter is on, and only appears once somebody is tagged in this album.' },
               ),
               p('A line under the bar says how many of the album\u2019s photographs are showing and why, with **Clear filters** to put them all back. Neither filter changes anything for anybody else \u2014 it is what you are looking at, not what the album holds.'),
+              p('**Searching across every album** is a separate box, at the top of [Gallery](/community/gallery) rather than inside one album. It takes the same two things \u2014 words from a caption, and anybody tagged \u2014 and looks through the whole family\u2019s photographs at once. Each result says which album it is in, and pressing it opens that album.'),
+              p('The two boxes behave differently on purpose. Inside an album, choosing three tagged people WIDENS the result: you get photographs with any of them in. Searching across every album, choosing three NARROWS it: you get only photographs with all three. The first is a filter over a set you are already looking at; the second is a question, and saying more about what you are looking for should return less.'),
             ],
           },
           {

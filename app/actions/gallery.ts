@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, getMyPersonId, belongsToFamily } from '@/lib/auth/family'
 import { can, canAny } from '@/lib/auth/permissions'
 import { requireMember, requireOwn } from '@/lib/auth/guard'
+import { matchesCaption } from '@/lib/photo-search'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { embedMany, embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { IMAGE_FORMATS, isAllowedUpload, uploadRejection } from '@/lib/upload-types'
@@ -124,6 +125,148 @@ export interface GalleryRights {
 // -------------------------------------------------------
 // Reads
 // -------------------------------------------------------
+
+/** One hit from a search across every album. */
+export interface PhotoSearchHit {
+  id: string
+  collection_id: string
+  collection_name: string
+  /** The THUMBNAIL where there is one — a result grid draws these at tile size (§thumbnails). */
+  grid_url: string
+  caption: string | null
+  tags: { person_id: string; person_name: string }[]
+}
+
+/**
+ * How many hits a search returns before it says how many more there are.
+ *
+ * Bounded because the payload is what a search costs: each hit carries a URL, a caption and a
+ * list of names, and a query of one letter matches everything a family has. The count of what
+ * was held back is returned WITH the hits, so the screen can say so — a list that stops at 120
+ * while looking complete is how somebody concludes a photograph is not there, which is the
+ * rule `PersonMultiSelect` and the tag picker both keep.
+ */
+const SEARCH_LIMIT = 120
+
+/**
+ * Every photograph in the family whose CAPTION or TAGS match, across every album.
+ *
+ * ── WHY THIS EXISTS SEPARATELY FROM THE PER-ALBUM FILTER ───────────────────────────
+ * `CollectionView` already filters the album it is showing, in the browser, from rows it
+ * already has. That is the right shape there and answers a different question: *where in THIS
+ * album is the picture of Martha?* This one answers *where in the family's photographs is the
+ * picture of Martha?* — which is the question somebody actually has, and which no album page
+ * can answer because it cannot see the other albums.
+ *
+ * ── IT FILTERS IN TYPESCRIPT, AND THAT IS A DECISION ───────────────────────────────
+ * `matchesCaption` in `lib/photo-search.ts` is the matching rule this product already uses for
+ * captions, and it does three things an `ilike '%…%'` cannot: it folds accents, it folds
+ * punctuation so "grandmas 90th" finds "Grandma's 90th", and it requires EVERY term in any
+ * order so "reunion lake" finds "Three days at the lake — 2026 reunion". Reimplementing that
+ * in SQL would be a second definition of the rule, and the two would disagree the first time
+ * either was touched — which is the whole argument that module's own header makes.
+ *
+ * `photos` has no `search_vector` (unlike `bylaws`), so there is no index to lose by doing it
+ * this way. If one is ever added, the honest move is to make it the SAME rule rather than a
+ * near-miss beside this one.
+ *
+ * THE COST IS THAT IT READS THE FAMILY'S PHOTO ROWS to filter them. Rows, not bytes — no image
+ * is fetched — and the projection is deliberately narrow. A family with tens of thousands of
+ * photographs would want the index; a family with hundreds does not notice.
+ *
+ * ── THE USER CLIENT, SO RLS SCOPES IT ──────────────────────────────────────────────
+ * Unlike the reports, which use the admin client because a wrong TOTAL is worse than a missing
+ * row. A search has no total: it answers "here is what I found", and finding only what the
+ * caller may see is exactly right. `community/gallery:view` is resolved first anyway, so a
+ * caller with no grant gets `null` rather than an empty result — see below.
+ *
+ * ── `null` IS A REFUSAL; AN EMPTY LIST IS A FACT ───────────────────────────────────
+ * Two different sentences and only one of them is about the reader. The same shape the four
+ * reports keep.
+ *
+ * ── AND THE EMBED NAMES ITS CONSTRAINT, TWICE ──────────────────────────────────────
+ * `photo_tags` has had TWO paths to `people` since `20260610000001` (`person_id`, `tagged_by`),
+ * so the INNER embed is PGRST201 without the constraint name — the nested-embed failure §8
+ * records, which emptied `/photos` for a day. And `photos` → `photo_collections` is joined by
+ * name here rather than embedded, because the collection is what a hit is FILED under and a
+ * second read of a handful of albums is cheaper than an embed per row.
+ */
+export async function searchPhotos(
+  query: string,
+  personIds: string[] = [],
+): Promise<{ hits: PhotoSearchHit[]; more: number } | null> {
+  const g = await requireMember()
+  if (!g.ok) return null
+  if (!(await canAny(g.userId, 'community/gallery', 'view'))) return null
+
+  const terms = query.trim()
+  const wanted = personIds.filter(Boolean)
+  // NOTHING ASKED FOR IS NOT A SEARCH. Returning the whole family's photographs for an empty
+  // box would make the screen's default state a full download of every row.
+  if (!terms && wanted.length === 0) return { hits: [], more: 0 }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('photos')
+    .select('id, collection_id, file_path, thumb_path, caption, '
+      + 'photo_tags(person_id, people!photo_tags_person_id_fkey(first_name, last_name))')
+    .order('created_at', { ascending: false })
+
+  // §8: the error is READ. Discarding it here would report "no photograph matches" over a
+  // refused query — the one answer a search must never give by accident, because it is
+  // indistinguishable from a correct negative.
+  if (error) {
+    console.error(`[gallery] search read failed: ${error.message}`)
+    return null
+  }
+
+  const { data: albums, error: albumError } = await supabase
+    .from('photo_collections')
+    .select('id, name')
+  if (albumError) {
+    console.error(`[gallery] search album read failed: ${albumError.message}`)
+    return null
+  }
+  const albumName = new Map((albums ?? []).map(a => [a.id as string, a.name as string]))
+
+  const matched: PhotoSearchHit[] = []
+  // `as unknown as` because a NESTED embed widens supabase-js' row type to a union carrying
+  // its `GenericStringError` — the compiler cannot resolve a two-level select with a named
+  // constraint. Every field is read defensively below with an explicit cast, which is what
+  // the projection above already states.
+  for (const row of (data ?? []) as unknown as Record<string, unknown>[]) {
+    const tags = embedMany<{ person_id: string; people: unknown }>(row.photo_tags).map(tag => {
+      const tagged = embedOne<PersonNameRow>(tag.people)
+      return {
+        person_id: tag.person_id,
+        person_name: tagged ? `${tagged.first_name} ${tagged.last_name}` : '',
+      }
+    })
+
+    // BOTH CONDITIONS NARROW — they are ANDed, not ORed. "Martha at the lake" means the
+    // photographs of Martha that are also at the lake; ORing would widen the result the more
+    // the reader said about it, which is the opposite of what typing more into a search box
+    // is for. Each is skipped when it was not asked for.
+    if (terms && !matchesCaption(row.caption as string | null, terms)) continue
+    if (wanted.length > 0 && !wanted.every(id => tags.some(tag => tag.person_id === id))) continue
+
+    matched.push({
+      id: row.id as string,
+      collection_id: row.collection_id as string,
+      collection_name: albumName.get(row.collection_id as string) ?? '',
+      grid_url: supabase.storage.from('photos').getPublicUrl(
+        (row.thumb_path as string | null) ?? (row.file_path as string),
+      ).data.publicUrl,
+      caption: row.caption as string | null,
+      tags,
+    })
+  }
+
+  return {
+    hits: matched.slice(0, SEARCH_LIMIT),
+    more: Math.max(0, matched.length - SEARCH_LIMIT),
+  }
+}
 
 export async function getPhotoCollections(): Promise<PhotoCollection[]> {
   const supabase = await createClient()
