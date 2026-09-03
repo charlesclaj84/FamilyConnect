@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { createAdminClient } from '@/lib/supabase/admin'
-import { rowsFrom } from '@/lib/geo/zip-crosswalk-rows'
+import { rowsFrom, type CrosswalkRow } from '@/lib/geo/zip-crosswalk-rows'
 
 /**
  * Refreshing the ZIP-to-county crosswalk from the HUD USPS file.
@@ -20,9 +20,12 @@ import { rowsFrom } from '@/lib/geo/zip-crosswalk-rows'
  * improvement on `fetch` in a route.
  *
  * ── THE SOURCE, AND THE CREDENTIAL NOBODY IN THIS REPO CAN SUPPLY ──────────────────
- * `https://www.huduser.gov/hudapi/public/usps?type=2&query=All` — `type=2` is ZIP→County. HUD
- * builds it from USPS delivery data and publishes it QUARTERLY. It needs a free API token from
- * a huduser.gov registration, in `HUD_USPS_API_TOKEN`.
+ * `https://www.huduser.gov/hudapi/public/usps?type=2&query=<state FIPS>&page=<n>` — `type=2`
+ * is ZIP→County. HUD builds it from USPS delivery data and publishes it QUARTERLY. It needs a
+ * free API token from a huduser.gov registration, in `HUD_USPS_API_TOKEN`.
+ *
+ * **NOT `query=All`** — see `STATE_FIPS` below, which records what that returned and why the
+ * parser was right to refuse it.
  *
  * **WITH NO TOKEN THIS RETURNS `skipped`, NOT AN ERROR.** A missing credential is a deployment
  * state rather than a fault, and the daily route it rides on carries three other jobs — one
@@ -65,6 +68,50 @@ import { rowsFrom } from '@/lib/geo/zip-crosswalk-rows'
 
 /** The one source. Named on every refresh row so a row is readable years later. */
 const SOURCE = 'hud-usps-zip-county'
+
+/**
+ * ── THE CROSSWALK IS FETCHED PER STATE, AND `query=All` IS WRONG ───────────────────
+ * Measured against the real API on 2026-09-03, reported as *"failed status and nothing
+ * imported: zip 77352 has no usable county geoid (\"48\")"*. `48` is **Texas's 2-digit state
+ * FIPS**: `type=2&query=All` answers a STATE-level rollup, so every row named a state where a
+ * county was wanted, and the parser refused the document. That refusal was correct — a state
+ * code in a county column would have made every ZIP in Texas resolve to one "county" that no
+ * NWS alert will ever name, and nothing downstream could have noticed.
+ *
+ * A state FIPS in `query` is what makes `geoid` a 5-digit county code. So this is 56 requests
+ * rather than one, and that fixes a SECOND bug in the same edit: the single `query=All` call
+ * followed no pagination at all, so even a correct rollup would have written whatever fitted
+ * in page one and reported success.
+ *
+ * ── THE LIST IS EXPLICIT, AND TERRITORIES ARE IN IT ────────────────────────────────
+ * 50 states, DC (11) and the five territories HUD publishes — PR (72), VI (78), GU (66), AS
+ * (60), MP (69). Written out rather than generated, because the sequence has gaps (03, 07, 14,
+ * 43, 52 are unassigned) and a loop from 1 to 78 would spend a third of its requests asking
+ * for states that do not exist and then have to decide whether a 404 is a failure.
+ *
+ * A STATE THAT ANSWERS NOTHING IS LOGGED AND SKIPPED, never treated as a failure: HUD may
+ * legitimately hold no rows for a territory in a given quarter, and `replace_zip_counties`
+ * replaces per ZIP — so a missing state leaves its ZIPs exactly as they were rather than
+ * deleting them. `MINIMUM_PAIRS` is what catches losing a state that should have been there.
+ */
+const STATE_FIPS = [
+  '01', '02', '04', '05', '06', '08', '09', '10', '11', '12', '13', '15', '16', '17', '18',
+  '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33',
+  '34', '35', '36', '37', '38', '39', '40', '41', '42', '44', '45', '46', '47', '48', '49',
+  '50', '51', '53', '54', '55', '56',
+  '60', '66', '69', '72', '78',
+] as const
+
+/**
+ * How many pages of one state to follow before giving up on it.
+ *
+ * HUD paginates and the field names are not something this code should assume, so
+ * `nextPage` reads several candidates and stops when none of them says there is more. This
+ * bound is the runaway guard: a response that always claims another page would otherwise loop
+ * until the platform kills the request, taking the three jobs that share the route with it.
+ * A state has at most a few thousand ZIPs, so 40 pages is far above any real answer.
+ */
+const MAX_PAGES_PER_STATE = 40
 
 /** How long a crosswalk stays fresh. See the header for why this is not the cron's schedule. */
 const REFRESH_AFTER_DAYS = 7
@@ -130,6 +177,42 @@ async function lastSuccessAt(
 }
 
 /**
+ * The next page number, or `null` when this was the last one.
+ *
+ * ── IT READS WHAT THE RESPONSE SAYS AND ASSUMES NOTHING ───────────────────────────
+ * The single `query=All` call this replaced followed no pagination at all, which is half of
+ * why it was wrong. The field names are not something to hard-code from memory — HUD has used
+ * more than one convention and the one thing measured here is `data.results`, so the
+ * candidates are tried in order and an absent set of them means "no more pages".
+ *
+ * **THE DEFAULT IS TO STOP, WHICH IS THE SAFE DIRECTION.** Guessing wrong and stopping early
+ * under-fetches, and `MINIMUM_PAIRS` catches that loudly before anything is written; guessing
+ * wrong and continuing would loop on an endpoint that keeps answering the same page, and
+ * `MAX_PAGES_PER_STATE` is the second guard on exactly that.
+ */
+function nextPage(payload: unknown, current: number): number | null {
+  const d = (payload as { data?: Record<string, unknown> })?.data
+  if (!d) return null
+
+  const num = (v: unknown): number | null => {
+    const n = typeof v === 'number' ? v : typeof v === 'string' ? Number(v) : Number.NaN
+    return Number.isFinite(n) ? n : null
+  }
+
+  // "How many pages are there" — if we know the total, the answer is arithmetic.
+  for (const key of ['total_pages', 'totalpages', 'totalPages', 'pages', 'page_count']) {
+    const total = num(d[key])
+    if (total !== null) return current < total ? current + 1 : null
+  }
+  // Otherwise: an explicit next-page pointer.
+  for (const key of ['next_page', 'nextpage', 'nextPage']) {
+    const next = num(d[key])
+    if (next !== null && next > current) return next
+  }
+  return null
+}
+
+/**
  * Fetch the crosswalk and write it, if a week has passed since it last worked.
  *
  * Returns rather than throws, for the reason in the header: this rides on a daily route that
@@ -189,54 +272,99 @@ export async function refreshZipCounties(
     if (error) console.error(`[zip-counties] could not close refresh ${attemptId}: ${error.message}`)
   }
 
-  let payload: unknown
-  try {
-    // A TIMEOUT, EXPLICITLY. A hanging endpoint would otherwise hold the whole daily route
-    // open until the platform kills it — taking the dues reminders and the two reapers that
-    // run after it with it. TODO.md names this for the poller and it is the same hazard.
-    const response = await fetch(
-      'https://www.huduser.gov/hudapi/public/usps?type=2&query=All',
-      {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: AbortSignal.timeout(120_000),
-        // No caching: a cached crosswalk is a refresh that did not happen and would look
-        // exactly like one that did.
-        cache: 'no-store',
-      },
-    )
-    if (!response.ok) {
-      const detail = `HUD answered ${response.status}`
-      await finish('failed', { error: detail })
-      return { outcome: 'failed', detail }
+  // ── EVERY STATE IS FETCHED BEFORE ANYTHING IS WRITTEN ────────────────────────────
+  // Accumulated in memory (~54,000 small objects, a few MB) rather than written per state,
+  // because `MINIMUM_PAIRS` is a question about the WHOLE DOCUMENT and a state cannot answer
+  // it — state sizes range from Wyoming to California, so a per-state floor would either
+  // admit an error page for a small state or refuse a legitimate one.
+  const all: CrosswalkRow[] = []
+  const emptyStates: string[] = []
+
+  for (const fips of STATE_FIPS) {
+    let page = 1
+    let pagesRead = 0
+    let stateRows = 0
+
+    while (pagesRead < MAX_PAGES_PER_STATE) {
+      let payload: unknown
+      try {
+        // A TIMEOUT, EXPLICITLY, PER REQUEST. A hanging endpoint would otherwise hold the whole
+        // daily route open until the platform kills it — taking the dues reminders and the two
+        // reapers that run after it with it. 60s per page rather than 120s for the lot, because
+        // there are now up to 56 of these and the ceiling has to be the sum.
+        const response = await fetch(
+          `https://www.huduser.gov/hudapi/public/usps?type=2&query=${fips}&page=${page}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: AbortSignal.timeout(60_000),
+            // No caching: a cached crosswalk is a refresh that did not happen and would look
+            // exactly like one that did.
+            cache: 'no-store',
+          },
+        )
+        // A 404 ON ONE STATE IS NOT A FAILED REFRESH. HUD may hold nothing for a territory in
+        // a given quarter, and treating that as fatal would let the smallest jurisdiction stop
+        // the other 55 from ever refreshing.
+        if (response.status === 404) break
+        if (!response.ok) {
+          const detail = `HUD answered ${response.status} for state ${fips} page ${page}`
+          await finish('failed', { error: detail, pairs: all.length })
+          return { outcome: 'failed', detail }
+        }
+        payload = await response.json()
+      } catch (e) {
+        const detail =
+          `fetch failed for state ${fips} page ${page}: `
+          + (e instanceof Error ? e.message : String(e))
+        await finish('failed', { error: detail, pairs: all.length })
+        return { outcome: 'failed', detail }
+      }
+
+      const parsed = rowsFrom(payload)
+      if ('error' in parsed) {
+        // THE STATE AND PAGE ARE IN THE MESSAGE. The first version of this said only what the
+        // row was missing, and the report that came back — *"zip 77352 has no usable county
+        // geoid"* — could not say which of 56 requests produced it.
+        const detail = `state ${fips} page ${page}: ${parsed.error}`
+        await finish('failed', { error: detail, pairs: all.length })
+        return { outcome: 'failed', detail }
+      }
+
+      all.push(...parsed.rows)
+      stateRows += parsed.rows.length
+      pagesRead += 1
+
+      const next = nextPage(payload, page)
+      if (next === null) break
+      page = next
     }
-    payload = await response.json()
-  } catch (e) {
-    const detail = `fetch failed: ${e instanceof Error ? e.message : String(e)}`
-    await finish('failed', { error: detail })
-    return { outcome: 'failed', detail }
+
+    if (stateRows === 0) emptyStates.push(fips)
   }
 
-  const parsed = rowsFrom(payload)
-  if ('error' in parsed) {
-    await finish('failed', { error: parsed.error })
-    return { outcome: 'failed', detail: parsed.error }
+  if (emptyStates.length) {
+    // NOT SILENT. AGENTS.md's rule about a skip being visible: a state that answered nothing
+    // leaves its ZIPs untouched, which is safe and is also exactly what losing a state looks
+    // like. The floor below is what decides whether it mattered.
+    console.warn(`[zip-counties] no rows for state FIPS: ${emptyStates.join(', ')}`)
   }
 
   // ── THE FLOOR, BEFORE ANYTHING IS WRITTEN ────────────────────────────────────────
-  // See `MINIMUM_PAIRS`. Checked here rather than per batch, because the question is about the
-  // DOCUMENT and a batch cannot answer it.
-  if (parsed.rows.length < MINIMUM_PAIRS) {
+  // See `MINIMUM_PAIRS`. Checked here rather than per batch or per state, because the question
+  // is about the DOCUMENT and neither of those can answer it.
+  if (all.length < MINIMUM_PAIRS) {
     const detail =
-      `only ${parsed.rows.length} pair(s) — below the ${MINIMUM_PAIRS} floor, so this is a `
-      + 'truncated or changed response rather than a smaller crosswalk. Nothing was written'
-    await finish('failed', { error: detail, pairs: parsed.rows.length })
+      `only ${all.length} pair(s) — below the ${MINIMUM_PAIRS} floor, so this is a truncated `
+      + 'or changed response rather than a smaller crosswalk. Nothing was written'
+      + (emptyStates.length ? `. ${emptyStates.length} state(s) answered nothing` : '')
+    await finish('failed', { error: detail, pairs: all.length })
     return { outcome: 'failed', detail }
   }
 
   let written = 0
   const zips = new Set<string>()
-  for (let i = 0; i < parsed.rows.length; i += BATCH) {
-    const batch = parsed.rows.slice(i, i + BATCH)
+  for (let i = 0; i < all.length; i += BATCH) {
+    const batch = all.slice(i, i + BATCH)
     const { error } = await admin.rpc('replace_zip_counties', { p_rows: batch })
     if (error) {
       // WHAT WAS WRITTEN IS RECORDED, not discarded. Each earlier batch replaced its own ZIPs

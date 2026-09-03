@@ -68,7 +68,23 @@ export function rowsFrom(payload: unknown): { rows: CrosswalkRow[] } | { error: 
       return { error: `a result has no usable zip (${JSON.stringify(r.zip)})` }
     }
     if (!fips || !/^[0-9]{5}$/.test(fips)) {
-      return { error: `zip ${zip} has no usable county geoid (${JSON.stringify(r.geoid)})` }
+      // A 2-DIGIT GEOID IS THE KNOWN TRAP AND IT GETS ITS OWN SENTENCE — measured against the
+      // real API on 2026-09-03, which answered `geoid: "48"` for a Texas ZIP. That is the
+      // STATE FIPS: `query=All` returns a state-level rollup rather than the county crosswalk,
+      // whatever `type=2` asks for. The REQUEST was wrong, not the row, so refusing was right
+      // and deriving a county from a state would have been the worst available answer.
+      // `STATE_FIPS` in zip-counties.ts is the fix; this message is what names it if it
+      // regresses.
+      const hint = /^[0-9]{2}$/.test(fips ?? '')
+        ? ' — that is a 2-digit STATE FIPS, so this response is a state-level rollup rather '
+          + 'than the ZIP-County crosswalk. Query per state, never `query=All`'
+        : ''
+      return {
+        error: `zip ${zip} has no usable county geoid (${JSON.stringify(r.geoid)})${hint}`
+          // The KEYS, because a shape change is the other reason to be here and a message
+          // naming one field sends somebody looking at the wrong thing.
+          + `. Fields present: ${Object.keys(r).sort().join(', ')}`,
+      }
     }
     if (!state || state.length !== 2) {
       return { error: `zip ${zip} has no usable state (${JSON.stringify(state)})` }

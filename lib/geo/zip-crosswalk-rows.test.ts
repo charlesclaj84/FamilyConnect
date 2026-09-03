@@ -107,6 +107,24 @@ describe('rowsFrom', () => {
     }
   })
 
+  it('refuses a 2-digit STATE fips in the county column, and says that is what it is', () => {
+    // THE REGRESSION. Reported 2026-09-03 against the real API: `zip 77352 has no usable
+    // county geoid ("48")`. 48 is Texas. `type=2&query=All` answers a state-level rollup, so
+    // every row named a state where a county was wanted — and refusing was right, because a
+    // state code in the county column would have made every Texas ZIP resolve to one "county"
+    // no NWS alert will ever name, with nothing downstream able to notice.
+    const out = parse([good({ zip: '77352', geoid: '48' })])
+    expect('error' in out).toBe(true)
+    if (!('error' in out)) return
+    expect(out.error).toContain('77352')
+    // The message has to name the CAUSE, or the next person reads it as a bad row rather than
+    // as a bad request. The fix was `STATE_FIPS`, one module over.
+    expect(out.error).toContain('STATE FIPS')
+    expect(out.error).toContain('never `query=All`')
+    // ...and the fields present, because a shape change is the other reason to land here.
+    expect(out.error).toContain('Fields present:')
+  })
+
   it('refuses a malformed state', () => {
     for (const state of [undefined, null, '', 'M', 'MAS', 'Massachusetts']) {
       const out = parse([good({ state, usps_zip_pref_state: undefined })])
