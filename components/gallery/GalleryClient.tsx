@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useTransition } from 'react'
-import { Images, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Images, Pencil, Trash2 } from 'lucide-react'
 import { CollectionCard } from '@/components/gallery/CollectionCard'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -29,16 +29,26 @@ import { useT } from '@/components/layout/LocaleProvider'
  * `deleteCollection` resolves `requireOwn('community/gallery', 'delete', created_by)` itself,
  * because a `'use server'` export has a URL whether or not a button exists (AGENTS.md §2).
  */
-export function GalleryClient({ rights, myPersonId }: {
+export function GalleryClient({ rights, myPersonId, creating, onCloseCreate }: {
   rights: GalleryRights
   /** The caller's own `people.id`, for the creator half of the delete rule. */
   myPersonId: string | null
+  /**
+   * Whether the New Album dialog is open, and how to close it.
+   *
+   * CONTROLLED FROM THE SHELL SINCE 2026-09-03, because the TRIGGER moved onto the rail's
+   * action slot and the FORM stayed here. Only the boolean crossed; the whole dialog, its
+   * validation and its optimistic insert are untouched. Same arrangement as
+   * `GatheringsClient`, and for the same reason a button in one component opening a dialog
+   * in another is what a lifted flag is for.
+   */
+  creating: boolean
+  onCloseCreate: () => void
 }) {
   const t = useT()
   const confirm = useConfirm()
   const [collections, setCollections] = useState<PhotoCollection[]>([])
   const [loading, setLoading] = useState(true)
-  const [creating, setCreating] = useState(false)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [error, setError] = useState('')
@@ -63,7 +73,7 @@ export function GalleryClient({ rights, myPersonId }: {
         description: description.trim() || undefined,
       })
       if (!result.success) { setError(result.message ?? t('gal.createFailed')); return }
-      setCreating(false); setName(''); setDescription('')
+      onCloseCreate(); setName(''); setDescription('')
       setCollections(await getPhotoCollections())
     })
   }
@@ -132,18 +142,15 @@ export function GalleryClient({ rights, myPersonId }: {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="mb-1 text-3xl font-bold">{t('gal.heading')}</h1>
-          <p className="text-muted-foreground">{t('ui.familySPhotographsKept')}</p>
-        </div>
-        {rights.upload && (
-          <Button onClick={() => { setCreating(true); setError('') }}>
-            <Plus /> {t('gal.newAlbum')}
-          </Button>
-        )}
-      </div>
+      {/* ── NO HEADING AND NO TRIGGER HERE ANY MORE (2026-09-03) ────────────────────
+          The `h1` is the PAGE's, above the rail, because it names the screen rather than
+          this pane — a second heading inside a pane would put "Gallery" under a rail whose
+          first item already says Albums. The lede went with it: "The family's photographs,
+          kept in albums" restated the heading and then the rail.
 
+          The New Album button is on the rail's action slot, which is where every create
+          trigger in this product lives. See `GalleryShell` for what that cost, which is one
+          lifted boolean. */}
       <FormError message={error} />
       {notice && (
         <p className="rounded-lg border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
@@ -254,7 +261,7 @@ export function GalleryClient({ rights, myPersonId }: {
       {creating && (
         <Dialog
           open
-          onClose={() => { setCreating(false); setError('') }}
+          onClose={() => { onCloseCreate(); setError('') }}
           title={t('gal.newAlbum')}
           description={t('gal.albumIs')}
         >
@@ -276,7 +283,7 @@ export function GalleryClient({ rights, myPersonId }: {
                 {t('gal.createAlbum')}
               </Button>
               <Button size="sm" variant="ghost" disabled={isPending}
-                onClick={() => { setCreating(false); setError('') }}>
+                onClick={() => { onCloseCreate(); setError('') }}>
                 {t('action.cancel')}
               </Button>
             </div>

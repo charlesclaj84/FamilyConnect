@@ -14,12 +14,22 @@ import { searchPhotos, type PhotoSearchHit } from '@/app/actions/gallery'
 /**
  * Search every album at once, by caption and by who is tagged.
  *
- * ── WHY IT IS HERE AND NOT ON THE ALBUM PAGE ───────────────────────────────────────
+ * ── WHY IT EXISTS AT ALL ───────────────────────────────────────────────────────────
  * `CollectionView` already filters the album it is showing, in the browser, from rows it
  * already holds. That answers *where in THIS album is the picture of Martha?* This answers
  * *where in the family's photographs is the picture of Martha?* — which is the question
  * somebody actually has, and which no album page can answer, because it cannot see the
  * other albums. Reported as: search tags and captions across all galleries.
+ *
+ * ── AND IT IS ITS OWN PANE SINCE 2026-09-03, NOT A CARD ABOVE THE ALBUMS ───────────
+ * It shipped as a bordered card over the album grid and that was wrong twice: it pushed the
+ * albums — what the screen is FOR — below a control most visits never touch, and its results
+ * are a grid of tiles, so a result set under a grid of albums read as more albums. It is the
+ * second item on the rail now, which gives the results the page to themselves.
+ *
+ * THE CARD CHROME WENT WITH THE MOVE. A `rounded-xl border bg-card` panel was right when it
+ * was one section among others; as the whole pane it would be a box around the page, with the
+ * rail's rule directly above its own border.
  *
  * ── THE TWO INPUTS NARROW TOGETHER ────────────────────────────────────────────────
  * ANDed, not ORed — see `searchPhotos`, which is where that is enforced. "Martha" plus "lake"
@@ -83,7 +93,7 @@ export function GallerySearch({ allMembers }: {
   }
 
   return (
-    <section className="space-y-3 rounded-xl border bg-card p-4 sm:p-5">
+    <section className="space-y-4">
       <form
         className="flex flex-wrap items-end gap-2"
         onSubmit={e => { e.preventDefault(); run(query, people) }}

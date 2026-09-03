@@ -2202,6 +2202,9 @@ export const es: Catalogue = {
   'field.ph.theirEmail': 'destinatario@ejemplo.com',
   'common.optional': 'Opcional',
   'gal.heading': 'Galería',
+  'gal.rail': 'Secciones de la galería',
+  'gal.pane.albums': 'Álbumes',
+  'gal.pane.search': 'Buscar',
   'gal.newAlbum': 'Álbum nuevo',
   'gal.createAlbum': 'Crear el álbum',
   'gal.looking': 'Buscando los álbumes…',
@@ -4809,9 +4812,6 @@ export const es: Catalogue = {
   'ui.gotEmailAddressNow': 
     '¿Ya tiene una dirección de correo? Envíele una invitación. Cuando la '
     + 'acepte, su cuenta se une a',
-  'ui.familySPhotographsKept': 
-    'Las fotografías de la familia, guardadas en álbumes. Etiquete quién sale '
-    + 'en ellas para que un primo pueda encontrarse.',
   'gath.budgetGatheringCouldNot': 
     'No se pudo leer el presupuesto de esta reunión en este momento. Nada ha '
     + 'cambiado; vuelva a cargar la página para intentarlo otra vez.',

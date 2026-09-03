@@ -2258,6 +2258,9 @@ export const en: Catalogue = {
   'field.ph.theirEmail': 'them@example.com',
   'common.optional': 'Optional',
   'gal.heading': 'Gallery',
+  'gal.rail': 'Gallery sections',
+  'gal.pane.albums': 'Albums',
+  'gal.pane.search': 'Search',
   'gal.newAlbum': 'New album',
   'gal.createAlbum': 'Create album',
   'gal.looking': 'Looking up the albums…',
@@ -4851,9 +4854,6 @@ export const en: Catalogue = {
   'ui.gotEmailAddressNow': 
     'Got an email address now? Send them an invitation. When they accept it, '
     + 'their account joins',
-  'ui.familySPhotographsKept': 
-    'The family’s photographs, kept in albums. Tag who is in them so a cousin '
-    + 'can find themselves.',
   'gath.budgetGatheringCouldNot': 
     'The budget for this gathering could not be read just now. Nothing has '
     + 'changed — reload the page to try again.',

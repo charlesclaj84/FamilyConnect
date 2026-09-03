@@ -3,8 +3,9 @@ import { requireView } from '@/lib/auth/permissions'
 import { getMyPersonId } from '@/lib/auth/family'
 import { getGalleryRights } from '@/app/actions/gallery'
 import { getMembers } from '@/app/actions/members'
-import { GalleryClient } from '@/components/gallery/GalleryClient'
-import { GallerySearch } from '@/components/gallery/GallerySearch'
+import { GalleryShell } from '@/components/gallery/GalleryShell'
+import { GALLERY_PANES, isGalleryPane } from '@/lib/gallery-panes'
+import { callerI18n } from '@/lib/i18n/server'
 import { PageShell } from '@/components/layout/PageShell'
 import { currentUser } from '@/lib/auth/current-user'
 import { docTitle } from '@/lib/i18n/page-metadata'
@@ -29,10 +30,19 @@ export async function generateMetadata() {
  * client on mount rather than here — an album list is not sensitive, but it IS long, and the
  * gallery is the one screen a member opens and leaves without acting.
  */
-export default async function GalleryPage() {
+interface Props {
+  searchParams: Promise<{ pane?: string | string[] }>
+}
+
+export default async function GalleryPage({ searchParams }: Props) {
   const { user } = await currentUser()
   if (!user) redirect('/login')
 
+  // ── ONE KEY FOR BOTH PANES, SO THE ORDINARY PREAMBLE STILL APPLIES ──────────────
+  // `requireView` folds `requireFamilyActive` and `requireTier` in, which is exactly why the
+  // panes were not given a key each: a page that decomposes into a union of `can()` calls
+  // owes both of those BY HAND, and that is a line three pages will not have.
+  // `lib/gallery-panes.ts` carries the argument for one key.
   await requireView(user.id, 'community/gallery')
 
   // ── THE ROSTER IS FETCHED FOR THE SEARCH, AND THAT IS A §5 DECISION ─────────────
@@ -55,15 +65,30 @@ export default async function GalleryPage() {
     nick_name: m.nick_name,
   }))
 
+  // Resolved on the SERVER so the first paint already shows the right pane — a client-side
+  // default would flash the albums on the way to a search, and would be a hydration mismatch.
+  // A `?pane=` that is not one of the two falls back to the first in rail order, which is the
+  // pane somebody arriving with no opinion wants.
+  const params = await searchParams
+  const requested = Array.isArray(params.pane) ? params.pane[0] : params.pane
+  const pane = isGalleryPane(requested) ? requested : GALLERY_PANES[0]
+
+  const { t } = await callerI18n(user.id)
+
   return (
     <PageShell className="space-y-6">
-      {/* ── SEARCH ABOVE THE ALBUMS ────────────────────────────────────────────────
-          The albums are the standing answer — what the family has — and the search is a
-          question somebody arrives with. Below them it is a control nobody scrolls to on a
-          page whose whole content is a grid; and the results are a grid too, so putting them
-          under a grid of albums would read as more albums. */}
-      <GallerySearch allMembers={allMembers} />
-      <GalleryClient rights={rights} myPersonId={myPersonId || null} />
+      {/* THE HEADING ONLY, and it belongs to the PAGE rather than to either pane — it names
+          the screen, and the rail immediately under it names what you are looking at. The
+          lede went with the split: "The family's photographs, kept in albums" restated the
+          heading and then the first rail item. */}
+      <h1 className="text-3xl font-bold">{t('gal.heading')}</h1>
+
+      <GalleryShell
+        initialPane={pane}
+        rights={rights}
+        myPersonId={myPersonId || null}
+        allMembers={allMembers}
+      />
     </PageShell>
   )
 }
