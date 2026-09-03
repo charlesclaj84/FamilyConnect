@@ -97,17 +97,33 @@ export async function switchActiveFamily(familyCode: string): Promise<FamilyActi
  * is opening on the wrong family, which is exactly the state this fixes and which the family
  * switcher can correct in one press. So it is logged and swallowed, the same shape
  * `lib/notifications.ts` keeps for a bell entry that must not undo the decision it announces.
+ *
+ * ── AND `Promise<void>` IS NOT THE SAME PROMISE AS "CANNOT FAIL" ───────────────────
+ * This paragraph said "it never throws" and shipped a login that could not be completed.
+ * Reading `error` covers what PostgREST REPORTS; it covers nothing that happens before the
+ * request — `createClient()` reading a malformed cookie, `rpc` rejecting on a dropped
+ * connection — and nothing about the action CALL, which is a `fetch` the browser makes and
+ * which Next rejects outright when the page was rendered by an earlier build.
+ *
+ * So the body is wrapped, AND every caller goes through `openDefaultFamilySafely` in
+ * `lib/open-default-family.ts`, which is what covers the half no code in this file can see.
+ * Both, because they fail at different layers and either one alone leaves a sign-in that can
+ * be stopped by a preference.
  */
 export async function openDefaultFamily(): Promise<void> {
-  const supabase = await createClient()
-  const { error } = await supabase.rpc('open_default_family')
-  if (error) {
-    // PGRST202 = the function is not there, i.e. 20260902000002 has not run against this
-    // database. Worth distinguishing in the log, because it is the one cause that is a
-    // deployment state rather than a fault.
-    console.error(error.code === 'PGRST202'
-      ? '[family] open_default_family() is missing — 20260902000002 has not been applied'
-      : `[family] could not open the default family: ${error.message}`)
+  try {
+    const supabase = await createClient()
+    const { error } = await supabase.rpc('open_default_family')
+    if (error) {
+      // PGRST202 = the function is not there, i.e. 20260902000002 has not run against this
+      // database. Worth distinguishing in the log, because it is the one cause that is a
+      // deployment state rather than a fault.
+      console.error(error.code === 'PGRST202'
+        ? '[family] open_default_family() is missing — 20260902000002 has not been applied'
+        : `[family] could not open the default family: ${error.message}`)
+    }
+  } catch (e) {
+    console.error(`[family] open_default_family() threw: ${e instanceof Error ? e.message : e}`)
   }
 }
 

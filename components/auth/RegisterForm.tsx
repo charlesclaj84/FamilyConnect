@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
-import { openDefaultFamily } from '@/app/actions/family'
+import { openDefaultFamilySafely } from '@/lib/open-default-family'
 import { markIdleActivity } from '@/lib/idle-timeout'
 import { trackPixelEvent } from '@/lib/meta/pixel'
 import { registerUser } from '@/app/actions/register'
@@ -227,7 +227,9 @@ export function RegisterForm({
       //
       // For a genuinely new account it is a no-op — no settings row, so no default — which is
       // what makes calling it here cheap rather than conditional.
-      await openDefaultFamily()
+      // `…Safely` — a rejection here must not strand somebody who has just registered on
+      // the form they submitted. See `lib/open-default-family.ts`.
+      await openDefaultFamilySafely()
       setAutoSignedIn(true)
       // For join mode go straight to dashboard; create mode shows the family code first.
       // An invitation is a join: the membership already exists, pre-approved or queued.

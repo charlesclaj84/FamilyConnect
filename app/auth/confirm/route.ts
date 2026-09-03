@@ -84,8 +84,23 @@ export async function GET(request: NextRequest) {
   // here would be a database write on the way to a page that cannot use it.
   //
   // Called with the same `supabase` client the verification used, so `auth.uid()` is the
-  // session that was just created. It never throws — see the action.
-  await supabase.rpc('open_default_family')
+  // session that was just created.
+  //
+  // WRAPPED, and the reason is the same one that broke sign-in: `supabase.rpc` REJECTS on a
+  // dropped connection or a cold start rather than returning an `error`, and an unhandled
+  // rejection in a route handler is a 500 — so a preference nobody would miss would turn a
+  // confirmation link into a dead end, with the account already confirmed and no way to
+  // notice from the URL. The redirect below is the thing the member clicked for.
+  //
+  // Not `openDefaultFamilySafely`: that wrapper exists to survive the ACTION CALL from a
+  // browser, and this is server code holding the client that just verified the token — going
+  // through a server action here would be a second request re-reading the same cookies.
+  try {
+    const { error } = await supabase.rpc('open_default_family')
+    if (error) console.error(`[auth/confirm] open_default_family: ${error.message}`)
+  } catch (e) {
+    console.error(`[auth/confirm] open_default_family threw: ${e instanceof Error ? e.message : e}`)
+  }
 
   return NextResponse.redirect(new URL(next, request.url))
 }

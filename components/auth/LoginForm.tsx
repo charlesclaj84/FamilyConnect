@@ -9,7 +9,7 @@ import Link from 'next/link'
 import { Mail } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { isEmailNotConfirmed } from '@/lib/auth/auth-errors'
-import { openDefaultFamily } from '@/app/actions/family'
+import { openDefaultFamilySafely } from '@/lib/open-default-family'
 import { markIdleActivity } from '@/lib/idle-timeout'
 import { safeNext } from '@/lib/safe-next'
 import { Button } from '@/components/ui/button'
@@ -144,8 +144,15 @@ export function LoginForm({
       // selection persisted in `user_family_settings` and always won, so every session after
       // the first opened on whichever family they last looked at. Awaited BEFORE the push,
       // because the page being navigated to resolves its family server-side and would
-      // otherwise render the old one. It never throws and never reports — see the action.
-      await openDefaultFamily()
+      // otherwise render the old one.
+      //
+      // `…Safely`, AND THAT IS THE WHOLE OF WHY THAT WRAPPER EXISTS. This line was
+      // `await openDefaultFamily()` and it broke sign-in: a server action is a `fetch`, it
+      // can reject for reasons its body never sees, and an unhandled rejection here means
+      // `router.push` below never runs — credentials accepted, page does not move, no
+      // message, because `serverError` was cleared at the top of this handler. See
+      // `lib/open-default-family.ts`.
+      await openDefaultFamilySafely()
       router.push(next)
       router.refresh()
     }
