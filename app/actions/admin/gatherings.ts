@@ -1030,7 +1030,7 @@ export async function getGatheringFundOptions(): Promise<{ id: string; name: str
   // What withholds the fund picker from a Free family is therefore the PAGE:
   // `/admin/gatherings` and `/admin/gatherings/[id]` both and `tierAllows()` into
   // `mayManageBudget` and skip this call entirely, so §5 is discharged by the request never
-  // being made. That is also where `/accounting/transactions` puts it for its Plus ledger.
+  // being made. That is also where `/reporting/transactions` puts it for its Plus ledger.
   if (!(await canAny(g.userId, 'gatherings/budget', 'view'))) return []
 
   const admin = createAdminClient()

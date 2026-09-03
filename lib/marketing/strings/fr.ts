@@ -144,8 +144,8 @@ export const marketingFr: Catalogue = {
   'mkt.also./accounting/dues-and-donations.blurb':
     'Ce que vous devez cette année et ce que vous avez payé, et les campagnes que la '
     + 'famille mène — le côté du membre dans le registre.',
-  'mkt.also./accounting/transactions.title': 'Le registre complet',
-  'mkt.also./accounting/transactions.blurb':
+  'mkt.also./reporting/transactions.title': 'Le registre complet',
+  'mkt.also./reporting/transactions.blurb':
     'Chaque apport enregistré et chaque décaissement versé, sur un seul registre, avec qui '
     + 'l’a saisi et quand.',
   'mkt.also./admin/accounting.title': 'Configurez le fonctionnement de l’argent',
@@ -239,16 +239,16 @@ export const marketingFr: Catalogue = {
   'mkt.also./community/updates.blurb':
     'Tout ce que la famille a jamais annoncé, et tout ce qui vous a été envoyé, cherchable '
     + 'longtemps après avoir quitté le tableau de bord.',
-  'mkt.also./reporting/payment-history.title': 'Votre propre historique de paiement',
-  'mkt.also./reporting/payment-history.blurb':
+  'mkt.also./accounting/payment-history.title': 'Votre propre historique de paiement',
+  'mkt.also./accounting/payment-history.blurb':
     'Chaque paiement enregistré à votre nom, avec sa date, son montant, son mode et son '
     + 'état — pour que personne n’ait à croire le trésorier sur parole.',
   'mkt.also./reporting/dues-projections.title': 'Projection des cotisations',
   'mkt.also./reporting/dues-projections.blurb':
     'Ce que la famille devrait encaisser cette année, ce qui est entré, et qui doit encore '
     + '— en comptant les proches qui n’ont jamais terminé leur inscription.',
-  'mkt.also./accounting/transactions/fund-transfers.title': 'Virements entre fonds',
-  'mkt.also./accounting/transactions/fund-transfers.blurb':
+  'mkt.also./reporting/transactions/fund-transfers.title': 'Virements entre fonds',
+  'mkt.also./reporting/transactions/fund-transfers.blurb':
     'Déplacez de l’argent d’un fonds à un autre et gardez les deux côtés au relevé.',
   'mkt.also./admin/members/templates.title': 'Qui peut faire quoi',
   'mkt.also./admin/members/templates.blurb':

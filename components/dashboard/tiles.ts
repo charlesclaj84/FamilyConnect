@@ -103,7 +103,7 @@ export const TILE_RESOURCE: Record<TileId, readonly string[]> = {
  * answer to "may I see this" moved with the pixels.
  */
 export const DUES_COLLECTED_RESOURCE = [
-  'accounting/transactions/dues-payments', 'accounting/transactions/donation-payments',
+  'reporting/transactions/dues-payments', 'reporting/transactions/donation-payments',
 ] as const
 
 export interface TileMeta {
@@ -207,7 +207,7 @@ export function quickActionMeta(t: T): Record<QuickActionId, QuickActionMeta> {
     // job live", which is what the row menu and the permission grid both reflect, and
     // because dropping it would make this the one entry with a different shape.
     'add-member':     { label: t('dash.addMember'),     href: '/admin/members',                       accent: 'primary', icon: UserPlus },
-    'record-payment': { label: t('dash.recordPayment'), href: '/accounting/transactions?ledger=dues-payments', accent: 'affirm',  icon: HandCoins },
+    'record-payment': { label: t('dash.recordPayment'), href: '/reporting/transactions?ledger=dues-payments', accent: 'affirm',  icon: HandCoins },
     'send-message':   { label: t('dash.sendMessage'),   href: '/community/chat',                              accent: 'warm',    icon: MessageCircle },
     // The pane, not the old route: `/gatherings/my-tasks` redirects to it, and a Quick Action
     // that goes through a redirect is a Back button that walks through one.
@@ -271,7 +271,7 @@ export function electionActionLabel(t: T, phase: 'nominations' | 'voting'): stri
  */
 export const QUICK_ACTION_GRANT: Record<QuickActionId, { resource: string; action: 'view' | 'create' }> = {
   'add-member':     { resource: 'admin/members',                 action: 'create' },
-  'record-payment': { resource: 'accounting/transactions/dues-payments',  action: 'create' },
+  'record-payment': { resource: 'reporting/transactions/dues-payments',  action: 'create' },
   'send-message':   { resource: 'community/chat',              action: 'view' },
   // `view`, and on the pane's own key. Answering a task you were handed is self-service —
   // `create` and `edit` both default to scope 'none' (AGENTS.md §2), so demanding either would
@@ -325,11 +325,11 @@ export const QUICK_ACTION_GRANT: Record<QuickActionId, { resource: string; actio
  * (AGENTS.md §1). A key with no entry is therefore impossible rather than `undefined`.
  */
 const ROUTE_OVERRIDE: Record<string, string> = {
-  // `/accounting/transactions` and not the sub-key's own path: neither ledger is a route, and
+  // `/reporting/transactions` and not the sub-key's own path: neither ledger is a route, and
   // `isFeatureLive` asks the registry whether a SCREEN has shipped. The screen is the ledger
   // page they are both panes of.
-  'accounting/transactions/dues-payments': '/accounting/transactions',
-  'accounting/transactions/donation-payments': '/accounting/transactions',
+  'reporting/transactions/dues-payments': '/reporting/transactions',
+  'reporting/transactions/donation-payments': '/reporting/transactions',
   // `/gatherings` and NOT `/gatherings/my-tasks`, even though the key is the longer one, for
   // the same reason: the screen is the pane's page. Both entries carry the same status today,
   // so this cannot change the answer — it is written the way it is so that it stays right if

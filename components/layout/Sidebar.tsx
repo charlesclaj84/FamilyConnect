@@ -429,20 +429,35 @@ function buildNavGroups(viewable: Set<string>, t: T): NavGroup[] {
       // first is when the next payment falls. HeartHandshake did not disappear — it is the
       // Donations pane's own glyph on the rail inside the page.
       { href: '/accounting/dues-and-donations', label: t('shell.duesDonations'), icon: CalendarClock },
-      // ── TRANSACTIONS ARRIVED HERE ON 2026-08-22, FROM REPORTING ─────────────────────
-      // The four ledgers are where money is RECORDED — a dues payment, a donation, a fund
-      // contribution, a disbursement, a transfer — which is this group's job and not
-      // Reporting's. Reporting reads a recorded figure back; this writes it down. That the
-      // page also LISTS what it holds is what made the old placement plausible, and a list
-      // is not a report.
+      // ── PAYMENT HISTORY ARRIVED HERE ON 2026-09-03, FROM REPORTING ──────────────────
+      // BELOW DUES & DONATIONS, which is where it was asked for and is also where it
+      // belongs: those two rows are the same question at two scales — what this reader owes
+      // and what this reader has paid — and Dues & Donations already links straight to it.
       //
-      // THE ROUTE AND THE KEY MOVED WITH IT, both of them, because §1 leaves no choice:
-      // the resource key is the route without its leading slash. `20260822000022` carries
-      // `reporting/transactions` and its six sub-keys onto `accounting/transactions`,
-      // copying every family's grants and rewriting the composed policies before it drops
-      // the old rows. Moving the rail row alone would have left the caption under one
-      // heading and the switch on Members & Access under another.
-      { href: '/accounting/transactions',     label: 'Transactions',      icon: ArrowRightLeft },
+      // IT IS NOT A REPORT, which is why Reporting was the wrong heading. Every other row
+      // under that heading is a reading of the FAMILY; this is own-only BY CONSTRUCTION
+      // rather than by grant, because `getMyPaymentHistory` filters on the caller's own
+      // `people` row. Its `category` in `permission_resources` has been `accounting` since
+      // it was registered, which is the same evidence 20260822000022 cited for its own move.
+      //
+      // THE ROUTE AND THE KEY MOVED WITH IT (`20260903000000`), because §1 leaves no choice:
+      // the resource key is the route without its leading slash.
+      { href: '/accounting/payment-history', label: t('shell.paymentHistory'), icon: History },
+      // ── TRANSACTIONS LEFT THIS GROUP ON 2026-09-03, BACK TO REPORTING ───────────────
+      // It arrived here on 2026-08-22 with an argument worth keeping, because it is the
+      // argument somebody will make again: the four ledgers are where money is RECORDED — a
+      // dues payment, a donation, a fund contribution, a disbursement, a transfer — and
+      // Reporting reads a recorded figure back rather than writing it down.
+      //
+      // WHAT THAT LEFT OUT IS THE PAGE'S OWN SHAPE. It is a rail of ledgers over a sortable,
+      // filterable table of every row the family has, with the create trigger as one control
+      // in the corner. Whatever the writing is for, what the screen mostly IS — and what a
+      // member mostly opens it to do — is read the ledger back; the recording is done from a
+      // dialog. The owner asked for it back and that is the decision.
+      //
+      // `20260903000000` carries `accounting/transactions` and its six sub-keys onto
+      // `reporting/transactions`, copying every family's grants and rewriting the ten
+      // composed policies before it drops the old rows.
       // DUES PROJECTIONS LEFT THIS GROUP ON 2026-08-20 and is in Reporting below. The note
       // that used to stand here argued for keeping it — "the request named two screens" — and
       // the note on Reporting said moving a third would be scope creep. It was asked for, so
@@ -512,14 +527,16 @@ function buildNavGroups(viewable: Set<string>, t: T): NavGroup[] {
       // than under Admin because it is a member-facing reading rather than a tool for running
       // the family — the same argument that put Payment History and Transactions here.
       { href: '/reporting/membership', label: 'Membership',       icon: PieChart },
-      { href: '/reporting/payment-history',  label: t('shell.paymentHistory'),   icon: History },
-      // TRANSACTIONS LEFT THIS GROUP ON 2026-08-22 and is under Accounting above. It was
-      // here on the argument this block's heading makes — "a reading of the money" — and
-      // that argument was thinner than it looked: the four ledgers are where a payment, a
-      // donation, a contribution, a disbursement and a transfer are RECORDED, not where a
-      // recorded figure is read back. It sits beside the screens whose rows it holds now,
-      // and the move took its route and its permission key with it (20260822000022), which
-      // is what "the route tree IS the nav rail" costs.
+      // ── TRANSACTIONS IS BACK IN THIS GROUP AS OF 2026-09-03 ─────────────────────────
+      // It was here until 2026-08-22 on the argument this block's heading makes — every row
+      // under it is a READING — left for Accounting on the argument that a ledger is where
+      // money is RECORDED, and has come back because the reading is what the screen mostly
+      // is. See the note where it used to sit, under Accounting, which carries both halves.
+      //
+      // PAYMENT HISTORY WENT THE OTHER WAY in the same commit, and the two are not a swap
+      // for symmetry: that one is the READER'S OWN receipts, own-only by construction, which
+      // is Accounting's job in this rail and not this heading's.
+      { href: '/reporting/transactions', label: 'Transactions',    icon: ArrowRightLeft },
       { href: '/reporting/dues-projections', label: t('shell.duesProjections'),  icon: TrendingUp },
       // P&L SUMMARY ARRIVED HERE ON 2026-08-20, from Accounting by way of Review, and the
       // caption changed with the move. "Family Finances" beside four other readings of the

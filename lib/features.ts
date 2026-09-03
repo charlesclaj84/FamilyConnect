@@ -57,7 +57,7 @@
  *     card and the P&L, which is `/reporting/pl-summary` and the unbuilt payments work.
  *   * **THE LEDGER IS FIVE ROUTES, NOT ONE**, and they had to move together or the tier
  *     boundary would run through the middle of one member's money.
- *     `/accounting/transactions`, `/admin/accounting`, `/accounting/dues`, `/accounting/donations` and `/reporting/payment-history` are all
+ *     `/reporting/transactions`, `/admin/accounting`, `/accounting/dues`, `/accounting/donations` and `/accounting/payment-history` are all
  *     `standard`, and `/accounting/summary` — which is a digest of the last three plus the
  *     family's fund balances — went with them, because a Free family reading a Summary with
  *     every section withheld is worse than a Free family with no Summary. Free keeps no money
@@ -69,7 +69,7 @@
  *     Standard sells is planning: `/admin/gatherings/templates` (the checklists a gathering is
  *     built from), `/gatherings/my-tasks` (the duties), and `/gatherings/budget` (the money
  *     band). The last two are rows that exist ONLY to carry a tier, the same device
- *     `/accounting/transactions/fund-transfers` uses; both are argued at their entries.
+ *     `/reporting/transactions/fund-transfers` uses; both are argued at their entries.
  *
  *     THIS BULLET USED TO READ "Every Gatherings route is FREE … forced rather than generous",
  *     and what made it forced was that a gathering could only be created FROM a template. That
@@ -161,7 +161,7 @@ export interface Feature {
    * them from a real route, so anything that turned this registry into a LIST OF PLACES linked
    * to a 404 — and one thing does: `ComingSoonScreen` renders `LIVE_FEATURES` as destinations,
    * so `/gatherings/budget`, `/admin/members/templates` and
-   * `/accounting/transactions/fund-transfers` were all offered as links that go nowhere.
+   * `/reporting/transactions/fund-transfers` were all offered as links that go nowhere.
    *
    * IT IS NOT A SECOND `status`. A pane is fully shipped; it simply is not a URL. Everything
    * that asks a QUESTION about a path — `getFeature`, `requiredTier`, `tierAllows`,
@@ -198,7 +198,7 @@ export const FEATURES: readonly Feature[] = [
    * which is Free and — deliberately — has no `permission_resources` row at all
    * (`20260806000006`: a member's own things are not something a family administers). So the
    * tier boundary runs THROUGH a Free page, which is the case `lib/features.ts` cannot express
-   * without a row of its own. Fourth instance of the device; `accounting/transactions/fund-transfers`
+   * without a row of its own. Fourth instance of the device; `reporting/transactions/fund-transfers`
    * is where it was first exercised end to end.
    *
    * `status: 'live'` matters twice, and both are recorded on the fund-transfers entry:
@@ -313,14 +313,14 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'What you owe on every schedule you are on, and every drive your family is running.',
   },
   {
-    href: '/reporting/payment-history',
+    href: '/accounting/payment-history',
     label: 'Payment History',
     status: 'live',
     tier: 'standard',
     blurb: 'Every payment recorded against you, with its date, method, status and reference.',
   },
   {
-    href: '/accounting/transactions',
+    href: '/reporting/transactions',
     label: 'Transactions',
     status: 'live',
     tier: 'standard',
@@ -329,7 +329,7 @@ export const FEATURES: readonly Feature[] = [
   // ── THE FIRST TIER BOUNDARY THAT RUNS *THROUGH* A PAGE, and the mechanism the `tier`
   // note above says to use for one. Added 2026-08-19.
   //
-  // Fund transfers are Plus; the other four ledgers on `/accounting/transactions` are Standard as of
+  // Fund transfers are Plus; the other four ledgers on `/reporting/transactions` are Standard as of
   // 2026-08-19 and were Free when this was written. The boundary still runs THROUGH the page,
   // which is what this row is for — only the rung underneath it moved. That is
   // a decision about the CAPABILITY rather than the screen — moving the family's savings
@@ -340,15 +340,15 @@ export const FEATURES: readonly Feature[] = [
   // THIS ROW EXISTS ONLY TO CARRY THE TIER, and three things follow that a reader will
   // otherwise take for mistakes:
   //
-  //   * `/accounting/transactions/fund-transfers` IS NOT A ROUTE. Nothing navigates there; the ledger
-  //     is a pane on `/accounting/transactions?ledger=transfers`. The entry is here because
+  //   * `/reporting/transactions/fund-transfers` IS NOT A ROUTE. Nothing navigates there; the ledger
+  //     is a pane on `/reporting/transactions?ledger=transfers`. The entry is here because
   //     `tierAllows()` resolves a key through `requiredTier()`, which is `getFeature()`'s
-  //     longest-prefix match — so without this row the sub-key inherits `/accounting/transactions`
+  //     longest-prefix match — so without this row the sub-key inherits `/reporting/transactions`
   //     and is Free, which is exactly what `lib/auth/tier.ts` documents as the default
   //     behaviour ("a tab is part of the page it is on"). This is the deliberate exception
   //     to it, and the only way to state one.
   //   * `status: 'live'` MATTERS. `proxy.ts` gates by prefix, so a `'future'` row here
-  //     would rewrite `/accounting/transactions/...` paths to Coming Soon — and, worse, `getResources()`
+  //     would rewrite `/reporting/transactions/...` paths to Coming Soon — and, worse, `getResources()`
   //     drops any grid row under a `'future'` prefix, so the Fund Transfers switch would
   //     vanish from Members & Access with no error at all.
   //   * IT ADDS NO RAIL ITEM. `buildNavGroups` renders a hand-written list in
@@ -364,7 +364,7 @@ export const FEATURES: readonly Feature[] = [
   // `families.tier` and none may start to, so a family that lapses to Free keeps every
   // transfer it ever recorded and loses the pane that lists them.
   {
-    href: '/accounting/transactions/fund-transfers',
+    href: '/reporting/transactions/fund-transfers',
     label: 'Fund Transfers',
     status: 'live',
     tier: 'plus',
@@ -748,7 +748,7 @@ export const FEATURES: readonly Feature[] = [
   // which is worth spelling out, because they look like they are. A row in FEATURES carries
   // the TIER for a key; `TAB_RESOURCES` decides whether `viewableResources()` should hand the
   // key back so a rail item can appear. The budget band needs the first and must not have the
-  // second, exactly like `/accounting/transactions/fund-transfers`. (That list gained a second
+  // second, exactly like `/reporting/transactions/fund-transfers`. (That list gained a second
   // entry on 2026-08-19 — `admin/chapters`, the Organization pane — which does not change
   // this reasoning: read the note on it, because the ground it earns its place on is not the
   // one `admin/users/templates` earns its place on.)
@@ -907,7 +907,7 @@ export const FEATURES: readonly Feature[] = [
   // (page, action module, client and `permission_resources` row; 20260820000003). It sold
   // four things and delivered a mixture: a member count, a gathering count, dues collected,
   // t-shirt sizes and the last twenty money entries. Every money figure on it duplicated a
-  // screen that owns one — `/reporting/pl-summary` for the statement, `/accounting/transactions` for the
+  // screen that owns one — `/reporting/pl-summary` for the statement, `/reporting/transactions` for the
   // ledger, `/reporting/dues-projections` for what is outstanding — and the one question an organizer
   // actually brings to a report, *where are our people and how many can we reach*, it did
   // not answer.
@@ -1329,7 +1329,7 @@ export const FEATURES: readonly Feature[] = [
     blurb: 'Reusable step-by-step lists that every gathering is built from.',
   },
   // ── SEPARATION OF DUTIES IS SOLD ON STANDARD, AND THIS ROW IS HOW ────────────────
-  // Added 2026-08-19. Second instance of the `/accounting/transactions/fund-transfers` device — a
+  // Added 2026-08-19. Second instance of the `/reporting/transactions/fund-transfers` device — a
   // registry row whose only job is to carry a tier for a sub-key — and everything that entry
   // says about it applies here. Three things a reader will otherwise take for mistakes:
   //

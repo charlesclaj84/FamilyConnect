@@ -1912,7 +1912,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('[Summary](/accounting/summary) shows the headline of each of the four things below it and names where the rest is. Nothing lives only here — every figure has a screen behind it, reached from the link beside its heading or from the **Accounting** section of the rail.'),
               defs(
                 { term: 'Account Standing / Next Installments', text: 'What you owe and what the next payment comes to. In full on [Dues](/accounting/dues-and-donations).' },
-                { term: 'Paid This Year', text: 'Your total for the year, broken down by schedule. In full on [Payment History](/reporting/payment-history).' },
+                { term: 'Paid This Year', text: 'Your total for the year, broken down by schedule. In full on [Payment History](/accounting/payment-history).' },
                 { term: 'Open donation drives', text: 'The drives still running. Closed ones are counted here and listed on [Donations](/accounting/dues-and-donations?pane=donations).' },
                 { term: 'Family Funds', text: 'Every fund the family keeps and what each holds. There is no separate screen for this one.' },
               ),
@@ -1940,7 +1940,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('[Dues & Donations](/accounting/dues-and-donations) answers one question in two directions: what your family asks of you, and what it invites you to give to. **Dues** is every schedule you are on; **Donations** is every drive the family is running. Press either on the rail across the top.'),
               p('They were two separate screens until 2026-08-20. A link or a bookmark to either still finds the family\'s money — start from [Summary](/accounting/summary), which leads with both.'),
-              p('Neither pane ever shows anybody else\'s dues or anybody else\'s giving, whatever you have been granted. Every figure on the screen is either a family total or your own. What the family as a whole has paid is a different question, asked on [Transactions](/accounting/transactions).'),
+              p('Neither pane ever shows anybody else\'s dues or anybody else\'s giving, whatever you have been granted. Every figure on the screen is either a family total or your own. What the family as a whole has paid is a different question, asked on [Transactions](/reporting/transactions).'),
             ],
           },
           {
@@ -2056,7 +2056,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'giving',
             heading: 'Giving to one',
             blocks: [
-              p('**Give**, on an open drive, takes you to Stripe\u2019s own page to enter your card. Type what you want to give — there is no set amount and no maximum, and the drive tells you what would meet its goal if it has one. It posts to the family\u2019s books as soon as it clears, and appears in your [payment history](/reporting/payment-history) alongside anything recorded by hand.'),
+              p('**Give**, on an open drive, takes you to Stripe\u2019s own page to enter your card. Type what you want to give — there is no set amount and no maximum, and the drive tells you what would meet its goal if it has one. It posts to the family\u2019s books as soon as it clears, and appears in your [payment history](/accounting/payment-history) alongside anything recorded by hand.'),
               p('Giving is one drive at a time and never recurring, which is the difference from paying dues. Agreeing to give once is not agreeing to give every month, and giving to one drive says nothing about the others.'),
               p('A gift goes whole into your family\u2019s **Donations** fund. It is not split across funds the way a dues payment is — see [Funds](/help/accounting#funds).'),
               note('A drive that has met its goal keeps taking gifts, and one that has **Closed** takes none. A closed drive shows no **Give** button because its total cannot move any more.'),
@@ -2070,14 +2070,14 @@ export const HELP_PARTS: readonly HelpPart[] = [
         slug: 'payment-history',
         title: 'Payment history',
         summary: 'Everything recorded against you, with its date, amount, method and status.',
-        route: '/reporting/payment-history',
+        route: '/accounting/payment-history',
         sections: [
           {
             id: 'the-list',
             heading: 'The list',
             blocks: [
-              p('[Payment History](/reporting/payment-history) is every payment the family has recorded against you — dues and donations in one list, each row tagged with which it was. Any column heading sorts, and the **Filter** box narrows by schedule, method or status.'),
-              p('It is under **Reporting** in the rail. [Transactions](/accounting/transactions) is its family-wide counterpart and moved under **Accounting** in August 2026, beside the screens whose rows it holds. The two are the money read back — this one is yours, that one is the family\'s — while [Accounting](/admin/accounting) is where it is set up in the first place.'),
+              p('[Payment History](/accounting/payment-history) is every payment the family has recorded against you — dues and donations in one list, each row tagged with which it was. Any column heading sorts, and the **Filter** box narrows by schedule, method or status.'),
+              p('It is under **Accounting** in the rail, below **Dues & Donations** — those two are the same question at two scales, what you owe and what you have paid. [Transactions](/reporting/transactions) is its family-wide counterpart and is under **Reporting**. The two are the money read back — this one is yours, that one is the family\'s — while [Accounting](/admin/accounting) is where it is set up in the first place.'),
               p('Clicking a row opens the full entry: the cheque number or reference, any notes, and the date it was keyed in — which is not the same as the date it was paid, and is usually what explains why something only just appeared.'),
             ],
           },
@@ -2095,13 +2095,13 @@ export const HELP_PARTS: readonly HelpPart[] = [
         slug: 'transactions',
         title: 'Transactions',
         summary: 'The family\'s five ledgers — money in, money out, and money moving between funds.',
-        route: '/accounting/transactions',
+        route: '/reporting/transactions',
         sections: [
           {
             id: 'ledgers',
             heading: 'The five ledgers',
             blocks: [
-              p('[Transactions](/accounting/transactions) is under **Accounting** in the rail, below **Dues & Donations**. [Payment History](/reporting/payment-history) is the one under **Reporting** — the family\'s whole record rather than your own. It is one rail of five tabs, one per kind of entry.'),
+              p('[Transactions](/reporting/transactions) is under **Reporting** in the rail, because reading the ledger back is what the screen mostly is. [Payment History](/accounting/payment-history) is the one under **Accounting** — your own payments rather than the family\'s whole record. It is one rail of five tabs, one per kind of entry.'),
               defs(
                 { term: 'Dues', text: 'Dues paid by members.' },
                 { term: 'Donations', text: 'Gifts to a drive.' },
@@ -2140,8 +2140,8 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'what-it-is',
             heading: 'What it answers',
             blocks: [
-              p('[Transactions](/accounting/transactions) is what came in. This is what should: every active dues schedule, multiplied out across the members who owe it, set against what has actually been collected.'),
-              p('Nothing on this screen changes anything. Recording a payment or waiving one is on [Transactions](/accounting/transactions); changing what a due costs is under [Accounting](/admin/accounting).'),
+              p('[Transactions](/reporting/transactions) is what came in. This is what should: every active dues schedule, multiplied out across the members who owe it, set against what has actually been collected.'),
+              p('Nothing on this screen changes anything. Recording a payment or waiving one is on [Transactions](/reporting/transactions); changing what a due costs is under [Accounting](/admin/accounting).'),
               p('**A relative who has died is not counted.** Setting a **Sunset Date** on somebody’s profile takes them off this screen entirely — they owe nothing, so neither the total the family is owed nor the list of who has still to pay includes them. Payments they made in the past still count toward what was collected.'),
             ],
           },
@@ -2215,7 +2215,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'what-it-is',
             heading: 'What it answers',
             blocks: [
-              p('The family\'s statement, on one page: everything that has come in, everything that has gone out, and the difference between them. [Transactions](/accounting/transactions) is the entry-by-entry ledger this is a summary of, and [Dues Projections](/reporting/dues-projections) is what is still owed — this screen is only about money that has actually moved.'),
+              p('The family\'s statement, on one page: everything that has come in, everything that has gone out, and the difference between them. [Transactions](/reporting/transactions) is the entry-by-entry ledger this is a summary of, and [Dues Projections](/reporting/dues-projections) is what is still owed — this screen is only about money that has actually moved.'),
               p('**Every figure is life to date.** There is no date range to set: the page counts every entry the family has ever recorded, from the first one. The line at the top of the page says so, and it is worth reading before a figure goes into a report.'),
               note('This screen was called **Family Finances** until August 2026. Nothing about it moved except the name and where it sits in the rail — it is under **Reporting** now, with the other screens that read the money back.'),
             ],
@@ -2229,7 +2229,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Expenses', text: 'Money disbursed from a fund. That is the only kind of outgoing this product records, so it is the whole of what has been spent.' },
                 { term: 'Net surplus', text: 'Income less expenses. It reads **Net deficit** and turns red when more has gone out than has come in.' },
               ),
-              p('A reversal corrects itself here. Reversing a payment on [Transactions](/accounting/transactions) posts an opposite entry, and both the payment and its reversal are counted — so income lands back where it belongs rather than counting the correction twice.'),
+              p('A reversal corrects itself here. Reversing a payment on [Transactions](/reporting/transactions) posts an opposite entry, and both the payment and its reversal are counted — so income lands back where it belongs rather than counting the correction twice.'),
             ],
           },
           {
@@ -2337,7 +2337,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             id: 'what-it-is',
             heading: 'Setup, not the day\'s work',
             blocks: [
-              p('[Accounting](/admin/accounting) is where the money is *configured*. Recording an actual payment happens on [Transactions](/accounting/transactions), under **Accounting** in the rail. Each section here is its own permission, so maintaining the dues schedule and paying money out are different jobs.'),
+              p('[Accounting](/admin/accounting) is where the money is *configured*. Recording an actual payment happens on [Transactions](/reporting/transactions), under **Accounting** in the rail. Each section here is its own permission, so maintaining the dues schedule and paying money out are different jobs.'),
               p('The rail across the top of the page holds **Dues**, **Donations**, **Funds**, **Routing**, **Milestones**, **Processing** and **Bank Information**. Each is granted separately, so you see the ones you have been given and no others — a rail with three items on it is not a fault. The **New Dues** and **New Donation** buttons sit beside the rail on their own pages, and appear only where you may add to that list.'),
               p('**They are still two separate permissions, and sharing a pane changed nothing about that.** A family that lets somebody keep the dues schedule but not run the donation drives grants one and not the other, and that person sees one list, one button, and a rail item named for the half they hold. It is one screen because the two are read together, not because they are one job — see [Who can do what](/help/who-can-do-what#one-template).'),
             ],
@@ -2396,7 +2396,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
               note('**Both are settled once either a payment has been recorded or the Stripe account has been created, and neither can be undone.** Stripe cannot move a connected account to another country, and your family’s ledger cannot be re-denominated after the fact — a hundred rows saying $40 would have to mean two different things. The pane says which of the two settled it. Pick the country before you record your first payment.'),
               p('**The account belongs to your family, not to GENORRA.** Money goes straight to your family\'s bank, Stripe\'s processing fees come out of your family\'s side, and your family keeps its own Stripe dashboard, its own payout schedule and its own refunds. GENORRA takes no share of what your family collects.'),
               note('**You will never be asked for a Stripe key, and you should never give one to anybody.** GENORRA stores only your account\'s id — enough to send a payment to you, and useless to anyone on its own. If a screen ever asks you to paste a key that begins `sk_`, it is not this product.'),
-              p('A card payment posts to the family\'s books the moment it clears and splits across your funds by the same **Routing** table a payment keyed in by hand follows. Nobody has to enter it afterwards, and it appears in [Transactions](/accounting/transactions) beside everything else.'),
+              p('A card payment posts to the family\'s books the moment it clears and splits across your funds by the same **Routing** table a payment keyed in by hand follows. Nobody has to enter it afterwards, and it appears in [Transactions](/reporting/transactions) beside everything else.'),
               p('**Check with Stripe** asks Stripe for the account\'s current state, which is worth pressing if you have just finished something on their side. Until it says card payments are on, members see no **Pay online** section at all — better than a button that fails once somebody has decided to pay.'),
               note('**Disconnecting stops every member\'s automatic payment as well, and those cannot be restarted.** Reconnecting brings the same Stripe account back with its history and bank details exactly as they were — but each relative who was paying automatically has to set their payment up again, because the arrangement was cancelled at Stripe rather than paused. The panel says how many people that is before you confirm. Nothing already recorded is removed, and your family\'s own Stripe account is untouched — this only stops GENORRA using it.'),
               p('**Because of that, disconnecting asks for two things.** First your sign-in password, so it cannot happen by accident or by somebody sitting at an unlocked screen. Then a six-digit code emailed to the address you sign in with — not to an address you type, and not to anybody else. The code lasts fifteen minutes, works once, and cancels itself after five wrong tries. It is the same gate as [removing a family](/help/family-settings#removal), and it is there for the same reason: the part you can undo hides a part you cannot.'),

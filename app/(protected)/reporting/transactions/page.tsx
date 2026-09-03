@@ -16,7 +16,7 @@ import { currentUser } from '@/lib/auth/current-user'
 import { docTitle } from '@/lib/i18n/page-metadata'
 
 export async function generateMetadata() {
-  return docTitle('page./accounting/transactions.title')
+  return docTitle('page./reporting/transactions.title')
 }
 
 /**
@@ -27,7 +27,7 @@ export async function generateMetadata() {
  * separate gates, because "can see the page", "can see this ledger" and "can move
  * money" are three different questions:
  *
- *   1. requireView('accounting/transactions') — 404s anyone the family has restricted.
+ *   1. requireView('reporting/transactions') — 404s anyone the family has restricted.
  *   2. One VIEW grant per ledger, from LEDGER_RESOURCE, added by 20260808000000. It
  *      decides whether the tab is offered AND whether the ledger is fetched. Both
  *      halves matter: props are serialized into the RSC payload and reach the browser
@@ -55,7 +55,7 @@ export default async function TransactionsPage({
   const { user } = await currentUser()
   if (!user) redirect('/login')
 
-  await requireView(user.id, 'accounting/transactions')
+  await requireView(user.id, 'reporting/transactions')
 
   const { t } = await callerI18n(user.id)
 
@@ -74,7 +74,7 @@ export default async function TransactionsPage({
   // for the PAGE key (`transactions`, Free) and knows nothing about the panes.
   //
   // It is applied to all five rather than to transfers alone, deliberately. Four of them
-  // resolve Free through `getFeature()`'s longest-prefix match on `/accounting/transactions`, so the
+  // resolve Free through `getFeature()`'s longest-prefix match on `/reporting/transactions`, so the
   // extra term decides nothing for them today — and the next capability sold separately
   // becomes one `tier:` line in `lib/features.ts` rather than an edit here that somebody
   // has to remember to make. A special case for the one ledger that currently differs is
@@ -228,7 +228,7 @@ export default async function TransactionsPage({
   // 1280px for a rail that lives inside the measure rather than beside it.
   return (
     <PageShell className="space-y-8">
-      <h1 className="text-3xl font-bold">{t('page./accounting/transactions.title')}</h1>
+      <h1 className="text-3xl font-bold">{t('page./reporting/transactions.title')}</h1>
 
       <TransactionsClient
         initialLedger={initialLedger}

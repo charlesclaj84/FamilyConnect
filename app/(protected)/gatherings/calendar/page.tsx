@@ -58,7 +58,7 @@ export async function generateMetadata() {
 export default async function CalendarPage({
   searchParams,
 }: {
-  // A Promise in this version of Next — see `/accounting/transactions`, which reads its `?ledger=` the
+  // A Promise in this version of Next — see `/reporting/transactions`, which reads its `?ledger=` the
   // same way.
   searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {

@@ -471,12 +471,12 @@ const UNDOCUMENTED_OK = {
     'the path is a redirect into Members & Access\'s Pending Approval tab, which is ' +
     'documented at members-and-access#approving',
   // NOT A ROUTE AT ALL, and the only entry on this list of that kind. The `lib/features.ts`
-  // row for `/accounting/transactions/fund-transfers` exists solely to carry `tier: 'plus'` for the
+  // row for `/reporting/transactions/fund-transfers` exists solely to carry `tier: 'plus'` for the
   // sub-key — `tierAllows()` resolves a key through `getFeature()`'s longest-prefix match,
-  // so without a row of its own the ledger would inherit `/accounting/transactions` and be Free. The
-  // ledger itself is a pane on `/accounting/transactions?ledger=transfers` and is documented with the
+  // so without a row of its own the ledger would inherit `/reporting/transactions` and be Free. The
+  // ledger itself is a pane on `/reporting/transactions?ledger=transfers` and is documented with the
   // other four, in the chapter for the page it is actually on.
-  '/accounting/transactions/fund-transfers':
+  '/reporting/transactions/fund-transfers':
     'not a route — a registry row carrying the Plus tier for the Fund Transfers ledger, ' +
     'which is documented with the other four at transactions#ledgers',
   // TWO MORE OF THE SAME KIND, added 2026-08-19 with the Standard plan. Both are

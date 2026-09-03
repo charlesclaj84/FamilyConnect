@@ -296,17 +296,17 @@ const NO_OWNER_KEYS: readonly string[] = [
 export function scopesFor(resource: ResourceSummary, action: PermissionAction): PermissionScope[] {
   if (!resource.actions.includes(action)) return []
   const scopes = SCOPES_FOR[action]
-  // `accounting/transactions/…` — the six ledger sub-keys. None of them has an "own"
+  // `reporting/transactions/…` — the six ledger sub-keys. None of them has an "own"
   // version: a dues payment is recorded FOR somebody, and the row a treasurer would own is
   // the abuse case, which is the same argument `canAny` exists for.
   //
   // THE PREFIX HAS MOVED TWICE AND BOTH MOVES BROKE THIS SILENTLY. It read `transactions/`
   // until 20260820000004 rekeyed the six onto `reporting/transactions/…`, and nothing
   // reported the mismatch — the grid simply started offering an Own switch that no policy
-  // reads. 20260822000022 moved them again, to `accounting/transactions/…`. A bare key is
+  // reads. 20260822000022 moved them again, to `reporting/transactions/…`. A bare key is
   // not sweepable (AGENTS.md, "routes are safe, bare keys are not"), so this line is the
   // kind that has to be looked for by hand every time one of these moves.
-  if (resource.key.startsWith('accounting/transactions/') || NO_OWNER_KEYS.includes(resource.key)) {
+  if (resource.key.startsWith('reporting/transactions/') || NO_OWNER_KEYS.includes(resource.key)) {
     return scopes.filter(s => s !== 'own')
   }
   return scopes

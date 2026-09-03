@@ -98,10 +98,10 @@ export const fr: Catalogue = {
 
   'nav.item./accounting/summary': 'Résumé',
   'nav.item./accounting/dues-and-donations': 'Cotisations et dons',
-  'nav.item./accounting/transactions': 'Transactions',
+  'nav.item./reporting/transactions': 'Transactions',
 
   'nav.item./reporting/membership': 'Adhésions',
-  'nav.item./reporting/payment-history': 'Historique des paiements',
+  'nav.item./accounting/payment-history': 'Historique des paiements',
   'nav.item./reporting/dues-projections': 'Prévisions de cotisations',
   'nav.item./reporting/pl-summary': 'Compte de résultat',
   'nav.item./reporting/gatherings': 'Rassemblements',
@@ -1505,7 +1505,7 @@ export const fr: Catalogue = {
   // `en.ts` gives. *Rassemblements* / *Réunions* divides here exactly as it does above.
   'page./accounting/dues-and-donations.title': 'Cotisations et dons',
   'page./accounting/summary.title': 'Résumé',
-  'page./accounting/transactions.title': 'Transactions',
+  'page./reporting/transactions.title': 'Transactions',
   'page./admin/accounting.title': 'Comptabilité',
   'page./admin/elections.title': 'Élections',
   'page./admin/gatherings.title': 'Rassemblements',
@@ -1529,7 +1529,7 @@ export const fr: Catalogue = {
   'page./reporting/gatherings.title': 'Rassemblements',
   'page./reporting/meetings.title': 'Réunions',
   'page./reporting/membership.title': 'Adhésions',
-  'page./reporting/payment-history.title': 'Historique des paiements',
+  'page./accounting/payment-history.title': 'Historique des paiements',
   'page./reporting/pl-summary.title': 'Compte de résultat',
 
   // ── THE DASHBOARD ────────────────────────────────────────────────────────────────

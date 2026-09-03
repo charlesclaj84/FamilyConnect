@@ -191,7 +191,7 @@ const ALSO_SHAPES: readonly {
   // actually sold in: the record, then the money, then the work.
   { icon: Network, route: '/community/family-tree' },
   { icon: HandCoins, route: '/accounting/dues-and-donations' },
-  { icon: ScrollText, route: '/accounting/transactions' },
+  { icon: ScrollText, route: '/reporting/transactions' },
   { icon: SlidersHorizontal, route: '/admin/accounting' },
   { icon: Wallet, route: '/accounting/summary' },
   { icon: FileStack, route: '/admin/gatherings/templates' },
@@ -285,9 +285,9 @@ const ALSO_SHAPES: readonly {
   // script away from being mechanical and is not written; the header above says why a hand-typed
   // tier is the thing that rots, and the same is true of a hand-remembered inventory.
   { icon: Bell, route: '/community/updates' },
-  { icon: ReceiptText, route: '/reporting/payment-history' },
+  { icon: ReceiptText, route: '/accounting/payment-history' },
   { icon: TrendingUp, route: '/reporting/dues-projections' },
-  { icon: ArrowLeftRight, route: '/accounting/transactions/fund-transfers' },
+  { icon: ArrowLeftRight, route: '/reporting/transactions/fund-transfers' },
   // MOVED HERE 2026-08-21 from the privacy card below, which had sold it untagged under a
   // heading about family isolation. Isolation is universal and enforced by the database on
   // every query; this is Standard. Conflating the two promised a Free family a screen they

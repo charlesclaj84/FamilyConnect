@@ -9,7 +9,7 @@ import { currentUser } from '@/lib/auth/current-user'
 import { docTitle } from '@/lib/i18n/page-metadata'
 
 export async function generateMetadata() {
-  return docTitle('page./reporting/payment-history.title')
+  return docTitle('page./accounting/payment-history.title')
 }
 
 /**
@@ -30,7 +30,7 @@ export default async function PaymentHistoryPage() {
   const { user } = await currentUser()
   if (!user) redirect('/login')
 
-  await requireView(user.id, 'reporting/payment-history')
+  await requireView(user.id, 'accounting/payment-history')
 
   const { t } = await callerI18n(user.id)
 
@@ -43,7 +43,7 @@ export default async function PaymentHistoryPage() {
 
   return (
     <PageShell className="space-y-8">
-      <h1 className="text-3xl font-bold">{t('page./reporting/payment-history.title')}</h1>
+      <h1 className="text-3xl font-bold">{t('page./accounting/payment-history.title')}</h1>
       <PaymentHistorySection history={history} zone={zone} />
     </PageShell>
   )

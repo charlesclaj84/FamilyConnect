@@ -1563,7 +1563,7 @@ export const helpFr: Catalogue = {
   'help.summary.what-it-is.b1.i1.term': 'Payé cette année',
   'help.summary.what-it-is.b1.i1.text':
     'Votre total pour l’année, ventilé par barème. En entier sur [Historique de '
-    + 'paiement](/reporting/payment-history).',
+    + 'paiement](/accounting/payment-history).',
   'help.summary.what-it-is.b1.i2.term': 'Campagnes de dons ouvertes',
   'help.summary.what-it-is.b1.i2.text':
     'Les campagnes encore en cours. Les campagnes closes sont comptées ici et listées sur '
@@ -1589,17 +1589,17 @@ export const helpFr: Catalogue = {
     + 'état.',
   'help.payment-history.the-list.heading': 'La liste',
   'help.payment-history.the-list.b0':
-    '[Historique de paiement](/reporting/payment-history) est chaque paiement que la '
+    '[Historique de paiement](/accounting/payment-history) est chaque paiement que la '
     + 'famille a enregistré à votre nom — cotisations et dons dans une seule liste, chaque '
     + 'ligne étiquetée selon ce qu’elle était. N’importe quel titre de colonne trie, et le '
     + 'champ **Filtrer** restreint par barème, mode ou état.',
   'help.payment-history.the-list.b1':
-    'Il se trouve sous **Rapports** dans le menu latéral. '
-    + '[Transactions](/accounting/transactions) est son équivalent pour toute la famille et a '
-    + 'été déplacé sous **Comptabilité** en août 2026, à côté des écrans dont il porte les '
-    + 'lignes. Les deux sont l’argent relu — celui-ci est le vôtre, celui-là est celui de la '
-    + 'famille — tandis que [Comptabilité](/admin/accounting) est là où tout se configure au '
-    + 'départ.',
+    'Il se trouve sous **Comptabilité** dans le menu latéral, sous **Cotisations et '
+    + 'dons** — les deux posent la même question à deux échelles : ce que vous devez et ce '
+    + 'que vous avez payé. [Transactions](/reporting/transactions) est son équivalent pour '
+    + 'toute la famille et se trouve sous **Rapports**. Les deux sont l’argent relu — '
+    + 'celui-ci est le vôtre, celui-là est celui de la famille — tandis que '
+    + '[Comptabilité](/admin/accounting) est là où tout se configure au départ.',
   'help.payment-history.the-list.b2':
     'Cliquer sur une ligne ouvre l’écriture complète : le numéro de chèque ou la référence, '
     + 'les notes éventuelles, et la date de saisie — qui n’est pas la date du paiement, et '
@@ -1620,11 +1620,11 @@ export const helpFr: Catalogue = {
     + 'qui circule entre les fonds.',
   'help.transactions.ledgers.heading': 'Les cinq registres',
   'help.transactions.ledgers.b0':
-    '[Transactions](/accounting/transactions) se trouve sous **Comptabilité** dans le menu '
-    + 'latéral, sous **Cotisations et dons**. [Historique de '
-    + 'paiement](/reporting/payment-history) est celui sous **Rapports** — le relevé complet '
-    + 'de la famille plutôt que le vôtre. C’est un menu de cinq onglets, un par type '
-    + 'd’écriture.',
+    '[Transactions](/reporting/transactions) se trouve sous **Rapports** dans le menu '
+    + 'latéral, car relire le grand livre est l’essentiel de ce qu’est cet écran. '
+    + '[Historique de paiement](/accounting/payment-history) est celui sous '
+    + '**Comptabilité** — vos propres paiements plutôt que le relevé complet de la '
+    + 'famille. C’est un menu de cinq onglets, un par type d’écriture.',
   'help.transactions.ledgers.b1.i0.term': 'Cotisations',
   'help.transactions.ledgers.b1.i0.text': 'Cotisations payées par les membres.',
   'help.transactions.ledgers.b1.i1.term': 'Dons',
@@ -1666,7 +1666,7 @@ export const helpFr: Catalogue = {
   'help.p-and-l-summary.what-it-is.heading': 'À quoi il répond',
   'help.p-and-l-summary.what-it-is.b0':
     'L’état de la famille, sur une page : tout ce qui est entré, tout ce qui est sorti, et '
-    + 'l’écart entre les deux. [Transactions](/accounting/transactions) est le registre '
+    + 'l’écart entre les deux. [Transactions](/reporting/transactions) est le registre '
     + 'écriture par écriture dont ceci est un résumé, et [Projection des '
     + 'cotisations](/reporting/dues-projections) est ce qui reste dû — cet écran ne porte que '
     + 'sur l’argent qui a réellement bougé.',
@@ -1695,7 +1695,7 @@ export const helpFr: Catalogue = {
     + 'sorti plus qu’il n’est entré.',
   'help.p-and-l-summary.three-lines.b1':
     'Une contrepassation se corrige d’elle-même ici. Contrepasser un paiement dans '
-    + '[Transactions](/accounting/transactions) passe une écriture opposée, et le paiement '
+    + '[Transactions](/reporting/transactions) passe une écriture opposée, et le paiement '
     + 'comme sa contrepassation sont comptés — les produits reviennent donc là où ils '
     + 'appartiennent plutôt que de compter la correction deux fois.',
   'help.p-and-l-summary.unrouted.heading': 'Encaissé, pas encore affecté à un fonds',
@@ -1747,7 +1747,7 @@ export const helpFr: Catalogue = {
     'Aucun des deux panneaux ne montre jamais les cotisations ou les dons de quelqu’un '
     + 'd’autre, quoi qu’il vous ait été accordé. Chaque chiffre de l’écran est soit un total '
     + 'familial, soit le vôtre. Ce que la famille dans son ensemble a payé est une autre '
-    + 'question, posée sur [Transactions](/accounting/transactions).',
+    + 'question, posée sur [Transactions](/reporting/transactions).',
   'help.my-dues.schedules.heading': 'Vos barèmes',
   'help.my-dues.schedules.b0':
     'Le panneau **Cotisations** énumère chaque barème auquel vous êtes soumis, en deux '
@@ -1930,7 +1930,7 @@ export const helpFr: Catalogue = {
     + 'saisir votre carte. Saisissez ce que vous voulez donner — il n’y a pas de montant fixé '
     + 'ni de maximum, et la campagne vous dit ce qui atteindrait son objectif si elle en a '
     + 'un. Cela s’inscrit dans les registres de la famille dès que c’est réglé, et apparaît '
-    + 'dans votre [historique de paiement](/reporting/payment-history) à côté de tout ce qui '
+    + 'dans votre [historique de paiement](/accounting/payment-history) à côté de tout ce qui '
     + 'a été enregistré à la main.',
   'help.my-dues.giving.b1':
     'On donne à une campagne à la fois et jamais de façon récurrente, et c’est la '
@@ -1957,12 +1957,12 @@ export const helpFr: Catalogue = {
     'Ce que la famille devrait encaisser cette année, ce qui est entré, et qui doit encore.',
   'help.dues-projections.what-it-is.heading': 'À quoi il répond',
   'help.dues-projections.what-it-is.b0':
-    '[Transactions](/accounting/transactions) est ce qui est entré. Ceci est ce qui devrait '
+    '[Transactions](/reporting/transactions) est ce qui est entré. Ceci est ce qui devrait '
     + ': chaque barème de cotisations actif, multiplié sur les membres qui le doivent, face à '
     + 'ce qui a réellement été encaissé.',
   'help.dues-projections.what-it-is.b1':
     'Rien sur cet écran ne change quoi que ce soit. Enregistrer un paiement ou en exonérer '
-    + 'un se fait sur [Transactions](/accounting/transactions) ; changer ce qu’une cotisation '
+    + 'un se fait sur [Transactions](/reporting/transactions) ; changer ce qu’une cotisation '
     + 'coûte se fait dans [Comptabilité](/admin/accounting).',
   'help.dues-projections.what-it-is.b2':
     '**Un proche décédé n’est pas compté.** Inscrire une **Date du décès** sur le profil de '
@@ -2227,7 +2227,7 @@ export const helpFr: Catalogue = {
   'help.accounting.what-it-is.heading': 'La configuration, non le travail du jour',
   'help.accounting.what-it-is.b0':
     '[Comptabilité](/admin/accounting) est là où l’argent se *configure*. Enregistrer un '
-    + 'paiement réel se fait sur [Transactions](/accounting/transactions), sous '
+    + 'paiement réel se fait sur [Transactions](/reporting/transactions), sous '
     + '**Comptabilité** dans le menu latéral. Chaque section ici est sa propre autorisation : '
     + 'tenir le barème de cotisations et verser de l’argent sont donc des travaux différents.',
   'help.accounting.what-it-is.b1':
@@ -2364,7 +2364,7 @@ export const helpFr: Catalogue = {
     'Un paiement par carte s’inscrit dans les registres de la famille dès qu’il est réglé '
     + 'et se répartit entre vos fonds selon le même tableau d’**Affectation** qu’un paiement '
     + 'saisi à la main. Personne n’a à le saisir ensuite, et il apparaît dans '
-    + '[Transactions](/accounting/transactions) à côté de tout le reste.',
+    + '[Transactions](/reporting/transactions) à côté de tout le reste.',
   'help.accounting.processing.b6':
     '**Vérifier auprès de Stripe** demande à Stripe l’état actuel du compte, ce qui vaut la '
     + 'peine si vous venez de terminer quelque chose de leur côté. Jusqu’à ce qu’il indique '

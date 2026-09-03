@@ -123,8 +123,8 @@ export const marketingEn: Catalogue = {
   'mkt.also./accounting/dues-and-donations.blurb':
     'What you owe this year and what you have paid, and the drives the family is running — '
     + 'the member’s own side of the ledger.',
-  'mkt.also./accounting/transactions.title': 'The full ledger',
-  'mkt.also./accounting/transactions.blurb':
+  'mkt.also./reporting/transactions.title': 'The full ledger',
+  'mkt.also./reporting/transactions.blurb':
     'Every contribution recorded and every disbursement paid, on one ledger, with who '
     + 'entered it and when.',
   'mkt.also./admin/accounting.title': 'Set up how the money works',
@@ -212,16 +212,16 @@ export const marketingEn: Catalogue = {
   'mkt.also./community/updates.blurb':
     'Everything the family has ever announced, and everything sent to you, searchable long '
     + 'after it scrolled off the dashboard.',
-  'mkt.also./reporting/payment-history.title': 'Your own payment history',
-  'mkt.also./reporting/payment-history.blurb':
+  'mkt.also./accounting/payment-history.title': 'Your own payment history',
+  'mkt.also./accounting/payment-history.blurb':
     'Every payment recorded against you, with its date, amount, method and status — so '
     + 'nobody has to take the treasurer’s word for it.',
   'mkt.also./reporting/dues-projections.title': 'Dues projections',
   'mkt.also./reporting/dues-projections.blurb':
     'What the family should collect this year, what has come in, and who still owes — '
     + 'counting relatives who never finished registering.',
-  'mkt.also./accounting/transactions/fund-transfers.title': 'Transfers between funds',
-  'mkt.also./accounting/transactions/fund-transfers.blurb':
+  'mkt.also./reporting/transactions/fund-transfers.title': 'Transfers between funds',
+  'mkt.also./reporting/transactions/fund-transfers.blurb':
     'Move money from one fund to another and keep both sides of it on the record.',
   'mkt.also./admin/members/templates.title': 'Who may do what',
   'mkt.also./admin/members/templates.blurb':

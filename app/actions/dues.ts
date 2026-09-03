@@ -460,7 +460,7 @@ function revalidateMemberMoney() {
   // ONE PATH SINCE 2026-08-20, where there were two: the two screens merged into
   // `/accounting/dues-and-donations` and both panes are rendered by that one route.
   revalidatePath('/accounting/dues-and-donations')
-  revalidatePath('/reporting/payment-history')
+  revalidatePath('/accounting/payment-history')
 }
 
 /**
@@ -1100,7 +1100,7 @@ export async function updateDuesSchedule(
 
   revalidateMemberMoney()
   revalidatePath('/admin/accounting')
-  revalidatePath('/accounting/transactions')
+  revalidatePath('/reporting/transactions')
   return { success: true }
 }
 
@@ -1689,8 +1689,8 @@ export async function getFamilyDuesCollected(): Promise<number | null> {
   if (!user) return null
 
   const entitled =
-    (await canAny(user.id, 'accounting/transactions/dues-payments', 'view'))
-    || (await canAny(user.id, 'accounting/transactions/donation-payments', 'view'))
+    (await canAny(user.id, 'reporting/transactions/dues-payments', 'view'))
+    || (await canAny(user.id, 'reporting/transactions/donation-payments', 'view'))
   if (!entitled) return null
 
   // `error` is read rather than discarded. `const { data }` alone turns a refused query
@@ -1861,7 +1861,7 @@ export interface DuesProjectionResult {
  *
  * ── WHAT CROSSES THE BOUNDARY ───────────────────────────────────────────────────────
  * Totals and one row per person. No payment rows, no dates, no methods, no references —
- * the ledger is `/accounting/transactions`, behind its own grants, and a projection does not need to
+ * the ledger is `/reporting/transactions`, behind its own grants, and a projection does not need to
  * republish it. What it does publish is every member's standing by name, which is why the
  * resource is `restricted` by default rather than `everyone` (§6). Since the roster grew, that
  * now includes the names of people with no account; their names are already on the family tree
@@ -2277,8 +2277,8 @@ export async function recordPayment(input: {
   // for yourself is precisely the abuse case.
   const kind: ScheduleKind = schedule.kind === 'donation' ? 'donation' : 'dues'
   const resource = kind === 'donation'
-    ? 'accounting/transactions/donation-payments'
-    : 'accounting/transactions/dues-payments'
+    ? 'reporting/transactions/donation-payments'
+    : 'reporting/transactions/dues-payments'
   if (!(await canAny(user.id, resource, 'create'))) {
     return {
       success: false,
@@ -2379,7 +2379,7 @@ export async function reversePayment(
   if (!myPersonId) return { success: false, message: t('act.profileNotFound') }
 
   // Its own grant: undoing a posting is not the same authority as making one.
-  if (!(await canAny(user.id, 'accounting/transactions/reversals', 'create'))) {
+  if (!(await canAny(user.id, 'reporting/transactions/reversals', 'create'))) {
     return { success: false, message: t('act.youDoNotPermissionReverse') }
   }
 
@@ -2447,7 +2447,7 @@ export async function reversePayment(
   }
 
   revalidateMemberMoney()
-  revalidatePath('/accounting/transactions')
+  revalidatePath('/reporting/transactions')
   revalidatePath('/admin/accounting')
   revalidatePath('/reporting/pl-summary')
   revalidatePath('/dashboard')

@@ -1338,7 +1338,7 @@ export const CASES = [
   // composed by 20260618000001's sweep, which is exactly why it needs a case of its
   // own: nothing else in the chain would notice if the family conjunct were dropped
   // from a policy that no other file generates. The control is the ADMIN, because the
-  // SELECT policy demands `auth_permission('accounting/transactions/fund-transfers','view') =
+  // SELECT policy demands `auth_permission('reporting/transactions/fund-transfers','view') =
   // 'any'` — a plain member holds none, and `[]` is their correct answer.
   //
   // [crux], and verified as such: rebuild the policy without its
@@ -3913,7 +3913,7 @@ export const MORE_CASES = [
   //
   //   1. Drop `.eq('family_code', familyCode)` from the SOURCE fund lookup in
   //      transferBetweenFunds  → (cross-family) goes red.
-  //   2. Drop `canAny(user.id, 'accounting/transactions/fund-transfers', 'create')`
+  //   2. Drop `canAny(user.id, 'reporting/transactions/fund-transfers', 'create')`
   //                            → (member with no grant) goes red.
   //   3. Drop `.eq('family_code', familyCode)` from the DESTINATION lookup
   //                            → (one fund from each family) STAYS GREEN.
@@ -3983,7 +3983,7 @@ export const MORE_CASES = [
     mod: 'app/actions/funds.ts', fn: 'transferBetweenFunds',
     // The half family scoping cannot catch. alphaMember is inside the boundary and
     // approved; what has to refuse them is the grant — canAny() in the action, and
-    // `auth_permission('accounting/transactions/fund-transfers','create') = 'any'` in the INSERT
+    // `auth_permission('reporting/transactions/fund-transfers','create') = 'any'` in the INSERT
     // policy beneath it. A transfer has no owner, so 'own' must not be a way in either.
     attacker: 'alphaMember',
     args: fx => [{
@@ -4769,7 +4769,7 @@ export const PENDING_CASES = [
   // NOT [crux], and labelled so rather than left looking like evidence. The SELECT
   // policy on fund_transfers does carry `auth_membership_approved()` (20260812000002
   // §6), but neutering it changes nothing here: the conjunct beside it demands
-  // `auth_permission('accounting/transactions/fund-transfers','view') = 'any'`, auth_permission()
+  // `auth_permission('reporting/transactions/fund-transfers','view') = 'any'`, auth_permission()
   // resolves through auth_person_id(), and auth_person_id() already returns NULL for
   // anyone not approved. The applicant is refused twice over and this case cannot tell
   // which refusal did it.

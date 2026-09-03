@@ -758,9 +758,9 @@ export async function recordDisbursement(input: {
   // to THEMSELVES, so honouring scope 'own' would authorize precisely the payout a
   // restricted grant exists to prevent.
   // Paying money OUT of a fund. Its own grant, separate from logging money in:
-  // 'accounting/transactions/fund-disbursements' create. canAny throughout — the disbursement
+  // 'reporting/transactions/fund-disbursements' create. canAny throughout — the disbursement
   // paying the caller THEMSELVES is the abuse case, so scope 'own' must never admit.
-  if (!(await canAny(user.id, 'accounting/transactions/fund-disbursements', 'create'))) return { success: false, message: t('act.notAuthorized') }
+  if (!(await canAny(user.id, 'reporting/transactions/fund-disbursements', 'create'))) return { success: false, message: t('act.notAuthorized') }
 
   // WHO PAID IT OUT. Required, not best-effort — this is money leaving the family, and
   // an unattributed payout is the one row in the ledger that cannot be asked about.
@@ -819,7 +819,7 @@ export async function recordDisbursement(input: {
   if (error) return { success: false, message: error.message }
   revalidatePath('/accounting/summary')
   revalidatePath('/admin/accounting')
-  revalidatePath('/accounting/transactions')
+  revalidatePath('/reporting/transactions')
   revalidatePath('/reporting/pl-summary')
   return { success: true }
 }
@@ -827,7 +827,7 @@ export async function recordDisbursement(input: {
 // deleteDisbursement was removed here, and its removal is enforced rather than
 // declared: 20260807000002 makes fund_disbursements append-only with a trigger the
 // service role cannot bypass, drops the RLS DELETE policy, and narrows the
-// 'accounting/transactions/fund-disbursements' resource to {view,create} so Members & Access stops
+// 'reporting/transactions/fund-disbursements' resource to {view,create} so Members & Access stops
 // offering a Delete column for it. Deleting the record of money that left the family is
 // not a capability this app has.
 //
@@ -959,7 +959,7 @@ export async function recordFundContribution(input: {
   if (!user) return { success: false, message: t('act.notAuthenticated') }
   const familyCode = await getMyFamilyCode(user.id)
   // Logging money INTO a fund by hand.
-  if (!(await canAny(user.id, 'accounting/transactions/fund-contributions', 'create'))) return { success: false, message: t('act.notAuthorized') }
+  if (!(await canAny(user.id, 'reporting/transactions/fund-contributions', 'create'))) return { success: false, message: t('act.notAuthorized') }
 
   // WHO RECORDED IT. Checked rather than assumed: getMyPersonId returns '' when it
   // cannot resolve a row, and an empty string is not a uuid — so the unchecked version
@@ -1011,7 +1011,7 @@ export async function recordFundContribution(input: {
   })
   if (error) return { success: false, message: error.message }
   revalidatePath('/admin/accounting')
-  revalidatePath('/accounting/transactions')
+  revalidatePath('/reporting/transactions')
   revalidatePath('/reporting/pl-summary')
   return { success: true }
 }
@@ -1074,7 +1074,7 @@ export async function transferBetweenFunds(input: {
   const { intl } = await callerI18n(user.id)
 
   const familyCode = await getMyFamilyCode(user.id)
-  if (!(await canAny(user.id, 'accounting/transactions/fund-transfers', 'create'))) {
+  if (!(await canAny(user.id, 'reporting/transactions/fund-transfers', 'create'))) {
     return { success: false, message: t('act.notAuthorized') }
   }
   // The FAMILY's currency for the one figure this action quotes back. It is a message rather
@@ -1141,7 +1141,7 @@ export async function transferBetweenFunds(input: {
 
   revalidatePath('/accounting/summary')
   revalidatePath('/admin/accounting')
-  revalidatePath('/accounting/transactions')
+  revalidatePath('/reporting/transactions')
   revalidatePath('/reporting/pl-summary')
   return { success: true }
 }

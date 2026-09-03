@@ -32,7 +32,7 @@ export async function generateMetadata() {
  * That page sold four things and delivered a mixture — a member count, a gathering count,
  * dues collected, t-shirt sizes and the last twenty money entries — which is a dashboard
  * rather than a report, and every money figure on it duplicated a screen that owns it
- * (`/reporting/pl-summary` for the statement, `/accounting/transactions` for the ledger,
+ * (`/reporting/pl-summary` for the statement, `/reporting/transactions` for the ledger,
  * `/reporting/dues-projections` for what is outstanding). What it did NOT answer was the
  * question an organizer actually brings to a report: where are our people, and how many of
  * them can we reach. This does

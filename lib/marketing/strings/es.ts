@@ -143,8 +143,8 @@ export const marketingEs: Catalogue = {
   'mkt.also./accounting/dues-and-donations.blurb':
     'Lo que debe este año y lo que ha pagado, y las campañas que la familia tiene en '
     + 'marcha: el lado del propio integrante en el libro.',
-  'mkt.also./accounting/transactions.title': 'El libro completo',
-  'mkt.also./accounting/transactions.blurb':
+  'mkt.also./reporting/transactions.title': 'El libro completo',
+  'mkt.also./reporting/transactions.blurb':
     'Cada aportación registrada y cada desembolso pagado, en un solo libro, con quién lo '
     + 'introdujo y cuándo.',
   'mkt.also./admin/accounting.title': 'Configure cómo funciona el dinero',
@@ -233,16 +233,16 @@ export const marketingEs: Catalogue = {
   'mkt.also./community/updates.blurb':
     'Todo lo que la familia ha anunciado alguna vez, y todo lo que se le ha enviado a '
     + 'usted, con búsqueda mucho después de que se fuera del panel.',
-  'mkt.also./reporting/payment-history.title': 'Su propio historial de pagos',
-  'mkt.also./reporting/payment-history.blurb':
+  'mkt.also./accounting/payment-history.title': 'Su propio historial de pagos',
+  'mkt.also./accounting/payment-history.blurb':
     'Cada pago registrado a su nombre, con su fecha, importe, método y estado, para que '
     + 'nadie tenga que creerle al tesorero sin más.',
   'mkt.also./reporting/dues-projections.title': 'Proyección de cuotas',
   'mkt.also./reporting/dues-projections.blurb':
     'Lo que la familia debería recaudar este año, lo que ha entrado, y quién sigue '
     + 'debiendo, contando a los familiares que nunca terminaron de registrarse.',
-  'mkt.also./accounting/transactions/fund-transfers.title': 'Traspasos entre fondos',
-  'mkt.also./accounting/transactions/fund-transfers.blurb':
+  'mkt.also./reporting/transactions/fund-transfers.title': 'Traspasos entre fondos',
+  'mkt.also./reporting/transactions/fund-transfers.blurb':
     'Mueva dinero de un fondo a otro y conserve los dos lados en el registro.',
   'mkt.also./admin/members/templates.title': 'Quién puede hacer qué',
   'mkt.also./admin/members/templates.blurb':

@@ -75,10 +75,10 @@ export const es: Catalogue = {
 
   'nav.item./accounting/summary': 'Resumen',
   'nav.item./accounting/dues-and-donations': 'Cuotas y donaciones',
-  'nav.item./accounting/transactions': 'Transacciones',
+  'nav.item./reporting/transactions': 'Transacciones',
 
   'nav.item./reporting/membership': 'Membresía',
-  'nav.item./reporting/payment-history': 'Historial de pagos',
+  'nav.item./accounting/payment-history': 'Historial de pagos',
   'nav.item./reporting/dues-projections': 'Proyección de cuotas',
   // "P&L Summary" is an accounting term, and the Spanish one is *estado de resultados*. A
   // literal "Resumen de P&L" would be an English abbreviation in a Spanish sentence.
@@ -1461,7 +1461,7 @@ export const es: Catalogue = {
   // `en.ts` gives. *Reuniones* / *Juntas* divides here exactly as it does above.
   'page./accounting/dues-and-donations.title': 'Cuotas y donaciones',
   'page./accounting/summary.title': 'Resumen',
-  'page./accounting/transactions.title': 'Transacciones',
+  'page./reporting/transactions.title': 'Transacciones',
   'page./admin/accounting.title': 'Contabilidad',
   'page./admin/elections.title': 'Elecciones',
   'page./admin/gatherings.title': 'Reuniones',
@@ -1485,7 +1485,7 @@ export const es: Catalogue = {
   'page./reporting/gatherings.title': 'Reuniones',
   'page./reporting/meetings.title': 'Juntas',
   'page./reporting/membership.title': 'Membresía',
-  'page./reporting/payment-history.title': 'Historial de pagos',
+  'page./accounting/payment-history.title': 'Historial de pagos',
   'page./reporting/pl-summary.title': 'Estado de resultados',
 
   // ── THE DASHBOARD ────────────────────────────────────────────────────────────────

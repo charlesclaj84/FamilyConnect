@@ -76,7 +76,7 @@ export default async function AccountSummaryPage() {
 
   const [canDues, canHistory, canDonations, canFunds] = await Promise.all([
     can(user.id, 'accounting/dues-and-donations', 'view'),
-    can(user.id, 'reporting/payment-history', 'view'),
+    can(user.id, 'accounting/payment-history', 'view'),
     // THE SAME KEY TWICE, and it stays two `can()` calls rather than one. `20260820000009`
     // merged `accounting/dues` and `accounting/donations` into one resource, so both halves of
     // this digest are now governed by one grant — but they are still two SECTIONS with two
@@ -151,7 +151,7 @@ export default async function AccountSummaryPage() {
       {(canDues || canHistory) && (
         <div className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
           {canDues && <Link href="/accounting/dues-and-donations">{t('acct.seeAllDues')}</Link>}
-          {canHistory && <Link href="/reporting/payment-history">{t('acct.seeFullPaymentHistory')}</Link>}
+          {canHistory && <Link href="/accounting/payment-history">{t('acct.seeFullPaymentHistory')}</Link>}
         </div>
       )}
 

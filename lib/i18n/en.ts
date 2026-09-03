@@ -76,10 +76,10 @@ export const en: Catalogue = {
 
   'nav.item./accounting/summary': 'Summary',
   'nav.item./accounting/dues-and-donations': 'Dues & Donations',
-  'nav.item./accounting/transactions': 'Transactions',
+  'nav.item./reporting/transactions': 'Transactions',
 
   'nav.item./reporting/membership': 'Membership',
-  'nav.item./reporting/payment-history': 'Payment History',
+  'nav.item./accounting/payment-history': 'Payment History',
   'nav.item./reporting/dues-projections': 'Dues Projections',
   'nav.item./reporting/pl-summary': 'P&L Summary',
   'nav.item./reporting/gatherings': 'Gatherings',
@@ -1507,7 +1507,7 @@ export const en: Catalogue = {
   // those carry `doc.<route>.title` — see the block above.
   'page./accounting/dues-and-donations.title': 'Dues & Donations',
   'page./accounting/summary.title': 'Summary',
-  'page./accounting/transactions.title': 'Transactions',
+  'page./reporting/transactions.title': 'Transactions',
   'page./admin/accounting.title': 'Accounting',
   'page./admin/elections.title': 'Elections',
   'page./admin/gatherings.title': 'Gatherings',
@@ -1531,7 +1531,7 @@ export const en: Catalogue = {
   'page./reporting/gatherings.title': 'Gatherings',
   'page./reporting/meetings.title': 'Meetings',
   'page./reporting/membership.title': 'Membership',
-  'page./reporting/payment-history.title': 'Payment History',
+  'page./accounting/payment-history.title': 'Payment History',
   'page./reporting/pl-summary.title': 'P&L Summary',
 
   // ── THE DASHBOARD ────────────────────────────────────────────────────────────────
