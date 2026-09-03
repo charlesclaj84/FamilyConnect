@@ -310,6 +310,9 @@ export const es: Catalogue = {
   'notify.meeting.bodyWhen': '{title} el {when}. Está en su calendario.',
   'notify.safety.title': '¿Está a salvo?',
   'notify.safety.body': '{title}: su familia le pide que confirme que está bien.',
+  'notify.chatDm.title': 'Nuevo mensaje de {sender}',
+  'notify.chatGroup.title': '{room}: nuevo mensaje de {sender}',
+  'notify.chatFamily.title': 'Chat de la familia: nuevo mensaje de {sender}',
   'plan.featuresInPlan': 'Lo que incluye {plan}',
   'gath.status.planning': 'En preparación',
   'gath.status.scheduled': 'Programado',
@@ -416,6 +419,8 @@ export const es: Catalogue = {
   'staff.noAddress': 'Sin dirección',
   'staff.actions': 'Acciones',
   'act.couldNotReadThatFamily': 'No pudimos leer esa familia. Inténtelo de nuevo.',
+  'act.couldNotReadProcessor':
+    'No pudimos leer los datos de procesamiento de pagos. Inténtelo de nuevo.',
   'act.noFamilyWithThatCode': 'No hay ninguna familia con ese código.',
   'act.couldNotEmailYouCode': 'No pudimos enviarle un código por correo. Inténtelo de nuevo.',
   'act.codeEmailedToYou': 'Un código de seis dígitos va camino a su bandeja de entrada.',

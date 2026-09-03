@@ -5,6 +5,7 @@ import { getMyFamilyCode } from '@/lib/auth/family'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
+import { notifyChatMessage } from '@/lib/notifications'
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -597,11 +598,12 @@ export async function sendMessage(
     const room = roomResult.data
     const sender = senderResult.data
     if (room && sender) {
+      // `'Someone'` is the last resort for a `people` row with neither name, and it is the one
+      // word of this notification still composed here rather than keyed — because it is a
+      // NAME's stand-in and goes into `{sender}`, which every one of the three keys
+      // interpolates. Keying it would need the RECIPIENT's language resolved per row, which is
+      // the whole problem the column exists to avoid.
       const senderName = [sender.first_name, sender.last_name].filter(Boolean).join(' ') || 'Someone'
-      const notifTitle =
-        room.kind === 'dm'    ? `New Message From: ${senderName}` :
-        room.kind === 'group' ? `${room.name ?? 'Group Chat'} — New Message From: ${senderName}` :
-                                `Family Chat — New Message From: ${senderName}`
 
       const { data: participants } = await admin
         .from('chat_participants')
@@ -619,23 +621,21 @@ export async function sendMessage(
           .eq('family_code', room.family_code)
 
         if (people?.length) {
-          const link = '/community/chat'
-          // Replace any existing unread chat notification for this room per recipient
-          for (const person of people) {
-            await admin.from('notifications')
-              .delete()
-              .eq('recipient_id', person.id)
-              .eq('link', link)
-              .eq('type', 'chat')
-              .is('read_at', null)
-            await admin.from('notifications').insert({
-              family_code: room.family_code,
-              recipient_id: person.id,
-              type: 'chat',
-              title: notifTitle,
-              link,
-            })
-          }
+          // THE MESSAGE IS NOT COMPOSED HERE ANY MORE. This was the one notification in the
+          // product writing its own English at the call site, so every chat entry read in the
+          // SENDER's language whatever the recipient had chosen — `20260901000004` keyed the
+          // other eight and this writer bypassed the module entirely. `notifyChatMessage`
+          // carries the three keys, the replace-the-unread-entry behaviour and the §3 scoping;
+          // AGENTS.md's argument for that module is that five copies of one sentence are five
+          // answers.
+          await notifyChatMessage({
+            familyCode: room.family_code,
+            recipientPersonIds: people.map(p => p.id),
+            kind: room.kind === 'dm' ? 'dm' : room.kind === 'group' ? 'group' : 'family',
+            senderName,
+            roomName: room.name,
+            link: '/community/chat',
+          })
         }
       }
     }

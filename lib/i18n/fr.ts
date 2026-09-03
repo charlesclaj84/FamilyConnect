@@ -332,6 +332,9 @@ export const fr: Catalogue = {
   'notify.meeting.bodyWhen': '{title} le {when}. C’est dans votre calendrier.',
   'notify.safety.title': 'Êtes-vous en sécurité ?',
   'notify.safety.body': '{title} : votre famille vous demande de confirmer que tout va bien.',
+  'notify.chatDm.title': 'Nouveau message de {sender}',
+  'notify.chatGroup.title': '{room} — nouveau message de {sender}',
+  'notify.chatFamily.title': 'Chat de la famille — nouveau message de {sender}',
   'plan.featuresInPlan': 'Ce que comprend {plan}',
   'gath.status.planning': 'En préparation',
   'gath.status.scheduled': 'Programmé',
@@ -438,6 +441,8 @@ export const fr: Catalogue = {
   'staff.noAddress': 'Aucune adresse',
   'staff.actions': 'Actions',
   'act.couldNotReadThatFamily': 'Nous n’avons pas pu lire cette famille. Réessayez.',
+  'act.couldNotReadProcessor':
+    'Nous n’avons pas pu lire vos informations de traitement des paiements. Réessayez.',
   'act.noFamilyWithThatCode': 'Aucune famille avec ce code.',
   'act.couldNotEmailYouCode': 'Nous n’avons pas pu vous envoyer un code par courriel. Réessayez.',
   'act.codeEmailedToYou': 'Un code à six chiffres est en route vers votre boîte de réception.',

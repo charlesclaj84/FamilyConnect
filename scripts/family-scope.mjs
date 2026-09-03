@@ -164,9 +164,16 @@ const REVIEWED = {
     + "`chat_participants` rows keyed on the caller's own user id, or (since 2026-08-20) from "
     + 'a read that now carries the conjunct itself. The two that did NOT — addGroupMember and '
     + 'removeGroupMember — are why this script exists.',
-  'app/actions/chat.ts:notifications':
-    "SELF — `.eq('recipient_id', person.id)` where `person` is the caller's own row, which is "
-    + 'narrower than the family.',
+  // `app/actions/chat.ts:notifications` WAS HERE AND ITS QUERY HAS MOVED — 2026-09-03. The
+  // chat notification is written by `notifyChatMessage` in `lib/notifications.ts` now, which
+  // states the conjunct, so this file's own stale-verdict check is what asked for the removal.
+  //
+  // ITS REASONING WAS WRONG WHILE ITS CONCLUSION HELD, which is this script's caveat in one
+  // line — *it checks that a verdict EXISTS, never that it is TRUE.* It read "SELF — `person`
+  // is the caller's own row", and `person` was each OTHER participant, so SELF was the wrong
+  // word. The conclusion survived anyway by a different route: a `people.id` belongs to exactly
+  // one family, so a DELETE keyed on `recipient_id` from a family-scoped read cannot reach
+  // another family's rows. TRANSITIVE, not SELF, and not a hole.
 
   'lib/stripe/fee-settlement.ts:fund_contributions':
     'STAMPED — this is the INSERT of the fee contra-entries, and every row in it carries '

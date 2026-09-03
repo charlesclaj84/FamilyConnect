@@ -782,3 +782,104 @@ export async function notifySafetyCheckIn(opts: {
     link: opts.link,
   })))
 }
+
+/**
+ * Tell everybody else in a room that a message has arrived.
+ *
+ * ── WHY THIS IS HERE AND NOT IN `app/actions/chat.ts` ──────────────────────────────
+ * It was there, and it was the one notification in the product composing its own English at
+ * the call site — so every chat notification read in the SENDER's language whatever the
+ * recipient had chosen, months after `20260901000004` keyed the other eight. AGENTS.md's rule
+ * for this module is the reason it moved rather than being keyed in place: *"the message lives
+ * in `lib/notifications.ts` rather than at five call sites, for the reason the rest of that
+ * module is there — five copies of one sentence are five answers."*
+ *
+ * A notification's words are chosen at EVENT time and read later by somebody else, which is
+ * exactly why the column exists; a writer outside this module is a writer that will not know.
+ *
+ * ── IT REPLACES RATHER THAN ACCUMULATES, WHICH IS THE ONE THING IT DOES DIFFERENTLY ─
+ * Every other writer here only inserts. A chat room can produce forty messages in an evening
+ * and forty bell entries is a bell nobody opens, so an UNREAD entry for the same room is
+ * deleted before the new one lands: the recipient sees one row saying somebody has written,
+ * which is the whole of what a bell can usefully say about a conversation. A READ entry is
+ * left alone — it is a record of something they have already seen.
+ *
+ * THE DELETE IS SCOPED THREE WAYS AND FAMILY-SCOPED FOUR (§3, admin client). The `link` is
+ * what identifies the room, matching the insert; `recipient_id` and `read_at IS NULL` are the
+ * other two. Without `family_code` this would reach across families for a member who belongs
+ * to two, because `link` is the same literal in both.
+ *
+ * ── AND THREE KINDS OF ROOM ARE THREE KEYS, NOT ONE WITH A CONDITIONAL ─────────────
+ * A DM says who wrote; a group says which group and who; the family room says so. Those are
+ * three sentences with different word order in Spanish and French, so one key with an
+ * optional `{room}` param would be a sentence no translator could render correctly in every
+ * branch. The English fallback keeps the shape it always had.
+ */
+export async function notifyChatMessage(opts: {
+  familyCode: string
+  /** Each other participant's `people.id`. */
+  recipientPersonIds: readonly string[]
+  kind: 'dm' | 'group' | 'family'
+  /** The sender's display name, already resolved. */
+  senderName: string
+  /** A group's name. Ignored for the other two kinds. */
+  roomName?: string | null
+  link: string
+}): Promise<void> {
+  // AN EMPTY STRING IS NOT A UUID, and `getMyPersonId` answers one for a caller with no
+  // membership. Passed through, Postgres reports `invalid input syntax for type uuid: ""`,
+  // which the call site's try/catch would swallow entirely.
+  const recipients = opts.recipientPersonIds.filter(Boolean)
+  if (recipients.length === 0) return
+
+  const sender = clip(opts.senderName)
+  const room = clip(opts.roomName || 'Group Chat')
+
+  const { titleKey, params, title } =
+    opts.kind === 'dm'
+      ? {
+        titleKey: 'notify.chatDm.title',
+        params: { sender },
+        title: `New Message From: ${sender}`,
+      }
+      : opts.kind === 'group'
+        ? {
+          titleKey: 'notify.chatGroup.title',
+          params: { sender, room },
+          title: `${room} — New Message From: ${sender}`,
+        }
+        : {
+          titleKey: 'notify.chatFamily.title',
+          params: { sender },
+          title: `Family Chat — New Message From: ${sender}`,
+        }
+
+  const admin = createAdminClient()
+
+  await Promise.all(recipients.map(async recipientPersonId => {
+    const { error: clearError } = await admin
+      .from('notifications')
+      .delete()
+      .eq('family_code', opts.familyCode)
+      .eq('recipient_id', recipientPersonId)
+      .eq('type', 'chat')
+      .eq('link', opts.link)
+      .is('read_at', null)
+    // READ, not discarded — the rule the whole module is built on. A failed clear is not a
+    // reason to withhold the new entry: the cost is two rows for one room, where dropping the
+    // insert would be a message nobody was told about.
+    if (clearError) {
+      console.error(`[notifications] could not clear the unread chat entry: ${clearError.message}`)
+    }
+
+    await createNotification({
+      familyCode: opts.familyCode,
+      recipientPersonId,
+      type: 'chat',
+      title,
+      titleKey,
+      params,
+      link: opts.link,
+    })
+  }))
+}

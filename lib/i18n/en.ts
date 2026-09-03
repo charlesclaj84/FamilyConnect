@@ -324,6 +324,12 @@ export const en: Catalogue = {
   'notify.meeting.bodyWhen': '{title} on {when}. It is on your calendar.',
   'notify.safety.title': 'Are you safe?',
   'notify.safety.body': '{title} — your family is asking you to check in.',
+  // Three keys and not one with an optional {room}: a DM says who wrote, a group says which
+  // group and who, and the family room says so. Three sentences with different word order in
+  // Spanish and French, which one conditional key could not render correctly in every branch.
+  'notify.chatDm.title': 'New message from {sender}',
+  'notify.chatGroup.title': '{room} — new message from {sender}',
+  'notify.chatFamily.title': 'Family chat — new message from {sender}',
   'plan.featuresInPlan': 'What is included in {plan}',
   'gath.status.planning': 'Planning',
   'gath.status.scheduled': 'Scheduled',
@@ -430,6 +436,9 @@ export const en: Catalogue = {
   'staff.noAddress': 'No address',
   'staff.actions': 'Actions',
   'act.couldNotReadThatFamily': 'We could not read that family. Try again.',
+  // A REFUSED READ, never "you have no processor" — §8. Reporting the second over the first
+  // would tell a treasurer their family has no Stripe account when it has one.
+  'act.couldNotReadProcessor': 'We could not read your payment processing details. Try again.',
   'act.noFamilyWithThatCode': 'No family with that code.',
   'act.couldNotEmailYouCode': 'We could not email you a code. Try again.',
   'act.codeEmailedToYou': 'A six-digit code is on its way to your inbox.',

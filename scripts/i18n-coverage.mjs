@@ -470,6 +470,38 @@ function argsAt(src, open) {
 const KEY_CALLEES = ['t', 'docTitle']
 
 /**
+ * Object PROPERTIES that carry a key, for a key resolved somewhere other than where it is
+ * written down. Added 2026-09-03.
+ *
+ * ── WHY A CALLEE LIST WAS NOT ENOUGH, AND HOW THE GAP WAS MEASURED ────────────────
+ * A notification's words are chosen at EVENT time and rendered later by somebody else, so
+ * `20260901000004` stores the KEY on the row and `notificationText` resolves it at render.
+ * That means the key is never an argument to anything: it is written as
+ * `titleKey: 'notify.chatDm.title'` in `lib/notifications.ts` and resolved three files away.
+ * The callee scan cannot see it, so **every notification key in the product was unchecked** —
+ * measured by typo'ing one and getting a clean run.
+ *
+ * THAT IS THE WORST DIRECTION FOR THIS PARTICULAR GAP TO FAIL, which is why it is worth a
+ * second pass rather than a note. `notificationText` treats an unresolved key as a MISS and
+ * falls back to the stored English — deliberately, because a bell reading
+ * `notify.taskSubmitted.title` at a member is worse than one reading English. So a typo'd key
+ * degrades silently and permanently: the feature keeps working, in one language, and no gate,
+ * no type and no test says anything. `i18n:onscreen` would see it only for a notification a
+ * fixture happens to have written.
+ *
+ * ── IT IS A FIXED, SHORT LIST FOR THE SAME REASON `KEY_CALLEES` IS ────────────────
+ * `titleKey`/`bodyKey` (notifications) and `messageKey` (a refusal a caller renders). Swept
+ * for rather than guessed: `grep -rn "Key: '"` over `app`, `lib` and `components` returns
+ * exactly these three. **A new property that carries a key is added HERE, in the same commit**,
+ * or the keys it reads report DEFINED-NOT-USED and the temptation is an `UNUSED_OK` prefix.
+ *
+ * A wildcard `\w+Key:` was the alternative and is rejected: it would count a Stripe idempotency
+ * key, a React list key and a storage key as catalogue keys the moment one of those held a
+ * dotted string, and the UNUSED finding is only worth having while it means what it says.
+ */
+const KEY_PROPERTIES = ['titleKey', 'bodyKey', 'messageKey']
+
+/**
  * Every key literal in the tree, with where it was found.
  *
  * ── THE CALLEE NAMES ARE A LIST, AND ADDING ONE IS PART OF ADDING A WRAPPER ────────
@@ -519,6 +551,24 @@ function usedKeys() {
             if (!key.includes('.')) continue
             if (!used.has(key)) used.set(key, rel)
           }
+        }
+      }
+
+      // ── AND THE PROPERTY SHAPES, for a key resolved elsewhere ────────────────────
+      // See `KEY_PROPERTIES`. Anchored on the property name and a quote, so it reads only the
+      // literal a key is written as — a `titleKey` computed from a variable or a ternary is
+      // invisible here exactly as `t(cond ? a : b)` is invisible to a paren-anchored regex,
+      // and `notify.taskApproved`/`notify.taskDenied` are a real instance of that: they are
+      // reached through a ternary and are counted because `notifyGatheringTaskDecision`'s
+      // body also names them nowhere else — so they would report UNUSED if that ternary were
+      // the only mention. Comments are blanked above, so an example in a doc comment cannot
+      // count.
+      for (const prop of KEY_PROPERTIES) {
+        const re = new RegExp(String.raw`\b${prop}\s*:\s*(?:'([^'\n]+)'|"([^"\n]+)")`, 'g')
+        for (const m of src.matchAll(re)) {
+          const key = m[1] ?? m[2]
+          if (!key.includes('.')) continue
+          if (!used.has(key)) used.set(key, rel)
         }
       }
     }

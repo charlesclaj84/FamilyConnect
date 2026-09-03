@@ -158,44 +158,6 @@ lives in the checkout, and none does.)* And the durable replacement is live, so 
 merge and gate the Vercel release, reviewed and recorded, with nobody holding write
 credentials. See AGENTS.md, "How migrations reach the hosted project".
 
-### [ ] Stripe: the CATALOGUE is dashboard data, and `npm run stripe:check` is what asks about it
-
-**Action:** run `npm run stripe:check` against whichever account is being set up, and
-`npm run stripe:fix` if the only findings are names. Added 2026-09-02.
-
-`lib/stripe/config.ts` said from the day it was written that the amounts *"live in Stripe"*
-and that nothing in this repo could check them. `scripts/stripe-catalogue.mjs` is that check:
-it retrieves each of the six configured prices and compares the amount against
-`TIER_PRICE[tier].monthlyCents`, the interval against the slot it is in, the currency, whether
-the price is still active, and the PRODUCT NAME a family reads on the hosted page.
-
-**IT WAS THE NAME THAT PROMPTED IT.** A real Standard checkout rendered its line as
-`STRIPE_PRICE_STANDARD_RECURRING` — the Product had been named after the environment variable
-that holds its Price id. That is the one class of misconfiguration nothing in the product
-could see: `priceShapeError` refuses a wrong SHAPE because it charges the wrong money, and a
-wrong NAME charges the right money while telling the family they are buying a configuration
-key.
-
-`--fix` renames and nothing else, deliberately — a wrong amount could be Stripe that is right,
-and rewriting a live price from a script would change what every subscriber is billed at their
-next renewal. Not a `verify.yml` step: it needs a live secret key and asks a third party.
-
-**TWO THINGS THE SAME REPORT ASKED FOR THAT STRIPE DOES NOT ALLOW**, recorded here so they are
-not re-attempted:
-
-* **"Pay" as the button on a monthly checkout.** `submit_type` is a closed enum and Stripe
-  refuses `'pay'` in `subscription` mode outright — *"You can not pass `submit_type: 'pay'` in
-  `subscription` mode"*, measured 2026-08-29, and it 400'd every monthly checkout for a day. A
-  subscription session's button says **Subscribe** and there is no free-text label at any
-  price. `app/actions/billing.ts` carries the whole finding at its `submit_type`.
-* **Removing the "N days free" badge.** Every family bills on the 1st, which Stripe models as
-  a trial (`trial_end`) — that is not a marketing claim, it is the only way to say "do not
-  charge until this date" on a session that also carries a one-time price. Checkout renders
-  its own badge for a trial and there is no parameter that suppresses it. What IS in our
-  control is the sentence beside the button, and it already says the true thing:
-  `custom_text.submit.message` reads *"$X today covers you to the end of {month}. {Plan} then
-  renews at $Y a month, on the 1st."*
-
 ### [ ] Drop `dues_schedules.bloodline_only`, which is derived and read by nothing
 
 **Action:** one migration, `ALTER TABLE public.dues_schedules DROP COLUMN bloodline_only`.
@@ -224,24 +186,6 @@ Measured, and only by the negative control; asking whether it still refused a bl
 answered yes and proved nothing. That migration asserts in both directions that no reference
 to the old name survives in the function.
 
-### [ ] Back-fill thumbnails for photographs uploaded before 2026-09-02
-
-**Action:** a script that lists the `photos` bucket, downloads each object whose row has a
-NULL `thumb_path`, resizes it, uploads the thumbnail beside it and writes the column.
-
-`20260902000003` added `photos.thumb_path` and the uploading browser now writes one for every
-new photograph — so a grid draws a ~40 KB JPEG instead of a 3–5 MB original. **Nothing was
-backfilled**, because the bytes are in a storage bucket rather than in the database and
-resizing them means downloading and re-uploading every object in the product. Until this runs,
-an old album is exactly as fast as it was before and no slower; the column is nullable
-permanently and every reader falls back to `file_path`, so there is no broken state to fix —
-only an optimisation not yet applied.
-
-Two things it has to get right, both of which the reaper's own header argues at length: the
-thumbnail's path is `photoThumbPath(file_path)` and nothing else (a second definition of that
-naming scheme is how live thumbnails get reaped), and a row whose object cannot be read is
-SKIPPED rather than written with a guess.
-
 ### [ ] Stripe: watch a real payment land, once per mode
 
 **Action:** run the eleven checks below against the account being brought up. Everything else
@@ -250,8 +194,11 @@ keys, the two endpoints, the six Prices, Managed Payments, the tax position and 
 flags. Deleted rather than annotated, per this file's header.
 
 What a settled setting leaves behind is the one thing no gate in this repo can answer: whether
-it works. `npm run stripe:check` asks Stripe about the CATALOGUE (its own item above); nothing
-asks whether a payment reaches the database, because that needs a card.
+it works. `npm run stripe:check` asks Stripe about the CATALOGUE — the six Prices, their
+amounts, intervals and the product NAME a family reads on the hosted page — and it is hand-run
+rather than a `verify.yml` step because it needs a live secret key; its own header argues that
+and `--fix` renaming and nothing else. **Nothing asks whether a payment reaches the database**,
+because that needs a card, and that is what the rest of this item is about.
 
 **"The endpoint returned 200" is not validation.** These are:
 
@@ -353,38 +300,6 @@ but worth saying in the same breath: none of these values lives in `config.toml`
 They are Vercel environment variables and Meta dashboard settings.
 
 Recorded 2026-08-23.
-### [ ] `HUD_USPS_API_TOKEN`: one free registration, and the crosswalk is inert without it
-
-**Action:** register at `huduser.gov/portal/dataset/uspszip-api.html`, mint a token, set
-`HUD_USPS_API_TOKEN` on Vercel. It is free and takes minutes; nothing in this repo can obtain
-it, because the registration is a form with an email confirmation behind it.
-
-**WHAT HAPPENS WITHOUT IT IS `skipped`, DELIBERATELY, AND NOT AN ERROR.**
-`refreshZipCounties()` returns `{ outcome: 'skipped' }` when the variable is absent, because a
-missing credential is a deployment state rather than a fault — and its route answers 200 for
-it, so a monitor does not report a red job for a table nothing reads yet. `sendEmail`'s
-fails-soft reasoning applied to a fetch.
-
-**SO THE TABLE BEING EMPTY IS THE EXPECTED STATE UNTIL THIS IS DONE**, and both
-`zip_counties` and `zip_county_refreshes` are named in `audit_global_lookups.sql`'s
-`allowed_empty` list with exactly that sentence. That is what stops §2's *"any `public` table
-that is empty and has no transitive foreign-key path to a `family_code`"* audit holding the
-Vercel alias on the next merge — the failure this project has already had once, from
-`stripe_webhook_events`.
-
-**HOW TO TELL IT WORKED**, once the token is set: `zip_county_refreshes` gains a row with
-`state = 'ok'`, and `pairs` should be somewhere near 54,000 across roughly 41,000 ZIPs. A
-`failed` row carries the reason in its `error` column, and the two worth recognising are
-`HUD answered 401` (the token is wrong) and *"below the 20000 floor"* (the response is an
-error page or a changed API rather than a smaller crosswalk — see the section on the
-crosswalk for why nothing is written in that case).
-
-`?force=1` on `/api/geo/zip-counties` bypasses the weekly throttle, behind `CRON_SECRET`, so
-the first run does not have to wait for the schedule.
-
-Recorded 2026-09-03.
-
-
 ### [ ] SMS: an account, a registered campaign, and four environment variables
 
 **Action:** open a Twilio account, register a brand and campaign, set four Vercel variables.
@@ -513,9 +428,33 @@ carries `title_key`, `body_key` and `params`, and the English stays as the fallb
   §2b rule 2 names policies and not CHECKs; it is the same rule. Found — again — by the RLS
   suite's POSITIVE CONTROL, with every attack half green, because a function that errors refuses
   everybody equally.
-* **There were TWO renderers of a notification.** Fixing `NotificationBell` left the Dashboard's
-  Recent Updates card still reporting all three seeded titles, because `toUpdateItem` read
-  `n.title` directly. Half a fix looks exactly like a whole one.
+* **There were THREE renderers of a notification, and this said TWO until 2026-09-03.** Fixing
+  `NotificationBell` left the Dashboard's Recent Updates card reading `n.title` directly; fixing
+  that left `/community/updates` — the ARCHIVE behind the card — doing the same, and its
+  `RawNotification` did not even select the three columns, so it could not have resolved a key
+  if it had wanted to. **Half a fix looks exactly like a whole one, and it looked like one
+  twice.** Found by counting the callers of `notificationText` rather than by re-reading this
+  entry.
+* **AND ONE WRITER BYPASSED THE MODULE ENTIRELY.** `app/actions/chat.ts` composed
+  `New Message From: {name}` at the call site and inserted with no `title_key`, so every chat
+  notification stayed in the SENDER's language months after the other eight were keyed. It is
+  `notifyChatMessage` in `lib/notifications.ts` now — three keys rather than one with an
+  optional `{room}`, because a DM, a group and the family room are three sentences with
+  different word order in Spanish and French.
+* **NOTHING COULD SEE ANY OF IT, WHICH IS NOW FIXED AND IS THE REUSABLE PART.** A key written
+  as `titleKey: 'notify.…'` is not an argument to anything, so `i18n:check`'s callee scan was
+  blind to all 18 of them — measured by typo'ing one and getting a clean run. That is the worst
+  direction for this gap to fail: `notificationText` treats an unresolved key as a MISS and
+  falls back to the stored English, deliberately, so a typo degrades silently and permanently.
+  `KEY_PROPERTIES` in `scripts/i18n-coverage.mjs` is the second pass — `titleKey`, `bodyKey`,
+  `messageKey`, swept for rather than guessed — and **it found a live bug on its first run**:
+  `act.couldNotReadProcessor` was used twice in `getFullStripeBill` and defined nowhere, so a
+  treasurer hitting a refused read saw the literal string `act.couldNotReadProcessor`.
+
+**WHAT IS LEFT: nothing on this item.** All three renderers resolve keys, every writer is in
+`lib/notifications.ts`, and a fourth of either now fails `i18n:check` rather than shipping
+English. The one thing no gate can answer is whether a translation is any good, which is true
+of all 5,938 keys and is not specific to this.
 
 ### Why it is a ceiling and NOT a `verify.yml` step
 
@@ -752,9 +691,30 @@ extension turned out not to be wanted at all.
 it to one is the whole failure this table exists to avoid), a `zip_county_refreshes` log, and
 `replace_zip_counties(jsonb)`. `lib/geo/zip-counties.ts` fetches HUD's file, `lib/geo/
 zip-crosswalk-rows.ts` reads it, and `/api/geo/zip-counties` runs weekly off a daily Vercel
-cron. **It needs `HUD_USPS_API_TOKEN`** — a free huduser.gov registration, and the one thing
-nobody in this repo can supply; see GO LIVE below. Both tables are on
-`audit_global_lookups.sql`'s `allowed_empty` list until it exists, and say so.
+cron. **`HUD_USPS_API_TOKEN` IS SET ON VERCEL — reported 2026-09-03**, so the credential half
+of this is closed and its GO LIVE item is gone.
+
+**WHAT HAS NOT HAPPENED IS A REFRESH, AND IT CANNOT YET.** The migration is not on hosted, so
+`zip_counties` does not exist there; the first run is one merge plus one 03:00 UTC cycle away.
+The token is not on any development machine either — deliberately, since nothing local reads
+the crosswalk — so **nothing in this repo has ever seen HUD answer.** Both tables therefore
+stay on `audit_global_lookups.sql`'s `allowed_empty` list, and the reason changed rather than
+went away: it is no longer "no credential" but "nothing has run".
+
+**THAT ALLOWANCE IS NOW THE OPEN THING, AND TIGHTENING IT IS A REAL FOLLOW-UP.** It cannot be
+removed in advance: `audit_global_lookups.sql` is a step in `migrate.yml`, so the very merge
+that creates the empty table also runs the audit that would name it — the `stripe_webhook_events`
+incident exactly, holding the Vercel alias with the schema already applied. Once a
+`zip_county_refreshes` row on hosted reads `state = 'ok'` with `pairs` near 54,000, take both
+tables OFF `allowed_empty` and put `zip_counties` on the `lookup_names` list above, where an
+empty crosswalk becomes a real finding the way an empty `relationship_types` is. Until then the
+audit permits an empty crosswalk, which means **nothing would report the refresh silently never
+working** — the honest gap, and the one worth closing first.
+
+Two failure messages to recognise on that first run: `HUD answered 401` (the token is wrong)
+and *"below the 20000 floor"* (an error page or a changed API rather than a smaller crosswalk —
+nothing is written in that case, by design). `?force=1` on `/api/geo/zip-counties`, behind
+`CRON_SECRET`, skips the weekly throttle so the first run need not wait for the schedule.
 
 Four decisions in it are worth reading before touching any of it, because each was measured:
 

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { can } from '@/lib/auth/permissions'
 import { requireRead } from '@/lib/auth/guard'
 import { getMyPersonId } from '@/lib/auth/family'
+import { notificationText } from '@/lib/notification-text'
 import { addressedTo, announcementAudienceFilter, readMyChapterId } from '@/lib/announcement-audience'
 import {
   archiveFetchCount, archiveWantCount, clampPages, mergeArchivePage, sanitizeUpdatesQuery,
@@ -115,6 +116,11 @@ type RawNotification = {
   link: string | null
   read_at: string | null
   created_at: string
+  // Since `20260901000004`. `title` is still NOT NULL and is still the fallback — for a row
+  // written before that migration, a `type` nobody has keyed, and a key that fails to resolve.
+  title_key: string | null
+  body_key: string | null
+  params: Record<string, string> | null
 }
 
 /**
@@ -158,7 +164,14 @@ export async function getUpdatesArchive(input?: {
     ? (() => {
         let q = supabase
           .from('notifications')
-          .select('id, title, body, link, read_at, created_at')
+          // `title_key`, `body_key` and `params` are READ, and the reason is the one
+          // `20260901000004` was written for: a notification's words are chosen at EVENT time
+          // by whoever triggered it, so `title` is the wrong reader's language. This was the
+          // THIRD renderer of a notification and the last one still reading the column
+          // directly — `NotificationBell` and the Dashboard's Recent Updates card were both
+          // converted; this archive was not, so every entry on /updates stayed English.
+          // "Half a fix looks exactly like a whole one", a third time.
+          .select('id, title, body, link, read_at, created_at, title_key, body_key, params')
           .eq('recipient_id', personId)
           .order('created_at', { ascending: false })
           .limit(fetch)
@@ -229,8 +242,11 @@ export async function getUpdatesArchive(input?: {
     .map(n => ({
       kind: 'notification' as const,
       id: n.id,
-      title: n.title,
-      body: n.body,
+      // `?? n.title` on the title and not on the body, because `title` is NOT NULL and `body`
+      // is nullable — `notificationText` already falls back to the column and answers null
+      // only when there was nothing to say. Matches `components/dashboard/updates.ts`.
+      title: notificationText(n.title_key, n.title, n.params, g.t) ?? n.title,
+      body: notificationText(n.body_key, n.body, n.params, g.t),
       link: n.link,
       at: n.created_at,
       author: null,

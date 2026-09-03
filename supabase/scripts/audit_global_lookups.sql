@@ -199,18 +199,29 @@ DECLARE
     'marketing_attribution',
     'marketing_conversion_events',
     'stripe_webhook_events',
-    -- ── EMPTY BY DESIGN UNTIL A CREDENTIAL EXISTS (20260903000002) ─────────────────
+    -- ── EMPTY UNTIL THE FIRST REFRESH RUNS (20260903000002) ───────────────────────
     -- The ZIP-to-county crosswalk and its refresh log. Neither has a `family_code` and
     -- neither can, so §2 derives them as candidates — correctly, because that is what an
-    -- emptied global lookup looks like. They are empty because the HUD USPS file needs a free
-    -- `HUD_USPS_API_TOKEN` that nobody in this repo can obtain, and the refresh
-    -- (/api/geo/zip-counties) fills them on the first daily run after it is set.
+    -- emptied global lookup looks like.
     --
-    -- SO THIS IS THE "empty BY DESIGN" CASE and not the "something emptied it" one. Once the
-    -- token exists they will hold ~54,000 and ~1 rows respectively, and the honest move at
-    -- that point is to take them OFF this list and put `zip_counties` on the lookup_names
-    -- list above — where an empty crosswalk would then be a real finding, exactly as an empty
-    -- `relationship_types` is.
+    -- THIS SAID "UNTIL A CREDENTIAL EXISTS" UNTIL 2026-09-03, and `HUD_USPS_API_TOKEN` is now
+    -- set on Vercel. The reason changed rather than went away: they are empty because nothing
+    -- has RUN. /api/geo/zip-counties fills them on the first daily cycle after the migration
+    -- reaches hosted, and no development machine holds the token, so a local `db reset` will
+    -- always leave them empty.
+    --
+    -- **THE ENTRY CANNOT BE REMOVED IN ADVANCE OF THAT RUN.** This script is a step in
+    -- migrate.yml, so the very merge that CREATES the empty table also runs the audit that
+    -- would name it — which is the `stripe_webhook_events` incident precisely: a table with no
+    -- `family_code` held the Vercel alias with the schema already applied.
+    --
+    -- SO THIS IS STILL THE "empty BY DESIGN" CASE and not the "something emptied it" one, and
+    -- the cost of that is worth stating: while these two sit here, an empty crosswalk is
+    -- PERMITTED, so nothing would report the refresh silently never working. Once a
+    -- `zip_county_refreshes` row on hosted reads `state = 'ok'` with `pairs` near 54,000, take
+    -- both OFF this list and put `zip_counties` on the lookup_names list above — where an
+    -- empty crosswalk becomes a real finding, exactly as an empty `relationship_types` is.
+    -- TODO.md's crosswalk section carries it as the open follow-up.
     'zip_counties',
     'zip_county_refreshes'
   ];
