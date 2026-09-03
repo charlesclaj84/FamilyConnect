@@ -133,8 +133,28 @@ export interface PhotoSearchHit {
   collection_name: string
   /** The THUMBNAIL where there is one — a result grid draws these at tile size (§thumbnails). */
   grid_url: string
+  /**
+   * The FULL photograph, for the lightbox a result opens into.
+   *
+   * BOTH URLS TRAVEL, and that is deliberate rather than wasteful: a URL is a string, and the
+   * alternative was either drawing the original in the grid — the exact download
+   * `20260902000003` exists to prevent, at a hundred and twenty tiles — or a second round
+   * trip when somebody presses one, which is a spinner over a photograph the server could
+   * have named in the first place.
+   */
+  url: string
   caption: string | null
   tags: { person_id: string; person_name: string }[]
+  /**
+   * Who uploaded it, so the lightbox can resolve the OWN half of the delete rule.
+   *
+   * `deletePhoto` is `requireOwn('community/gallery', 'delete', uploader_id)`, so a member
+   * with scope `'own'` may remove their own photograph and no others. Without this column the
+   * search pane would have to either offer the control to everybody and let the action refuse
+   * — which is a button that fails, on a destructive action — or offer it to nobody, which
+   * would make the same photograph deletable from the album and not from a search result.
+   */
+  uploader_id: string | null
 }
 
 /**
@@ -208,7 +228,7 @@ export async function searchPhotos(
   const supabase = await createClient()
   const { data, error } = await supabase
     .from('photos')
-    .select('id, collection_id, file_path, thumb_path, caption, '
+    .select('id, collection_id, file_path, thumb_path, caption, uploader_id, '
       + 'photo_tags(person_id, people!photo_tags_person_id_fkey(first_name, last_name))')
     .order('created_at', { ascending: false })
 
@@ -257,8 +277,13 @@ export async function searchPhotos(
       grid_url: supabase.storage.from('photos').getPublicUrl(
         (row.thumb_path as string | null) ?? (row.file_path as string),
       ).data.publicUrl,
+      // THE ORIGINAL, ALWAYS — never the thumbnail. The lightbox blowing a 640px JPEG up to
+      // 70vh is the one failure the whole thumbnail feature must not cause, which is why the
+      // two URLs are separate fields rather than one that changes meaning.
+      url: supabase.storage.from('photos').getPublicUrl(row.file_path as string).data.publicUrl,
       caption: row.caption as string | null,
       tags,
+      uploader_id: (row.uploader_id as string | null) ?? null,
     })
   }
 

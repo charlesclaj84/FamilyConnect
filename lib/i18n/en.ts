@@ -2302,6 +2302,7 @@ export const en: Catalogue = {
   'gal.searchToTag': 'Search for somebody to tag',
   'gal.nobodyMatches': 'Nobody matches.',
   'gal.closePhoto': 'Close photograph',
+  'gal.openPhotographIn': 'Open the photograph: {what}',
   'gal.nOfTotal': '{n} of {total}',
   'gal.searchAllLabel': 'Search every album',
   'gal.searchAllPh': 'lake, reunion, grandma’s 90th',

@@ -116,7 +116,11 @@ export function GalleryShell({ initialPane, rights, myPersonId, allMembers }: {
         />
       </div>
       <div hidden={pane !== 'search'}>
-        <GallerySearch allMembers={allMembers} />
+        <GallerySearch
+          allMembers={allMembers}
+          rights={rights}
+          myPersonId={myPersonId}
+        />
       </div>
     </div>
   )

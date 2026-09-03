@@ -3682,8 +3682,10 @@ export const helpFr: Catalogue = {
     '**Chercher dans tous les albums** est le deuxième élément du menu de la [Galerie](/community/gallery), '
     + 'à côté d’**Albums**. Il prend les deux mêmes choses — des mots d’une légende et '
     + 'toute personne identifiée — et parcourt en une fois toutes les photographies de la '
-    + 'famille plutôt qu’un seul album. Chaque résultat indique dans quel album il se '
-    + 'trouve, et l’ouvrir ouvre cet album.',
+    + 'famille plutôt qu’un seul album. **Appuyer sur un résultat ouvre la '
+    + 'photographie**, et les flèches parcourent alors tout ce que la recherche a trouvé, '
+    + 'et non un seul album. Le nom de l’album SOUS chaque résultat est un lien, pour '
+    + 'quand ce que vous vouliez savoir était où l’image est rangée.',
   'help.gallery.finding.b4':
     'Les deux recherches se comportent différemment, et c’est voulu. À l’intérieur d’un '
     + 'album, choisir trois personnes identifiées ÉLARGIT le résultat : vous obtenez les '

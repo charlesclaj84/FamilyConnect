@@ -7,7 +7,7 @@ import { useConfirm } from '@/components/ui/confirm'
 import { useT } from '@/components/layout/LocaleProvider'
 import { formatPersonName } from '@/lib/name-utils'
 import { matchesPersonQuery, type SearchablePerson } from '@/lib/person-search'
-import { tagPersonInPhoto, untagPersonFromPhoto, type Photo } from '@/app/actions/gallery'
+import { tagPersonInPhoto, untagPersonFromPhoto } from '@/app/actions/gallery'
 import { cn } from '@/lib/utils'
 
 /**
@@ -19,6 +19,24 @@ import { cn } from '@/lib/utils'
  */
 export interface TaggablePerson extends SearchablePerson {
   id: string
+}
+
+/**
+ * The narrowest thing this editor can work on: an id to write against, and who is on it.
+ *
+ * ── WHY IT IS NOT `Photo` ──────────────────────────────────────────────────────────
+ * It was, and `Photo` is far wider than these two fields — a URL, a file path, an uploader,
+ * two dates. Gallery Search opens a photograph now, and a search HIT is not a `Photo`:
+ * `searchPhotos` reads a deliberately narrow projection and joins no uploader name and no
+ * dates. Demanding the full shape would have meant widening that query for fields nothing
+ * here reads, or a second tag editor.
+ *
+ * A component's prop type is a statement about what it READS, and a wider one is a claim it
+ * cannot honour. `Photo` satisfies this structurally, with nothing to convert.
+ */
+export interface TaggablePhoto {
+  id: string
+  tags: { person_id: string; person_name: string }[]
 }
 
 /** How many names the picker draws before it says how many it is holding back. */
@@ -63,7 +81,7 @@ const RENDER_LIMIT = 40
 export function PhotoTagEditor({
   photo, allMembers, mayEdit, busy, onChanged, onError, tone,
 }: {
-  photo: Photo
+  photo: TaggablePhoto
   /** Every member this caller may tag, resolved server-side. */
   allMembers: TaggablePerson[]
   mayEdit: boolean

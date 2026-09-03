@@ -2246,6 +2246,7 @@ export const es: Catalogue = {
   'gal.searchToTag': 'Buscar a alguien para etiquetar',
   'gal.nobodyMatches': 'Nadie coincide.',
   'gal.closePhoto': 'Cerrar la fotografía',
+  'gal.openPhotographIn': 'Abrir la fotografía: {what}',
   'gal.nOfTotal': '{n} de {total}',
   'gal.searchAllLabel': 'Buscar en todos los álbumes',
   'gal.searchAllPh': 'lago, reunión, los 90 de la abuela',

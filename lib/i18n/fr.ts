@@ -2304,6 +2304,7 @@ export const fr: Catalogue = {
   'gal.searchToTag': 'Rechercher quelqu’un à identifier',
   'gal.nobodyMatches': 'Personne ne correspond.',
   'gal.closePhoto': 'Fermer la photographie',
+  'gal.openPhotographIn': 'Ouvrir la photographie : {what}',
   'gal.nOfTotal': '{n} sur {total}',
   'gal.searchAllLabel': 'Chercher dans tous les albums',
   'gal.searchAllPh': 'lac, retrouvailles, les 90 ans de grand-mère',

@@ -3536,8 +3536,10 @@ export const helpEs: Catalogue = {
     '**Buscar en todos los álbumes** es el segundo elemento del menú de [Galería](/community/gallery), '
     + 'junto a **Álbumes**. Toma las mismas dos cosas — palabras de una descripción y '
     + 'cualquiera etiquetado — y recorre de una vez todas las fotografías de la familia '
-    + 'en lugar de un solo álbum. Cada resultado indica en qué álbum está, y al pulsarlo '
-    + 'se abre ese álbum.',
+    + 'en lugar de un solo álbum. **Al pulsar un resultado se abre la fotografía**, y las '
+    + 'flechas recorren entonces todo lo que encontró la búsqueda, no un solo álbum. El '
+    + 'nombre del álbum DEBAJO de cada resultado es un enlace, para cuando lo que quería '
+    + 'saber era dónde está guardada la imagen.',
   'help.gallery.finding.b4':
     'Las dos búsquedas se comportan de forma distinta a propósito. Dentro de un álbum, '
     + 'elegir a tres personas etiquetadas AMPLÍA el resultado: obtiene las fotografías en '
