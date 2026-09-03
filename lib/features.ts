@@ -404,6 +404,39 @@ export const FEATURES: readonly Feature[] = [
     tier: 'plus',
     blurb: 'What the family should collect in dues this year, what has come in, and who has still to pay.',
   },
+  // ── THE FIFTH SUB-KEY THAT EXISTS ONLY TO CARRY A TIER ─────────────────────────────
+  // Added 2026-09-03, and the fifth instance of the device AGENTS.md documents — after
+  // `accounting/transactions/fund-transfers`, `gatherings/budget`, `admin/users/templates` and
+  // `admin/gathering-templates`. Same shape, same three obligations, and they are easy to
+  // leave out: a `status: 'live'` row (a `'future'` one rewrites the PARENT's paths to Coming
+  // Soon at the edge and drops the grid switch out of `getResources()`), an `UNDOCUMENTED_OK`
+  // entry in `help-check.mjs` because it is not a route, and the PAGE anding `tierAllows()`
+  // into the band by hand — `requireView`/`requireTier` resolve the page's OWN key and cannot
+  // see a band.
+  //
+  // WHY IT IS NEEDED AT ALL: automatic dues reminders are a PREMIUM bullet and this page is
+  // `plus`. Without a row of its own the band inherits `/reporting/dues-projections` through
+  // `getFeature()`'s longest-prefix match and is Plus — which is `lib/auth/tier.ts`' documented
+  // default ("a tab is part of the page it is on"), and is wrong here. A Plus family has no
+  // reminder queue, so the band would report "none queued yet" forever with nothing anywhere
+  // saying why.
+  //
+  // `/reporting/dues-projections/reminders` IS NOT A ROUTE. Nothing navigates there; the band
+  // is a section of the projection. The entry exists because `tierAllows()` resolves a key
+  // through `requiredTier()`, which is that longest-prefix match, and this is the only way to
+  // state an exception to it.
+  //
+  // AND IT WITHHOLDS A SCREEN BAND, NEVER A ROW. No policy consults `families.tier` and none
+  // may — a family that lapses from Premium keeps every reminder row it ever queued and loses
+  // the band that reads them back.
+  {
+    href: '/reporting/dues-projections/reminders',
+    label: 'Dues Reminder Delivery',
+    status: 'live',
+    tier: 'premium',
+    pane: true,
+    blurb: 'Whether the family’s automatic dues reminders are landing, and whose address does not work.',
+  },
   // The how-to manual. `free`, and it could not sensibly be anything else — a plan that
   // withholds the instructions is a plan that sells a product nobody can learn.
   //

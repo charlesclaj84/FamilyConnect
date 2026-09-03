@@ -2083,6 +2083,49 @@ export const helpFr: Catalogue = {
   'help.dues-projections.standings.b4':
     '**Seulement ceux qui doivent** restreint le tableau, et le champ de filtre cherche '
     + 'dans n’importe quelle partie de n’importe quel nom.',
+  'help.dues-projections.reminders.heading': 'Rappels automatiques',
+  'help.dues-projections.reminders.b0':
+    'Avec un forfait Premium, le produit envoie par e-mail à chaque membre un rappel '
+    + 'lorsqu’une échéance arrive, et le bandeau en haut de cette page est là où vous '
+    + 'voyez s’ils arrivent. C’est le seul endroit qui le dit — rien d’autre dans le '
+    + 'produit ne mentionne un rappel après son départ.',
+  'help.dues-projections.reminders.b1.i0.term': 'Envoyés',
+  'help.dues-projections.reminders.b1.i0.text':
+    'C’est parti. Personne n’est relancé deux fois pour la même échéance.',
+  'help.dues-projections.reminders.b1.i1.term': 'En attente d’envoi',
+  'help.dues-projections.reminders.b1.i1.text':
+    'En file, et la prochaine exécution quotidienne le prendra.',
+  'help.dues-projections.reminders.b1.i2.term': 'Déjà payé',
+  'help.dues-projections.reminders.b1.i2.text':
+    'L’échéance a été réglée après la mise en file du rappel, qui n’a donc jamais été '
+    + 'envoyé. C’est le produit qui refuse de relancer quelqu’un pour de l’argent que la '
+    + 'famille avait déjà, et ce n’est pas un échec.',
+  'help.dues-projections.reminders.b1.i3.term': 'Sans adresse',
+  'help.dues-projections.reminders.b1.i3.text':
+    'Le proche porte une adresse de remplacement plutôt qu’une vraie, il n’y a donc nulle '
+    + 'part où l’envoyer. Ce n’est pas un échec non plus — et c’est le seul état sur '
+    + 'lequel il vaut la peine d’agir.',
+  'help.dues-projections.reminders.b1.i4.term': 'Échoués',
+  'help.dues-projections.reminders.b1.i4.text':
+    'L’envoi a été tenté et refusé. Il est réessayé lors des exécutions suivantes.',
+  'help.dues-projections.reminders.b2':
+    '**Injoignables par e-mail** nomme les proches derrière le chiffre Sans adresse, car '
+    + 'un décompte dit que le problème existe et un nom est ce qui permet de le régler. '
+    + 'Les inviter depuis l’[arbre familial](/community/family-tree), ou ajouter une '
+    + 'adresse à leur fiche, est la solution — et cela vaut la peine bien au-delà des '
+    + 'cotisations, puisqu’un proche sans adresse ne reçoit rien de ce que la famille '
+    + 'envoie.',
+  'help.dues-projections.reminders.b3':
+    'Un rappel n’entraîne aucune conséquence. Il n’y a ni pénalité de retard, ni '
+    + 'verrouillage, ni série d’avis croissants nulle part dans ce produit — c’est un '
+    + 'e-mail disant qu’une échéance est due. Ce qu’une famille doit à GENORRA pour son '
+    + 'propre forfait est tout autre chose, et cela, oui, a des conséquences : voyez '
+    + '[Paramètres](/admin/settings).',
+  'help.dues-projections.reminders.b4':
+    'Le bandeau est Premium. Sur tout autre forfait il n’y a aucun rappel à signaler, il '
+    + 'est donc absent plutôt que vide — et il n’est montré qu’à quelqu’un qui peut voir '
+    + 'la Comptabilité de la famille, car la manière dont la famille relance pour son '
+    + 'argent est l’affaire de la trésorerie.',
   // ──── PART 7 — Money (Membership, Accounting) ─────────────────────────────────
   'help.membership.title': 'Adhésions',
   'help.membership.summary':

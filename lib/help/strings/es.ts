@@ -2005,6 +2005,49 @@ export const helpEs: Catalogue = {
   'help.dues-projections.standings.b4':
     '**Solo quienes deben** reduce la tabla, y el cuadro de filtro busca en cualquier parte '
     + 'de cualquier nombre.',
+  'help.dues-projections.reminders.heading': 'Recordatorios automáticos',
+  'help.dues-projections.reminders.b0':
+    'Con un plan Premium el producto envía por correo a cada integrante un recordatorio '
+    + 'cuando vence un plazo, y la franja de la parte superior de esta página es donde se '
+    + 've si están llegando. Es el único lugar que lo indica — nada más en el producto '
+    + 'menciona un recordatorio después de que ha salido.',
+  'help.dues-projections.reminders.b1.i0.term': 'Enviados',
+  'help.dues-projections.reminders.b1.i0.text':
+    'Salió. A nadie se le recuerda dos veces el mismo plazo.',
+  'help.dues-projections.reminders.b1.i1.term': 'Pendiente de envío',
+  'help.dues-projections.reminders.b1.i1.text':
+    'En cola, y la próxima ejecución diaria lo tomará.',
+  'help.dues-projections.reminders.b1.i2.term': 'Ya pagado',
+  'help.dues-projections.reminders.b1.i2.text':
+    'El plazo se liquidó después de poner el recordatorio en cola, así que nunca se '
+    + 'envió. Es el producto negándose a reclamar a alguien un dinero que la familia ya '
+    + 'tenía, y no es un fallo.',
+  'help.dues-projections.reminders.b1.i3.term': 'Sin dirección',
+  'help.dues-projections.reminders.b1.i3.text':
+    'El familiar tiene una dirección de relleno en lugar de una real, así que no hay '
+    + 'adónde enviarlo. Tampoco es un fallo — y es el único estado sobre el que merece la '
+    + 'pena actuar.',
+  'help.dues-projections.reminders.b1.i4.term': 'Fallidos',
+  'help.dues-projections.reminders.b1.i4.text':
+    'Se intentó el envío y fue rechazado. Se reintenta en ejecuciones posteriores.',
+  'help.dues-projections.reminders.b2':
+    '**No se les puede contactar por correo** nombra a los familiares que están detrás de '
+    + 'la cifra Sin dirección, porque un recuento dice que el problema existe y un nombre '
+    + 'es lo que permite resolverlo. Invitarles desde el [árbol '
+    + 'familiar](/community/family-tree), o añadir una dirección a su ficha, es la '
+    + 'solución — y vale la pena mucho más allá de las cuotas, ya que un familiar sin '
+    + 'dirección no recibe nada de lo que envía la familia.',
+  'help.dues-projections.reminders.b3':
+    'Un recordatorio no lleva ninguna consecuencia asociada. No hay recargo por demora, '
+    + 'ni bloqueo, ni escalada de avisos en ninguna parte de este producto — es un correo '
+    + 'que dice que vence un plazo. Lo que una familia debe a GENORRA por su propio plan '
+    + 'es algo completamente distinto, y eso sí tiene consecuencias: vea '
+    + '[Configuración](/admin/settings).',
+  'help.dues-projections.reminders.b4':
+    'La franja es Premium. En cualquier otro plan no hay recordatorios sobre los que '
+    + 'informar, así que está ausente en lugar de vacía — y solo se muestra a quien puede '
+    + 'ver la Contabilidad de la familia, porque cómo la familia reclama su dinero es '
+    + 'asunto de la tesorería.',
   // ──── PART 7 — Money (Membership, Accounting) ─────────────────────────────────
   'help.membership.title': 'Membresía',
   'help.membership.summary':

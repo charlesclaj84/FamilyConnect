@@ -5,6 +5,7 @@ import { confirmWrite } from '@/lib/confirmed-write'
 import { createClient } from '@/lib/supabase/server'
 import { getMyFamilyCode, getMyPersonId, belongsToFamily } from '@/lib/auth/family'
 import { can, canAny } from '@/lib/auth/permissions'
+import { requireMember } from '@/lib/auth/guard'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { moneyAttachedTo, moneyAttachedMessage } from '@/lib/money-attached'
 import {
@@ -1993,6 +1994,164 @@ export interface DuesProjectionResult {
  * opting out, waivers, the period boundary — is checkable without a database because of
  * that split (§7b).
  */
+/** One state of the reminder queue, with how many rows are in it. */
+export interface ReminderOutcomeCount {
+  state: 'pending' | 'sending' | 'sent' | 'failed' | 'unreachable' | 'cancelled'
+  n: number
+}
+
+/** A relative the family cannot reach by email at all. */
+export interface UnreachableMember {
+  person_id: string
+  name: string
+  /** How many reminders have been given up on for them. */
+  n: number
+}
+
+export interface ReminderReport {
+  /** Every state that has at least one row, most-populous first. */
+  counts: ReminderOutcomeCount[]
+  /** When the most recent reminder actually went out. Null if none ever has. */
+  lastSentAt: string | null
+  /**
+   * Whose address does not work, named.
+   *
+   * A COUNT WOULD NOT DO. `unreachable` is a separate state from `failed` on the stated
+   * ground that filing a generated placeholder address as a failure *"would sit forever in
+   * the column an organizer works through"* — and the thing an organizer does with that
+   * column is go and ask the relative for an address. A figure says the problem exists; a
+   * name is what makes it actionable, and it is the one fact here worth acting on well
+   * beyond dues.
+   */
+  unreachable: UnreachableMember[]
+  /** True when the queue has never held a row at all — a different sentence from "none sent". */
+  everQueued: boolean
+}
+
+/**
+ * What the dues-reminder queue has actually done.
+ *
+ * ── WHY THIS EXISTS ────────────────────────────────────────────────────────────────
+ * `dues_reminders` accumulated one row per member per installment with a delivery outcome
+ * beside it and NO SCREEN READ ANY OF IT. AGENTS.md is explicit — *"a feature that RECORDS
+ * something across the family owes a report that reads it back"* — and the gap made one of the
+ * feature's own arguments hollow: `unreachable` earned its place as a state distinct from
+ * `failed` because a placeholder address would otherwise *"sit forever in the column an
+ * organizer works through"*, and there was no column.
+ *
+ * Three questions, which are the three the entry that asked for this named:
+ *
+ *   Did anything go out?          A queue that silently sends nothing and a queue with nothing
+ *                                 to send were indistinguishable — including to whoever was
+ *                                 wondering why nobody paid. `everQueued` and `lastSentAt`
+ *                                 separate them.
+ *   Whose address does not work?  `unreachable`, by name.
+ *   Was anybody reminded twice?   The counts, against the roster — the unique index makes it
+ *                                 impossible and this is how somebody satisfies themselves of
+ *                                 that without reading a migration.
+ *
+ * ── IT IS A BAND ON THE PROJECTION, NOT A ROUTE ────────────────────────────────────
+ * Weighed, and the entry set out the choice. A new route costs a `permission_resources` row, a
+ * `resource_visibility` backfill, the Administrators grant, a rail item, a help chapter and an
+ * RLS case; a band reuses a grant that already exists. And the questions above are an
+ * ORGANIZER's questions about chasing what is owed, which is what `/reporting/dues-projections`
+ * IS — where `/admin/accounting/dues` is where a schedule is configured, which is a different
+ * job. So it goes beside the figures it is about.
+ *
+ * ── `admin/accounting`, NOT `reporting/dues-projections` ───────────────────────────
+ * `permission_table_map` keys `dues_reminders` on `admin/accounting` with an `own_expr` of the
+ * literal `false`, so the composed SELECT policy admits only scope `'any'` on THAT key. This
+ * action honours the same key rather than the page's, because a grant that governs a table has
+ * to be the grant the reader is checked against — resolving on the page's key would open a
+ * screen the policy then answers `[]` to, which is §8's silent-empty with an extra step.
+ *
+ * The band is therefore absent for a projections reader without the Accounting grant, which is
+ * correct: how the family chases its money is a treasurer's business.
+ *
+ * ── canAny, AND THE ADMIN CLIENT ───────────────────────────────────────────────────
+ * `canAny` because there is no coherent "own" version of a family-wide delivery report, and
+ * the `own_expr` is `false` besides. The admin client with `.eq('family_code', …)` by hand
+ * (§3), for the reason every report in this product uses it: a count narrowed to what the
+ * READER may see is a WRONG number rather than a withheld one, and the whole value of "did
+ * anything go out" is that the figure is the family's.
+ *
+ * ── AND A REFUSED READ REFUSES THE WHOLE REPORT (§8) ───────────────────────────────
+ * The sharpest instance on this screen, because the failure is a WRONG answer rather than a
+ * missing one: a refused read leaves every count at zero, which renders as *"nothing has been
+ * sent"* over a queue that has been working for months. `null` is a refusal; a populated shape
+ * with `everQueued: false` is a fact.
+ */
+export async function getReminderReport(): Promise<ReminderReport | null> {
+  const g = await requireMember()
+  if (!g.ok) return null
+  if (!(await canAny(g.userId, 'admin/accounting', 'view'))) return null
+
+  const admin = createAdminClient()
+
+  // §3 BY HAND on both reads. The code comes from the caller's own membership through the
+  // guard, never from an argument.
+  const [rowsRes, peopleRes] = await Promise.all([
+    admin.from('dues_reminders')
+      .select('state, person_id, sent_at')
+      .eq('family_code', g.familyCode),
+    admin.from('people')
+      .select('id, first_name, last_name')
+      .eq('family_code', g.familyCode),
+  ])
+
+  // §8: the error is READ, and this is where it matters most — see the header.
+  if (rowsRes.error) {
+    console.error(`[dues] reminder report read failed for ${g.familyCode}: ${rowsRes.error.message}`)
+    return null
+  }
+  if (peopleRes.error) {
+    console.error(`[dues] reminder report roster read failed for ${g.familyCode}: ${peopleRes.error.message}`)
+    return null
+  }
+
+  const rows = rowsRes.data ?? []
+  const nameById = new Map(
+    (peopleRes.data ?? []).map(p => [p.id as string, `${p.first_name} ${p.last_name}`.trim()]),
+  )
+
+  const byState = new Map<string, number>()
+  const unreachableBy = new Map<string, number>()
+  let lastSentAt: string | null = null
+
+  for (const row of rows) {
+    const state = row.state as string
+    byState.set(state, (byState.get(state) ?? 0) + 1)
+    if (state === 'unreachable') {
+      const id = row.person_id as string
+      unreachableBy.set(id, (unreachableBy.get(id) ?? 0) + 1)
+    }
+    const sent = row.sent_at as string | null
+    if (sent && (lastSentAt === null || sent > lastSentAt)) lastSentAt = sent
+  }
+
+  return {
+    // Most-populous first, then by state name so two equal counts do not swap between renders
+    // — a greedy order is only stable if its input order is total, the same argument
+    // `packWeek` makes about calendar lanes.
+    counts: [...byState.entries()]
+      .map(([state, n]) => ({ state: state as ReminderOutcomeCount['state'], n }))
+      .sort((a, b) => b.n - a.n || a.state.localeCompare(b.state)),
+    lastSentAt,
+    unreachable: [...unreachableBy.entries()]
+      .map(([person_id, n]) => ({
+        person_id,
+        // A NAME THE ROSTER NO LONGER HAS is possible: `dues_reminders.person_id` cascades on
+        // delete, so this is only reachable mid-delete, and a blank name would render as a
+        // row about nobody.
+        name: nameById.get(person_id) ?? '',
+        n,
+      }))
+      .filter(m => m.name !== '')
+      .sort((a, b) => b.n - a.n || a.name.localeCompare(b.name)),
+    everQueued: rows.length > 0,
+  }
+}
+
 export async function getDuesProjection(): Promise<DuesProjectionResult | null> {
   const { user } = await currentUser()
   if (!user) return null

@@ -3,7 +3,7 @@ import Link from 'next/link'
 import {
   Vote, Megaphone, MessagesSquare, Images, FileText, MapPinned, Send,
   BarChart3, ShieldCheck, ShieldAlert, Users,
-  Bell, ReceiptText, TrendingUp, ArrowLeftRight, Award, ClipboardList,
+  Bell, MailCheck, ReceiptText, TrendingUp, ArrowLeftRight, Award, ClipboardList,
   NotebookPen, Gavel, Scale, CalendarDays, ListChecks, PieChart, Users2,
   Landmark, LifeBuoy, UsersRound, UserCog, UserRound,
   ArrowRight, Check, Sparkles, Zap, Crown,
@@ -288,6 +288,14 @@ const ALSO_SHAPES: readonly {
   { icon: ReceiptText, route: '/accounting/payment-history' },
   { icon: TrendingUp, route: '/reporting/dues-projections' },
   { icon: ArrowLeftRight, route: '/reporting/transactions/fund-transfers' },
+  // ── PREMIUM, AND THE THIRD ROUTE ON THAT PLAN ──────────────────────────────────
+  // The band on Dues Projections that says whether the automatic reminders are landing
+  // and whose address does not work. `marketing:check` is what put it here rather than
+  // anybody remembering: it walks every LIVE `FEATURES` row and fails on one no marketing
+  // surface names, which is the whole reason the sub-key device does not quietly ship
+  // unsold. The tier is DERIVED from `lib/features.ts`, so this card cannot claim Plus
+  // for something Premium.
+  { icon: MailCheck, route: '/reporting/dues-projections/reminders' },
   // MOVED HERE 2026-08-21 from the privacy card below, which had sold it untagged under a
   // heading about family isolation. Isolation is universal and enforced by the database on
   // every query; this is Standard. Conflating the two promised a Free family a screen they

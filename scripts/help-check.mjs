@@ -494,6 +494,9 @@ const UNDOCUMENTED_OK = {
   '/personal-info/photo':
     'not a route — a registry row carrying the Standard tier for the profile picture on ' +
     'My Profile, which is documented at my-profile#photo',
+  '/reporting/dues-projections/reminders':
+    'not a route — a registry row carrying the PREMIUM tier for the reminder-delivery band ' +
+    'on Dues Projections, whose own page is plus. Documented at dues-projections#reminders',
 
   // ── THE ROUTES IN THE RAIL'S REVIEW SECTION, 2026-08-20 ────────────────────────────
   // Each of these is a real screen with a real chapter owed. See the note above for why the

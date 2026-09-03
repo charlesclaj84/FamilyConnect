@@ -250,6 +250,10 @@ export const marketingFr: Catalogue = {
   'mkt.also./reporting/transactions/fund-transfers.title': 'Virements entre fonds',
   'mkt.also./reporting/transactions/fund-transfers.blurb':
     'Déplacez de l’argent d’un fonds à un autre et gardez les deux côtés au relevé.',
+  'mkt.also./reporting/dues-projections/reminders.title': 'Remise des rappels',
+  'mkt.also./reporting/dues-projections/reminders.blurb':
+    'Si les rappels de cotisation automatiques arrivent, et quels proches n’ont aucune '
+    + 'adresse e-mail à laquelle la famille peut les joindre.',
   'mkt.also./admin/members/templates.title': 'Qui peut faire quoi',
   'mkt.also./admin/members/templates.blurb':
     'Une grille d’autorisations par fonctionnalité, pour qu’enregistrer des cotisations ne '

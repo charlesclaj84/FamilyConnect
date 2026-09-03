@@ -2203,6 +2203,23 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('**Only those who owe** narrows the table, and the filter box searches any part of any name.'),
             ],
           },
+          {
+            id: 'reminders',
+            heading: 'Automatic reminders',
+            blocks: [
+              p('On a Premium plan the product emails each member a reminder as an installment falls due, and the band at the top of this page is where you see whether those are landing. It is the only place that says so — nothing else in the product mentions a reminder after it has gone.'),
+              defs(
+                { term: 'Sent', text: 'It went out. Nobody is reminded twice about the same installment.' },
+                { term: 'Waiting to send', text: 'Queued, and the next daily run will take it.' },
+                { term: 'Already paid', text: 'The installment was settled after the reminder was queued, so it was never sent. This is the product declining to chase somebody for money the family already had, and it is not a failure.' },
+                { term: 'No address', text: 'The relative has a placeholder address rather than a real one, so there is nowhere to send it. Not a failure either — and the one state worth acting on.' },
+                { term: 'Failed', text: 'The send was attempted and refused. It is retried on later runs.' },
+              ),
+              p('**Cannot be reached by email** names the relatives behind the No address figure, because a count tells you the problem exists and a name is what lets you fix it. Inviting them from the [family tree](/community/family-tree), or adding an address to their record, is the fix — and it is worth doing well beyond dues, since a relative with no address hears nothing the family sends.'),
+              note('A reminder has no consequence attached. There is no late fee, no lockout and no ladder of escalating notices anywhere in this product — it is one email saying an installment is due. What a family owes GENORRA for its own plan is a separate thing entirely, and that one does have consequences: see [Settings](/admin/settings).'),
+              note('The band is Premium. On any other plan there are no reminders to report on, so it is absent rather than empty — and it is only shown to somebody who can see the family’s Accounting, because how the family chases its money is a treasurer’s business.'),
+            ],
+          },
         ],
       },
       {

@@ -244,6 +244,10 @@ export const marketingEs: Catalogue = {
   'mkt.also./reporting/transactions/fund-transfers.title': 'Traspasos entre fondos',
   'mkt.also./reporting/transactions/fund-transfers.blurb':
     'Mueva dinero de un fondo a otro y conserve los dos lados en el registro.',
+  'mkt.also./reporting/dues-projections/reminders.title': 'Entrega de recordatorios',
+  'mkt.also./reporting/dues-projections/reminders.blurb':
+    'Si los recordatorios automáticos de cuotas están llegando, y qué familiares no tienen '
+    + 'una dirección de correo en la que la familia pueda contactarles.',
   'mkt.also./admin/members/templates.title': 'Quién puede hacer qué',
   'mkt.also./admin/members/templates.blurb':
     'Una cuadrícula de permisos por función, para que registrar cuotas no sea lo mismo que '

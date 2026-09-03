@@ -223,6 +223,10 @@ export const marketingEn: Catalogue = {
   'mkt.also./reporting/transactions/fund-transfers.title': 'Transfers between funds',
   'mkt.also./reporting/transactions/fund-transfers.blurb':
     'Move money from one fund to another and keep both sides of it on the record.',
+  'mkt.also./reporting/dues-projections/reminders.title': 'Reminder delivery',
+  'mkt.also./reporting/dues-projections/reminders.blurb':
+    'Whether the automatic dues reminders are landing, and which relatives have no email '
+    + 'address the family can reach them at.',
   'mkt.also./admin/members/templates.title': 'Who may do what',
   'mkt.also./admin/members/templates.blurb':
     'A grid of per-feature permissions, so recording dues is not the same as paying money '

@@ -2642,6 +2642,29 @@ export const en: Catalogue = {
   'rep.group': 'Group',
   'rep.members': 'Members',
   'rep.share': 'Share',
+  'rem.heading': 'Automatic reminders',
+  'rem.noneQueuedYet':
+    'No dues reminder has been queued yet. One is queued for each installment as it falls '
+    + 'due.',
+  'rem.lastWentOut': 'Last reminder went out {on}.',
+  'rem.noneSentYet': 'Nothing has gone out yet.',
+  'rem.state.pending': 'Waiting to send',
+  'rem.state.sending': 'Sending',
+  'rem.state.sent': 'Sent',
+  'rem.state.failed': 'Failed',
+  'rem.state.unreachable': 'No address',
+  'rem.state.cancelled': 'Already paid',
+  'rem.statesHint':
+    'Already paid means the installment was settled after the reminder was queued, so it '
+    + 'was never sent — nobody is chased for money the family already had. No address means '
+    + 'the relative has no real email address on their record.',
+  'rem.cannotReach': 'Cannot be reached by email',
+  'rem.timesN': '({n})',
+  'rem.cannotReachHint':
+    'Their record has a placeholder address rather than a real one. Inviting them from the '
+    + 'family tree, or adding an address, is what fixes it — and it is worth doing well '
+    + 'beyond dues.',
+  'rem.neverTwice': 'Nobody is reminded twice about the same installment.',
   'rep.pressRow': 'Press a row to see who is in it.',
   'rep.nationally': 'Nationally',
   'rep.regions': 'Regions',

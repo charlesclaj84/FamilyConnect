@@ -2657,6 +2657,30 @@ export const fr: Catalogue = {
   'rep.group': 'Groupe',
   'rep.members': 'Membres',
   'rep.share': 'Part',
+  'rem.heading': 'Rappels automatiques',
+  'rem.noneQueuedYet':
+    'Aucun rappel de cotisation n’a encore été mis en file. Un rappel est mis en file pour '
+    + 'chaque échéance à son terme.',
+  'rem.lastWentOut': 'Le dernier rappel est parti le {on}.',
+  'rem.noneSentYet': 'Rien n’est encore parti.',
+  'rem.state.pending': 'En attente d’envoi',
+  'rem.state.sending': 'En cours d’envoi',
+  'rem.state.sent': 'Envoyés',
+  'rem.state.failed': 'Échoués',
+  'rem.state.unreachable': 'Sans adresse',
+  'rem.state.cancelled': 'Déjà payé',
+  'rem.statesHint':
+    'Déjà payé signifie que l’échéance a été réglée après la mise en file du rappel, qui '
+    + 'n’a donc jamais été envoyé — personne n’est relancé pour de l’argent que la famille '
+    + 'avait déjà. Sans adresse signifie que le proche n’a pas de véritable adresse e-mail '
+    + 'sur sa fiche.',
+  'rem.cannotReach': 'Injoignables par e-mail',
+  'rem.timesN': '({n})',
+  'rem.cannotReachHint':
+    'Leur fiche porte une adresse de remplacement plutôt qu’une vraie. Les inviter depuis '
+    + 'l’arbre familial, ou ajouter une adresse, est ce qui règle cela — et cela vaut la '
+    + 'peine bien au-delà des cotisations.',
+  'rem.neverTwice': 'Personne n’est relancé deux fois pour la même échéance.',
   'rep.pressRow': 'Appuyez sur une ligne pour voir qui s’y trouve.',
   'rep.nationally': 'À l’échelle nationale',
   'rep.regions': 'Régions',

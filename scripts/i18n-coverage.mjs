@@ -260,6 +260,12 @@ const KNOWN_DYNAMIC = [
     + 'renamed from `…Reason` is that it used to return the English sentence instead.'],
   ['act.connectNotSetUpDeployment', 'The third reason from the same function, on '
     + '`getProcessorStatus`. Same shape and same reason.'],
+  ['rem.state.', 'The reminder band reads a stored delivery state: t(`rem.state.${state}`). '
+    + 'A REGISTRY OF IDS with the words looked up, the shape AGENTS.md prescribes — the ids '
+    + 'are the six values `dues_reminders_state_check` permits, so the CHECK and this prefix '
+    + 'agree by construction and a seventh state is a write error rather than a blank label. '
+    + 'Two of the six are the reason the band exists: `unreachable` and `cancelled` both '
+    + 'read as failures and are neither.'],
   ['proc.bill', 'getFullStripeBill() RETURNS one of these as a `messageKey` and '
     + '`RecordedAndActualFees` hands it to `t`. The same shape as the two entries above and '
     + 'for the same reason — the action must not return an English sentence, because it is '

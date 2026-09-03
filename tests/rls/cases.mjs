@@ -968,6 +968,56 @@ export const CASES = [
   // The second is the one worth reading: it is the ONLY assertion in the suite covering the
   // fifth read this action gained, and it fails on the attack half alone, by design. The
   // fixture pair it leans on is `crossFamilyInvitation` and `uninvitedRecord` in seed.mjs.
+  // ── WHAT THE REMINDER QUEUE HAS DONE ──────────────────────────────────────────
+  //
+  // `getReminderReport` reads `dues_reminders` and the ROSTER on the ADMIN client — both
+  // scoped by a hand-written `.eq('family_code', …)` and nothing else, so there is no policy
+  // underneath either read. That is deliberate and is every report's reason: a count narrowed
+  // to what the READER may see is a WRONG number rather than a withheld one, and the whole
+  // value of "did anything go out" is that the figure is the family's.
+  //
+  // So this case is the ONLY thing standing between one family's delivery record — which
+  // names every relative they cannot reach by email — and another's. Mutation-checked:
+  // widening either conjunct to match any family turns the attack half red.
+  //
+  // THE GRANT IS `admin/accounting`, NOT the page's key, because `permission_table_map` keys
+  // `dues_reminders` on that one with an `own_expr` of the literal `false`. BRAVO's
+  // administrator holds it at scope `'any'` in their own family, which is what makes the
+  // attack meaningful: whatever they still reach, they reached because family isolation
+  // failed rather than because nobody checked a grant.
+  read('dues.getReminderReport', 'app/actions/dues.ts', 'getReminderReport', {
+    // ── THE FIXTURE HAS NO REMINDER ROWS, SO THE CONTROL ASSERTS THE ROSTER ─────
+    // `everQueued` is false for both families, and a case that asserted only that would be
+    // green with the family conjuncts deleted — `[]` for everybody is perfect isolation
+    // (§7). The `setup` queues ONE reminder per family instead, so both halves have
+    // something to be right or wrong about.
+    setup: async (db, fx) => {
+      for (const side of ['alpha', 'bravo']) {
+        const f = fx[side]
+        await db.from('dues_reminders').upsert({
+          family_code: side === 'alpha' ? 'ALPHATEST' : 'BRAVOTEST',
+          person_id: f.otherPersonId,
+          schedule_id: f.schedule.id,
+          // A FIXED DATE, not `today`: the unique index is
+          // `(person_id, schedule_id, due_on)`, so a moving date would insert a second row
+          // on every run and the counts this case reads would climb.
+          due_on: '2026-01-15',
+          amount_cents: 1000,
+          state: 'unreachable',
+        }, { onConflict: 'person_id,schedule_id,due_on' })
+      }
+    },
+    // ALPHA's member is NAMED in their own report — which is the field the whole band exists
+    // for — and must not appear in BRAVO's.
+    expectPositive: (r, fx) =>
+      Boolean(r) && r.everQueued === true
+      && r.unreachable.some(m => m.person_id === fx.alpha.otherPersonId),
+    expectAttack: (r, fx) =>
+      r === null
+      || !r.unreachable.some(m => m.person_id === fx.alpha.otherPersonId),
+    positiveActor: 'alphaAdmin',
+  }),
+
   read('dues.getDuesProjection', 'app/actions/dues.ts', 'getDuesProjection', {
     // THE CONTROL IS ALPHA'S ADMINISTRATOR, not its plain member, and that is a fact about
     // the feature rather than a convenience. 20260817000000 registers this key

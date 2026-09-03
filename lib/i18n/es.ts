@@ -2587,6 +2587,29 @@ export const es: Catalogue = {
   'rep.group': 'Grupo',
   'rep.members': 'Integrantes',
   'rep.share': 'Proporción',
+  'rem.heading': 'Recordatorios automáticos',
+  'rem.noneQueuedYet':
+    'Todavía no se ha puesto en cola ningún recordatorio de cuotas. Se pone uno en cola por '
+    + 'cada plazo a medida que vence.',
+  'rem.lastWentOut': 'El último recordatorio salió el {on}.',
+  'rem.noneSentYet': 'Todavía no ha salido nada.',
+  'rem.state.pending': 'Pendiente de envío',
+  'rem.state.sending': 'Enviándose',
+  'rem.state.sent': 'Enviados',
+  'rem.state.failed': 'Fallidos',
+  'rem.state.unreachable': 'Sin dirección',
+  'rem.state.cancelled': 'Ya pagado',
+  'rem.statesHint':
+    'Ya pagado significa que el plazo se liquidó después de poner el recordatorio en cola, '
+    + 'así que nunca se envió: a nadie se le reclama un dinero que la familia ya tenía. Sin '
+    + 'dirección significa que el familiar no tiene una dirección de correo real en su ficha.',
+  'rem.cannotReach': 'No se les puede contactar por correo',
+  'rem.timesN': '({n})',
+  'rem.cannotReachHint':
+    'Su ficha tiene una dirección de relleno en lugar de una real. Invitarles desde el '
+    + 'árbol familiar, o añadir una dirección, es lo que lo resuelve, y vale la pena mucho '
+    + 'más allá de las cuotas.',
+  'rem.neverTwice': 'A nadie se le recuerda dos veces el mismo plazo.',
   'rep.pressRow': 'Pulse una fila para ver quién está en ella.',
   'rep.nationally': 'A nivel nacional',
   'rep.regions': 'Regiones',

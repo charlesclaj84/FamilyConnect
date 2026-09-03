@@ -732,33 +732,7 @@ a queue in a table is recoverable in a way a fire-and-forget POST is not. `VERCE
 That is not an argument against the extension in general — it is an argument that "the job needs
 the network" is not on its own sufficient, and the alternative is usually a table.
 
-### 1. AUTOMATIC DUES REMINDERS — BUILT 2026-09-01
-
-`20260901000007` and `lib/dues/reminders.ts`. The last unbuilt Premium bullet, and the one
-decision FutureFeature §1 said it still needed is now a unique index:
-`dues_reminders_one_per_installment` on `(person_id, schedule_id, due_on)`.
-
-**THE "PERIOD" IS THE INSTALLMENT, NOT THE ANNUAL PERIOD**, which is where that entry's wording
-would have led somebody wrong: a member paying monthly has twelve installments inside one
-period, so keying on the year sends one reminder in January and nothing again for twelve months.
-`due_on` is the discriminator, exactly as `cycle_on` is for a dunning notice.
-
-**AND THE ENQUEUE IS IN NODE RATHER THAN `pg_cron`, WHICH IS THE DECISION TO PRESERVE.** The
-ladder's sweep asks a question SQL can answer — has this date passed. A reminder needs
-`duesPlanMath`: the cadence ladder, the month-end clamp `setUTCMonth` overflows on, arrears
-against settled cents, waivers, the age rule, the bloodline, the scope. Writing that in plpgsql
-would be a second implementation beside a tested one, and §7c is a list of four things the
-first implementation got wrong. So the queue is a table and the arithmetic stays where
-`npm test` can reach it.
-
-Three behaviours worth knowing: it re-checks at SEND time whether the installment was settled
-after it was queued and `cancelled`s it if so (a reminder is not a dunning notice, and chasing
-somebody for money they have already sent is the worst thing it could do); a generated
-placeholder address is `unreachable` rather than `failed`, because `placeholderEmail()` builds
-those on a real domain and mailing one is a hard bounce against our own reputation; and an
-opted-out or inactive plan is never reminded.
-
-### 2. ALERT-DRIVEN CHECK-IN SUGGESTIONS — BLOCKED, AND NOT ON THE SCHEDULER
+### ALERT-DRIVEN CHECK-IN SUGGESTIONS — BLOCKED ON REACH, NOT ON DATA ANY MORE
 
 The scheduler was the stated blocker and it is gone: `pg_cron` is installed, and `http` is one
 `CREATE EXTENSION` in a migration away. **What blocks this now is DATA, and it is worth stating
@@ -882,44 +856,6 @@ If it is ever automated, it has to be ordered AFTER the Vercel alias moves — w
   Change wording in `lib/email/auth-mail.ts`. Delete the HTML — and the `email:push` step
   with it — once the hook has been on long enough that turning it off is not the plan.
   **That deletion is now the second item on the list above rather than a someday note.**
-
-## NOTHING IN THE PRODUCT SHOWS THAT A DUES REMINDER WAS SENT
-
-**Action:** decide whether the reminder queue gets a surface, and where. Recorded 2026-09-01, in
-the same commit that built the queue, because the gap is a consequence of that design rather
-than something discovered later.
-
-`dues_reminders` accumulates one row per member per installment with a delivery outcome beside
-it — `sent`, `failed`, `unreachable`, `cancelled` — and **no screen reads any of it.** The table
-has a SELECT policy and a `permission_table_map` row keyed on `admin/accounting`, so the access
-model is already decided; what does not exist is anything that asks the question.
-
-**THAT MAKES ONE OF THE FEATURE'S OWN ARGUMENTS HOLLOW, WHICH IS WHY THIS IS NOT COSMETIC.**
-`unreachable` is a separate state from `failed` on the stated ground that filing a generated
-placeholder address as a failure *"would sit forever in the column an organizer works through"*.
-There is no column. `distribution_recipients` earned that distinction because
-`/community/distributions` renders the outcomes; this earned it by analogy and has not paid for
-it yet.
-
-Three things it would answer, and the second is the one a treasurer will ask first:
-
-* **Did anything go out?** A queue that silently sends nothing and a queue with nothing to send
-  are indistinguishable today, including to whoever is wondering why nobody paid.
-* **Whose address does not work?** Every `unreachable` row is a relative the family cannot reach
-  by email at all — which is a fact worth acting on well beyond dues, and is already recorded.
-* **Was anybody reminded twice?** The unique index makes it impossible, and the screen is how
-  somebody satisfies themselves of that without reading a migration.
-
-**Where it belongs is a real choice and not obvious.** A band on `/reporting/dues-projections`
-is the cheapest and sits beside the figures it is about; a pane on `/admin/accounting/dues` is
-closer to the schedule that generated it. **A new route is the expensive answer** — a
-`permission_resources` row, a `resource_visibility` backfill, the Administrators grant, a rail
-item, a help chapter and an RLS case, per *"A FEATURE THAT RECORDS SOMETHING OWES A REPORT ON
-IT"*. Either of the first two reuses a grant that already exists.
-
-**AND IT IS PREMIUM-ONLY, so whatever surface it gets needs the tier by hand** if it is a pane
-on a page whose own tier is lower — the four-sub-key pattern in AGENTS.md, not a new `FEATURES`
-row unless it becomes a route.
 
 ## `tests/rls` has no member who has replied STOP
 
