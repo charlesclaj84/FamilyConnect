@@ -138,6 +138,13 @@ export const en: Catalogue = {
   'bell.label': 'Notifications',
   'bell.heading': 'Notifications',
   'bell.markAll': 'Mark all read',
+  // CLEARED FROM THE BELL, NOT DELETED — and the wording has to say so, because a member
+  // pressing "Clear" on a record of something that happened to them would reasonably assume
+  // it is gone. `/community/updates` still holds it; `20260903000003` argues why.
+  'bell.clearAll': 'Clear',
+  // Names WHICH entry, so a screen reader reading a list of eight does not hear "Clear"
+  // eight times with nothing to tell them apart.
+  'bell.dismissOne': 'Clear “{title}” from the bell',
   'bell.empty': 'No notifications yet.',
 
   // ── HOW LONG AGO ─────────────────────────────────────────────────────────────────

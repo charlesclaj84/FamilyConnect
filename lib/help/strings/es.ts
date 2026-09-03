@@ -71,6 +71,12 @@ export const helpEs: Catalogue = {
     + 'notificación es. Lo único que cruza de una familia a otra es la cola de aprobaciones: '
     + 'si administra dos familias y alguien está esperando en la segunda, la campana se lo '
     + 'dice mientras usted sigue viendo la primera.',
+  'help.finding-your-way-around.notifications.b2':
+    '**Quitar una entrada la saca de la campana y de ningún otro sitio.** La **×** de una '
+    + 'fila quita esa; **Vaciar**, arriba del panel, vacía la lista. Ninguna de las dos '
+    + 'borra nada: todas las entradas siguen en [Novedades](/community/updates), que es el '
+    + 'registro de lo que se le ha enviado. **Marcar todo como leído** es otra cosa y se '
+    + 'ofrece por separado: apaga el número sin vaciar la lista.',
   'help.finding-your-way-around.signed-out.heading': 'La sesión se cierra después de una hora',
   'help.finding-your-way-around.signed-out.b0':
     'Si no se escribe ni se pulsa nada durante 60 minutos, se cierra su sesión en este '
@@ -2503,7 +2509,9 @@ export const helpEs: Catalogue = {
     + 'Son las mismas filas que la campana de la barra superior.',
   'help.updates.what-it-is.b4':
     'Nada de aquí es correo de otra persona. Las filas de «enviado a usted» son suyas y '
-    + 'solo suyas, y son la misma lista que muestra la campana.',
+    + 'solo suyas. **No son exactamente la misma lista que la campana**: una entrada que '
+    + 'usted quita de la campana sigue aquí, porque la campana es lo que está pendiente y '
+    + 'esto es el registro. Así que esta página es siempre la más larga de las dos.',
   'help.updates.what-it-is.b5':
     'Abrir una fila no la marca como leída. De eso se encarga la campana, así que el número '
     + 'que lleva y esta página no pueden estar nunca en desacuerdo.',

@@ -1620,6 +1620,121 @@ export const CASES = [
     probe: async (db, fx) => probeRead(db, [fx.alpha.notification.id, fx.alpha.otherNotification.id]),
   },
 
+  // ── clearing an entry from the bell (20260903000003) ──────────────────────
+  // `dismissNotification` is `markNotificationRead`'s shape exactly — `.update().eq('id',
+  // id)` on the USER client with no ownership test in the action at all — so whether it is
+  // safe is a question only the UPDATE policy can answer, and these are that answer.
+  //
+  // THEY USE `dismissableNotification`, A ROW OF THEIR OWN, and seed.mjs says why: a
+  // control that dismissed the shared row would empty the bell that a later
+  // `getNotifications` case reads, and that case's own control would then fail for reasons
+  // of ordering rather than of isolation.
+  //
+  // ── MUTATION-CHECKED, AND THE MUTATION HAS TO HIT BOTH HALVES ────────────────
+  // Worth writing down because three mutations in a row reported GREEN and none of them
+  // was evidence of anything:
+  //
+  //   `ALTER POLICY … USING (auth_membership_approved())` on the UPDATE policy   -> GREEN
+  //   the same on the SELECT policy                                              -> GREEN
+  //   both at once                                                               -> GREEN
+  //   USING **and WITH CHECK** on the UPDATE policy                              -> RED
+  //
+  // `ALTER POLICY … USING` REWRITES ONLY `qual`. The UPDATE policy carries a separate
+  // `with_check` expression holding the same three conjuncts, and it is what refuses the
+  // write — measured directly as BRAVO's administrator against a real row:
+  // *"new row violates row-level security policy for table notifications"*. So a mutation
+  // that changes only `USING` leaves the row protected and the suite honestly green, which
+  // reads exactly like a test that cannot see the policy. Check `pg_policies.with_check`
+  // before concluding a write case is vacuous.
+  //
+  // Under the full mutation all FOUR write cases on this table go `ROW MUTATED` — the two
+  // below and the two `markNotificationRead` cases above — so the pair of them is evidence
+  // for the ownership conjuncts on both halves of that policy.
+  //
+  // The SELECT policy being independently sufficient is the other half of why the single
+  // mutations passed, and it is AGENTS.md's *"for UPDATE and DELETE, the SELECT policy is
+  // the FLOOR"* holding in practice: either policy alone refuses the write.
+  {
+    kind: 'write',
+    id: 'notifications.dismissNotification (cross-family)',
+    mod: 'app/actions/notifications.ts',
+    fn: 'dismissNotification',
+    args: fx => [fx.alpha.dismissableNotification.id],
+    probe: async (db, fx) => probeRead(db, [fx.alpha.dismissableNotification.id]),
+  },
+  {
+    kind: 'write',
+    id: 'notifications.dismissNotification (same family, another member)',
+    mod: 'app/actions/notifications.ts',
+    fn: 'dismissNotification',
+    // ALPHA's own member reaching for the OTHER ALPHA member's notification. Family
+    // scoping cannot catch this one — only the policy's own-row expression can, which is
+    // what makes this the more interesting of the two.
+    attacker: 'alphaMember',
+    args: fx => [fx.alpha.otherNotification.id],
+    probe: async (db, fx) => probeRead(db, [fx.alpha.otherNotification.id]),
+    positiveActor: 'alphaOther',
+    positiveArgs: fx => [fx.alpha.otherNotification.id],
+    // The control DISMISSES the other member's row, and `getNotifications`'s later case
+    // reads `alphaPending`'s bell rather than `alphaOther`'s — so nothing downstream sees
+    // it. Reset anyway, so this case does not depend on that staying true.
+    setup: async (db, fx) => {
+      const { error } = await db.from('notifications').update({ dismissed_at: null })
+        .in('id', [fx.alpha.otherNotification.id])
+      if (error) throw new Error(`setup: ${error.message}`)
+    },
+  },
+  {
+    kind: 'write',
+    id: 'notifications.dismissAllNotifications',
+    mod: 'app/actions/notifications.ts',
+    fn: 'dismissAllNotifications',
+    args: () => [],
+    // ── IT RUNS AS THE SPARE ACTOR, AND A DEDICATED ROW WAS NOT ENOUGH ──────────
+    // This case was written against the OWNER and its control failed the later
+    // `notifications.getNotifications (pending member)` case — the §8b trap, measured
+    // rather than reasoned about, and the second time in one change.
+    //
+    // A row of its own does not fix a call scoped by RECIPIENT: `dismissAllNotifications`
+    // takes no arguments and clears everything addressed to the caller, so the owner's
+    // control reached `f.notification` as well as the dedicated row and emptied the bell
+    // that the later case's own control reads. `getNotifications` filters
+    // `dismissed_at IS NULL` — that filter is the whole feature — so the emptying was
+    // correct behaviour breaking a fixture built on it not happening, which AGENTS.md
+    // names as the tell: *"a fix can break a test by making something happen that the test
+    // was built on not happening"*.
+    //
+    // `alphaOther` is what exists for this. Nothing later in this file reads THEIR bell,
+    // so the whole-recipient sweep has somewhere to land.
+    positiveActor: 'alphaOther',
+    // Reset first: the case above has already dismissed this row, so without this the
+    // control would have nothing to do, the probe would not move, and the failure reported
+    // would be test ordering rather than isolation.
+    setup: async (db, fx) => {
+      const { error } = await db.from('notifications').update({ dismissed_at: null })
+        .in('id', [fx.alpha.otherNotification.id])
+      if (error) throw new Error(`setup: ${error.message}`)
+    },
+    // ALPHA's row, which BRAVO's sweep must not reach and `alphaOther`'s must.
+    probe: async (db, fx) => probeRead(db, [fx.alpha.otherNotification.id]),
+    // ── THIS ONE'S ATTACK HALF IS NOT EVIDENCE FOR THE POLICY, AND SAYS SO ──────
+    // Under the full mutation above — USING and WITH CHECK both reduced on the UPDATE
+    // policy — the two `dismissNotification` cases go red and THIS ONE STAYS GREEN.
+    // Measured, not assumed.
+    //
+    // The reason is AGENTS.md's *"an action that narrows a write by hand hides its own
+    // policy from the suite"*: `dismissAllNotifications` states
+    // `.eq('recipient_id', personId)` from `getMyPersonId(user.id)`, so BRAVO's call can
+    // only ever reach BRAVO's own rows whatever any policy says. That filter is worth
+    // keeping — without it the statement asks to dismiss EVERY notification in the table
+    // and is narrowed to one member only by the policy — and it means no policy conjunct
+    // is reachable from here.
+    //
+    // WHAT THIS CASE IS EVIDENCE FOR is the action's own scoping, and its CONTROL is what
+    // stops that being vacuous: `alphaOther`'s own call has to move the row. A `raw/` probe
+    // is what would reach the policy, and the two cases above already do.
+  },
+
   // ── the reader's own announcement pin (20260813000001) ────────────────────
   // Self-service, so there is no grant to withhold and the ONLY thing standing between
   // BRAVO and a row in ALPHA's family is family scoping — `requireMember()` +
@@ -1771,7 +1886,11 @@ async function probeUnpins(db, announcementId) {
 
 async function probeRead(db, ids) {
   const { data, error } = await db
-    .from('notifications').select('id, read_at').in('id', ids).order('id')
+    // `dismissed_at` IS PROJECTED, and leaving it out was the trap AGENTS.md §7 names:
+    // *"a probe whose projection omits the column the control changes, so a successful
+    // write looks like a no-op"*. Without it every dismiss case below would pass its
+    // attack half AND its control half over a snapshot that could not move.
+    .from('notifications').select('id, read_at, dismissed_at').in('id', ids).order('id')
   if (error) throw new Error(`probe: ${error.message}`)
   return JSON.stringify(data)
 }

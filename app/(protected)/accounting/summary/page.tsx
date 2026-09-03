@@ -179,9 +179,15 @@ export default async function AccountSummaryPage() {
 
           THE CHROME IS BUILT HERE AND NOT MOVED INTO `DonationsSection`, deliberately. That
           component says in its own header that it has no card because *"whatever heading is
-          above it names it"*, and it has a second caller — the Dues & Donations shell, where
-          it sits inside that screen's own pane and a card would be a box in a box. The card
-          belongs to the digest, which is the surface that has funds beside it to match.
+          above it names it"*, and it has a second caller — the Dues & Donations shell, which
+          now draws its OWN copy of this card.
+
+          THAT SENTENCE USED TO END "a card would be a box in a box", AND IT WAS WRONG about
+          the other caller: the donations pane is a bare `<div>` under `MainRail`, so there is
+          no outer box to be inside. It was carded on 2026-09-03, asked for, and the
+          duplication is deliberate rather than a missed refactor — two surfaces each own
+          their own chrome, and this one carries an "All drives" link that would be furniture
+          on the screen it points at.
 
           `HandHeart` rather than `FundsSection`'s `Award`, because two identical icons is
           worse than none: the shape of the panel is what says these are the same kind of

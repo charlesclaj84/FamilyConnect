@@ -134,6 +134,8 @@ export const es: Catalogue = {
   'bell.label': 'Notificaciones',
   'bell.heading': 'Notificaciones',
   'bell.markAll': 'Marcar todo como leído',
+  'bell.clearAll': 'Vaciar',
+  'bell.dismissOne': 'Quitar «{title}» de la campana',
   'bell.empty': 'Aún no hay notificaciones.',
 
   // ── HOW LONG AGO ─────────────────────────────────────────────────────────────────

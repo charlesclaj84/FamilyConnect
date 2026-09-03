@@ -156,6 +156,8 @@ export const fr: Catalogue = {
   'bell.label': 'Notifications',
   'bell.heading': 'Notifications',
   'bell.markAll': 'Tout marquer comme lu',
+  'bell.clearAll': 'Vider',
+  'bell.dismissOne': 'Retirer « {title} » de la cloche',
   'bell.empty': 'Aucune notification pour le moment.',
 
   // ── HOW LONG AGO ─────────────────────────────────────────────────────────────────

@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { CalendarClock, HeartHandshake } from 'lucide-react'
+import { CalendarClock, HandHeart } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
 import { DuesPlanSection } from '@/components/account/DuesPlanSection'
 import type { DuesOnlineStatus } from '@/app/actions/pay-dues'
@@ -74,7 +75,11 @@ export function DuesAndDonationsShell({
   const items: MainRailItem<MoneyPane>[] = MONEY_PANES.map(id => ({
     id,
     label: MONEY_PANE_LABEL[id],
-    icon: id === 'dues' ? CalendarClock : HeartHandshake,
+    // `HandHeart` and not `HeartHandshake`, so the rail item, the card below it and
+    // [Summary](/accounting/summary)'s version of the same card are one glyph rather than
+    // three. Two icons for one concept is the drift the colour tokens exist to prevent,
+    // arriving through iconography.
+    icon: id === 'dues' ? CalendarClock : HandHeart,
     href: `/accounting/dues-and-donations?pane=${id}`,
   }))
 
@@ -101,29 +106,61 @@ export function DuesAndDonationsShell({
       </div>
 
       <div hidden={pane !== 'donations'}>
-        {/* DonationsSection renders null on an empty list — right when it was a pane behind a
-            rail item the page could withhold, and not enough here: a blank pane under a rail
-            reads as something that failed to load. The empty case is answered in place, the
-            way the `/accounting/donations` page it replaces did. */}
-        {donations.length === 0 ? (
-          <div className="flex flex-col items-center gap-2 py-10">
-            <HeartHandshake className="h-10 w-10 text-muted-foreground/20" aria-hidden="true" />
-            <p className="text-sm text-muted-foreground">
-              {t('drives.none')}
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <DonationsSection donations={donations} chargesReady={online.chargesReady} intl={intl} money={money} t={t} />
-            {/* Said ONCE under the list, not as a greyed-out Give on every drive. It is the
-                same judgement the dues pane makes about its own totals card: a promise about
-                a capability is a property of the SCREEN, and repeating it per row makes the
-                widest control on a phone one that does nothing when tapped. */}
-            {!online.chargesReady && (
-              <p className="text-xs text-muted-foreground">{t('ui.familyNotConnectedCard')}</p>
+        {/* ── THE SAME CARD [Summary](/accounting/summary) DRAWS — 2026-09-03 ────────────
+            Asked for as: this card too needs to be updated like on Summary. The list was
+            bare here while the DUES pane beside it leads with two `rounded-2xl border
+            bg-card` panels, so switching rail items changed what kind of thing the screen
+            was made of — and Summary had already been given the card treatment on
+            2026-09-02 for exactly that reason one page over.
+
+            SUMMARY'S OWN NOTE ARGUED AGAINST DOING THIS, and it was describing a layout
+            that is not this one: *"a card would be a box in a box"*. There is no outer box
+            — the pane is a bare `<div>` under `MainRail` — so the only box is this one. That
+            note is corrected there rather than left to be read as a rule.
+
+            `HandHeart`, matching Summary, and it REPLACED `HeartHandshake` in the empty
+            state below rather than sitting beside it: two glyphs for one section is the
+            drift the colour tokens exist to prevent, in iconography.
+
+            NO "All drives" LINK IN THE HEADER, which Summary's version carries. That link
+            points AT this pane; a control that navigates to the screen you are already on
+            is furniture. */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <HandHeart className="h-4 w-4 text-primary" />
+              {t('acct.openDonationDrives')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* DonationsSection renders null on an empty list — right when it was a pane
+                behind a rail item the page could withhold, and not enough here: a blank pane
+                under a rail reads as something that failed to load. The empty case is
+                answered in place, the way the `/accounting/donations` page it replaces did —
+                and INSIDE the card now, so a family with no open drive gets a titled panel
+                saying so rather than an unframed icon under a rail. */}
+            {donations.length === 0 ? (
+              <div className="flex flex-col items-center gap-2 py-8">
+                <HandHeart className="h-10 w-10 text-muted-foreground/20" aria-hidden="true" />
+                <p className="text-sm text-muted-foreground">
+                  {t('drives.none')}
+                </p>
+              </div>
+            ) : (
+              <>
+                <DonationsSection donations={donations} chargesReady={online.chargesReady} intl={intl} money={money} t={t} />
+                {/* Said ONCE under the list, not as a greyed-out Give on every drive. It is
+                    the same judgement the dues pane makes about its own totals card: a
+                    promise about a capability is a property of the SCREEN, and repeating it
+                    per row makes the widest control on a phone one that does nothing when
+                    tapped. */}
+                {!online.chargesReady && (
+                  <p className="text-xs text-muted-foreground">{t('ui.familyNotConnectedCard')}</p>
+                )}
+              </>
             )}
-          </div>
-        )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   )

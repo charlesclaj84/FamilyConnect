@@ -1882,6 +1882,27 @@ export async function seed() {
       title: `${code} notification for other`, body: `private ${code} note 2`,
     }).select().single())
 
+    // ── A THIRD, FOR THE DISMISS CASES, AND IT HAS TO BE ITS OWN ROW ─────────────
+    // `dismissNotification` and `dismissAllNotifications` (20260903000003) clear an entry
+    // FROM THE BELL, and `getNotifications` filters `dismissed_at IS NULL` — so a control
+    // that dismissed `f.notification` would make the later
+    // `notifications.getNotifications (pending member)` case read a bell with nothing in
+    // it, and its own positive control would then report a failure that is really just
+    // test ordering.
+    //
+    // That is AGENTS.md §8b's named fixture trap — *"a case whose positive control mutates
+    // a row a later case depends on (give it its own row — that is what `deletableChild` is
+    // for)"* — and it is worth stating that it applies to a DISMISS and did not apply to
+    // the two mark-read cases beside it: `read_at` is not a filter on any read in this
+    // suite, so those could safely stamp the shared rows.
+    //
+    // `dismissAllNotifications` is family-wide by recipient, so it reaches the other two
+    // as well; its case resets them in `setup` for exactly that reason.
+    f.dismissableNotification = must('dismissable notification', await db.from('notifications').insert({
+      family_code: code, recipient_id: owner.personId, type: 'test',
+      title: `${code} notification to dismiss`, body: `private ${code} note 3`,
+    }).select().single())
+
     // ── relatives + relationships ───────────────────────────────────────────
     // People with NO ACCOUNT, attached to `owner`. The tree is built out of these and
     // `editPersonRecord` / `invitePersonRecord` are defined over exactly them, so a

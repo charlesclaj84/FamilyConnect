@@ -143,6 +143,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
             blocks: [
               p('Notifications arrive in real time — you do not need to refresh. They cover things that happened to you: a membership decision, somebody asking to join a family you administer, and similar.'),
               p('Notifications belong to you *in one family*, because that is what a notification is. The one thing that reaches across families is the approvals queue: if you administer two families and somebody is waiting in the second, the bell tells you while you are still looking at the first.'),
+              p('**Clearing an entry takes it out of the bell and nowhere else.** The **×** on a row clears that one; **Clear** at the top of the panel empties the list. Neither deletes anything — every entry is still on [Updates](/community/updates), which is the record of what has been sent to you. **Mark all read** is a different thing and is offered separately: it turns the number off without emptying the list.'),
             ],
           },
           {
@@ -727,7 +728,7 @@ export const HELP_PARTS: readonly HelpPart[] = [
                 { term: 'Announcement', text: 'Family news somebody posted on the board. Opening it goes to [Announcements](/community/announcements), which carries the full text — except for a notice about an election, which goes to the election itself, because you have already read the whole of it in the row.' },
                 { term: 'Sent to you', text: 'Something addressed to you personally — a task, an approval, a message waiting. These are the same rows as the bell in the top bar.' },
               ),
-              p('Nothing here is anybody else\'s mail. The "sent to you" rows are yours alone, and they are the same list the bell shows.'),
+              p('Nothing here is anybody else\'s mail. The "sent to you" rows are yours alone. **They are not quite the same list as the bell**: an entry cleared from the bell stays here, because the bell is what is outstanding and this is the record. So this page is always the longer of the two.'),
               note('Opening a row does not mark it read. The bell owns that, so the number on it and this page can never disagree.'),
             ],
           },

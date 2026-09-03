@@ -5,9 +5,12 @@ import { formatTimeAgo } from '@/lib/i18n/catalogues'
 import { useLocale, useT } from '@/components/layout/LocaleProvider'
 import { notificationText } from '@/lib/notification-text'
 import { useRouter } from 'next/navigation'
-import { Bell, UserCheck } from 'lucide-react'
+import { Bell, UserCheck, X } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import { markNotificationRead, markAllNotificationsRead, type Notification } from '@/app/actions/notifications'
+import {
+  markNotificationRead, markAllNotificationsRead, dismissNotification,
+  dismissAllNotifications, type Notification,
+} from '@/app/actions/notifications'
 import type { PendingQueue } from '@/app/actions/admin/approvals'
 import { switchActiveFamily } from '@/app/actions/family'
 import {
@@ -161,6 +164,29 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
     startTransition(async () => { await markAllNotificationsRead() })
   }
 
+  // ── CLEARING IS FROM THE BELL ONLY — 2026-09-03 ──────────────────────────────────
+  // The row is not deleted: `20260903000003` adds `dismissed_at`, the bell filters it out
+  // and [Updates](/community/updates) deliberately does not, because that archive is the
+  // history of what happened to this member. So this empties a list, never a record.
+  //
+  // OPTIMISTIC, AND THAT IS WHAT MAKES A FAILURE VISIBLE. Both actions return `void` —
+  // §8b's rule is about an action reporting success over a write that did not happen, and
+  // nothing is reported here: the entry goes at once, the bell re-reads its list on every
+  // navigation, so a refused dismissal shows itself by coming back. Same argument as the
+  // two mark-read handlers above.
+  //
+  // Removing rather than flagging also keeps `badgeCount` honest for free: both it and
+  // `unreadNotifications` are derived from this array.
+  function handleDismiss(id: string) {
+    setNotifications(prev => prev.filter(n => n.id !== id))
+    startTransition(async () => { await dismissNotification(id) })
+  }
+
+  function handleDismissAll() {
+    setNotifications([])
+    startTransition(async () => { await dismissAllNotifications() })
+  }
+
   return (
     <div className="relative">
       <button
@@ -192,15 +218,34 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
           <div ref={panel} className={cn(HEADER_PANEL_CLASS, 'sm:w-80')}>
             <div className="flex shrink-0 items-center justify-between px-4 py-3 border-b">
               <span className="font-semibold text-sm">{t('bell.heading')}</span>
-              {unreadNotifications > 0 && (
-                <button
-                  onClick={handleMarkAllRead}
-                  disabled={isPending}
-                  className="text-xs text-primary hover:underline"
-                >
-                  {t('bell.markAll')}
-                </button>
-              )}
+              {/* TWO ACTIONS, AND THEY ARE NOT THE SAME ONE. "Mark all read" is offered only
+                  while something is unread — it has nothing to do otherwise — where "Clear"
+                  is offered whenever the bell holds anything at all, because clearing a list
+                  you have already read is exactly the common case. They are separate for the
+                  reason `20260903000003` keeps the two columns separate: read and dismissed
+                  are different facts, and folding them would make opening the bell empty it. */}
+              <span className="flex items-center gap-3">
+                {unreadNotifications > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleMarkAllRead}
+                    disabled={isPending}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    {t('bell.markAll')}
+                  </button>
+                )}
+                {notifications.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleDismissAll}
+                    disabled={isPending}
+                    className="text-xs text-muted-foreground hover:underline"
+                  >
+                    {t('bell.clearAll')}
+                  </button>
+                )}
+              </span>
             </div>
 
             {notifications.length === 0 && queues.length === 0 ? (
@@ -279,7 +324,7 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
                   >
                     <div className="flex items-start gap-2">
                       {!n.read_at && <span className="mt-1.5 shrink-0 h-1.5 w-1.5 rounded-full bg-primary" />}
-                      <div className={!n.read_at ? '' : 'ps-3.5'}>
+                      <div className={cn('min-w-0 flex-1', !n.read_at ? '' : 'ps-3.5')}>
                         {/* ── RENDERED FROM THE KEY, IN THE READER'S LANGUAGE ────────
                             `20260901000004`: the row's English was composed at EVENT time by
                             whoever triggered it, which is the wrong reader. `notificationText`
@@ -298,6 +343,29 @@ export function NotificationBell({ initialNotifications, personId, pendingQueues
                         })()}
                         <p className="text-[10px] text-muted-foreground/60 mt-1">{formatTimeAgo(timeAgo(n.created_at), locale)}</p>
                       </div>
+                      {/* ── `stopPropagation` IS LOAD-BEARING HERE ────────────────────────
+                          The whole `<li>` carries an `onClick` that marks the entry read and
+                          navigates to its link, so without this a press on the × would ALSO
+                          follow the notification — the member would be taken to the thing
+                          they were trying to clear. AGENTS.md names this exact hazard where
+                          it explains why Members & Access puts its trigger on a real button
+                          rather than a row handler.
+
+                          A REAL `<button>` with a name that says WHICH entry it clears, so a
+                          screen reader reading a list of them does not hear "Clear" eight
+                          times. The row itself is still a clickable `<li>` — that is
+                          pre-existing and not made worse here. */}
+                      <button
+                        type="button"
+                        onClick={e => { e.stopPropagation(); handleDismiss(n.id) }}
+                        disabled={isPending}
+                        aria-label={t('bell.dismissOne', {
+                          title: notificationText(n.title_key, n.title, n.params, t) ?? n.title,
+                        })}
+                        className="-me-1 shrink-0 rounded p-1 text-muted-foreground/50 transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      </button>
                     </div>
                   </li>
                 ))}

@@ -73,6 +73,13 @@ export const helpFr: Catalogue = {
     + 'notification est. La seule chose qui traverse les familles est la file d’approbation : '
     + 'si vous administrez deux familles et que quelqu’un attend dans la seconde, la cloche '
     + 'vous le dit alors que vous regardez encore la première.',
+  'help.finding-your-way-around.notifications.b2':
+    '**Retirer une entrée la fait sortir de la cloche et de nulle part ailleurs.** Le **×** '
+    + 'd’une ligne retire celle-ci ; **Vider**, en haut du panneau, vide la liste. Ni l’un '
+    + 'ni l’autre ne supprime quoi que ce soit : toutes les entrées restent dans '
+    + '[Nouveautés](/community/updates), qui est le registre de ce qui vous a été envoyé. '
+    + '**Tout marquer comme lu** est autre chose et est proposé séparément : cela éteint le '
+    + 'nombre sans vider la liste.',
   'help.finding-your-way-around.signed-out.heading': 'La déconnexion au bout d’une heure',
   'help.finding-your-way-around.signed-out.b0':
     'Si rien n’est saisi ni cliqué pendant 60 minutes, vous êtes déconnecté de cet appareil '
@@ -2605,7 +2612,9 @@ export const helpFr: Catalogue = {
     + 'message en attente. Ce sont les mêmes lignes que la cloche de la barre du haut.',
   'help.updates.what-it-is.b4':
     'Rien ici n’est le courrier de quelqu’un d’autre. Les lignes « envoyé à vous » sont les '
-    + 'vôtres seules, et ce sont la même liste que la cloche affiche.',
+    + 'vôtres seules. **Ce n’est pas tout à fait la même liste que la cloche** : une entrée '
+    + 'retirée de la cloche reste ici, car la cloche est ce qui est en attente et ceci est le '
+    + 'registre. Cette page est donc toujours la plus longue des deux.',
   'help.updates.what-it-is.b5':
     'Ouvrir une ligne ne la marque pas comme lue. C’est la cloche qui s’en charge : le '
     + 'nombre qu’elle porte et cette page ne peuvent donc jamais être en désaccord.',

@@ -44,6 +44,11 @@ export async function getNotifications(): Promise<Notification[]> {
     .from('notifications')
     .select('id, type, title, body, title_key, body_key, params, link, read_at, created_at')
     .eq('recipient_id', personId)
+    // DISMISSED ENTRIES ARE OUT OF THE BELL AND STILL IN THE ARCHIVE — 20260903000003.
+    // `app/actions/updates.ts` deliberately does NOT carry this conjunct: the bell is a
+    // list of what is outstanding and `/community/updates` is the history, so clearing
+    // forty entries empties one and leaves the other complete.
+    .is('dismissed_at', null)
     .order('created_at', { ascending: false })
     .limit(30)
 
@@ -63,6 +68,10 @@ export async function getUnreadCount(): Promise<number> {
     .select('id', { count: 'exact', head: true })
     .eq('recipient_id', personId)
     .is('read_at', null)
+    // THE BADGE HAS TO AGREE WITH THE LIST. Without this, dismissing an unread entry leaves
+    // a badge counting something the bell no longer shows — a member opens it looking for
+    // the one unread item and finds nothing, which reads as the badge being broken.
+    .is('dismissed_at', null)
 
   return count ?? 0
 }
@@ -90,4 +99,60 @@ export async function markAllNotificationsRead(): Promise<void> {
     .update({ read_at: new Date().toISOString() })
     .eq('recipient_id', personId)
     .is('read_at', null)
+    // Only what is IN the bell. A dismissed entry is not something the member is being shown
+    // and not something "mark all read" is about — and stamping it would rewrite the archive
+    // to say they had read something they had cleared without reading.
+    .is('dismissed_at', null)
+}
+
+/**
+ * Clear one entry from the bell.
+ *
+ * ── FROM THE BELL ONLY, WHICH IS THE WHOLE FEATURE ────────────────────────────────
+ * `20260903000003` argues it at length: the row survives and `/community/updates` still shows
+ * it, because that archive is the history of what happened to this member. A DELETE was not
+ * available anyway — `notifications` carries exactly a SELECT and an UPDATE policy, asserted
+ * by two migrations, so per AGENTS.md §2c the browser cannot delete from it.
+ *
+ * ── THE USER CLIENT, SO RLS IS THE BOUNDARY (§3's preferred path) ─────────────────
+ * No `.eq('recipient_id', …)` beside the id, and that is deliberate rather than an omission:
+ * the UPDATE policy admits a member's write to their own notification rows and nothing else,
+ * so adding the filter by hand would duplicate a conjunct the policy already states — which
+ * AGENTS.md §7 warns HIDES that conjunct from the test suite. `markNotificationRead` above
+ * has the same shape for the same reason.
+ *
+ * ── IT RETURNS `void`, MATCHING ITS NEIGHBOURS ────────────────────────────────────
+ * §8b's rule is about an action that reports success over a write that did not happen. There
+ * is no report here: the bell removes the row optimistically and re-reads its list on every
+ * navigation, so a refused dismissal SHOWS ITSELF by the entry coming back. That is the same
+ * argument the two mark-read actions make, and it is why `confirmWrite` is not used — it is
+ * for actions whose caller is told something.
+ */
+export async function dismissNotification(id: string): Promise<void> {
+  const supabase = await createClient()
+  await supabase
+    .from('notifications')
+    .update({ dismissed_at: new Date().toISOString() })
+    .eq('id', id)
+}
+
+/**
+ * Clear everything currently in the bell.
+ *
+ * Scoped to the caller's own person id like `markAllNotificationsRead`, and to rows not
+ * already dismissed so a second press rewrites no timestamps.
+ */
+export async function dismissAllNotifications(): Promise<void> {
+  const supabase = await createClient()
+  const { user } = await currentUser()
+  if (!user) return
+
+  const personId = await getMyPersonId(user.id)
+  if (!personId) return
+
+  await supabase
+    .from('notifications')
+    .update({ dismissed_at: new Date().toISOString() })
+    .eq('recipient_id', personId)
+    .is('dismissed_at', null)
 }
