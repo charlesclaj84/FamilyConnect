@@ -93,11 +93,16 @@ export interface DuesScheduleLike {
    */
   start_age?: number | null
   /**
-   * TRUE: only members with `people.is_bloodline` owe this. Read by `duesEligibility` and
-   * by nothing else — a set-membership question rather than arithmetic, which is why it
-   * does not touch any of the figures in this module.
+   * Who owes this: `'all'` | `'bloodline'` | `'non-bloodline'`, read against
+   * `people.is_bloodline`. Read by `duesEligibility` and by nothing else — a
+   * set-membership question rather than arithmetic, which is why it does not touch any of
+   * the figures in this module.
+   *
+   * Optional and defaulted to `'all'` by `duesBloodlineScope()`, so a database that has not
+   * run `20260903000001` reads as "everybody owes it" — which is what a `bloodline_only`
+   * of `false` meant, and is the safe direction for a missing value.
    */
-  bloodline_only?: boolean | null
+  bloodline_scope?: string | null
   /**
    * Which part of the family owes this (20260817000008). Read by `duesScopeMatch` and by
    * nothing else — like `bloodline_only`, it decides WHO rather than HOW MUCH, so it
@@ -220,7 +225,22 @@ export function currentPeriodStart(schedule: DuesScheduleLike): string {
  * pay this", and a screen that folded them together would tell somebody's wife she was
  * "not yet due" on a due she will never owe.
  *
- * ── IT USED TO HAVE A THIRD ANSWER, AND `20260902000000` REMOVED THE REASON FOR IT ──
+ * ── THREE ANSWERS ABOUT THE SCHEDULE, TWO ABOUT THE MEMBER (2026-09-03) ─────────────
+ * `bloodline_only` was a boolean and could say two things: everybody owes this, or only the
+ * bloodline does. `20260903000001` replaced it with `bloodline_scope`, which says a third:
+ * only the relatives who are NOT in the bloodline.
+ *
+ * That is a real case rather than a curiosity — a family levying one dues on descendants and
+ * a smaller one on the relatives who married in could not express the second half at all,
+ * because the only way to build it was a schedule everybody owed, which then billed the
+ * bloodline twice.
+ *
+ * SO THIS FUNCTION HAS TWO REFUSALS NOW, and they are deliberately distinct rather than one
+ * `'not-eligible'`: the screens say WHY, and *"this due is for the bloodline"* and *"this due
+ * is for relatives who married in"* are different sentences to be shown a member. Folding
+ * them would make the copy guess.
+ *
+ * ── AND `20260902000000` REMOVED A DIFFERENT THIRD ANSWER, WHICH MUST STAY REMOVED ──
  * The bloodline was DERIVED — a walk from `families.bloodline_anchor_id` over
  * `person_relationships.link_kind` — and `bloodlineIds()` answered NULL for "do not know":
  * no anchor, an anchor outside the roster, or a failed read. This function turned that into
@@ -230,30 +250,61 @@ export function currentPeriodStart(schedule: DuesScheduleLike): string {
  * It is `people.is_bloodline` now, stated by somebody in the family rather than inferred, so
  * there is no unknown left to be careful with: a person is in the bloodline or is not. The
  * column is `NOT NULL DEFAULT false`, so the direction of the old caution is preserved by
- * the DEFAULT rather than by a third branch — a family that has said nothing bills nobody,
- * exactly as before, and the migration's backfill wrote down whatever the walk had been
- * answering so no family's bill moved.
+ * the DEFAULT rather than by a branch — a family that has said nothing bills nobody on a
+ * blood-only due.
  *
- * **Do not reintroduce a nullable third state here.** If `is_bloodline` ever becomes
- * nullable, the money question comes back with it and this is where it has to be answered.
+ * **NOTE WHAT THAT NOW MEANS FOR THE THIRD SCOPE, because the two interact and the answer is
+ * not symmetric.** A family that has marked NOBODY bills nobody on `'bloodline'` and bills
+ * EVERYBODY on `'non-bloodline'` — both are the same DEFAULT read honestly, and both are
+ * what the family's own data says. `canFilterBlood` on the family tree already refuses to
+ * offer its toggle in exactly that state, and `bloodlineEmpty` on Dues Projections already
+ * tells a treasurer that a blood-only due is billing nobody; the projection now has to say
+ * the same thing the other way round, which is the one screen this change owes a sentence.
+ *
+ * **Do not reintroduce a nullable state here.** If `is_bloodline` ever becomes nullable, the
+ * money question comes back with it and this is where it has to be answered.
  *
  * Pure, and takes the flag as an argument rather than a person id and a set, because the
  * caller has the member's own row in hand — reading it costs one column on a query already
  * being made, where the walk it replaced cost four queries and the whole roster.
  */
 export type DuesEligibility =
-  /** They owe it — either it is open to everybody, or they are in the bloodline. */
+  /** They owe it — it is open to everybody, or they are on the side of the line it names. */
   | 'owed'
   /** Bloodline-only, and they are not in it. They will never owe it. */
   | 'not-in-bloodline'
+  /** For relatives who married in, and they ARE in the bloodline. Likewise never. */
+  | 'in-bloodline'
+
+/** The three answers a schedule can give about who owes it. */
+export const BLOODLINE_SCOPES = ['all', 'bloodline', 'non-bloodline'] as const
+export type BloodlineScope = (typeof BLOODLINE_SCOPES)[number]
+
+/**
+ * A schedule's stated bloodline scope, defaulted.
+ *
+ * ANYTHING UNRECOGNISED READS AS `'all'`, which is the same shape `duesScope()` keeps for
+ * `scope` and for the same reason: the column is CHECKed in the database, so an unknown value
+ * means a database that has not run `20260903000001` — and treating that as "everybody owes
+ * it" is what every `bloodline_only = false` row in it already meant.
+ */
+export function duesBloodlineScope(schedule: DuesScheduleLike): BloodlineScope {
+  const raw = schedule.bloodline_scope
+  return BLOODLINE_SCOPES.includes(raw as BloodlineScope) ? (raw as BloodlineScope) : 'all'
+}
 
 export function duesEligibility(input: {
-  bloodlineOnly: boolean | null | undefined
+  bloodlineScope: string | null | undefined
   /** `people.is_bloodline` for the member being priced. */
   isBloodline: boolean | null | undefined
 }): DuesEligibility {
-  if (!input.bloodlineOnly) return 'owed'
-  return input.isBloodline ? 'owed' : 'not-in-bloodline'
+  const scope = BLOODLINE_SCOPES.includes(input.bloodlineScope as BloodlineScope)
+    ? (input.bloodlineScope as BloodlineScope)
+    : 'all'
+  if (scope === 'all') return 'owed'
+  const blood = Boolean(input.isBloodline)
+  if (scope === 'bloodline') return blood ? 'owed' : 'not-in-bloodline'
+  return blood ? 'in-bloodline' : 'owed'
 }
 
 /**

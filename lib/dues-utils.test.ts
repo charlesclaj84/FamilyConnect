@@ -502,30 +502,49 @@ describe('when the rule does not apply at all', () => {
 
 describe('duesEligibility', () => {
   const eligible = (over: {
-    bloodlineOnly?: boolean | null
+    bloodlineScope?: string | null
     isBloodline?: boolean | null
   }) => duesEligibility({
-    bloodlineOnly: over.bloodlineOnly ?? false,
+    bloodlineScope: over.bloodlineScope ?? 'all',
     isBloodline: over.isBloodline ?? false,
   })
 
-  it('is owed by everybody when the due is not restricted', () => {
+  it('is owed by everybody when the due is not narrowed', () => {
     // And the flag is not even consulted — whether somebody is in the bloodline is
     // irrelevant to a due open to the whole family, so this must not depend on it.
-    expect(eligible({ bloodlineOnly: false, isBloodline: false })).toBe('owed')
-    expect(eligible({ bloodlineOnly: null, isBloodline: false })).toBe('owed')
-    expect(eligible({ bloodlineOnly: undefined, isBloodline: false })).toBe('owed')
+    expect(eligible({ bloodlineScope: 'all', isBloodline: false })).toBe('owed')
+    expect(eligible({ bloodlineScope: 'all', isBloodline: true })).toBe('owed')
   })
 
-  it('is owed by somebody in the bloodline', () => {
-    expect(eligible({ bloodlineOnly: true, isBloodline: true })).toBe('owed')
+  it('is owed by everybody for a scope the database would not accept', () => {
+    // ── THE DEFAULT DIRECTION FOR A VALUE THIS CODE DOES NOT KNOW ─────────────────
+    // The column is CHECKed, so an unrecognised value means a database that has not run
+    // `20260903000001` — where every row's `bloodline_only = false` meant "everybody owes
+    // it". Reading it as `'all'` is that meaning preserved; reading it as a narrowing
+    // would silently stop billing a family mid-deploy.
+    expect(eligible({ bloodlineScope: null, isBloodline: false })).toBe('owed')
+    expect(eligible({ bloodlineScope: undefined, isBloodline: false })).toBe('owed')
+    expect(eligible({ bloodlineScope: '', isBloodline: false })).toBe('owed')
+    expect(eligible({ bloodlineScope: 'BLOODLINE', isBloodline: false })).toBe('owed')
+    expect(eligible({ bloodlineScope: 'bloodline_only', isBloodline: false })).toBe('owed')
   })
 
-  it('is not owed by somebody outside it', () => {
-    expect(eligible({ bloodlineOnly: true, isBloodline: false })).toBe('not-in-bloodline')
+  it('bills the bloodline and nobody else on a bloodline due', () => {
+    expect(eligible({ bloodlineScope: 'bloodline', isBloodline: true })).toBe('owed')
+    expect(eligible({ bloodlineScope: 'bloodline', isBloodline: false })).toBe('not-in-bloodline')
   })
 
-  it('BILLS NOBODY for a member nobody has marked, which is the old caution kept', () => {
+  it('bills the relatives who married in, and nobody else, on the third scope', () => {
+    // ── ADDED 2026-09-03, AND IT IS THE MIRROR RATHER THAN A NEGATION ─────────────
+    // The refusal is its OWN answer (`'in-bloodline'`) rather than a shared
+    // `'not-eligible'`, because the two sentences a member is shown are different: "this
+    // due is for the bloodline" and "this due is for relatives who married in". Folding
+    // them would make the copy guess which one to print.
+    expect(eligible({ bloodlineScope: 'non-bloodline', isBloodline: false })).toBe('owed')
+    expect(eligible({ bloodlineScope: 'non-bloodline', isBloodline: true })).toBe('in-bloodline')
+  })
+
+  it('BILLS NOBODY on a bloodline due for a member nobody has marked', () => {
     // ── THE TEST THIS REPLACED, AND WHY THE ANSWER IS THE SAME ─────────────────────
     // There was a third outcome, 'bloodline-unknown', for the case `bloodlineIds()`
     // answered NULL: the family had set no anchor, so there was no bloodline to apply and
@@ -535,8 +554,19 @@ describe('duesEligibility', () => {
     //
     // What is asserted here is that the DEFAULT is doing that work. A nullish flag — which
     // is what a caller reading an unreadable row hands over — must not read as eligible.
-    expect(eligible({ bloodlineOnly: true, isBloodline: null })).toBe('not-in-bloodline')
-    expect(eligible({ bloodlineOnly: true, isBloodline: undefined })).toBe('not-in-bloodline')
+    expect(eligible({ bloodlineScope: 'bloodline', isBloodline: null })).toBe('not-in-bloodline')
+    expect(eligible({ bloodlineScope: 'bloodline', isBloodline: undefined })).toBe('not-in-bloodline')
+  })
+
+  it('BILLS EVERYBODY on the third scope for a family that has marked nobody', () => {
+    // ── THE ASYMMETRY, PINNED, BECAUSE IT READS AS A BUG UNTIL YOU KNOW ────────────
+    // `is_bloodline` defaults to false, so a family that has said nothing bills NOBODY on
+    // `'bloodline'` and EVERYBODY on `'non-bloodline'`. Both are the same default read
+    // honestly, and neither is a mistake — but only one of them is the cautious direction,
+    // which is why `bloodlineEmpty` on Dues Projections exists to say so out loud for the
+    // first and cannot fire for the second.
+    expect(eligible({ bloodlineScope: 'non-bloodline', isBloodline: null })).toBe('owed')
+    expect(eligible({ bloodlineScope: 'non-bloodline', isBloodline: undefined })).toBe('owed')
   })
 })
 

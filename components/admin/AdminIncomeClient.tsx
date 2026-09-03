@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { Trash2, Pencil } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
@@ -16,7 +16,7 @@ import { cn } from '@/lib/utils'
 import { formatDate, todayLocal, latestDate } from '@/lib/date-utils'
 import { disambiguatedName } from '@/lib/name-utils'
 import { APP_NAME } from '@/lib/brand'
-import { type ScheduleKind } from '@/lib/dues-utils'
+import { BLOODLINE_SCOPES, type BloodlineScope, type ScheduleKind } from '@/lib/dues-utils'
 import { useServerState } from '@/lib/use-server-state'
 
 /**
@@ -92,6 +92,14 @@ interface Props {
    * without one would be creating a due nobody owes.
    */
   hasBloodline: boolean
+  /**
+   * The funds a schedule may be routed straight into, id and name only.
+   *
+   * EMPTY IS A REAL STATE, not a failure: a family with no funds — or one whose caller's
+   * grants meant the page fetched none — gets the waterfall and no picker, which is what
+   * every schedule had before `20260903000001`.
+   */
+  fundOptions: { id: string; name: string }[]
   /**
    * The regions and chapters a due can be scoped to — see `ScopeOptions`. Gated on the Dues
    * section by the page, so a donations-only treasurer is handed nothing (AGENTS.md §5).
@@ -180,7 +188,8 @@ interface ScheduleForm {
    */
   startAge: string
   /** Dues only. Only members in the family's bloodline owe it. */
-  bloodlineOnly: boolean
+  bloodlineScope: BloodlineScope
+  fundId: string
   /**
    * Dues only. Which part of the family owes it (20260817000008).
    *
@@ -202,7 +211,7 @@ const NATIONAL = 'national'
 const EMPTY_SCHEDULE_FORM: ScheduleForm = {
   label: '', amount: '', goal: '', frequency: 'annual',
   startDate: '', endDate: '', description: '', required: true,
-  startAge: '', bloodlineOnly: false, scope: NATIONAL, beneficiaryIds: [],
+  startAge: '', bloodlineScope: 'all', fundId: '', scope: NATIONAL, beneficiaryIds: [],
 }
 
 /** The form's one scope field, split into the three columns the action writes. */
@@ -256,7 +265,10 @@ function formOfSchedule(s: DuesSchedule): ScheduleForm {
     // `String(0)` is '0' and null becomes '', which is the distinction the field exists
     // to keep — see `startAge` on ScheduleForm.
     startAge: s.start_age == null ? '' : String(s.start_age),
-    bloodlineOnly: s.bloodline_only,
+    bloodlineScope: (BLOODLINE_SCOPES.includes(s.bloodline_scope as BloodlineScope)
+      ? s.bloodline_scope
+      : 'all') as BloodlineScope,
+    fundId: s.fund_id ?? '',
     scope: scopeValueOf(s),
     beneficiaryIds: s.beneficiary_person_ids,
   }
@@ -318,7 +330,7 @@ function RequiredToggle({ checked, onChange }: {
  * that is how a treasurer enters last year's dues in order to record its history.
  */
 function ScheduleFields({
-  kind, form, onChange, members, hasBloodline, scopeOptions,
+  kind, form, onChange, members, hasBloodline, fundOptions, scopeOptions,
   locked = false, endDateMin, autoFocus = false,
 }: {
   kind: ScheduleKind
@@ -331,6 +343,14 @@ function ScheduleFields({
    * would be owed by nobody — see the field.
    */
   hasBloodline: boolean
+  /**
+   * The funds a schedule may be routed straight into, id and name only.
+   *
+   * EMPTY IS A REAL STATE, not a failure: a family with no funds — or one whose caller's
+   * grants meant the page fetched none — gets the waterfall and no picker, which is what
+   * every schedule had before `20260903000001`.
+   */
+  fundOptions: { id: string; name: string }[]
   /** The regions and chapters that EXIST. Empty means the scope field is not rendered. */
   scopeOptions: ScopeOptions
   locked?: boolean
@@ -458,31 +478,83 @@ function ScheduleFields({
 
           Frozen once payments exist, alongside the amount and the starting age: moving it
           restates what every member owed for the periods already posted against. */}
+      {/* ── THREE ANSWERS SINCE 2026-09-03, WHERE THERE WAS A CHECKBOX ───────────────
+          It was **Bloodline only** — a tick, so two answers. A family levying one dues on
+          descendants and a smaller one on the relatives who married in could not express the
+          second half at all: the only way to build it was a schedule everybody owed, which
+          then billed the bloodline twice.
+
+          A `<select>` RATHER THAN THREE RADIOS, and the reason is the row it sits in: every
+          other narrowing on this form (the scope, the frequency) is a select, and three
+          radios here would make the one three-valued question look unlike the two beside it.
+          Three options is also exactly where AGENTS.md says a native control is right — the
+          platform gives keyboard handling and a phone's own picker for free.
+
+          STILL DISABLED WITH NOTHING MARKED, and still frozen once payments exist: moving it
+          restates what every member owed for the periods already posted against. */}
       {!isDonation && (
         <div className="space-y-1.5">
-          <label className={cn('flex items-center gap-2 select-none',
-            hasBloodline && !locked ? 'cursor-pointer' : 'cursor-not-allowed opacity-60')}>
-            <input
-              type="checkbox"
-              checked={form.bloodlineOnly}
-              disabled={locked || !hasBloodline}
-              onChange={e => onChange({ bloodlineOnly: e.target.checked })}
-              className="h-4 w-4 rounded border-input accent-primary"
-            />
-            <span className="text-sm font-medium">{t('inc.bloodlineOnly')}</span>
-          </label>
+          <Label htmlFor="sched-bloodline">{t('inc.whoOwesIt')}</Label>
+          <select
+            id="sched-bloodline"
+            value={form.bloodlineScope}
+            disabled={locked || !hasBloodline}
+            onChange={e => onChange({ bloodlineScope: e.target.value as BloodlineScope })}
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <option value="all">{t('inc.scopeAllMembers')}</option>
+            <option value="bloodline">{t('inc.scopeBloodline')}</option>
+            <option value="non-bloodline">{t('inc.scopeNonBloodline')}</option>
+          </select>
           <p className="text-xs text-muted-foreground">
-            {/* ONE KEY, not a JSX sandwich. It was five fragments — an English clause, a
-                bolded control name, "on the", a link, "first." — which is untranslatable by
-                construction: the word order it hard-codes is English word order and no
-                catalogue can hold a third of a sentence. The same repair
-                `tree.bloodlineFromOneParent` had, and that key is deleted with the anchor
-                it described. */}
+            {/* ONE KEY PER STATE, not a JSX sandwich. It was five fragments — an English
+                clause, a bolded control name, "on the", a link, "first." — which is
+                untranslatable by construction: the word order it hard-codes is English word
+                order and no catalogue can hold a third of a sentence. */}
             {!hasBloodline
               ? t('inc.noBloodline', { control: t('tree.inBloodline') })
-              : form.bloodlineOnly
+              : form.bloodlineScope === 'bloodline'
                 ? t('inc.bloodlineHint')
-                : t('inc.howeverCame')}
+                : form.bloodlineScope === 'non-bloodline'
+                  ? t('inc.nonBloodlineHint')
+                  : t('inc.howeverCame')}
+          </p>
+        </div>
+      )}
+
+      {/* ── WHERE A PAID PAYMENT LANDS ────────────────────────────────────────────────
+          Dues only. A donation already goes whole into the family's Donations fund and
+          has since `20260807000003`, so there is nothing to choose — and a control here
+          would imply the destination were negotiable when a CHECK holds it.
+
+          THE DEFAULT IS THE WATERFALL, and it is the first option rather than an empty
+          one: "Split across the funds" is what NULL DOES, and a blank option would make
+          the existing behaviour read as an unanswered question.
+
+          OFFERED ONLY WHEN THERE ARE FUNDS. With none there is nothing to route to and
+          nothing to say — the whole field is absent rather than a disabled select over
+          one option, which is the same judgement the scope field makes one block down.
+
+          NOT FROZEN BY EXISTING PAYMENTS, unlike the amount and the bloodline scope, and
+          the difference is worth stating. Those two restate what members OWED for periods
+          already posted against; this one only decides where the NEXT payment goes.
+          `routed_at` makes routing once-only, so nothing already in a fund moves. */}
+      {!isDonation && fundOptions.length > 0 && (
+        <div className="space-y-1.5">
+          <Label htmlFor="sched-fund">{t('inc.whereItLands')}</Label>
+          <select
+            id="sched-fund"
+            value={form.fundId}
+            onChange={e => onChange({ fundId: e.target.value })}
+            className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+          >
+            <option value="">{t('inc.fundWaterfall')}</option>
+            {fundOptions.map(f => (
+              <option key={f.id} value={f.id}>{f.name}</option>
+            ))}
+          </select>
+          <p className="text-xs text-muted-foreground">
+            {form.fundId ? t('inc.fundDirectHint') : t('inc.fundWaterfallHint')}
           </p>
         </div>
       )}
@@ -624,8 +696,16 @@ function lockNote(t: T): Record<ScheduleKind, string> {
 
 export function AdminIncomeClient({
   section, creating, onCloseCreate, initialSchedules, scheduleUsage, rights, members,
-  hasBloodline, scopeOptions,
+  hasBloodline, fundOptions, scopeOptions,
 }: Props) {
+  // Name by id, for the one-line summary on a schedule row. A fund deleted after a schedule
+  // named it leaves `fund_id` NULL through `ON DELETE SET NULL`, so a miss here means the
+  // page's own funds list was not fetched rather than that the fund is gone — hence a word
+  // rather than a blank.
+  const fundName = useMemo(
+    () => new Map(fundOptions.map(f => [f.id, f.name])),
+    [fundOptions],
+  )
   const intl = useIntlTag()
   const money = useMoney()
   const t = useT()
@@ -813,7 +893,8 @@ export function AdminIncomeClient({
             // Always sent, false included, for the reason the age is: `undefined` means
             // "not sent" to the action and would leave the column alone, so an omitted key
             // could never LIFT a bloodline restriction. Removing one has to be expressible.
-            bloodline_only: editForm.bloodlineOnly,
+            bloodline_scope: editForm.bloodlineScope,
+            fund_id: editForm.fundId || null,
             // The three scope columns, always, for the same reason — and always as a TRIPLE,
             // because the CHECK from 20260817000008 is over all three at once and a patch
             // carrying one of them is a row the database refuses. `undefined` on `scope` is
@@ -871,7 +952,11 @@ export function AdminIncomeClient({
         // Forced false for a donation for the same reason `required` is: nobody owes a
         // gift, so there is no bloodline to narrow it to. The action pins it and a CHECK
         // holds it; this keeps the type honest.
-        bloodline_only: isDonation ? false : newForm.bloodlineOnly,
+        // A DRIVE IS ALWAYS 'all', forced here as well as in the action — the same thing
+        // this call already does for `goal_cents` and the frequency. A gift is not owed by
+        // anybody, so there is no side of the bloodline it could be for.
+        bloodline_scope: isDonation ? 'all' : newForm.bloodlineScope,
+        fund_id: newForm.fundId || null,
         // National for a donation for the reason `required` is forced false there: nobody
         // owes a gift, so no part of the family owes it. The action pins it and a CHECK
         // holds it; this keeps the type honest.
@@ -948,6 +1033,7 @@ export function AdminIncomeClient({
                 onChange={patchNew}
                 members={members}
                 hasBloodline={hasBloodline}
+                fundOptions={fundOptions}
                 scopeOptions={scopeOptions}
                 autoFocus
               />
@@ -1003,6 +1089,7 @@ export function AdminIncomeClient({
                   onChange={patchEdit}
                   members={members}
                   hasBloodline={hasBloodline}
+                  fundOptions={fundOptions}
                   scopeOptions={scopeOptions}
                   locked={editing.locked}
                   endDateMin={editing.kind === 'dues' ? todayLocal() : undefined}
@@ -1106,7 +1193,27 @@ export function AdminIncomeClient({
                                   reason the age is: it changes what a member is billed,
                                   and an administrator comparing two dues should not have
                                   to open both to find out which one the in-laws pay. */}
-                              <MetaIf value={s.bloodline_only ? t('inc.bloodlineOnly') : null} />
+                              {/* ── THE ROW SAYS WHICH SIDE, NOT WHETHER ─────────────
+                                  It printed one badge for `bloodline_only` and nothing at
+                                  all otherwise, which cannot distinguish the third scope
+                                  from the default. `'all'` is still silent, because "owed
+                                  by everybody" is what a schedule with no badge means and a
+                                  badge on every row is a badge on none. */}
+                              <MetaIf value={
+                                s.bloodline_scope === 'bloodline' ? t('inc.scopeBloodline')
+                                  : s.bloodline_scope === 'non-bloodline' ? t('inc.scopeNonBloodline')
+                                    : null
+                              } />
+                              {/* AND WHERE IT LANDS, when it is not the waterfall. Named
+                                  rather than flagged: "goes straight to a fund" without
+                                  saying WHICH fund is the half a treasurer cannot check. */}
+                              <MetaIf value={
+                                s.fund_id
+                                  ? t('inc.straightToFund', {
+                                      fund: fundName.get(s.fund_id) ?? t('inc.aDeletedFund'),
+                                    })
+                                  : null
+                              } />
                             </>
                           )}
                           <MetaIf value={dateRange(s.start_date, s.end_date, t, intl)} />

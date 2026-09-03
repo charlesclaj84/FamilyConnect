@@ -2182,25 +2182,42 @@ export const helpEs: Catalogue = {
     + 'familiar](/community/family-tree) sin dirección de correo pide una fecha de nacimiento '
     + 'exactamente por este motivo.',
   'help.accounting.dues.b4':
-    '**Solo la línea de sangre** limita una cuota a los integrantes que descienden de la '
-    + 'línea de la familia. Cualquiera que entró por matrimonio, y cualquier familiar de '
-    + 'crianza, adoptivo o de acogida, no debe nada y no la ve en su propia pantalla de '
-    + 'Cuotas en absoluto: una cuota que nunca es suya no se enumera como algo que no está '
-    + 'pagando.',
+    '**Quién la debe** acota una cuota por el linaje, y tiene tres respuestas. **Todos '
+    + 'los integrantes** es la opción predeterminada. **Solo el linaje** la restringe a '
+    + 'los familiares marcados como parte de la línea de la familia — quien se casó con '
+    + 'la familia no debe nada y no la ve en su propia pantalla de Cuotas, porque una '
+    + 'cuota que nunca es suya no se enumera como algo que no está pagando. **Solo los '
+    + 'familiares que se casaron con la familia** es el espejo de eso, para una familia '
+    + 'que aplica una cuota a sus descendientes y otra distinta a los demás.',
   'help.accounting.dues.b5':
-    'El control no está disponible hasta que alguien de su familia haya sido marcado como '
-    + 'perteneciente a su linaje, porque hasta entonces la cuota no la debería nadie. '
-    + 'Marque **pertenece al linaje de la familia** en la ficha de un pariente en el [árbol '
-    + 'familiar](/community/family-tree) primero. Quién debe la cuota es exactamente quién '
-    + 'está marcado, así que marcar a alguien después lo añade a ella.',
+    'El control no está disponible hasta que alguien de su familia haya sido marcado '
+    + 'como parte de su linaje. Marque **está en el linaje de la familia** en la tarjeta '
+    + 'de un familiar en el [árbol familiar](/community/family-tree) primero. Quien debe '
+    + 'la cuota es exactamente quien está marcado, así que marcar a alguien más tarde lo '
+    + 'añade — y sin nadie marcado, **Solo el linaje** no la debería nadie mientras que '
+    + '**Solo los familiares que se casaron con la familia** la deberían todos, por lo '
+    + 'que la elección se retiene hasta que la pregunta tenga respuesta.',
   'help.accounting.dues.b6':
+    '**Dónde llega un pago** decide a qué fondo va el dinero. Déjelo en **Repartir '
+    + 'entre los fondos** y una cuota pagada se divide según su tabla de '
+    + '[Encaminamiento](/admin/accounting), que es lo que hacía cada calendario antes de '
+    + 'que esto existiera. Elija un fondo en su lugar y el pago COMPLETO va allí y se '
+    + 'omite el encaminamiento — que es lo que quiere una cuota recaudada para una sola '
+    + 'cosa, para que el saldo del fondo responda cuánto se ha recaudado para ella.',
+  'help.accounting.dues.b7':
+    'Este NO se congela cuando ya hay pagos, a diferencia del importe y de **Quién la '
+    + 'debe**. Solo decide dónde va el PRÓXIMO pago; nada de lo que ya está en un fondo '
+    + 'se mueve. Y si más tarde elimina el fondo, el calendario vuelve discretamente a '
+    + 'repartirse entre los fondos — así que si una cuota tiene que llegar a un sitio en '
+    + 'concreto, compruébelo después de quitar cualquier fondo.',
+  'help.accounting.dues.b8':
     '**Lo deben** dice qué parte de la familia la debe: Nacional — toda la familia — o una '
     + 'región, o un capítulo. Solo aparece cuando su familia tiene una región o un capítulo '
     + 'que elegir; hasta entonces todas las cuotas son Nacionales, que es lo que significa '
     + 'Nacional. Un integrante sin capítulo está bajo Nacional y no debe nada limitado, así '
     + 'que una cuota de capítulo factura solo a las personas que han dicho que están en ese '
     + 'capítulo. Vea [regiones y capítulos](/help/regions-and-chapters#dues).',
-  'help.accounting.dues.b7':
+  'help.accounting.dues.b9':
     'Un programa contra el que se ha pagado no se puede eliminar así de simple, y su '
     + 'importe, su frecuencia, su fecha de inicio, su edad de inicio, su ajuste de línea de '
     + 'sangre y **Lo deben** quedan entonces fijos: todos los pagos ya registrados se '

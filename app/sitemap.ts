@@ -92,7 +92,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   // overstates its freshness by a few days. `lastModified` is a hint crawlers
   // weigh, not a claim they audit, and six per-route dates in
   // `lib/marketing-nav.ts` would be six things to forget instead of one.
-  const lastModified = new Date('2026-09-01')
+  const lastModified = new Date('2026-09-03')
 
   return [
     {

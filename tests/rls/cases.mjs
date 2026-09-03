@@ -1909,7 +1909,13 @@ const scopedScheduleInput = (over) => ({
   kind: 'dues',
   goal_cents: null,
   start_age: null,
-  bloodline_only: false,
+  // `bloodline_scope` since `20260903000001`. This fixture was still sending
+  // `bloodline_only` after that migration and BOTH controls went red — Postgres refuses a
+  // value for a GENERATED column, so the whole insert failed. That is the alias window the
+  // migration's header describes, played out by the suite, and it is why the actions now
+  // strip the old field instead of passing it through.
+  bloodline_scope: 'all',
+  fund_id: null,
   required: true,
   scope: 'national',
   region_id: null,
@@ -1974,6 +1980,26 @@ const bothSpareChapters = async (db, fx) => {
 }
 
 /** Both families' scopable schedules, for the reason above. */
+/**
+ * Both families' spare schedules and the fund each routes into, in one string.
+ *
+ * `snapshot` cannot do this: it builds one `.eq()` per filter key, so it reads one row. The
+ * fund case needs both — the attack must leave BRAVO's alone and the control must move
+ * ALPHA's — for the reason `bothScopableSchedules` below gives about one probe and two halves.
+ *
+ * `resetScopableSchedules` DOES NOT CLEAR `fund_id`, deliberately: the region and chapter
+ * cases beside this one read only the scope triple, so a fund left on the row cannot move a
+ * figure they assert. Clearing it there would instead put a write in the setup of four cases
+ * that have nothing to do with it.
+ */
+const bothScopableFunds = async (db, fx) => {
+  const { data, error } = await db.from('dues_schedules')
+    .select('id, fund_id')
+    .in('id', [fx.alpha.scopableSchedule.id, fx.bravo.scopableSchedule.id]).order('id')
+  if (error) throw new Error(`probe: ${error.message}`)
+  return JSON.stringify(data)
+}
+
 const bothScopableSchedules = async (db, fx) => {
   const { data, error } = await db.from('dues_schedules')
     .select('id, scope, region_id, chapter_id')
@@ -3284,6 +3310,72 @@ export const MORE_CASES = [
     setup: clearScopeCaseSchedules,
     probe: (db) => snapshot('dues_schedules',
       'id, family_code, label, scope, region_id, chapter_id', { label: SCOPE_CASE_LABEL })(db),
+    positiveActor: 'alphaAdmin',
+  },
+  // ── AND THE FUND, WHICH IS THE THIRD ID THESE TWO ACTIONS TAKE (§4) ─────────────
+  //
+  // `20260903000001` let a dues schedule name ONE fund to route straight into, and that is
+  // the same shape the two region cases above are about: the row carries the attacker's own
+  // `family_code`, so every policy is satisfied, while `fund_id` points into ALPHA. A paid
+  // payment on it would then post a `fund_contributions` row into a pot that is not theirs.
+  //
+  // TWO LAYERS STAND BETWEEN THEM AND THAT, AND THE PAIR IS WHAT THESE CASES ASSERT.
+  // `belongsToFamily` in the action and `dues_schedules_guard_fund` in the database, which
+  // is needed because both actions run on the ADMIN client where no policy is underneath.
+  //
+  // MEASURED, IN BOTH DIRECTIONS. Unmutated, the refusal message reads *"Fund not found"* —
+  // so the action's own check is what answers, and it is REACHED rather than shadowed.
+  // Deleting `belongsToFamily` alone leaves both attacks green, because the trigger refuses
+  // instead; deleting BOTH turns both attacks red. So a case here is evidence for the pair,
+  // and the migration's verify block is what asserts the trigger exists at all.
+  //
+  // ── AND THE UPDATE CASE HAD TO MOVE OFF `fx.bravo.schedule` TO BE EVIDENCE AT ALL ──
+  // That row has payments recorded against it, so `updateDuesSchedule` refused on its
+  // used-terms freeze before reaching the §4 check — with both layers deleted the attack
+  // stayed green and the message read *"Payments have been recorded against this due"*.
+  // AGENTS.md §7's "A GUARD HIDES A POLICY EXACTLY AS A HAND-WRITTEN FILTER DOES", found by
+  // reading the refusal rather than the tick. It uses the spare schedule now.
+  //
+  // THE FREEZE ITSELF WAS ALSO WRONG AND IS FIXED IN THE SAME COMMIT: `fund_id` had been
+  // added to `movingTerms`, which froze WHERE A PAYMENT LANDS behind existing payments. Every
+  // other member of that set restates what somebody OWED; this one restates nothing, because
+  // `routed_at` makes routing once-only. The form already said so.
+  {
+    kind: 'write',
+    id: 'dues.createDuesSchedule (fund from another family)',
+    mod: 'app/actions/dues.ts', fn: 'createDuesSchedule',
+    args: fx => [scopedScheduleInput({ fund_id: fx.alpha.fund.id })],
+    setup: clearScopeCaseSchedules,
+    probe: (db) => snapshot('dues_schedules',
+      'id, family_code, label, fund_id', { label: SCOPE_CASE_LABEL })(db),
+    // ALPHA's own fund, so the control is a schedule that legitimately routes straight into
+    // it — which is also the only thing that proves the feature works at all rather than
+    // being refused for everybody.
+    positiveArgs: fx => [scopedScheduleInput({ fund_id: fx.alpha.fund.id })],
+    positiveActor: 'alphaAdmin',
+  },
+  {
+    kind: 'write',
+    id: 'dues.updateDuesSchedule (fund from another family)',
+    mod: 'app/actions/dues.ts', fn: 'updateDuesSchedule',
+    // THE ADMIN CLIENT, so there is no policy underneath at all — the `family_code`
+    // conjuncts, the `belongsToFamily` call and the guard trigger are the whole defence.
+    // The attacker rewrites their OWN schedule to route into ALPHA's fund.
+    // ── `scopableSchedule`, NOT `schedule`, AND THE REASON IS A MEASUREMENT ─────────
+    // `fx.bravo.schedule` HAS payments recorded against it, and `updateDuesSchedule` refuses
+    // to move a used schedule's terms BEFORE it reaches the §4 check. Written against that
+    // row the case passed on the freeze: with `belongsToFamily` deleted the attack stayed
+    // green and the message read *"Payments have been recorded against this due"* — AGENTS.md
+    // §7's "A GUARD HIDES A POLICY EXACTLY AS A HAND-WRITTEN FILTER DOES", found by reading
+    // the refusal rather than the tick. `scopableSchedule` is the spare with no payments, so
+    // nothing stands between the call and the check being asserted.
+    args: fx => [fx.bravo.scopableSchedule.id, { fund_id: fx.alpha.fund.id }],
+    positiveArgs: fx => [fx.alpha.scopableSchedule.id, { fund_id: fx.alpha.fund.id }],
+    setup: resetScopableSchedules,
+    // BOTH ROWS, for the reason the region cases beside it give: one probe, two families. The
+    // attack must leave BRAVO's alone and the control must move ALPHA's, and a probe reading
+    // one row cannot assert both.
+    probe: bothScopableFunds,
     positiveActor: 'alphaAdmin',
   },
   {

@@ -81,7 +81,27 @@ export default async function AdminAccountPage({
     // Gated on the same pair as the schedules themselves: it says which of them the
     // ledger has been posted against, which is only meaningful beside the list.
     rights.dues.view || rights.donations.view ? getScheduleUsage() : Promise.resolve({}),
-    rights.funds.view || rights.routing.view || rights.milestones.view ? getFunds() : Promise.resolve([]),
+    // ── AND THE DUES/DONATIONS GRANTS WERE ADDED 2026-09-03 ───────────────────
+    // A dues schedule may now name ONE fund to go straight into, skipping the routing
+    // waterfall (`20260903000001`), so the schedule form needs the fund NAMES.
+    //
+    // WIDENED RATHER THAN GATED ON `funds.view` AS WELL, and that is the §5 decision
+    // rather than a shortcut. Naming where a due lands is part of configuring the due —
+    // a treasurer who may set the dues up and cannot say where the money goes is a
+    // control missing for a reason nothing on the screen could explain. What is published
+    // is a fund's id and NAME, which is family-wide configuration; the BALANCES ride on
+    // the same rows, which is why this is worth stating: `getFunds` returns them, so a
+    // dues-only caller now receives figures they would not see on the Funds pane.
+    //
+    // That is admissible because the pane it would be withheld from is a SCREEN BAND
+    // rather than confidentiality — `admin/accounting/funds` has no
+    // `permission_table_map` row, so a caller holding `accounting/summary` already reads
+    // every fund's balance through PostgREST whatever this switch says (§2c). If it ever
+    // needs to be confidentiality, the fix is the one that section prescribes — a
+    // narrower projection here, not a narrower grant.
+    rights.funds.view || rights.routing.view || rights.milestones.view
+      || rights.dues.edit || rights.donations.edit
+      ? getFunds() : Promise.resolve([]),
     rights.routing.view ? getFundAllocations() : Promise.resolve([]),
     // Family-scoped explicitly: the service-role client does not apply RLS.
     rights.milestones.view

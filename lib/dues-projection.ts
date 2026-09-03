@@ -1,7 +1,7 @@
 import {
   annualTotalCents, ageShareOfPeriod, proratedAnnualCents, currentPeriodStart,
-  duesEligibility, duesScope, duesScopeMatch,
-  type DuesScheduleLike, type DuesScope,
+  duesBloodlineScope, duesEligibility, duesScope, duesScopeMatch,
+  type BloodlineScope, type DuesScheduleLike, type DuesScope,
 } from '@/lib/dues-utils'
 
 /**
@@ -153,10 +153,17 @@ export interface ScheduleProjection extends ProjectionTotals {
   periodStart: string
   /** The schedule's full annual figure, before any member's age or opt-out. */
   annualCents: number
-  /** Only the bloodline owes it. */
-  bloodlineOnly: boolean
   /**
-   * Bloodline-only, and NOT ONE member counted is in the bloodline — so it bills nothing.
+   * Which side of the bloodline owes it — `'all'`, `'bloodline'` or `'non-bloodline'`.
+   *
+   * IT WAS `bloodlineOnly: boolean` UNTIL 2026-09-03 and could not say the third thing. A
+   * screen reading this has to render three states rather than a badge that is present or
+   * absent, which is the whole of what changed for a consumer.
+   */
+  bloodlineScope: BloodlineScope
+  /**
+   * Narrowed by the bloodline, and NOT ONE member counted is on the side it names — so it
+   * bills nothing.
    *
    * ── IT WAS `bloodlineUnknown` UNTIL `20260902000000` ──────────────────────────────
    * The bloodline was derived from `families.bloodline_anchor_id`, and a family that had
@@ -507,7 +514,7 @@ export function projectDues(input: {
       // own row since `20260902000000`; it used to be a set membership test against a walk
       // over the whole family tree.
       const eligibility = duesEligibility({
-        bloodlineOnly: schedule.bloodline_only,
+        bloodlineScope: schedule.bloodline_scope,
         isBloodline: member.isBloodline,
       })
       const excluded = eligibility !== 'owed'
@@ -571,18 +578,28 @@ export function projectDues(input: {
       required: schedule.required,
       periodStart,
       annualCents,
-      bloodlineOnly: Boolean(schedule.bloodline_only),
-      // Bloodline-only, and every member counted came out excluded. DERIVED FROM `counts`
-      // rather than from the roster, exactly as `scopeEmpty` is and for the same reason: a
-      // second count taken from the roster would be free to disagree with the pills beside
-      // it. A schedule open to everybody does not care that nobody is marked, so the first
-      // conjunct is what stops this being a warning about nothing — and a family with no
-      // members at all is not this state, which the member count already says.
+      // ── THREE ANSWERS SINCE 2026-09-03, WHERE THERE WAS A BOOLEAN ────────────────
+      // `bloodlineOnly` was `Boolean(schedule.bloodline_only)` and could not express the
+      // third scope at all. It is the stated scope now, so a row can say which side of the
+      // line it is on rather than only whether there is one.
+      bloodlineScope: duesBloodlineScope(schedule),
+      // Narrowed by the bloodline, and every member counted came out excluded. DERIVED FROM
+      // `counts` rather than from the roster, exactly as `scopeEmpty` is and for the same
+      // reason: a second count taken from the roster would be free to disagree with the pills
+      // beside it. A schedule open to everybody does not care that nobody is marked, so the
+      // first conjunct is what stops this being a warning about nothing — and a family with
+      // no members at all is not this state, which the member count already says.
       //
       // `counts['excluded']` is the bloodline's own bucket: `duesScopeMatch` is answered
       // FIRST (see the order note above), so a member out of scope never reaches 'excluded'
-      // and cannot inflate this into a false positive on a scoped blood-only due.
-      bloodlineEmpty: Boolean(schedule.bloodline_only)
+      // and cannot inflate this into a false positive on a scoped narrowed due.
+      //
+      // IT COVERS BOTH NARROWING SCOPES NOW, and that is not symmetrical in practice — which
+      // is worth knowing before reading a green screen as good news. A family that has marked
+      // NOBODY bills nobody on `'bloodline'` (so this fires) and bills EVERYBODY on
+      // `'non-bloodline'` (so it does not, correctly — nobody is excluded). The one that
+      // needs saying out loud is the first, and it still is.
+      bloodlineEmpty: duesBloodlineScope(schedule) !== 'all'
         && members.length > 0
         && counts.excluded === members.length,
       scope: duesScope(schedule),

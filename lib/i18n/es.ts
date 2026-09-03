@@ -3446,7 +3446,6 @@ export const es: Catalogue = {
   'inc.dueAmount': 'Monto de la cuota',
   'inc.frequency': 'Frecuencia',
   'inc.startAge': 'Los integrantes empiezan a pagar a la edad de (opcional)',
-  'inc.bloodlineOnly': 'Solo la línea de sangre',
   'inc.noBloodline': 'Todavía no se ha marcado a nadie como perteneciente al linaje de su familia, así que una cuota restringida a él no la debería nadie. Marque {control} en el árbol familiar primero.',
   'inc.owedBy': 'Lo deben',
   'inc.nationalWhole': 'Nacional: toda la familia',
@@ -3469,6 +3468,23 @@ export const es: Catalogue = {
     'Los integrantes pueden rechazar esto desde su Resumen, y no contará en lo que deben.',
   'inc.blankAge': 'Déjelo en blanco y cada integrante debe esto, sea cual sea su edad.',
   'inc.bloodlineHint': 'Solo los miembros marcados como pertenecientes al linaje de la familia deben esto. Quien se casó con la familia, y quien la familia no haya marcado, no debe nada y no lo verá en su pantalla de Cuotas.',
+  'inc.whoOwesIt': 'Quién la debe',
+  'inc.scopeAllMembers': 'Todos los integrantes',
+  'inc.scopeBloodline': 'Solo el linaje',
+  'inc.scopeNonBloodline': 'Solo los familiares que se casaron con la familia',
+  'inc.nonBloodlineHint':
+    'Solo la deben los familiares que NO están marcados como parte del linaje. '
+    + 'Alguien del linaje nunca la deberá.',
+  'inc.whereItLands': 'Dónde llega un pago',
+  'inc.fundWaterfall': 'Repartir entre los fondos (Encaminamiento)',
+  'inc.fundWaterfallHint': 'Los pagos se reparten entre los fondos de la familia según la tabla de Encaminamiento.',
+  'inc.fundDirectHint': 'El pago completo va a este único fondo. Se omite el encaminamiento.',
+  'inc.straightToFund': 'Directo a {fund}',
+  'inc.aDeletedFund': 'un fondo',
+  'dues.onlyMembersWhoMarriedIn': 'Solo la deben los familiares que no están en el linaje',
+  'act.donationsGoToDonationsFund':
+    'Una campaña de donaciones siempre va al fondo de Donaciones de la familia '
+    + 'y no puede indicar otro.',
   'inc.howeverCame': 'Cada integrante debe esto, sin importar cómo entró en la familia.',
   'inc.everyMember': 'Cada integrante de la familia debe esto.',
   'inc.regionHint':
@@ -4745,7 +4761,6 @@ export const es: Catalogue = {
   'dues.noDuesSchedulesActive': 
     'No hay ningún plan de cuotas activo, así que no hay nada que proyectar. '
     + 'Añada uno en Contabilidad → Cuotas.',
-  'dues.bloodlineOnly': 'Solo linaje',
   'dues.member': 'Por miembro',
   'dues.onlyThoseWhoOwe': 'Solo quienes lo deben',
   'dues.nobodyFamilyBeenApproved': 

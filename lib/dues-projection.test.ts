@@ -335,7 +335,7 @@ describe('the answers about who was counted', () => {
 })
 
 describe('a due the bloodline alone owes', () => {
-  const BLOOD: ProjectionSchedule = { ...ANNUAL, bloodline_only: true }
+  const BLOOD: ProjectionSchedule = { ...ANNUAL, bloodline_scope: 'bloodline' }
 
   // ── IT WAS A SET PASSED IN; IT IS A COLUMN ON THE MEMBER ─────────────────────────
   // `projectDues` took `bloodline?: ReadonlySet<string> | null` and tested membership.
@@ -355,7 +355,7 @@ describe('a due the bloodline alone owes', () => {
     expect(p.expectedCents).toBe(12_000)     // Ada's, not Ada's and Ben's
     expect(p.payingMembers).toBe(1)
     expect(p.schedules[0].counts).toMatchObject({ unpaid: 1, excluded: 1 })
-    expect(p.schedules[0].bloodlineOnly).toBe(true)
+    expect(p.schedules[0].bloodlineScope).toBe('bloodline')
     // Somebody IS marked, so the row is not the empty case.
     expect(p.schedules[0].bloodlineEmpty).toBe(false)
   })
@@ -420,7 +420,7 @@ describe('a due the bloodline alone owes', () => {
       ],
     })
 
-    expect(p.schedules[0].bloodlineOnly).toBe(false)
+    expect(p.schedules[0].bloodlineScope).toBe('all')
     expect(p.schedules[0].bloodlineEmpty).toBe(false)
     expect(p.expectedCents).toBe(24_000)
   })
@@ -506,7 +506,7 @@ describe('a due one region or chapter owes', () => {
     // them, so the bloodline question does not arise. The ordering in projectDues is what
     // makes this true, and it is why the two are separate standings.
     const p = run({
-      schedules: [{ ...CHAPTER_DUE, bloodline_only: true }],
+      schedules: [{ ...CHAPTER_DUE, bloodline_scope: 'bloodline' }],
       members: PLACED,
       chapterRegions: CHAPTER_REGIONS,
     })
@@ -668,7 +668,7 @@ describe('Active, Invited and Pending Invite', () => {
     // full however unreachable he is. Gating the ROSTER on descent would have billed one of
     // them and not the other on the levy, whose own flag says descent is irrelevant.
     const p = run({
-      schedules: [{ ...ANNUAL, bloodline_only: true }, LEVY],
+      schedules: [{ ...ANNUAL, bloodline_scope: 'bloodline' }, LEVY],
       members: [
         { personId: 'blood-record', dateOfBirth: null, hasAccount: false, isBloodline: true },
         { personId: 'gran', dateOfBirth: null, hasAccount: false, isBloodline: false },

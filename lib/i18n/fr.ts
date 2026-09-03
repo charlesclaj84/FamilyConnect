@@ -3531,7 +3531,6 @@ export const fr: Catalogue = {
   'inc.dueAmount': 'Montant de la cotisation',
   'inc.frequency': 'Fréquence',
   'inc.startAge': 'Les membres commencent à payer à l’âge de (facultatif)',
-  'inc.bloodlineOnly': 'Lignée seulement',
   'inc.noBloodline': 'Personne n’a encore été marqué comme faisant partie de la lignée de votre famille, donc une cotisation qui y est réservée ne serait due par personne. Cochez d’abord {control} dans l’arbre familial.',
   'inc.owedBy': 'Dû par',
   'inc.nationalWhole': 'National — toute la famille',
@@ -3555,6 +3554,23 @@ export const fr: Catalogue = {
     + 'qu’ils doivent.',
   'inc.blankAge': 'Laissez vide et chaque membre doit ceci, quel que soit son âge.',
   'inc.bloodlineHint': 'Seuls les membres marqués comme faisant partie de la lignée de la famille doivent ceci. Quelqu’un qui a épousé un membre de la famille, et quelqu’un que la famille n’a pas marqué, ne doit rien et ne le verra pas sur son écran Cotisations.',
+  'inc.whoOwesIt': 'Qui la doit',
+  'inc.scopeAllMembers': 'Tous les membres',
+  'inc.scopeBloodline': 'Lignée seulement',
+  'inc.scopeNonBloodline': 'Uniquement les proches entrés par alliance',
+  'inc.nonBloodlineHint':
+    'Seuls les proches qui ne sont PAS marqués comme faisant partie de la lignée '
+    + 'la doivent. Quelqu’un de la lignée ne la devra jamais.',
+  'inc.whereItLands': 'Où arrive un paiement',
+  'inc.fundWaterfall': 'Répartir entre les fonds (Acheminement)',
+  'inc.fundWaterfallHint': 'Les paiements sont répartis entre les fonds de la famille selon la table d’Acheminement.',
+  'inc.fundDirectHint': 'La totalité du paiement va dans ce seul fonds. L’acheminement est ignoré.',
+  'inc.straightToFund': 'Directement vers {fund}',
+  'inc.aDeletedFund': 'un fonds',
+  'dues.onlyMembersWhoMarriedIn': 'Seuls les proches qui ne sont pas dans la lignée la doivent',
+  'act.donationsGoToDonationsFund':
+    'Une collecte va toujours dans le fonds Dons de la famille et ne peut pas '
+    + 'en désigner un autre.',
   'inc.howeverCame':
     'Chaque membre doit ceci, quelle que soit la façon dont il est entré dans la famille.',
   'inc.everyMember': 'Chaque membre de la famille doit ceci.',
@@ -4867,7 +4883,6 @@ export const fr: Catalogue = {
   'dues.noDuesSchedulesActive': 
     'Aucun barème de cotisations n’est actif, il n’y a donc rien à projeter. '
     + 'Ajoutez-en un dans Comptabilité → Cotisations.',
-  'dues.bloodlineOnly': 'Filiation uniquement',
   'dues.member': 'Par membre',
   'dues.onlyThoseWhoOwe': 'Seulement ceux qui la doivent',
   'dues.nobodyFamilyBeenApproved': 

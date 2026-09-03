@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   Receipt,
   Landmark,
@@ -239,6 +239,13 @@ interface Props {
   /** Adults a donation drive can be for — see AdminIncomeClient. Empty when the
    *  caller cannot view Donations, because the page gates the fetch. */
   members: BeneficiaryOption[]
+  /**
+   * The funds a dues schedule may be routed straight into, id and name only.
+   *
+   * DERIVED FROM `initialFunds` in this component rather than passed as a second prop, so
+   * the picker and the Funds pane cannot come to disagree about which funds exist — and so
+   * a fund created on that pane appears in the picker without a second round trip.
+   */
   /** Whether the family has a bloodline to restrict a due to — see AdminIncomeClient. */
   hasBloodline: boolean
   /** The regions and chapters a due can be scoped to — see AdminIncomeClient. Empty when
@@ -295,6 +302,19 @@ export function AdminAccountShell({
   scopeOptions,
   processorStatus,
 }: Props) {
+
+  // ── THE FUND PICKER'S OPTIONS ─────────────────────────────────────────────────
+  // Id and name only: the schedule form needs to NAME a destination, not to report a
+  // balance. Derived from `initialFunds` rather than taken as a second prop, so the picker
+  // and the Funds pane cannot come to disagree about which funds exist.
+  //
+  // EMPTY IS A REAL STATE and the form handles it: a family with no funds — or a caller
+  // whose grants meant the page fetched none — gets the waterfall and nothing to pick,
+  // which is what every schedule had before this existed.
+  const fundOptions = useMemo(
+    () => initialFunds.map(f => ({ id: f.id, name: f.name })),
+    [initialFunds],
+  )
   const t = useT()
   // Only the sections this caller may view, and only the items and rails that still hold
   // one. Derived from the same rights the server actions enforce, so a visible rail always
@@ -504,6 +524,7 @@ export function AdminAccountShell({
                 rights={rights}
                 members={members}
                 hasBloodline={hasBloodline}
+                fundOptions={fundOptions}
                 scopeOptions={scopeOptions}
               />
             </div>
@@ -519,6 +540,7 @@ export function AdminAccountShell({
                 rights={rights}
                 members={members}
                 hasBloodline={hasBloodline}
+                fundOptions={fundOptions}
                 scopeOptions={scopeOptions}
               />
             </div>

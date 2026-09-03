@@ -2266,25 +2266,45 @@ export const helpFr: Catalogue = {
     + 'généalogique](/community/family-tree) sans adresse courriel demande une date de '
     + 'naissance pour exactement cette raison.',
   'help.accounting.dues.b4':
-    '**Lignée seulement** restreint une cotisation aux membres descendant de la lignée de '
-    + 'la famille. Quiconque est entré par mariage, et tout proche par alliance, adopté ou '
-    + 'placé, ne doit rien et ne la voit pas du tout sur son propre écran Cotisations — une '
-    + 'cotisation qui n’est jamais la sienne n’est pas listée comme quelque chose qu’il ne '
-    + 'paie pas.',
+    '**Qui la doit** restreint une cotisation selon la lignée, et il y a trois '
+    + 'réponses. **Tous les membres** est le réglage par défaut. **Lignée seulement** la '
+    + 'réserve aux proches marqués comme faisant partie de la lignée de la famille — une '
+    + 'personne entrée par alliance ne doit rien et ne la voit pas du tout sur son propre '
+    + 'écran Cotisations, car une cotisation qui n’est jamais la sienne n’est pas '
+    + 'présentée comme quelque chose qu’elle ne paie pas. **Uniquement les proches entrés '
+    + 'par alliance** en est le miroir, pour une famille qui applique une cotisation à '
+    + 'ses descendants et une autre à tous les autres.',
   'help.accounting.dues.b5':
-    'Le contrôle n’est pas disponible tant que personne dans votre famille n’a été coché '
-    + 'comme faisant partie de sa lignée, car jusque-là la cotisation ne serait due par '
-    + 'personne. Cochez d’abord **fait partie de la lignée de la famille** sur la fiche '
-    + 'd’un parent dans l’[arbre familial](/community/family-tree). Qui doit la cotisation '
-    + 'est exactement qui est coché, donc cocher quelqu’un plus tard l’y ajoute.',
+    'Le contrôle est indisponible tant que personne dans votre famille n’a été marqué '
+    + 'comme faisant partie de sa lignée. Cochez **fait partie de la lignée de la '
+    + 'famille** sur la fiche d’un proche dans l’[arbre '
+    + 'familial](/community/family-tree) d’abord. Qui doit la cotisation est exactement '
+    + 'qui est coché, donc cocher quelqu’un plus tard l’y ajoute — et si personne n’est '
+    + 'coché, **Lignée seulement** ne serait due par personne tandis qu’**Uniquement les '
+    + 'proches entrés par alliance** serait due par tout le monde, c’est pourquoi le '
+    + 'choix est retenu jusqu’à ce que la question ait une réponse.',
   'help.accounting.dues.b6':
+    '**Où arrive un paiement** décide dans quel fonds va l’argent. Laissez **Répartir '
+    + 'entre les fonds** et une cotisation payée est divisée selon votre table '
+    + 'd’[Acheminement](/admin/accounting), ce que faisait chaque calendrier avant que '
+    + 'cela existe. Choisissez un fonds à la place et la TOTALITÉ du paiement y va, '
+    + 'l’acheminement étant ignoré — ce que veut une cotisation levée pour une seule '
+    + 'chose, afin que le solde du fonds réponde à combien a été réuni pour elle.',
+  'help.accounting.dues.b7':
+    'Celui-ci n’est PAS figé une fois que des paiements existent, contrairement au '
+    + 'montant et à **Qui la doit**. Il décide seulement où va le PROCHAIN paiement ; '
+    + 'rien de ce qui est déjà dans un fonds ne bouge. Et si vous supprimez ensuite le '
+    + 'fonds, le calendrier revient discrètement à la répartition entre les fonds — donc '
+    + 'si une cotisation doit arriver à un endroit précis, vérifiez-le après avoir '
+    + 'retiré un fonds.',
+  'help.accounting.dues.b8':
     '**Dû par** dit quelle partie de la famille la doit : National — toute la famille — ou '
     + 'une région, ou une section. Cela n’apparaît qu’une fois que votre famille a une région '
     + 'ou une section à choisir ; jusque-là chaque cotisation est Nationale, ce qui est ce '
     + 'que National veut dire. Un membre sans section est sous National et ne doit rien de '
     + 'restreint : une cotisation de section ne facture donc que les personnes qui ont dit '
     + 'être dans cette section. Voyez [régions et sections](/help/regions-and-chapters#dues).',
-  'help.accounting.dues.b7':
+  'help.accounting.dues.b9':
     'Un barème contre lequel des paiements ont été faits ne peut pas simplement être '
     + 'supprimé, et son montant, sa fréquence, sa date de début, son âge de début, son '
     + 'réglage de lignée et **Dû par** sont alors figés — chaque paiement déjà enregistré a '

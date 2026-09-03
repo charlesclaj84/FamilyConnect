@@ -524,7 +524,7 @@ async function postDuesPayment(admin: AdminClient, input: {
   const [personRes, scheduleRes] = await Promise.all([
     admin.from('people').select('id')
       .eq('id', input.personId).eq('family_code', input.familyCode).maybeSingle(),
-    admin.from('dues_schedules').select('id, kind, label')
+    admin.from('dues_schedules').select('id, kind, label, fund_id')
       .eq('id', input.scheduleId).eq('family_code', input.familyCode).maybeSingle(),
   ])
   if (!personRes.data) {
@@ -580,7 +580,15 @@ async function postDuesPayment(admin: AdminClient, input: {
   // whole into the family's Donations fund and a due down the priority waterfall, so passing
   // `'dues'` unconditionally — which this did while dues were the only thing payable by card —
   // would split every gift across funds nobody gave it to.
-  await routePaidPayment(admin, input.familyCode, payment, null, input.expectKind)
+  //
+  // AND THE SCHEDULE'S OWN FUND, if it names one (`20260903000001`). Read off the row this
+  // handler already fetched — a card payment on a schedule that routes straight to the Roof
+  // Fund has to land there exactly as a hand-keyed one does, or the same schedule would
+  // credit two different pots depending on how somebody chose to pay.
+  await routePaidPayment(
+    admin, input.familyCode, payment, null, input.expectKind,
+    (scheduleRes.data.fund_id as string | null) ?? null,
+  )
 
   return {
     handled: true,

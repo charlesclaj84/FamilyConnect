@@ -10,6 +10,7 @@ import { moneyAttachedTo, moneyAttachedMessage } from '@/lib/money-attached'
 import {
   annualTotalCents,
   ageShareOfPeriod,
+  BLOODLINE_SCOPES,
   duesEligibility,
   duesScope,
   duesScopeMatch,
@@ -46,6 +47,26 @@ import type { T } from '@/lib/i18n/t'
  *              frequency is 'one-time' because a drive does not recur: its
  *              start_date/end_date are its whole timing story.
  */
+/**
+ * A `bloodline_scope` from a client, narrowed to the three the database will accept.
+ *
+ * ── A SERVER ACTION IS A PUBLIC HTTP ENDPOINT (§2), AND THIS IS A CHECK, NOT A CAST ──
+ * `input.bloodline_scope` is typed `string | null | undefined` because a `Partial<T>`
+ * annotation is ERASED at runtime — the same reason `pickProfileColumns` exists. The CHECK
+ * on the column would refuse an unknown value with a 23514, which is the right outcome and
+ * the wrong message: the caller would see a constraint name. So it is narrowed here, and an
+ * unrecognised value reads as `'all'`.
+ *
+ * `'all'` RATHER THAN A REFUSAL, deliberately, and it is the same direction
+ * `duesBloodlineScope` takes for a stale database: a schedule nobody has narrowed is owed by
+ * everybody, which is what the column's own DEFAULT says. The alternative — refusing — would
+ * turn a client that has not been redeployed into an administrator who cannot save a
+ * schedule, on a screen where the control they are looking at is unrelated.
+ */
+function normalizeBloodlineScope(value: string | null | undefined): string {
+  return BLOODLINE_SCOPES.includes(value as (typeof BLOODLINE_SCOPES)[number]) ? value! : 'all'
+}
+
 export interface DuesSchedule {
   id: string
   label: string
@@ -89,7 +110,13 @@ export interface DuesSchedule {
    *
    * Always false for a donation, held by a CHECK: nobody owes a gift.
    */
-  bloodline_only: boolean
+  /** `'all'` | `'bloodline'` | `'non-bloodline'` — see `duesEligibility`. */
+  bloodline_scope: string
+  /**
+   * The one fund a paid payment on this schedule goes into, whole, skipping the routing
+   * waterfall. NULL is the waterfall and is the default — see `20260903000001`.
+   */
+  fund_id: string | null
   /**
    * DUES ONLY: which part of the family owes this (20260817000008).
    *
@@ -476,7 +503,8 @@ function mapSchedule(
     kind?: string | null
     required?: boolean | null
     start_age?: number | null
-    bloodline_only?: boolean | null
+    bloodline_scope?: string | null
+    fund_id?: string | null
     scope?: string | null
     region_id?: string | null
     chapter_id?: string | null
@@ -506,7 +534,11 @@ function mapSchedule(
     start_age: kind === 'donation' ? null : (s.start_age ?? null),
     // False for a donation and for a database that has not run 20260817000002 — both of
     // which mean "everybody who owes it, owes it", the behaviour before the column.
-    bloodline_only: kind === 'donation' ? false : Boolean(s.bloodline_only),
+    // A DRIVE IS ALWAYS 'all'. `bloodline_scope` is meaningless on a donation — a gift is
+    // not owed by anybody — and forcing it here rather than trusting the row is the same
+    // thing this mapper already does for `goal_cents` and `amount_cents`.
+    bloodline_scope: kind === 'donation' ? 'all' : (s.bloodline_scope ?? 'all'),
+    fund_id: (s.fund_id as string | null) ?? null,
     // 'national' for a donation and for a database that has not run 20260817000008 — both
     // of which mean "the whole family", the behaviour before the column. `duesScope`
     // normalizes anything unrecognized to the same answer; see its header for why failing
@@ -538,7 +570,7 @@ function kindInvariants(kind: ScheduleKind, goalCents: number | null | undefined
     // 20260817000008 refuses 'national' carrying either.
     ? {
         amount_cents: 0, frequency: 'one-time', goal_cents: goalCents ?? null,
-        required: false, start_age: null, bloodline_only: false,
+        required: false, start_age: null, bloodline_scope: 'all', fund_id: null,
         scope: 'national' as DuesScope, region_id: null, chapter_id: null,
       }
     : { goal_cents: null }
@@ -874,7 +906,22 @@ export async function createDuesSchedule(
   // the insert would be a PostgREST error rather than a no-op. Dues never carry one —
   // a bill nobody can see is a bill that silently never gets paid, which is why the
   // guard trigger refuses the row as well as this line ignoring it.
+  // ── `bloodline_only` IS STRIPPED, AND THE RLS SUITE IS WHY ──────────────────────────
+  // It is a GENERATED column since `20260903000001` — derived from `bloodline_scope` so the
+  // two cannot disagree — and Postgres refuses an INSERT or UPDATE that supplies a value for
+  // one. `...columns` is a spread of whatever the caller sent, and a `Partial<T>` annotation
+  // is erased at runtime (§2, and the reason `pickProfileColumns` exists), so a client that
+  // has not been redeployed sends the old field and breaks the whole write.
+  //
+  // FOUND BY `tests/rls`, whose own fixture was still sending it — which is the alias window
+  // this migration's header describes, played out by the suite. Dropping it here is better
+  // than letting it fail loudly: the value carries no information the new column does not,
+  // so ignoring it is not swallowing a decision.
   const { beneficiary_person_ids, ...columns } = input
+  // DELETED rather than destructured away, because the type no longer declares it and a
+  // renamed-binding destructure is then an unused variable `npm run lint` refuses. The
+  // cast is the honest one: only a stale RUNTIME payload can still carry this.
+  delete (columns as Record<string, unknown>).bloodline_only
   const beneficiaryIds = kind === 'donation' ? (beneficiary_person_ids ?? []) : []
 
   // ── §4: THE SCOPE'S TARGET IS AN ID FROM THE CLIENT ─────────────────────────────
@@ -894,6 +941,25 @@ export async function createDuesSchedule(
     return { success: false, message: t('act.chapterNotFound') }
   }
 
+  // ── AND THE FUND, WHICH IS THE THIRD ID THIS ACTION TAKES (§4) ────────────────────
+  // A schedule pointing at another family's fund satisfies every policy — its own
+  // `family_code` is the caller's — while a paid payment on it would then post a
+  // `fund_contributions` row into a pot that is not theirs. `dues_schedules_guard_fund`
+  // refuses it in the database and this refuses it with a sentence somebody can read; both,
+  // because a 23514 from a trigger names a constraint rather than a mistake.
+  //
+  // A DONATION MAY NOT NAME ONE. Its destination is the Donations fund and always has been
+  // (`20260807000003`), so an id here would be silently ignored by `routePaidPayment` — and
+  // a value the product ignores is worse than one it refuses.
+  if (input.fund_id) {
+    if (kind === 'donation') {
+      return { success: false, message: t('act.donationsGoToDonationsFund') }
+    }
+    if (!(await belongsToFamily('funds', input.fund_id, familyCode ?? ''))) {
+      return { success: false, message: t('act.fundNotFound') }
+    }
+  }
+
   const { data, error } = await supabase
     .from('dues_schedules')
     .insert({
@@ -901,7 +967,8 @@ export async function createDuesSchedule(
       kind,
       // Before kindInvariants, which pins all of these to a donation's values and must win.
       start_age: normalizeStartAge(input.start_age),
-      bloodline_only: Boolean(input.bloodline_only),
+      bloodline_scope: normalizeBloodlineScope(input.bloodline_scope),
+      fund_id: input.fund_id ?? null,
       ...scoped,
       ...kindInvariants(kind, input.goal_cents),
       family_code: familyCode,
@@ -954,7 +1021,7 @@ export async function updateDuesSchedule(
   // reachable on its own.
   const { data: existing } = await admin
     .from('dues_schedules')
-    .select('kind, goal_cents, start_date, end_date, amount_cents, frequency, start_age, bloodline_only, scope, region_id, chapter_id')
+    .select('kind, goal_cents, start_date, end_date, amount_cents, frequency, start_age, bloodline_scope, fund_id, scope, region_id, chapter_id')
     .eq('id', id).eq('family_code', familyCode).maybeSingle()
   if (!existing) return { success: false, message: t('act.scheduleNotFound') }
   const kind: ScheduleKind = existing.kind === 'donation' ? 'donation' : 'dues'
@@ -1019,7 +1086,21 @@ export async function updateDuesSchedule(
     || moved(input.amount_cents, existing.amount_cents)
     || moved(input.frequency, existing.frequency)
     || moved(input.start_age, existing.start_age)
-    || moved(input.bloodline_only, existing.bloodline_only)
+    || moved(input.bloodline_scope, existing.bloodline_scope)
+    // ── `fund_id` IS DELIBERATELY NOT IN THIS SET, AND IT WAS FOR ONE COMMIT ────────
+    // It was added here with the column and that was wrong twice over. Every other member
+    // of this set restates what somebody OWED for a period already billed; where a payment
+    // LANDS restates nothing — `routed_at` makes routing once-only, so no contribution
+    // already in a fund moves, and the change only decides where the next payment goes.
+    //
+    // AND THE FORM ALREADY SAYS SO, which is how the mistake was caught: the picker's own
+    // comment reads "NOT FROZEN BY EXISTING PAYMENTS, unlike the amount and the bloodline
+    // scope". A freeze here would have made that false.
+    //
+    // The cost of getting it wrong was not a wrong answer on screen — it was a REFUSAL that
+    // arrived before the §4 check, so `tests/rls`' update case was evidence for this freeze
+    // rather than for the cross-family check it was written to assert. AGENTS.md §7's "a
+    // guard hides a policy exactly as a hand-written filter does", found by mutation.
     // WHO OWES IT AT ALL is the strongest member of this set. Moving a due from National to
     // one chapter does not restate what a member owed for a period already billed — it
     // restates WHETHER THEY OWED IT, so last March's payment by a member of another chapter
@@ -1054,11 +1135,46 @@ export async function updateDuesSchedule(
     return { success: false, message: t('act.chapterNotFound') }
   }
 
+  // ── AND THE FUND, WHICH IS THE THIRD ID THIS ACTION TAKES (§4) ────────────────────
+  // A schedule pointing at another family's fund satisfies every policy — its own
+  // `family_code` is the caller's — while a paid payment on it would then post a
+  // `fund_contributions` row into a pot that is not theirs. `dues_schedules_guard_fund`
+  // refuses it in the database and this refuses it with a sentence somebody can read; both,
+  // because a 23514 from a trigger names a constraint rather than a mistake.
+  //
+  // A DONATION MAY NOT NAME ONE. Its destination is the Donations fund and always has been
+  // (`20260807000003`), so an id here would be silently ignored by `routePaidPayment` — and
+  // a value the product ignores is worse than one it refuses.
+  if (input.fund_id) {
+    if (kind === 'donation') {
+      return { success: false, message: t('act.donationsGoToDonationsFund') }
+    }
+    if (!(await belongsToFamily('funds', input.fund_id, familyCode ?? ''))) {
+      return { success: false, message: t('act.fundNotFound') }
+    }
+  }
+
+
   // Same reason as on create: a join table cannot ride along in the column spread.
   // `undefined` means "not sent" and leaves the set alone; an explicit [] clears it,
   // which is how a drive stops being hidden from anyone.
   //
+  // ── `bloodline_only` IS STRIPPED, AND THE RLS SUITE IS WHY ──────────────────────────
+  // It is a GENERATED column since `20260903000001` — derived from `bloodline_scope` so the
+  // two cannot disagree — and Postgres refuses an INSERT or UPDATE that supplies a value for
+  // one. `...columns` is a spread of whatever the caller sent, and a `Partial<T>` annotation
+  // is erased at runtime (§2, and the reason `pickProfileColumns` exists), so a client that
+  // has not been redeployed sends the old field and breaks the whole write.
+  //
+  // FOUND BY `tests/rls`, whose own fixture was still sending it — which is the alias window
+  // this migration's header describes, played out by the suite. Dropping it here is better
+  // than letting it fail loudly: the value carries no information the new column does not,
+  // so ignoring it is not swallowing a decision.
   const { beneficiary_person_ids, ...columns } = input
+  // DELETED rather than destructured away, because the type no longer declares it and a
+  // renamed-binding destructure is then an unused variable `npm run lint` refuses. The
+  // cast is the honest one: only a stale RUNTIME payload can still carry this.
+  delete (columns as Record<string, unknown>).bloodline_only
   // AND THE THREE SCOPE COLUMNS COME OUT TOO, for a different reason: they are ONE fact and
   // `normalizeScope` owns it, so a raw `region_id` in the patch must never reach the row on
   // its own — an id with no `scope` beside it is a row the CHECK from 20260817000008
@@ -1084,7 +1200,10 @@ export async function updateDuesSchedule(
       // this action, and normalizing an absent key would write null over a rule the form
       // never showed — which is how a partial update silently clears a column.
       ...(input.start_age !== undefined ? { start_age: normalizeStartAge(input.start_age) } : {}),
-      ...(input.bloodline_only !== undefined ? { bloodline_only: Boolean(input.bloodline_only) } : {}),
+      ...(input.bloodline_scope !== undefined
+        ? { bloodline_scope: normalizeBloodlineScope(input.bloodline_scope) }
+        : {}),
+      ...(input.fund_id !== undefined ? { fund_id: input.fund_id ?? null } : {}),
       ...kindInvariants(kind, goalCents),
     })
     .eq('id', id)
@@ -1268,7 +1387,7 @@ export async function getMyDuesSummary(): Promise<DuesSummary[]> {
   )
 
   return schedules.filter(schedule => duesEligibility({
-    bloodlineOnly: schedule.bloodline_only,
+    bloodlineScope: schedule.bloodline_scope,
     isBloodline: myIsBloodline,
   }) === 'owed' && duesScopeMatch({
     schedule,
@@ -1890,7 +2009,7 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
 
   const [schedulesRes, peopleRes, paymentsRes, plansRes, invitesRes] = await Promise.all([
     admin.from('dues_schedules')
-      .select('id, label, amount_cents, frequency, start_date, end_date, due_month, due_day, start_age, bloodline_only, scope, region_id, chapter_id, required, kind')
+      .select('id, label, amount_cents, frequency, start_date, end_date, due_month, due_day, start_age, bloodline_scope, fund_id, scope, region_id, chapter_id, required, kind')
       .eq('family_code', familyCode).eq('active', true).order('label'),
     // APPROVED, AND THAT IS THE ONLY TEST — no `user_id` filter, which is the change of
     // 2026-08-18 and the reason the header has a section about §4b. This is the Member
@@ -2004,7 +2123,7 @@ export async function getDuesProjection(): Promise<DuesProjectionResult | null> 
       due_month: s.due_month as number | null,
       due_day: s.due_day as number | null,
       start_age: s.start_age as number | null,
-      bloodline_only: Boolean(s.bloodline_only),
+      bloodline_scope: (s.bloodline_scope as string | null) ?? 'all',
       // `duesScope` takes a DuesScheduleLike and normalizes anything it does not recognize
       // to 'national' — which is what a database that has not run 20260817000008 answers.
       // The row from the untyped client satisfies that shape by having the columns; the
@@ -2239,7 +2358,10 @@ export async function recordPayment(input: {
   if (!input.schedule_id) return { success: false, message: t('act.duesScheduleRequired') }
   const { data: schedule } = await admin
     .from('dues_schedules')
-    .select('id, kind')
+    // `fund_id` rides along for the DIRECT ROUTE (`20260903000001`) and is read off the
+    // ROW for exactly the reason `kind` beside it is: a fund id accepted from a client
+    // would be a way to route this family's money into any fund named in the request.
+    .select('id, kind, fund_id')
     .eq('id', input.schedule_id)
     .eq('family_code', familyCode)
     .maybeSingle()
@@ -2341,7 +2463,10 @@ export async function recordPayment(input: {
   // Route the money. Only paid payments contribute — dues split across the funds by the
   // routing table, a donation goes whole into the Donations fund.
   if (input.status === 'paid') {
-    await routePaidPayment(admin, familyCode, payment, myPerson.id, kind)
+    await routePaidPayment(
+      admin, familyCode, payment, myPerson.id, kind,
+      (schedule.fund_id as string | null) ?? null,
+    )
   }
 
   revalidateMemberMoney()

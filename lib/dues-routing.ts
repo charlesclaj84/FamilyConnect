@@ -129,8 +129,26 @@ export async function getActiveFundsForRouting(admin: AdminClient, familyCode: s
  * table happened to say, and there was no pot whose balance answered "what have we been
  * given?".
  *
- * The kind comes from the caller, which read it off the schedule ROW — never from a
- * client — for the same reason the permission check does.
+ * ── AND SINCE `20260903000001` A DUES SCHEDULE MAY NAME ONE FUND TOO ───────────────
+ * `directFundId` is `dues_schedules.fund_id`, and it is the GENERAL FORM of the paragraph
+ * above: the whole payment goes into that one fund and the waterfall is skipped. The
+ * argument transfers without a word changed — a building-fund levy divided between the
+ * Reunion fund and whatever else the routing table said had exactly the donation's problem,
+ * and there was no pot whose balance answered "how much have we raised for the roof?".
+ *
+ * THE DONATION BRANCH IS LEFT ALONE rather than rewritten in terms of this one, and that is
+ * deliberate: a donation's destination is a SYSTEM fund the family cannot delete and did not
+ * choose, so it is resolved by `system_key` and needs no column. Folding them would make a
+ * drive's destination look configurable when a CHECK holds it.
+ *
+ * ── BOTH COME FROM THE CALLER, WHICH READ THEM OFF THE SCHEDULE ROW ───────────────
+ * Never from a client, for the same reason the permission check does not. `directFundId` is
+ * the sharper case: a fund id arriving from a browser would be a way to route arbitrary money
+ * into an arbitrary fund, which is the argument this module's own header makes for why none
+ * of it is exported from a `'use server'` file. `dues_schedules_guard_fund` refuses a
+ * cross-family value underneath (§4) and `belongsToFamily` refuses it in the action above
+ * that, so by the time it reaches here it has been checked twice and is still not trusted
+ * from a caller — it is read off a row.
  */
 export async function routePaidPayment(
   admin: AdminClient,
@@ -138,6 +156,15 @@ export async function routePaidPayment(
   payment: { id: string; amount_cents: number; payment_date: string; routed_at?: string | null },
   recordedBy: string | null,
   kind: ScheduleKind,
+  /**
+   * `dues_schedules.fund_id` — the one fund this schedule's payments go into, whole.
+   *
+   * OPTIONAL, AND UNDEFINED MEANS THE WATERFALL, which is what every caller did before this
+   * existed and what a NULL column means. Defaulted rather than required so a caller that
+   * has not been updated keeps the old behaviour instead of failing to compile into one that
+   * silently routes nothing.
+   */
+  directFundId?: string | null,
 ): Promise<void> {
   if (payment.routed_at) return
   if (!payment.amount_cents || payment.amount_cents <= 0) return
@@ -163,6 +190,37 @@ export async function routePaidPayment(
     })
     await admin.from('dues_payments').update({ routed_at: new Date().toISOString() }).eq('id', payment.id)
     return
+  }
+
+  // ── ONE NAMED FUND, WHOLE, AND THE WATERFALL SKIPPED ────────────────────────────
+  // Checked against `family_code` HERE as well as by the guard trigger and by the action —
+  // §3, and it is not redundant: this runs on the admin client, so nothing above it is a
+  // policy. A miss means the fund was deleted between the payment and the routing, and the
+  // answer is to FALL THROUGH to the waterfall rather than to return: `ON DELETE SET NULL`
+  // returns a schedule to the waterfall for exactly that case, and a payment that routed
+  // nowhere would leave the family's money credited to the member and in no fund at all.
+  if (kind === 'dues' && directFundId) {
+    const { data: fund } = await admin
+      .from('funds').select('id')
+      .eq('id', directFundId).eq('family_code', familyCode)
+      .maybeSingle()
+    if (fund) {
+      await admin.from('fund_contributions').insert({
+        fund_id: fund.id,
+        family_code: familyCode,
+        amount_cents: payment.amount_cents,
+        source: 'dues_routing',
+        dues_payment_id: payment.id,
+        contributed_date: payment.payment_date,
+        recorded_by: recordedBy,
+      })
+      await admin.from('dues_payments').update({ routed_at: new Date().toISOString() }).eq('id', payment.id)
+      return
+    }
+    console.error(
+      `[dues-routing] schedule fund ${directFundId} is not in ${familyCode} — `
+      + 'routing through the waterfall instead',
+    )
   }
 
   const funds = await getActiveFundsForRouting(admin, familyCode)

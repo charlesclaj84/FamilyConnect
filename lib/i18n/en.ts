@@ -3532,7 +3532,6 @@ export const en: Catalogue = {
   'inc.dueAmount': 'Due Amount',
   'inc.frequency': 'Frequency',
   'inc.startAge': 'Members start paying at age (optional)',
-  'inc.bloodlineOnly': 'Bloodline only',
   'inc.noBloodline': 'Nobody has been marked as being in your family’s bloodline yet, so a due restricted to it would be owed by nobody. Tick {control} on the family tree first.',
   'inc.owedBy': 'Owed by',
   'inc.nationalWhole': 'National — the whole family',
@@ -3556,6 +3555,21 @@ export const en: Catalogue = {
     + 'owe.',
   'inc.blankAge': 'Leave blank and every member owes this, whatever their age.',
   'inc.bloodlineHint': 'Only members marked as being in the family’s bloodline owe this. Anybody who married in, and anybody the family has not marked, owes nothing and will not see it on their Dues screen.',
+  'inc.whoOwesIt': 'Who owes it',
+  'inc.scopeAllMembers': 'All members',
+  'inc.scopeBloodline': 'Bloodline only',
+  'inc.scopeNonBloodline': 'Relatives who married in only',
+  'inc.nonBloodlineHint':
+    'Only relatives who are NOT marked as being in the bloodline owe this. Somebody '
+    + 'in the bloodline never will.',
+  'inc.whereItLands': 'Where a payment lands',
+  'inc.fundWaterfall': 'Split across the funds (Routing)',
+  'inc.fundWaterfallHint': 'Payments are divided across the family’s funds by the Routing table.',
+  'inc.fundDirectHint': 'The whole payment goes into this one fund. Routing is skipped.',
+  'inc.straightToFund': 'Straight to {fund}',
+  'inc.aDeletedFund': 'one fund',
+  'dues.onlyMembersWhoMarriedIn': 'Only relatives who are not in the bloodline owe this',
+  'act.donationsGoToDonationsFund': 'A donation drive always goes into the family’s Donations fund and cannot name another.',
   'inc.howeverCame': 'Every member owes this, however they came into the family.',
   'inc.everyMember': 'Every member of the family owes this.',
   'inc.regionHint':
@@ -4791,7 +4805,6 @@ export const en: Catalogue = {
   'dues.noDuesSchedulesActive': 
     'No dues schedules are active, so there is nothing to project. Add one '
     + 'under Accounting → Dues.',
-  'dues.bloodlineOnly': 'Bloodline only',
   'dues.member': 'By member',
   'dues.onlyThoseWhoOwe': 'Only those who owe',
   'dues.nobodyFamilyBeenApproved': 

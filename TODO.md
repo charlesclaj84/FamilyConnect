@@ -196,6 +196,34 @@ not re-attempted:
   `custom_text.submit.message` reads *"$X today covers you to the end of {month}. {Plan} then
   renews at $Y a month, on the 1st."*
 
+### [ ] Drop `dues_schedules.bloodline_only`, which is derived and read by nothing
+
+**Action:** one migration, `ALTER TABLE public.dues_schedules DROP COLUMN bloodline_only`.
+
+`20260903000001` replaced it with the three-valued `bloodline_scope` and put it back as a
+GENERATED column — `GENERATED ALWAYS AS (bloodline_scope = 'bloodline') STORED` — for exactly
+one deploy. That is not a second fact (Postgres derives it, nothing can write it, and it
+cannot come to disagree), and it exists so that code deployed BEFORE that migration keeps
+reading: `app/actions/dues.ts` named the column in two selects and PostgREST answers 42703 for
+a missing one by killing the whole query.
+
+AGENTS.md's deployment argument holds only for an ADDITIVE migration — *"the old code serves
+while migrations are applied, which is the safe direction, because a migration this repo ships
+is additive and the running code does not use it yet"* — and a DROP COLUMN inverts it.
+`20260902000000` took that trade twelve days earlier on the ground that no family was using
+the product; **four families with real people in them are, so it was not available.**
+
+**Once this deploy is out, nothing in the tree names it** and the drop is additive in the safe
+direction. Check with `git grep bloodline_only -- '*.ts' '*.tsx'` first; the only hits should be
+comments and the actions' `delete (columns as …).bloodline_only`, which goes in the same
+commit. `dues_schedules_freeze_used_terms` compared it and is ALREADY recomposed onto
+`bloodline_scope` by `20260903000001`, which had to be: a generated column is not computed
+when a BEFORE-row trigger runs, so `NEW.bloodline_only` was NULL there and the comparison was
+TRUE on every UPDATE — the trigger refused EVERY edit to a used schedule, including its label.
+Measured, and only by the negative control; asking whether it still refused a bloodline change
+answered yes and proved nothing. That migration asserts in both directions that no reference
+to the old name survives in the function.
+
 ### [ ] Back-fill thumbnails for photographs uploaded before 2026-09-02
 
 **Action:** a script that lists the `photos` bucket, downloads each object whose row has a

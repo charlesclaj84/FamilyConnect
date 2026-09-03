@@ -373,9 +373,18 @@ export function DuesProjectionsClient({ result }: { result: DuesProjectionResult
                       )}>
                         {s.required ? 'Required' : 'Optional'}
                       </span>
-                      {s.bloodlineOnly && (
+                      {/* ── WHICH SIDE OF THE BLOODLINE, SINCE 2026-09-03 ────────────
+                          It was one badge for `bloodlineOnly` and nothing otherwise, which
+                          cannot tell the third scope from the default. `'all'` stays silent:
+                          "owed by everybody" is what a row with no badge means, and a badge
+                          on every row is a badge on none. */}
+                      {s.bloodlineScope === 'bloodline' && (
                         <span className="ms-1.5 inline-block whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft"
-                          title={t('dues.onlyMembersDescendedFrom')}>{t('dues.bloodlineOnly')}</span>
+                          title={t('dues.onlyMembersDescendedFrom')}>{t('inc.scopeBloodline')}</span>
+                      )}
+                      {s.bloodlineScope === 'non-bloodline' && (
+                        <span className="ms-1.5 inline-block whitespace-nowrap rounded-full bg-brand-soft px-2 py-0.5 text-[11px] font-medium text-brand-on-soft"
+                          title={t('dues.onlyMembersWhoMarriedIn')}>{t('inc.scopeNonBloodline')}</span>
                       )}
                       {/* WHICH PART OF THE FAMILY OWES IT. On the row and not only in the
                           totals, because a scoped due's Expected figure is a fraction of a
