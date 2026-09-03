@@ -198,7 +198,21 @@ DECLARE
     'genorra_staff',
     'marketing_attribution',
     'marketing_conversion_events',
-    'stripe_webhook_events'
+    'stripe_webhook_events',
+    -- ── EMPTY BY DESIGN UNTIL A CREDENTIAL EXISTS (20260903000002) ─────────────────
+    -- The ZIP-to-county crosswalk and its refresh log. Neither has a `family_code` and
+    -- neither can, so §2 derives them as candidates — correctly, because that is what an
+    -- emptied global lookup looks like. They are empty because the HUD USPS file needs a free
+    -- `HUD_USPS_API_TOKEN` that nobody in this repo can obtain, and the refresh
+    -- (/api/geo/zip-counties) fills them on the first daily run after it is set.
+    --
+    -- SO THIS IS THE "empty BY DESIGN" CASE and not the "something emptied it" one. Once the
+    -- token exists they will hold ~54,000 and ~1 rows respectively, and the honest move at
+    -- that point is to take them OFF this list and put `zip_counties` on the lookup_names
+    -- list above — where an empty crosswalk would then be a real finding, exactly as an empty
+    -- `relationship_types` is.
+    'zip_counties',
+    'zip_county_refreshes'
   ];
   i        int;
   v_count  bigint;

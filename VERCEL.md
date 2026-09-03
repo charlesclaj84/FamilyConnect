@@ -1,14 +1,20 @@
-# `vercel.json`, and the one thing in it
+# `vercel.json`, and the two things in it
 
-Added 2026-09-01 with the billing ladder. It holds a single cron entry and nothing else, and
-this file is why — AGENTS.md said *"no cron, no worker, no queue, no `vercel.json`"* as a
-statement of fact until then, and a file appearing in the root of a repo with no explanation is
-how a deployment gains behaviour nobody reviewed.
+Added 2026-09-01 with the billing ladder. It holds two cron entries and nothing else, and this
+file is why — AGENTS.md said *"no cron, no worker, no queue, no `vercel.json`"* as a statement
+of fact until then, and a file appearing in the root of a repo with no explanation is how a
+deployment gains behaviour nobody reviewed.
+
+**TWO IS THE HOBBY LIMIT**, which is worth knowing before a third is wanted: Vercel's Hobby
+plan allows two cron jobs and daily granularity only, rejecting a finer expression at deploy
+time. A third scheduled thing therefore joins an existing route rather than getting its own —
+and the section below on the second entry argues which way that choice should go.
 
 ## What it does
 
 ```
 40 0 * * *   GET /api/billing/notices
+ 0 3 * * *   GET /api/geo/zip-counties
 ```
 
 Once a day at 00:40 UTC, it asks the app to do the four things this product cannot do without a
@@ -43,6 +49,46 @@ family they belonged to. So `20260901000008` has the purge capture the ids **bef
 them, into `platform_subscription_cancellations`, and this route drains that queue. A row that
 never drains is a charge that never stops, which is why a failed attempt is returned to `pending`
 for five days and then marked `failed` rather than being filed as done.
+
+## The second entry: the ZIP-to-county crosswalk
+
+Added 2026-09-03. `/api/geo/zip-counties` refreshes `zip_counties` from the HUD USPS file —
+public government data, ~54,000 (zip, county) pairs, and the thing TODO.md named as the blocker
+on county-level weather-alert matching.
+
+**IT IS ITS OWN ROUTE RATHER THAN A FIFTH JOB ON THE FIRST ONE**, which is a departure from the
+paragraph above and is deliberate. Those four ride together *"because it is the only place in
+GENORRA where Node runs on a schedule with the service key"* — necessity, not kinship — and
+that necessity is gone the moment a second entry is allowed. Two reasons decided it:
+
+* **They share nothing.** Four jobs about a family's money, on a strict ordering behind two
+  `pg_cron` sweeps; one job about postal codes, on no schedule anybody depends on.
+* **A slow HUD fetch would delay a dues reminder.** The first route's own rule is that a failure
+  in one job must not cost another; a multi-megabyte fetch from a government API in the same
+  handler is the same coupling arriving as latency instead of an exception.
+
+**THREE CADENCES, AND EACH IS FORCED BY SOMETHING DIFFERENT.** HUD publishes QUARTERLY. The
+refresh is WEEKLY, so a new quarter is picked up within seven days rather than an identical
+document being fetched ninety times a quarter. The cron is DAILY, because that is the only
+granularity Hobby offers and because a cron expression cannot say *"the last success was seven
+days ago"*.
+
+**SO THE INTERVAL LIVES IN `zip_county_refreshes`, NOT IN THE SCHEDULE**, and that is the better
+place for it: a missed day does not skip a week, and the throttle survives the schedule being
+changed. Most runs answer `not-due` and cost one indexed query. It is the same shape as
+`cycle_on` on a dunning notice — idempotency in a row rather than in a clock.
+
+**IT NEEDS `HUD_USPS_API_TOKEN`**, a free credential from a huduser.gov registration, and
+without it every run answers `skipped` rather than failing. A missing credential is a deployment
+state; and this job must not be the reason a red row appears in the platform's cron log every
+day. TODO.md carries the token as a GO LIVE item.
+
+**THE DANGEROUS OPERATION IS A DELETE, AND IT IS SQL'S JOB.** `replace_zip_counties(jsonb)`
+replaces the rows for exactly the ZIPs in each batch and leaves every other ZIP alone, in one
+statement — so a fetch that returns half a file refreshes half the ZIPs and destroys nothing.
+There is no sequence of failures that empties the table, and nothing in the Node module deletes
+anything. `20260903000002`'s header weighs that against truncate-and-insert and against
+upsert-only.
 
 ## Why the work is split across two schedulers
 

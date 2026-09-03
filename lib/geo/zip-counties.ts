@@ -1,0 +1,255 @@
+import 'server-only'
+
+import { createAdminClient } from '@/lib/supabase/admin'
+import { rowsFrom } from '@/lib/geo/zip-crosswalk-rows'
+
+/**
+ * Refreshing the ZIP-to-county crosswalk from the HUD USPS file.
+ *
+ * ── WHY IT IS IN NODE AND NOT IN `pg_cron` ─────────────────────────────────────────
+ * The precedent is the billing ladder's and TODO.md states it as a rule rather than a
+ * preference: **`pg_cron` owns the STATE and Node owns the NETWORK.** `pg_net` and `http` are
+ * both AVAILABLE on this project and neither is installed, deliberately — an outbound HTTP call
+ * inside a transaction is not a thing to add casually, and *"the job needs the network"* is not
+ * on its own a sufficient argument for the extension.
+ *
+ * That reasoning applies here more strongly than it did to the ladder, not less. This job
+ * fetches a multi-megabyte JSON document, reshapes it and writes it in batches; `http` is
+ * synchronous and would hold a database connection for the whole fetch, and `pg_net` is
+ * fire-and-forget so the body would have to be collected on a second pass. Neither is an
+ * improvement on `fetch` in a route.
+ *
+ * ── THE SOURCE, AND THE CREDENTIAL NOBODY IN THIS REPO CAN SUPPLY ──────────────────
+ * `https://www.huduser.gov/hudapi/public/usps?type=2&query=All` — `type=2` is ZIP→County. HUD
+ * builds it from USPS delivery data and publishes it QUARTERLY. It needs a free API token from
+ * a huduser.gov registration, in `HUD_USPS_API_TOKEN`.
+ *
+ * **WITH NO TOKEN THIS RETURNS `skipped`, NOT AN ERROR.** A missing credential is a deployment
+ * state rather than a fault, and the daily route it rides on carries three other jobs — one
+ * of which sends a family's dues reminders. A throw here would take those down over a
+ * crosswalk nothing reads yet. `sendEmail`'s "fails soft" reasoning, applied to a fetch.
+ *
+ * ── QUARTERLY DATA, A WEEKLY REFRESH, A DAILY CRON ────────────────────────────────
+ * Three different numbers and each is forced by something:
+ *
+ *   THE DATA is quarterly. HUD republishes four times a year.
+ *   THE REFRESH is weekly, so a new quarter is picked up within seven days. Polling daily
+ *     would fetch an identical multi-megabyte document about ninety times per quarter.
+ *   THE CRON is daily, because it has to be: AGENTS.md records that Vercel's Hobby plan
+ *     permits daily granularity ONLY and rejects a finer expression at deploy time — and a
+ *     weekly one is not finer, but `vercel.json` is where the schedule lives and a cron
+ *     expression there cannot express "the last success was seven days ago".
+ *
+ * SO THE THROTTLE IS IN THE DATA, not in the schedule, and that is the better place for it:
+ * a missed day does not skip a week, and the interval survives a cron being rescheduled. The
+ * same shape as `cycle_on` on a dunning notice — the idempotency lives in a row rather than in
+ * a clock.
+ *
+ * ── AND THE DANGEROUS OPERATION IS A DELETE, WHICH IS WHY IT IS SQL'S JOB ──────────
+ * `replace_zip_counties` replaces the rows for exactly the ZIPs in each batch and leaves every
+ * other ZIP alone, in one statement. So a fetch that returns half a file refreshes half the
+ * ZIPs and destroys nothing; there is no sequence of failures that empties the table. That
+ * function's own header argues it against the two alternatives, and the storage reaper's rule
+ * is the one it follows — *a truncated read treated as complete becomes a delete list.*
+ *
+ * Nothing in THIS module deletes anything.
+ *
+ * ── THE PARSING IS NEXT DOOR, AND `server-only` IS WHY ────────────────────────────
+ * `rowsFrom` lives in `lib/geo/zip-crosswalk-rows.ts` — a pure module with no imports at
+ * all — because this one opens with `import 'server-only'` and is therefore out of
+ * `npm test`'s reach. `vitest.config.mts`' `lib/**` include is a stated BOUNDARY (§7b) and
+ * stubbing `server-only` to get around it would let every server module load in the runner
+ * that exists to keep them out. The refusal rules are the part worth testing and they are
+ * the part that moved.
+ */
+
+/** The one source. Named on every refresh row so a row is readable years later. */
+const SOURCE = 'hud-usps-zip-county'
+
+/** How long a crosswalk stays fresh. See the header for why this is not the cron's schedule. */
+const REFRESH_AFTER_DAYS = 7
+
+/**
+ * How many pairs go to the database at once.
+ *
+ * The payload is ~54,000 rows and a single `replace_zip_counties` call carrying all of them
+ * would be a multi-megabyte JSON body through PostgREST and one very long statement. 5,000 is
+ * eleven calls, each atomic for its own ZIPs — which is exactly the granularity the safety
+ * argument wants: a batch that fails leaves ITS ZIPs untouched and says how far it got.
+ */
+const BATCH = 5000
+
+/**
+ * The floor a payload has to clear before it is written at all.
+ *
+ * ── A SANITY CHECK ON THE SOURCE, NOT ON OUR PARSING ──────────────────────────────
+ * There are about 41,000 US ZIPs and about 54,000 (zip, county) pairs. A response holding two
+ * hundred rows is not a smaller crosswalk — it is an error page, a truncated transfer, or a
+ * changed API that now needs a parameter. Writing it would replace two hundred ZIPs with
+ * whatever that document happened to say and leave the rest at whatever they were, which is a
+ * table nobody can reason about.
+ *
+ * Deliberately generous rather than tight: the point is to catch a document that is the wrong
+ * KIND of thing, not to police a legitimate change in the count.
+ */
+const MINIMUM_PAIRS = 20000
+
+export interface ZipCountyRefresh {
+  /** What happened, in one word a log line can carry. */
+  outcome: 'ok' | 'skipped' | 'not-due' | 'failed'
+  /** Why, for the outcomes that need it. */
+  detail?: string
+  pairs?: number
+  zips?: number
+}
+
+/**
+ * Is a refresh due?
+ *
+ * ── THE MOST RECENT SUCCESS, NOT THE MOST RECENT ATTEMPT ──────────────────────────
+ * A week of failures must not throttle the job into never trying again — which is what
+ * measuring from `started_at` of any row would do. So this reads `state = 'ok'` only, and a
+ * failing source is retried daily until it works. The opposite reading is the one that turns a
+ * transient outage into a permanent stall.
+ */
+async function lastSuccessAt(
+  admin: ReturnType<typeof createAdminClient>,
+): Promise<{ at: string | null } | { error: string }> {
+  const { data, error } = await admin
+    .from('zip_county_refreshes')
+    .select('finished_at')
+    .eq('state', 'ok')
+    .order('finished_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  // §8: the error is READ. Treating a refused query as "never refreshed" would re-fetch a
+  // multi-megabyte file every single day, which is the failure that looks like it is working.
+  if (error) return { error: error.message }
+  return { at: (data?.finished_at as string | null) ?? null }
+}
+
+/**
+ * Fetch the crosswalk and write it, if a week has passed since it last worked.
+ *
+ * Returns rather than throws, for the reason in the header: this rides on a daily route that
+ * also sends a family's dues reminders, and a crosswalk nothing reads yet must not take those
+ * down.
+ */
+export async function refreshZipCounties(
+  options: { force?: boolean } = {},
+): Promise<ZipCountyRefresh> {
+  const token = process.env.HUD_USPS_API_TOKEN?.trim()
+  if (!token) {
+    return { outcome: 'skipped', detail: 'HUD_USPS_API_TOKEN is not set' }
+  }
+
+  const admin = createAdminClient()
+
+  const last = await lastSuccessAt(admin)
+  if ('error' in last) {
+    return { outcome: 'failed', detail: `could not read the refresh log: ${last.error}` }
+  }
+  if (!options.force && last.at) {
+    const days = (Date.now() - new Date(last.at).getTime()) / 86_400_000
+    if (days < REFRESH_AFTER_DAYS) {
+      return {
+        outcome: 'not-due',
+        detail: `last refreshed ${days.toFixed(1)} day(s) ago; due after ${REFRESH_AFTER_DAYS}`,
+      }
+    }
+  }
+
+  // THE ATTEMPT IS RECORDED BEFORE THE FETCH, so a run that dies mid-transfer leaves a
+  // `running` row rather than no trace — which is the difference between "the job crashed" and
+  // "the job never ran", and they need different fixes. It is deliberately NOT a claim: this
+  // job has exactly one caller on a daily schedule, so there is no concurrency to guard, and a
+  // claim would need a recovery window like `stripe_webhook_events` has.
+  const { data: attempt, error: attemptError } = await admin
+    .from('zip_county_refreshes')
+    .insert({ source: SOURCE, state: 'running' })
+    .select('id')
+    .single()
+  if (attemptError || !attempt) {
+    return { outcome: 'failed', detail: `could not open a refresh row: ${attemptError?.message}` }
+  }
+  const attemptId = attempt.id as string
+
+  const finish = async (
+    state: 'ok' | 'failed',
+    extra: { pairs?: number; zips?: number; error?: string },
+  ) => {
+    const { error } = await admin
+      .from('zip_county_refreshes')
+      .update({ state, finished_at: new Date().toISOString(), ...extra })
+      .eq('id', attemptId)
+    // Logged and not returned: the WORK either happened or it did not, and failing to write
+    // the log afterwards must not be reported as the refresh having failed. What it costs is
+    // a `running` row that never resolves, which is visible.
+    if (error) console.error(`[zip-counties] could not close refresh ${attemptId}: ${error.message}`)
+  }
+
+  let payload: unknown
+  try {
+    // A TIMEOUT, EXPLICITLY. A hanging endpoint would otherwise hold the whole daily route
+    // open until the platform kills it — taking the dues reminders and the two reapers that
+    // run after it with it. TODO.md names this for the poller and it is the same hazard.
+    const response = await fetch(
+      'https://www.huduser.gov/hudapi/public/usps?type=2&query=All',
+      {
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(120_000),
+        // No caching: a cached crosswalk is a refresh that did not happen and would look
+        // exactly like one that did.
+        cache: 'no-store',
+      },
+    )
+    if (!response.ok) {
+      const detail = `HUD answered ${response.status}`
+      await finish('failed', { error: detail })
+      return { outcome: 'failed', detail }
+    }
+    payload = await response.json()
+  } catch (e) {
+    const detail = `fetch failed: ${e instanceof Error ? e.message : String(e)}`
+    await finish('failed', { error: detail })
+    return { outcome: 'failed', detail }
+  }
+
+  const parsed = rowsFrom(payload)
+  if ('error' in parsed) {
+    await finish('failed', { error: parsed.error })
+    return { outcome: 'failed', detail: parsed.error }
+  }
+
+  // ── THE FLOOR, BEFORE ANYTHING IS WRITTEN ────────────────────────────────────────
+  // See `MINIMUM_PAIRS`. Checked here rather than per batch, because the question is about the
+  // DOCUMENT and a batch cannot answer it.
+  if (parsed.rows.length < MINIMUM_PAIRS) {
+    const detail =
+      `only ${parsed.rows.length} pair(s) — below the ${MINIMUM_PAIRS} floor, so this is a `
+      + 'truncated or changed response rather than a smaller crosswalk. Nothing was written'
+    await finish('failed', { error: detail, pairs: parsed.rows.length })
+    return { outcome: 'failed', detail }
+  }
+
+  let written = 0
+  const zips = new Set<string>()
+  for (let i = 0; i < parsed.rows.length; i += BATCH) {
+    const batch = parsed.rows.slice(i, i + BATCH)
+    const { error } = await admin.rpc('replace_zip_counties', { p_rows: batch })
+    if (error) {
+      // WHAT WAS WRITTEN IS RECORDED, not discarded. Each earlier batch replaced its own ZIPs
+      // atomically and correctly, so the honest report is "this far and no further" — and the
+      // next run refreshes the rest, because the throttle reads a SUCCESSFUL refresh only.
+      const detail = `batch at row ${i} failed after ${written} pair(s): ${error.message}`
+      await finish('failed', { error: detail, pairs: written, zips: zips.size })
+      return { outcome: 'failed', detail, pairs: written, zips: zips.size }
+    }
+    written += batch.length
+    for (const row of batch) zips.add(row.zip)
+  }
+
+  await finish('ok', { pairs: written, zips: zips.size })
+  return { outcome: 'ok', pairs: written, zips: zips.size }
+}

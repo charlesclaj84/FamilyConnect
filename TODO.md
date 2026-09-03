@@ -353,6 +353,37 @@ but worth saying in the same breath: none of these values lives in `config.toml`
 They are Vercel environment variables and Meta dashboard settings.
 
 Recorded 2026-08-23.
+### [ ] `HUD_USPS_API_TOKEN`: one free registration, and the crosswalk is inert without it
+
+**Action:** register at `huduser.gov/portal/dataset/uspszip-api.html`, mint a token, set
+`HUD_USPS_API_TOKEN` on Vercel. It is free and takes minutes; nothing in this repo can obtain
+it, because the registration is a form with an email confirmation behind it.
+
+**WHAT HAPPENS WITHOUT IT IS `skipped`, DELIBERATELY, AND NOT AN ERROR.**
+`refreshZipCounties()` returns `{ outcome: 'skipped' }` when the variable is absent, because a
+missing credential is a deployment state rather than a fault — and its route answers 200 for
+it, so a monitor does not report a red job for a table nothing reads yet. `sendEmail`'s
+fails-soft reasoning applied to a fetch.
+
+**SO THE TABLE BEING EMPTY IS THE EXPECTED STATE UNTIL THIS IS DONE**, and both
+`zip_counties` and `zip_county_refreshes` are named in `audit_global_lookups.sql`'s
+`allowed_empty` list with exactly that sentence. That is what stops §2's *"any `public` table
+that is empty and has no transitive foreign-key path to a `family_code`"* audit holding the
+Vercel alias on the next merge — the failure this project has already had once, from
+`stripe_webhook_events`.
+
+**HOW TO TELL IT WORKED**, once the token is set: `zip_county_refreshes` gains a row with
+`state = 'ok'`, and `pairs` should be somewhere near 54,000 across roughly 41,000 ZIPs. A
+`failed` row carries the reason in its `error` column, and the two worth recognising are
+`HUD answered 401` (the token is wrong) and *"below the 20000 floor"* (the response is an
+error page or a changed API rather than a smaller crosswalk — see the section on the
+crosswalk for why nothing is written in that case).
+
+`?force=1` on `/api/geo/zip-counties` bypasses the weekly throttle, behind `CRON_SECRET`, so
+the first run does not have to wait for the schedule.
+
+Recorded 2026-09-03.
+
 
 ### [ ] SMS: an account, a registered campaign, and four environment variables
 
@@ -711,59 +742,80 @@ wrong would look like a working integration.
 spent attempts on a live subscription are visible only in a log line. That is the honest gap, and
 it is smaller than the one it replaced: before this, the same charge was invisible AND had no row.
 
-## `http` is not installed, and the one feature that wants it is blocked on DATA
+## `http` is still not installed, and the feature that wanted it is now blocked on REACH alone
 
-**Action:** get a ZIP-to-county crosswalk, or decide the weather poller waits behind a delivery
-channel. Nothing else wants the extension.
+**Action:** build push or SMS. The data dependency this entry was named for is closed, and the
+extension turned out not to be wanted at all.
 
-`pg_cron` went in with `20260823000006`, which schedules `apply_due_platform_tier_changes()`;
-`20260901000002` added `platform-billing-ladder`. Both run ONCE A DAY since `20260901000005` —
-00:05 and 00:20 UTC, in that order because the ladder measures state the sweep has just moved —
-and both are created in a migration and asserted there, never in the dashboard. `pg_net`
-(0.20.3), `http` (1.6) and `postgis` (3.3.7) are all AVAILABLE on this project and **none is
-installed**.
+**THE ZIP-TO-COUNTY CROSSWALK IS BUILT — 2026-09-03.** `20260903000002` ships `zip_counties`
+(PK `(zip, county_fips)`, because a ZIP that straddles two counties is two rows and collapsing
+it to one is the whole failure this table exists to avoid), a `zip_county_refreshes` log, and
+`replace_zip_counties(jsonb)`. `lib/geo/zip-counties.ts` fetches HUD's file, `lib/geo/
+zip-crosswalk-rows.ts` reads it, and `/api/geo/zip-counties` runs weekly off a daily Vercel
+cron. **It needs `HUD_USPS_API_TOKEN`** — a free huduser.gov registration, and the one thing
+nobody in this repo can supply; see GO LIVE below. Both tables are on
+`audit_global_lookups.sql`'s `allowed_empty` list until it exists, and say so.
 
-**THE LADDER DECLINED `pg_net`, WHICH IS THE PRECEDENT WORTH READING BEFORE INSTALLING EITHER.**
-It needed to send email on a schedule and could have done it from SQL. It does not: `pg_cron`
-owns the STATE and a Vercel cron drains a queue for the MAIL, because an outbound HTTP call
-inside a transaction that also deletes a family tree is not a thing to add casually, and because
-a queue in a table is recoverable in a way a fire-and-forget POST is not. `VERCEL.md` argues it.
+Four decisions in it are worth reading before touching any of it, because each was measured:
 
-That is not an argument against the extension in general — it is an argument that "the job needs
-the network" is not on its own sufficient, and the alternative is usually a table.
+* **THE THROTTLE IS IN THE DATA, NOT THE SCHEDULE.** HUD publishes quarterly, the refresh is
+  weekly, the cron is daily — three numbers, and the last is forced (Vercel's Hobby plan
+  permits daily granularity ONLY). So `lastSuccessAt` reads `state = 'ok'` rows and nothing
+  else: measuring from the last ATTEMPT would let a week of failures throttle the job into
+  never trying again, which is the reading that turns an outage into a permanent stall.
+  `cycle_on`'s argument on a dunning notice, one table over.
+* **A FETCH THAT RETURNS HALF A FILE REFRESHES HALF THE ZIPS AND DESTROYS NOTHING.**
+  `replace_zip_counties` deletes exactly the ZIPs its own payload names and reinserts them, so
+  there is no sequence of failures that empties the table. Truncate-and-insert was the obvious
+  shape and one bad response empties it; upsert-only never removes a county a ZIP was
+  reassigned out of. The storage reaper's rule, applied to a read — *a truncated read treated
+  as complete becomes a delete list.*
+* **AND THE FLOOR IS ON THE DOCUMENT, NOT THE BATCH.** ~54,000 pairs is the real figure and
+  `MINIMUM_PAIRS = 20000` refuses anything below it before a single row is written: two hundred
+  rows is an error page or a changed API, not a smaller crosswalk, and writing it would replace
+  two hundred ZIPs with whatever that document happened to say. A batch cannot ask this
+  question, which is why it is asked once, up front.
+* **THE PARSER REFUSES RATHER THAN FILTERS, AND ITS TEST IS WHERE THE BUG WAS.** Dropping an
+  unreadable row would refresh a ZIP with a PARTIAL county list — invisible afterwards, because
+  the surviving row looks normal. `lib/geo/zip-crosswalk-rows.test.ts` is mutation-checked seven
+  ways and found a real one: `Number('')` and `Number(null)` are both `0`, so a blank
+  `res_ratio` read as *"none of this ZIP is in this county"* rather than as *"the source did not
+  say"*.
 
-### ALERT-DRIVEN CHECK-IN SUGGESTIONS — BLOCKED ON REACH, NOT ON DATA ANY MORE
+**`http` IS NOT WANTED FOR IT, WHICH IS THE PART THAT GENERALISES.** This entry existed on the
+assumption that a job needing the network needs the extension. It does not: `pg_net` (0.20.3),
+`http` (1.6) and `postgis` (3.3.7) are all AVAILABLE on this project and **none is installed**,
+and the crosswalk shipped with `pg_cron` untouched. The ladder set that precedent — `pg_cron`
+owns the STATE and a Vercel cron owns the NETWORK — and this is the second job to take it, this
+time more strongly: `http` is synchronous and would hold a database connection open for a
+multi-megabyte transfer, and `pg_net` is fire-and-forget so the body would need a second pass
+and a reaper. `fetch` in a route beats both. **"The job needs the network" is still not an
+argument for the extension.**
 
-The scheduler was the stated blocker and it is gone: `pg_cron` is installed, and `http` is one
-`CREATE EXTENSION` in a migration away. **What blocks this now is DATA, and it is worth stating
-precisely so nobody re-reads the old entry and starts on the wrong half.**
+### ALERT-DRIVEN CHECK-IN SUGGESTIONS — REACH IS NOW THE WHOLE OF IT
 
-FutureFeature.md §5 item 3 is the whole of it. `people` holds `city`, `state` and `zip_code` —
-no latitude, no longitude, no geocoding, and PostGIS is not installed. NWS alerts carry county
-FIPS and UGC zones. So there are two ways to match a relative to an alert and neither is
-available:
+FutureFeature.md §5 item 3. What remains after the crosswalk is one matching problem and one
+delivery problem, and only the second is blocking.
 
-* **County-level** needs a ZIP-to-county crosswalk. That is a data dependency — the HUD USPS
-  file or the Census ZCTA relationship file, about 41,000 rows — and bundling one is a real
-  decision about a ~1MB government dataset in the repo, its licence, and who re-derives it when
-  ZIPs change. It is not hard; it is simply not something to do in passing.
-* **State-level** needs no new data except that `state` is not normalised — `pickProfileColumns`
-  normalises name case and phone country code only, so `TX`, `Texas` and `texas` are three kinds
-  of record and any state match silently misses two of them. **And state-level is too coarse to
-  be worth building anyway:** a tornado warning covers three counties out of Texas's 254, so
-  asking every Texan relative each time is how the feature gets ignored.
+**THE MATCH IS NOW AVAILABLE AND IS COUNTY-LEVEL.** NWS alerts carry county FIPS and UGC zones;
+`people.zip_code` joins `zip_counties` on `zip`, and `county_fips` is the 5-digit state+county
+code an alert names. `res_ratio` is carried for a consumer that needs ONE county out of several
+and is deliberately nullable — a null means the source did not say, which a highest-ratio sort
+reads as last rather than as zero.
 
-**THE SEQUENCING ARGUMENT IS STILL THE DECISIVE ONE**, and it has not changed: *automation
+**STATE-LEVEL IS STILL NOT WORTH BUILDING**, and the reason has not changed: `state` is not
+normalised (`pickProfileColumns` normalises name case and phone country code only, so `TX`,
+`Texas` and `texas` are three kinds of record), and it is too coarse anyway — a tornado warning
+covers three counties out of Texas's 254, so asking every Texan relative each time is how the
+feature gets ignored. County-level is what the crosswalk bought.
+
+**THE SEQUENCING ARGUMENT IS THE ONE THAT STILL BLOCKS, AND IT IS UNCHANGED:** *automation
 improves the TRIGGER, not the REACH — and reach is the feature.* The bell needs an open tab,
 `IdleTimeout` signs a member out after 60 idle minutes, and `sendEmail` fails soft. Detecting a
-hurricane faster than the family's own group text is worth nothing if the message cannot land,
-so push or SMS comes first. SMS is in no plan at all.
-
-**`http` (synchronous) probably still beats `pg_net` for the poller when it happens.** `pg_net`
-is fire-and-forget — the response lands in a `net` table for a limited window, so a job that
-needs the body is two passes and a reaper. A poll that fetches, matches and writes in one
-statement wants the synchronous extension, with an explicit timeout so a hanging endpoint cannot
-wedge the job.
+hurricane faster than the family's own group text is worth nothing if the message cannot land.
+**SMS is the stated goal and it is in no plan at all** — no provider, no `sms_*` sender, no
+per-message cost decided, and `sms_consent_events` is a consent record with nothing writing to
+it. That is the next build, and it is a build rather than a config change.
 
 **Two things to carry into whatever is scheduled next, and the first is the one that will bite.**
 
@@ -773,15 +825,18 @@ wedge the job.
   able to see it. **It must be created in a migration and asserted there** — all three existing
   jobs are. AGENTS.md's "REALTIME NEEDS THE TABLE IN A PUBLICATION" is the same incident
   arriving through `cron.job`, and that section's warning about an instruction in a migration
-  addressed to a person applies word for word.
+  addressed to a person applies word for word. **A VERCEL CRON IS THE SAME CLASS ONE LAYER UP**,
+  which is why the crosswalk's schedule is in `vercel.json` and argued in `VERCEL.md` rather
+  than set in a dashboard.
 * **A job has no `auth.uid()`, so it has no caller to authorize.** That is why the alert poller
   must SUGGEST and a person must RAISE (FutureFeature.md §5 argues it): automating the raise
   means inventing a system actor and hanging the family's most sensitive write off it, with
   §2b's rule about never taking an identity as a parameter standing in the way. **The precedent
-  is now set by the two jobs that exist** — neither invents an actor, and the reminder resolves
-  every recipient from a `people` row it read itself rather than from any argument.
+  is now set by three jobs** — none invents an actor; the reminder resolves every recipient
+  from a `people` row it read itself, and the crosswalk writes a lookup table with no family
+  and no person anywhere in it.
 
-Recorded 2026-08-23, rewritten 2026-09-01.
+Recorded 2026-08-23, rewritten 2026-09-01 and 2026-09-03.
 
 ## GO LIVE: the Send Email hook is ON. What is left is proving it and retiring the fallback
 

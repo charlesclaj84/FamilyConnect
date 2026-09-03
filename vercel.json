@@ -4,6 +4,10 @@
     {
       "path": "/api/billing/notices",
       "schedule": "40 0 * * *"
+    },
+    {
+      "path": "/api/geo/zip-counties",
+      "schedule": "0 3 * * *"
     }
   ]
 }
