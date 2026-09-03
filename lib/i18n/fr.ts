@@ -1505,6 +1505,7 @@ export const fr: Catalogue = {
   'page./staff/access.title': 'Accès',
   'page./staff/accounts.title': 'Comptes',
   'page./staff/families.title': 'Familles',
+  'page./staff/status.title': 'État du système',
   // ── PAGE HEADINGS ────────────────────────────────────────────────────────────────
   // The same words as the rail for most screens, and kept as separate keys for the reason
   // `en.ts` gives. *Rassemblements* / *Réunions* divides here exactly as it does above.
@@ -3719,6 +3720,20 @@ export const fr: Catalogue = {
   'staff.overview': 'Vue d’ensemble',
   'staff.families': 'Familles',
   'staff.accounts': 'Comptes',
+  'staff.status': 'État',
+  'staff.grant': 'Forfait',
+  'staff.grantTitle': 'Définir le forfait de {name}',
+  'staff.grantBody':
+    '{code} est sur {tier}. Le changer ici place la famille sur un forfait payant SANS '
+    + 'abonnement : rien n’est facturé et rien n’est créé chez Stripe.',
+  'staff.grantPlan': 'Forfait',
+  'staff.grantReason': 'Motif',
+  'staff.grantReasonPlaceholder': 'Famille pilote jusqu’en mars ; convenu avec Charles.',
+  'staff.grantReasonHint':
+    'Enregistré au nom de votre compte. C’est le seul enregistrement indiquant qu’il '
+    + 's’agissait d’une décision : écrivez ce dont quelqu’un aurait besoin dans un an.',
+  'staff.grantReasonRequired': 'Un motif est requis.',
+  'staff.grantConfirm': 'Définir le forfait',
   'staff.access': 'Accès',
   'staff.whoHasAccess': 'Qui a accès',
   'staff.account': 'Compte',
@@ -4073,6 +4088,33 @@ export const fr: Catalogue = {
     'Cette adresse n’a pas pu être identifiée sans ambiguïté — saisissez-la '
     + 'exactement et réessayez.',
   'act.couldNotRestoreFamilyPlease': 'Cette famille n’a pas pu être restaurée. Réessayez.',
+  'act.couldNotGrantPlanPlease': 'Nous n’avons pas pu accorder ce forfait. Réessayez.',
+  'act.grantReturnedNoResultPlease': 'L’attribution n’a renvoyé aucun résultat. Réessayez.',
+  'stf.readRefused':
+    'Une lecture a été refusée : ces chiffres sont donc retenus plutôt qu’affichés à zéro.',
+  'stf.statusBlurb':
+    'Ce que le travail planifié de la plateforme a réellement fait. Toutes les heures sont '
+    + 'en UTC, car tous les travaux ici sont planifiés en UTC.',
+  'stf.utc': 'UTC',
+  'stf.jobOk': 'Réussi',
+  'stf.jobFailed': 'Échoué',
+  'stf.jobRunning': 'En cours',
+  'stf.jobNever': 'Aucun enregistrement — il n’a pas été exécuté.',
+  'stf.zipTitle': 'Correspondance code postal-comté',
+  'stf.zipBlurb':
+    'HUD publie le fichier USPS chaque trimestre ; l’actualisation s’exécute chaque semaine '
+    + 'à partir d’un cron quotidien. Elle nécessite HUD_USPS_API_TOKEN et est ignorée en silence sans lui.',
+  'stf.zipLatest': 'Dernière tentative',
+  'stf.zipLastOk': 'Dernière réussite',
+  'stf.zipPairs': 'Paires code postal-comté enregistrées',
+  'stf.zipEmpty':
+    'Vide est l’état attendu jusqu’à ce que HUD_USPS_API_TOKEN soit défini et que la première actualisation s’exécute.',
+  'stf.grantsTitle': 'Forfaits accordés par le personnel',
+  'stf.grantsBlurb':
+    'Familles placées sur un forfait payant sans abonnement, les plus récentes d’abord. '
+    + 'Chaque ligne est l’enregistrement d’audit d’une décision.',
+  'stf.grantsNone': 'Aucun forfait n’a été accordé.',
+  'stf.grantForced': 'Forcé malgré l’état de facturation',
   'act.couldNotSave': 'Cela n’a pas pu être enregistré',
   'act.couldNotSaveNumber': 'Ce numéro n’a pas pu être enregistré',
   'act.couldNotSaveSegmentJust': 'Ce segment n’a pas pu être enregistré pour le moment. Réessayez.',

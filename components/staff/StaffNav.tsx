@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Building2, CreditCard, KeyRound, LayoutGrid, UserSearch } from 'lucide-react'
+import { Activity, Building2, CreditCard, KeyRound, LayoutGrid, UserSearch } from 'lucide-react'
 import type { StaffRole } from '@/lib/auth/staff'
 import { cn } from '@/lib/utils'
 import { useT } from '@/components/layout/LocaleProvider'
@@ -81,6 +81,15 @@ function items(t: T) {
     { href: '/staff/subscriptions', label: t('staff.subscriptions'), icon: CreditCard, ownerOnly: false },
     { href: '/staff/families', label: t('staff.families'), icon: Building2, ownerOnly: false },
     { href: '/staff/accounts', label: t('staff.accounts'), icon: UserSearch, ownerOnly: false },
+    // ── STATUS AFTER THE ROSTERS AND BEFORE ACCESS — 2026-09-03 ─────────────────────
+    // It is about the PLATFORM rather than about any family, so it does not belong inside
+    // the widest-to-narrowest run above: Subscriptions, Families and Accounts are three
+    // depths of the same subject and this is a different one.
+    //
+    // NOT owner-only. It reads and changes nothing, and it is where a support conversation
+    // that starts "is something broken?" ends up — `owner` is the line for irreversible
+    // acts, which is the same reading Subscriptions takes.
+    { href: '/staff/status', label: t('staff.status'), icon: Activity, ownerOnly: false },
     // LAST, and not because it is least important. It is the only destination here that
     // changes who can open the console at all, and the three above it are the ones somebody
     // opens the console to do. A key rather than a shield: `ShieldCheck` is already the

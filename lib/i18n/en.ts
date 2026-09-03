@@ -1496,6 +1496,7 @@ export const en: Catalogue = {
   'page./staff/access.title': 'Access',
   'page./staff/accounts.title': 'Accounts',
   'page./staff/families.title': 'Families',
+  'page./staff/status.title': 'System status',
   // ── PAGE HEADINGS ────────────────────────────────────────────────────────────────
   // The `<h1>` at the top of each screen, keyed on its ROUTE — which §1 makes the same string
   // as its permission key, so `page.<key>.title` needs no lookup table.
@@ -3727,6 +3728,23 @@ export const en: Catalogue = {
   'staff.overview': 'Overview',
   'staff.families': 'Families',
   'staff.accounts': 'Accounts',
+  'staff.status': 'Status',
+  // ── THE PLAN GRANT ───────────────────────────────────────────────────────────────
+  // "Grant" and not "upgrade": the same control takes a family back DOWN, and a button
+  // labelled Upgrade that can also demote is a button somebody presses expecting one thing.
+  'staff.grant': 'Plan',
+  'staff.grantTitle': 'Set the plan for {name}',
+  'staff.grantBody':
+    '{code} is on {tier}. Changing it here puts them on a paid plan with NO subscription — '
+    + 'nothing is charged and nothing is created at Stripe.',
+  'staff.grantPlan': 'Plan',
+  'staff.grantReason': 'Why',
+  'staff.grantReasonPlaceholder': 'Pilot family through March; agreed with Charles.',
+  'staff.grantReasonHint':
+    'Recorded against your account. It is the only record that this was a decision, so '
+    + 'write what somebody would need in a year.',
+  'staff.grantReasonRequired': 'A reason is required.',
+  'staff.grantConfirm': 'Set plan',
   'staff.access': 'Access',
   'staff.whoHasAccess': 'Who has access',
   'staff.account': 'Account',
@@ -4065,6 +4083,43 @@ export const en: Catalogue = {
     'Could not resolve that address unambiguously — type it exactly and try '
     + 'again.',
   'act.couldNotRestoreFamilyPlease': 'Could not restore that family. Please try again.',
+  'act.couldNotGrantPlanPlease': 'Could not grant that plan. Please try again.',
+  'act.grantReturnedNoResultPlease': 'The grant returned no result. Please try again.',
+  // ── THE STATUS SCREEN ──────────────────────────────────────────────────────────────
+  // "Refused" and not "failed": a read the database declined is a different fact from a
+  // job that failed, and this screen shows both — conflating them would send somebody
+  // looking at a cron over a permissions problem.
+  'stf.readRefused': 'A read was refused, so these figures are withheld rather than shown as zero.',
+  'stf.statusBlurb':
+    'What the platform’s scheduled work has actually been doing. Every time is UTC, '
+    + 'because every job here is scheduled in UTC.',
+  'stf.utc': 'UTC',
+  'stf.jobOk': 'Succeeded',
+  'stf.jobFailed': 'Failed',
+  'stf.jobRunning': 'Running',
+  // NEVER RUN IS NOT A FAILURE — the crosswalk needs a credential this repo cannot supply,
+  // so this is the expected state until somebody sets it.
+  'stf.jobNever': 'No record — it has not run.',
+  'stf.zipTitle': 'ZIP-to-county crosswalk',
+  'stf.zipBlurb':
+    'HUD publishes the USPS file quarterly; the refresh runs weekly off a daily cron. It '
+    + 'needs HUD_USPS_API_TOKEN and skips silently without one.',
+  'stf.zipLatest': 'Last attempt',
+  'stf.zipLastOk': 'Last success',
+  'stf.zipPairs': 'ZIP-county pairs held',
+  'stf.zipEmpty': 'Empty is expected until HUD_USPS_API_TOKEN is set and the first refresh runs.',
+  'stf.grantsTitle': 'Plans granted by staff',
+  'stf.grantsBlurb':
+    'Families put on a paid plan without a subscription, most recent first. Each row is '
+    + 'the audit record for one decision.',
+  'stf.grantsNone': 'No plans have been granted.',
+  'stf.grantForced': 'Forced over billing state',
+  // ── THE STATUS SCREEN ──────────────────────────────────────────────────────────────
+  // "Refused" and not "failed": a read the database declined is a different fact from a
+  // job that failed, and this screen shows both — conflating them would send somebody
+  // looking at a cron over a permissions problem.
+  // NEVER RUN IS NOT A FAILURE — the crosswalk needs a credential this repo cannot supply,
+  // so this is the expected state until somebody sets it.
   'act.couldNotSave': 'Could not save that',
   'act.couldNotSaveNumber': 'Could not save that number',
   'act.couldNotSaveSegmentJust': 'Could not save that segment just now. Try again.',

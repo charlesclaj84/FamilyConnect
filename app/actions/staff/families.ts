@@ -329,3 +329,96 @@ export async function restoreFamily(familyCode: string): Promise<StaffFamilyActi
   revalidatePath('/staff')
   return { success: true, familyCode: code, status: readStatus(row.status) }
 }
+
+/** What a plan grant answers with. Separate from `StaffFamilyActionResult`, whose success
+ *  branch carries a `status` and would have to grow a meaningless one. */
+export type StaffTierGrantResult =
+  | { success: true; familyCode: string; tier: FamilyTier; message: string }
+  | { success: false; message: string }
+
+/**
+ * Put a family on a paid plan without a subscription.
+ *
+ * ── WHY THIS EXISTS ────────────────────────────────────────────────────────────────
+ * Asked for 2026-09-03: a pilot family, a founding family, a gesture after an outage, a
+ * demonstration account. None of them has a card on file and all of them need the paid
+ * screens — and until now the only way to do it was an UPDATE typed into the table by hand,
+ * which recorded nothing about who did it or why.
+ *
+ * ── IT IS NOT `setFamilyTier`, AND THE DIFFERENCE IS WHO IS ACTING ────────────────
+ * `app/actions/admin/family.ts` already moves a tier, gated on `admin/family:edit` at scope
+ * `'any'` — that is a FAMILY's own administrator changing their own family's plan, described
+ * in its own header as scaffolding until billing exists. This is GENORRA staff acting across
+ * families, so it is `requireStaff()` and it writes an audit row. Neither replaces the other
+ * and neither should be reimplemented in terms of the other: their gates answer different
+ * questions.
+ *
+ * ── EVERY DECISION IS IN THE SQL, WHICH IS WHERE IT HAS TO BE ─────────────────────
+ * `staff_grant_family_tier` (20260903000004) holds the staff gate, the tier validation
+ * against `families_tier_check`, the required reason, and the one refusal that matters — a
+ * family with a `scheduled_tier` or a `delinquent_since` would have this grant swept back,
+ * and at day 60 of the ladder that sweep DELETES the data the tier was carrying.
+ *
+ * This function deliberately re-checks NONE of it. A second copy of the tier list here would
+ * be a third place for that vocabulary to drift (the SQL asserts against the constraint in
+ * both directions), and a second copy of the billing refusal would be the more dangerous
+ * kind of duplication: a check that agrees today and quietly stops agreeing.
+ *
+ * `families_guard_tier` refuses the `authenticated` role outright, so the service role is
+ * the only path and the function is granted to nobody.
+ */
+export async function staffGrantFamilyTier(
+  familyCode: string,
+  tier: string,
+  note: string,
+  force = false,
+): Promise<StaffTierGrantResult> {
+  const staff = await requireStaff()
+  const { t } = await callerI18n(staff.userId)
+
+  // Upper-cased here as well as inside the function, for `restoreFamily`'s reason: the
+  // messages name the code back to the caller, and echoing whatever they typed while the
+  // database matched something else is confusing in exactly the moment somebody is deciding
+  // whether the grant worked.
+  const code = (familyCode ?? '').trim().toUpperCase()
+  if (!code) return { success: false, message: t('act.enterFamilyCode2') }
+
+  const { data, error } = await createAdminClient().rpc('staff_grant_family_tier', {
+    p_family_code: code,
+    p_tier: (tier ?? '').trim().toLowerCase(),
+    p_note: note ?? '',
+    p_force: force,
+    p_user_id: staff.userId,
+  })
+
+  if (error) {
+    console.error(`[staff/families] tier grant for ${code} was refused: ${error.message}`)
+    return { success: false, message: t('act.couldNotGrantPlanPlease') }
+  }
+
+  // RETURNS TABLE, so supabase-js hands back an array even though the function emits one
+  // row. Reading `data[0]` blindly would turn "the function returned nothing" into a
+  // TypeError in a server action, which reaches the browser as an opaque failure.
+  const row = (Array.isArray(data) ? data[0] : data) as
+    { ok: boolean; family_code: string | null; tier: string | null; message: string | null }
+    | undefined
+
+  if (!row) return { success: false, message: t('act.grantReturnedNoResultPlease') }
+  if (!row.ok) {
+    // THE FUNCTION'S OWN MESSAGE, VERBATIM, and it is carrying real information here rather
+    // than a generic refusal: which billing state would undo the grant, or which tiers are
+    // valid. The caller has already been proven to be staff, so there is nothing to withhold.
+    return { success: false, message: row.message ?? 'Could not grant that plan.' }
+  }
+
+  // The list, the index whose counts move, and the status page that reports recent grants.
+  revalidatePath('/staff/families')
+  revalidatePath('/staff')
+  revalidatePath('/staff/status')
+  return {
+    success: true,
+    familyCode: code,
+    tier: normalizeTier(row.tier),
+    message: row.message ?? '',
+  }
+}

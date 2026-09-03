@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState, useTransition } from 'react'
-import { RotateCcw } from 'lucide-react'
+import { RotateCcw, TrendingUp } from 'lucide-react'
 import { MEMBER_PAGE_SIZE } from '@/lib/pagination'
 import { MemberSearchBox, Pager } from '@/components/admin/MemberSearch'
 import { SortTh, useTableSort } from '@/components/ui/sortable-header'
@@ -11,14 +11,17 @@ import { FormError } from '@/components/ui/form-message'
 import { useConfirm } from '@/components/ui/confirm'
 import { Button } from '@/components/ui/button'
 import { formatDate } from '@/lib/date-utils'
-import { TIER_LABEL } from '@/lib/tiers'
+import { TIER_LABEL, TIERS, type FamilyTier } from '@/lib/tiers'
 import { cn } from '@/lib/utils'
 import {
-  listStaffFamilies, restoreFamily,
+  listStaffFamilies, restoreFamily, staffGrantFamilyTier,
   type StaffFamilyPage, type StaffFamilyRow,
 } from '@/app/actions/staff/families'
 import { useIntlTag, useT } from '@/components/layout/LocaleProvider'
 import { StaffDeleteFamilyDialog } from '@/components/staff/StaffDeleteFamilyDialog'
+import { Dialog } from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Select } from '@/components/ui/select'
 
 /**
  * Every family on the platform, filtered and paged, with one action: put a removed one
@@ -109,6 +112,9 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
     status: r => r.status,
   }, 'incoming')
   const [error, setError] = useState('')
+  const [granting, setGranting] = useState<StaffFamilyRow | null>(null)
+  const [grantTier, setGrantTier] = useState<FamilyTier>('free')
+  const [grantNote, setGrantNote] = useState('')
   // ── WHAT A DELETION LEFT BEHIND, AND WHAT IT STOPPED ──────────────────────────────
   // Not a courtesy. `deleteFamilyPermanently` reports two things a person has to act on or
   // account for — storage objects it could not remove, and the Stripe subscriptions it
@@ -188,6 +194,57 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
       // console's own routes, and a status this screen invented locally could disagree
       // with what the database actually did — on the one screen whose job is saying what
       // is true.
+      load()
+    })
+  }
+
+  /**
+   * Put a family on a paid plan without a subscription.
+   *
+   * ── A DIALOG RATHER THAN A `confirm()`, BECAUSE IT ASKS FOR TWO THINGS ──────────
+   * `useConfirm` takes a yes and gives back a boolean, and this needs a plan AND a reason.
+   * The reason is the whole difference between an audit record and a log line: a row
+   * reading "ALPHATEST free -> premium" answers nothing a year later.
+   *
+   * `staff_grant_family_tier` refuses an empty reason itself, so this form is not the gate
+   * — it is where a granter is asked BEFORE the refusal rather than after it.
+   *
+   * ── AND `force` IS NOT OFFERED HERE, DELIBERATELY ───────────────────────────────
+   * The SQL takes `p_force` for somebody who has decided to override a pending sweep, and
+   * this screen does not pass it. A checkbox beside a plan picker is how an override gets
+   * taken by accident — and the refusal it would bypass is the one that stops a grant being
+   * silently reversed, or followed by a deletion, six weeks later. The message names the
+   * billing state instead, which is the thing to go and look at.
+   */
+  function openGrant(row: StaffFamilyRow) {
+    setError('')
+    setGrantNote('')
+    setGrantTier(row.tier)
+    setGranting(row)
+  }
+
+  function submitGrant() {
+    const row = granting
+    if (!row) return
+    // Asked for here as well as refused in SQL, so the granter is told before the round
+    // trip. Trimmed, because a reason of three spaces is not one.
+    if (!grantNote.trim()) { setError(t('staff.grantReasonRequired')); return }
+
+    setError('')
+    startTransition(async () => {
+      const result = await staffGrantFamilyTier(row.familyCode, grantTier, grantNote.trim())
+      if (!result.success) {
+        // THE FUNCTION'S OWN MESSAGE, VERBATIM. The interesting failure is not "not
+        // authorized" — the caller is staff by then — it is "this family has billing state
+        // that would undo the grant: a scheduled change to 'free'". That sentence names
+        // what to look at, and summarising it would throw away the only useful part.
+        setError(result.message)
+        return
+      }
+      setGranting(null)
+      // Re-read rather than patching the row, for `handleRestore`'s reason: a plan this
+      // screen invented locally could disagree with what the database did, on the one
+      // screen whose job is saying what is true.
       load()
     })
   }
@@ -315,6 +372,30 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
                           {t('staff.restore')}
                         </Button>
                       ) : null}
+                      {/* ── THE PLAN, WHICH ANY STAFF MEMBER MAY CHANGE ───────────────
+                          Asked for 2026-09-03: a way to put a family on a paid plan without
+                          an active subscription. It was an UPDATE typed into the table by
+                          hand, which recorded nothing about who did it or why.
+
+                          NOT owner-only, and that is a judgement rather than an oversight.
+                          `owner` is the line for irreversible acts — permanent deletion, and
+                          who else may open the console — and a plan grant is reversed by
+                          using this same control again. It writes an audit row naming the
+                          granter either way, which is the thing that was missing.
+
+                          Offered for a REMOVED family too: restoring one is exactly when
+                          somebody wants to put its plan back. */}
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="ms-2"
+                        disabled={isPending}
+                        onClick={() => openGrant(row)}
+                      >
+                        <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
+                        {t('staff.grant')}
+                      </Button>
                       {/* ── AND THE ONE CONTROL WITH NO UNDO, FOR AN OWNER ────────────
                           Beside Restore rather than instead of it: a REMOVED family is the
                           usual thing to delete (somebody asked, it was disabled, the
@@ -354,6 +435,72 @@ export function StaffFamiliesClient({ initial, isOwner = false }: {
 
       <PageScopedSortNote moreThanOnePage={data.total > MEMBER_PAGE_SIZE} />
       <Pager page={page} total={data.total} onPage={next => { setOutcome(''); setPage(next) }} />
+
+      {/* ── THE PLAN GRANT, ONE DIALOG FOR WHICHEVER ROW IS OPEN ──────────────────────
+          Mounted once outside the table rather than per row, and keyed on the family — the
+          same two decisions `PersonRecordDialog` needed: one instance so there is one piece
+          of state, and a `key` so opening it for a second family cannot carry the first
+          family's half-typed reason into the form. Every field here is seeded by a
+          `useState` initializer, which runs once. */}
+      {granting && (
+        <Dialog
+          key={granting.familyCode}
+          open
+          onClose={() => setGranting(null)}
+          title={t('staff.grantTitle', { name: granting.familyName })}
+          description={t('staff.grantBody', {
+            code: granting.familyCode,
+            tier: TIER_LABEL[granting.tier],
+          })}
+        >
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label htmlFor="grant-tier">{t('staff.grantPlan')}</Label>
+              <Select
+                id="grant-tier"
+                value={grantTier}
+                onChange={e => setGrantTier(e.target.value as FamilyTier)}
+              >
+                {/* EVERY TIER, `free` INCLUDED. Taking a granted family back down is the
+                    same act in the other direction and belongs on the same control — and it
+                    is not a billing downgrade, because there is no subscription to prorate
+                    and nothing to refund. */}
+                {TIERS.map(id => (
+                  <option key={id} value={id}>{TIER_LABEL[id]}</option>
+                ))}
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="grant-note" required>{t('staff.grantReason')}</Label>
+              <textarea
+                id="grant-note"
+                value={grantNote}
+                onChange={e => setGrantNote(e.target.value)}
+                rows={3}
+                placeholder={t('staff.grantReasonPlaceholder')}
+                className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs"
+              />
+              {/* SAID ON THE FORM, because a required field whose reason is only in a
+                  refusal message teaches somebody to type a full stop. This row IS the
+                  audit record — it is the only thing that makes the grant a decision
+                  rather than an accident. */}
+              <p className="text-xs text-muted-foreground">{t('staff.grantReasonHint')}</p>
+            </div>
+
+            <FormError message={error} />
+
+            <div className="flex justify-end gap-3">
+              <Button type="button" variant="outline" onClick={() => setGranting(null)}>
+                {t('action.cancel')}
+              </Button>
+              <Button type="button" onClick={submitGrant} disabled={isPending}>
+                {isPending ? t('action.saving') : t('staff.grantConfirm')}
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
     </div>
   )
 }

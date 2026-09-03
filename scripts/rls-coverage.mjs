@@ -212,6 +212,17 @@ const NO_CASE_YET = {
   },
   'app/actions/staff/families.ts': {
     listStaffFamilies: 'STAFF', getStaffFamilyCounts: 'STAFF', restoreFamily: 'STAFF',
+    // A WRITE rather than a read, and still STAFF for the same reason: it changes a family
+    // OTHER than the caller's by design, so there is no family conjunct for a case to
+    // assert. What protects it is `requireStaff()` and `is_genorra_staff()` inside
+    // `staff_grant_family_tier`, and 20260903000004 §4 asserts the refusal directly —
+    // a non-staff caller gets 'Not authorized', measured in the migration's own verify
+    // block rather than promised here.
+    staffGrantFamilyTier: 'STAFF',
+  },
+  'app/actions/staff/status.ts': {
+    // Reads GENORRA's own scheduled-work tables, two of which have no `family_code` at all.
+    getSystemStatus: 'STAFF',
   },
 }
 
@@ -262,7 +273,24 @@ const NO_CASE_YET = {
  * calls is a slower and flakier suite — and TODO.md carries it rather than this comment
  * pretending it is a five-minute job.
  */
-const BACKLOG_CEILING = 70
+// RAISED FROM 70 TO 72 ON 2026-09-03, and the sentence this file asks for: both additions
+// are `STAFF` verdicts — `staffGrantFamilyTier` and `getSystemStatus` — not BACKLOG ones.
+//
+// THE DEBT DID NOT GROW. This count is every action without a case, whatever its verdict, so
+// a `STAFF` entry raises it exactly as an owed case would; the figure reported beside it
+// ("N still owe a case") is the one that measures debt, and it is unchanged.
+// `app/actions/staff/**` reads and writes across families BY DESIGN, so the shape every case
+// in the suite asserts is inverted there and there is no family conjunct to test — which is
+// what the `STAFF` verdict means, and why these two are not work being deferred.
+//
+// What DOES assert the boundary for the grant is `20260903000004` §4, inside the migration:
+// a non-staff caller is refused, measured rather than promised.
+//
+// WORTH KNOWING IF THIS KEEPS HAPPENING: a ceiling over the whole verdict set rises whenever
+// a staff screen is added, which is not the direction it was written to police. Splitting it
+// into a BACKLOG-only ceiling would fix that and is a change to the gate rather than to a
+// number, so it is not being made in passing.
+const BACKLOG_CEILING = 72
 
 // ---------------------------------------------------------------- reading both sides
 

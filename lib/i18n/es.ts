@@ -1460,6 +1460,7 @@ export const es: Catalogue = {
   'page./staff/access.title': 'Acceso',
   'page./staff/accounts.title': 'Cuentas',
   'page./staff/families.title': 'Familias',
+  'page./staff/status.title': 'Estado del sistema',
   // ── PAGE HEADINGS ────────────────────────────────────────────────────────────────
   // The same words as the rail for most screens, and kept as separate keys for the reason
   // `en.ts` gives. *Reuniones* / *Juntas* divides here exactly as it does above.
@@ -3625,6 +3626,20 @@ export const es: Catalogue = {
   'staff.overview': 'Resumen',
   'staff.families': 'Familias',
   'staff.accounts': 'Cuentas',
+  'staff.status': 'Estado',
+  'staff.grant': 'Plan',
+  'staff.grantTitle': 'Definir el plan de {name}',
+  'staff.grantBody':
+    '{code} está en {tier}. Cambiarlo aquí lo pone en un plan de pago SIN suscripción: no '
+    + 'se cobra nada y no se crea nada en Stripe.',
+  'staff.grantPlan': 'Plan',
+  'staff.grantReason': 'Motivo',
+  'staff.grantReasonPlaceholder': 'Familia piloto hasta marzo; acordado con Charles.',
+  'staff.grantReasonHint':
+    'Se registra a nombre de su cuenta. Es el único registro de que esto fue una decisión, '
+    + 'así que escriba lo que alguien necesitaría dentro de un año.',
+  'staff.grantReasonRequired': 'Se requiere un motivo.',
+  'staff.grantConfirm': 'Definir plan',
   'staff.access': 'Accesos',
   'staff.whoHasAccess': 'Quién tiene acceso',
   'staff.account': 'Cuenta',
@@ -3978,6 +3993,33 @@ export const es: Catalogue = {
     'No se pudo identificar esa dirección sin ambigüedad: escríbala '
     + 'exactamente e inténtelo de nuevo.',
   'act.couldNotRestoreFamilyPlease': 'No se pudo restaurar esa familia. Inténtelo de nuevo.',
+  'act.couldNotGrantPlanPlease': 'No pudimos conceder ese plan. Inténtelo de nuevo.',
+  'act.grantReturnedNoResultPlease': 'La concesión no devolvió ningún resultado. Inténtelo de nuevo.',
+  'stf.readRefused':
+    'Una lectura fue rechazada, así que estas cifras se retienen en lugar de mostrarse como cero.',
+  'stf.statusBlurb':
+    'Lo que ha estado haciendo realmente el trabajo programado de la plataforma. Todas las '
+    + 'horas son UTC, porque todos los trabajos de aquí se programan en UTC.',
+  'stf.utc': 'UTC',
+  'stf.jobOk': 'Correcto',
+  'stf.jobFailed': 'Falló',
+  'stf.jobRunning': 'En curso',
+  'stf.jobNever': 'Sin registro: no se ha ejecutado.',
+  'stf.zipTitle': 'Correspondencia código postal-condado',
+  'stf.zipBlurb':
+    'HUD publica el archivo de USPS cada trimestre; la actualización se ejecuta '
+    + 'semanalmente sobre un cron diario. Necesita HUD_USPS_API_TOKEN y sin él se omite en silencio.',
+  'stf.zipLatest': 'Último intento',
+  'stf.zipLastOk': 'Último éxito',
+  'stf.zipPairs': 'Pares código postal-condado almacenados',
+  'stf.zipEmpty':
+    'Que esté vacío es lo esperado hasta que se defina HUD_USPS_API_TOKEN y se ejecute la primera actualización.',
+  'stf.grantsTitle': 'Planes concedidos por el personal',
+  'stf.grantsBlurb':
+    'Familias puestas en un plan de pago sin suscripción, las más recientes primero. Cada '
+    + 'fila es el registro de auditoría de una decisión.',
+  'stf.grantsNone': 'No se ha concedido ningún plan.',
+  'stf.grantForced': 'Forzado sobre el estado de facturación',
   'act.couldNotSave': 'No se pudo guardar eso',
   'act.couldNotSaveNumber': 'No se pudo guardar ese número',
   'act.couldNotSaveSegmentJust': 'No se pudo guardar ese tramo en este momento. Inténtelo de nuevo.',

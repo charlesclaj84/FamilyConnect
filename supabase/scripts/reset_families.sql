@@ -559,6 +559,18 @@ BEGIN
            -- excludes it BY NAME for a sharper version of the same point: a row scoped to the
            -- family would otherwise be deleted by the very statement that wrote it.
            'genorra_staff_deletions',
+           -- AND THE PLATFORM'S RECORD OF WHAT STAFF HAVE GIVEN AWAY.
+           -- `staff_tier_grants` (20260903000004) is one row per plan a staff member put a
+           -- family on without a subscription: which family, from and to what, by whom, and
+           -- why. It carries a `family_code` for `genorra_staff_deletions`' reason and is
+           -- not family data for the same reason.
+           --
+           -- A FAMILY RESET IS NOT A PLATFORM RESET. The commercial decision outlives the
+           -- rows it was made about — and unlike `genorra_staff_deletions` this one IS taken
+           -- by `staff_delete_family`, deliberately, because that is an erasure of a family
+           -- that will no longer exist rather than a reset of one that will. That migration's
+           -- §5 argues all three answers together.
+           'staff_tier_grants',
            -- AND THE STAFF CONSOLE'S OWN CHALLENGE CODES. It carries a `family_code` for the
            -- same reason and is not family data for the same reason: the code authorises
            -- destroying a family and outlives it by seconds. Rows expire on their own; there
