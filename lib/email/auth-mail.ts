@@ -20,19 +20,28 @@ import { BASE_LOCALE } from '@/lib/i18n/locales'
  * what it composes. The words are the ones those five templates carried, moved across rather
  * than rewritten, so a reader who saw the old mail sees the same message.
  *
- * ── THE TEMPLATES ARE NOT DELETED, AND THAT IS DELIBERATE ──────────────────────────
- * They are the FALLBACK for a deployment where the hook is not enabled. Turning the hook on
- * is a separate, deliberate act per environment (see that route and TODO's GO LIVE item), and
- * in the window before it happens GoTrue still needs something to send — its own defaults
- * link with `{{ .ConfirmationURL }}`, which points at GoTrue rather than at `/auth/confirm`
- * and is wrong for this app. So `npm run email:push` keeps pushing them, and they keep their
- * own README and their own hex literals.
+ * ── THE TEMPLATES ARE DELETED, AND THIS FILE IS NOW THE ONLY COPY — 2026-09-03 ─────
+ * This said "THE TEMPLATES ARE NOT DELETED, AND THAT IS DELIBERATE" while the hook was being
+ * proven. It is proven, they are gone, and `npm run email:push` and its script went with
+ * them: `supabase/config.toml` declares the five SUBJECTS and no `content_path`, so there is
+ * nothing left in the repo for GoTrue to render.
  *
- * WHICH MEANS THE ENGLISH EXISTS TWICE while both are live. That is a real cost and the
- * mitigation is narrow: the templates are FROZEN. A change to any of these words is made
- * here, and the HTML file is left alone until the hook is on everywhere and it can be
- * deleted. Two copies that are both edited is how they come to disagree; two copies where one
- * is retired is a migration in progress.
+ * **SO THE ENGLISH EXISTS ONCE.** That was the whole cost of the fallback and the reason the
+ * HTML was frozen rather than maintained — two copies both edited is how they come to
+ * disagree. A wording change is made here and reaches production on the next deploy, with
+ * nothing to keep in step.
+ *
+ * ── WHAT A ROLLBACK NOW FALLS BACK TO, WHICH IS NOT NOTHING ────────────────────────
+ * `email:push` only ever wrote, so the bodies it last pushed are STILL STORED on the hosted
+ * project. Disabling the hook therefore lands on correct English mail rather than on GoTrue's
+ * defaults — which link with `{{ .ConfirmationURL }}`, pointing at GoTrue rather than at
+ * `/auth/confirm`, and are wrong for this app. There is no longer a repo copy of those bytes,
+ * so recovering or reading them is a dashboard operation.
+ *
+ * THE LOCAL STACK IS THE ONE PLACE THAT REGRESSED, and it is development-only:
+ * `[auth.hook.send_email]` is `enabled = false` there on purpose, so a local signup now gets
+ * GoTrue's default body and its fragment bug. `npm run auth-email:check` is the answer — it
+ * turns the hook on, walks all five flows in all three languages, and turns it off again.
  *
  * ── EVERY LINK IS BUILT FROM `emailOrigin()`, NEVER FROM THE PAYLOAD ──────────────
  * `email_data.site_url` in the hook payload is GoTrue's OWN api url — measured as

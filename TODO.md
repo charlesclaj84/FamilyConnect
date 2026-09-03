@@ -55,10 +55,11 @@ the answer is never `verify=False` or `curl -k`, on a channel carrying a bearer 
 block, `site_url` included — so pushing one setting from a checkout whose config points
 anywhere but production reconfigures production's redirect handling as a side effect, and
 with `site_url = "http://127.0.0.1:3000"` in play it starts mailing people links to their own
-laptop. This is the warning `scripts/auth-templates.mjs`,
-[supabase/templates/README.md](supabase/templates/README.md) and `config.toml` all point back
-here for; it is why the auth email templates were pasted by hand for two months, and it is why
-`email:push` sends ten named fields and refuses everything else.
+laptop. This is the warning [supabase/templates/README.md](supabase/templates/README.md) and
+`config.toml` point back here for — `scripts/auth-templates.mjs` did too, until it was retired; it is why the auth email templates were pasted by hand for two months, and it is why
+the push that replaced that sent ten named fields and refused everything else. (That script is
+retired as of 2026-09-03 with the templates it sent — the Send Email hook renders them now —
+and the argument stands: a narrow PATCH, never `config push`.)
 
 A PATCH is safer than the dashboard is fiddly, and much safer than `config push` — it sends
 only the fields named, so it can touch neither `site_url` nor the SMTP credentials that live
@@ -113,10 +114,13 @@ field over:
 written in `config.toml`, verified locally, never applied to the project that serves real
 families.
 
-**`scripts/auth-templates.mjs` will not grow into a checker for this**, deliberately. It
-reads and writes nothing but the ten mailer fields; the moment it can write `site_url` it
-inherits every hazard `config push` has. A separate read-only auditor over the whole
-`[auth]` block is the right shape and is not built.
+**THERE IS NO SCRIPT LEFT TO GROW INTO A CHECKER FOR THIS.** This said
+`scripts/auth-templates.mjs` would not, deliberately — it read and wrote nothing but the ten
+mailer fields, and the moment it could write `site_url` it would inherit every hazard `config
+push` has. That script is retired (2026-09-03) with the templates it pushed, so the option is
+gone rather than declined, and the conclusion is unchanged: a separate READ-ONLY auditor over
+the whole `[auth]` block is the right shape and is not built. Writing one now has no host to
+bolt onto, which makes it slightly more work and no different in kind.
 
 ### [ ] The `production` environment carries all three credentials and a `master` branch rule
 
@@ -797,80 +801,6 @@ it. That is the next build, and it is a build rather than a config change.
   and no person anywhere in it.
 
 Recorded 2026-08-23, rewritten 2026-09-01 and 2026-09-03.
-
-## GO LIVE: the Send Email hook is ON. What is left is proving it and retiring the fallback
-
-**BUILT 2026-08-27, and TURNED ON — reported 2026-08-29.** The hook is configured on the
-hosted project; steps 1–3 below are done and are kept as the record of what was done and in
-what order, because turning it back on after a rollback is the same three steps and the order
-still matters. `npm run auth-email:check` reports all five auth emails composed by this app,
-in all three languages, with the right `type=` on every link and both halves of an address
-change — and `20260827…`-era work has not touched that path since.
-
-**Nothing in this repo can confirm the hook is on**, which is why this item does not close on
-a report. `config.toml`'s `[auth.hook.send_email]` is `enabled = false` and stays that way —
-that is the LOCAL stack, and AGENTS.md explains why it is off there (a local signup would then
-need `npm run dev` answering, and without it every signup 500s and leaves no `auth.users`
-row). The hosted flag is dashboard state, in the same invisibility class as realtime
-publication membership and a `cron.job` row.
-
-### WHAT IS ACTUALLY LEFT
-
-1. **Send yourself a real signup and a real password reset, and look at both on a phone.**
-   This is the whole remaining item. `auth-email:check` proves the bytes are composed; it
-   opens no mail client and renders nothing. The GO LIVE item above already asks for this.
-2. **Then delete `supabase/templates/*.html`** — see the second bullet under "THE TWO THINGS
-   TO WATCH", which is now a live cleanup rather than a note. Until they go, the English
-   exists twice and `email:push` keeps pushing a copy GoTrue no longer reads.
-3. **Confirm `/api/auth/send-email` answers 401 to an unsigned POST** on production if it was
-   not checked at step 1. That is the open-relay check and it costs one `curl`.
-
-### THE ORDER IT WAS DONE IN, AND WHY GETTING IT BACKWARDS TAKES AUTH DOWN
-
-GoTrue calls the hook SYNCHRONOUSLY, and a non-2xx rolls the whole operation back — measured:
-a failing hook on a signup leaves no `auth.users` row at all. So a hook enabled before the
-endpoint answers means **nobody can register, reset a password, or change their address**, and
-every attempt fails with `unexpected_failure`.
-
-1. **Merge to `master` and let it deploy.** `/api/auth/send-email` has to be live and
-   answering before anything is switched on. Confirm with an unsigned POST — it must answer
-   401, which is also the open-relay check. *(Done: `e0f03d5`, on `master`.)*
-2. **Set `SUPABASE_AUTH_HOOK_SECRET` in Vercel** (all environments), and `RESEND_API_KEY` must
-   already be there — it is, or no mail works today.
-3. **Then** enable the hook on the hosted project: `hook_send_email_enabled`,
-   `hook_send_email_uri = https://genorra.com/api/auth/send-email`, and
-   `hook_send_email_secrets` = the same secret. Dashboard → Authentication → Hooks, or the
-   Management API.
-
-To undo, disable the hook. GoTrue falls straight back to `supabase/templates/*.html` — which
-is exactly why item 2 above is "delete them once turning the hook off is not the plan" rather
-than "delete them now".
-
-### WHY IT IS NOT PUSHED FROM CI, WHICH IS A DECISION RATHER THAN AN OMISSION
-
-`npm run email:push` sends only the ten mailer template fields, deliberately — see
-`scripts/auth-templates.mjs`, and AGENTS.md on why it is not `supabase config push`. Adding
-the hook fields to it would mean CI enabling an auth hook, and the failure mode is the one
-above: a green deploy that has taken authentication down. A human doing step 3 after watching
-step 1 land is the whole safeguard.
-
-If it is ever automated, it has to be ordered AFTER the Vercel alias moves — which is
-`migrate.yml`'s Deployment Check in reverse, and that is a mechanism nobody has built.
-
-### THE TWO THINGS TO WATCH NOW IT IS ON
-
-* **Auth mail now depends on the Next deployment.** It did not before. A build that fails to
-  alias, or an outage, takes auth email with it — and a signup attempted during one leaves no
-  account rather than an account with no email, so nothing is stranded. Worth knowing before
-  reading a support ticket that says "I cannot sign up". **This is live behaviour now, not a
-  future consequence.**
-* **`supabase/templates/*.html` are FROZEN and now UNREAD in production.** They are the
-  fallback, the English in them is a second copy, and `migrate.yml` still pushes all ten
-  mailer fields on every merge — so a wording change made in the HTML reaches hosted and
-  changes nothing anybody receives, which is the worst kind of edit to make by mistake.
-  Change wording in `lib/email/auth-mail.ts`. Delete the HTML — and the `email:push` step
-  with it — once the hook has been on long enough that turning it off is not the plan.
-  **That deletion is now the second item on the list above rather than a someday note.**
 
 ## `tests/rls` has no member who has replied STOP
 

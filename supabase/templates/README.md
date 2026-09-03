@@ -1,24 +1,38 @@
-> ## FROZEN AS OF 2026-08-27 — READ THIS FIRST
+> ## THE FIVE FILES THIS DESCRIBES ARE DELETED — 2026-09-03. READ THIS FIRST
 >
-> These five files are now the **fallback**. When `[auth.hook.send_email]` is enabled, GoTrue
-> renders none of them: `app/api/auth/send-email/route.ts` composes the message instead, from
-> `lib/email/auth-mail.ts` and the email catalogue, which is what makes them readable in
-> Spanish and French. One HTML body cannot be three languages.
+> `[auth.hook.send_email]` is enabled on the hosted project, so GoTrue renders no body of its
+> own: `app/api/auth/send-email/route.ts` composes all five from `lib/email/auth-mail.ts` and
+> the email catalogue, which is what makes them readable in Spanish and French. One HTML body
+> cannot be three languages, which is the whole reason the hook exists.
 >
-> **So a change to any of this wording is made in `lib/email/auth-mail.ts`, not here.** The
-> English exists twice while both paths are live, and the mitigation is that this copy is not
-> edited — two copies both maintained is how they come to disagree; two copies where one is
-> retired is a migration in progress.
+> **A change to any of this wording is made in `lib/email/auth-mail.ts`.** It is the only copy
+> now. This document was frozen from 2026-08-27 while the hook was proven, on the argument that
+> two copies both edited is how they come to disagree — and the freeze ended by deleting the
+> second copy rather than by unfreezing it.
 >
-> They are kept because the hook is off by default and is a separate, deliberate act per
-> environment (TODO.md's GO LIVE item has the order). In that window GoTrue still needs
-> something to send, and its own defaults link with `{{ .ConfirmationURL }}` — which points at
-> GoTrue rather than at `/auth/confirm` and is wrong for this app. `npm run email:push` keeps
-> pushing them for that reason.
+> **What went with them:** `supabase/config.toml`'s five `content_path` declarations (the
+> SUBJECTS stay — GoTrue uses `mailer_subjects_*` whether or not the hook renders the body),
+> `scripts/auth-templates.mjs`, the `email:check` / `email:push` / `email:pull` scripts, and
+> `migrate.yml`'s push step. That last one was not optional: the script throws on a
+> `content_path` that does not exist and exits 2, and that job's name is what Vercel binds its
+> Deployment Check to — so leaving it would have applied the schema and never aliased the
+> build.
 >
-> Everything below still describes how these files work and why they look the way they do. It
-> is also the reference `lib/email/layout.ts` mirrors, so it is worth reading before changing
-> either.
+> **HOSTED STILL HOLDS THE LAST-PUSHED BODIES, and nothing in the repo records what they say.**
+> `email:push` only ever wrote, so disabling the hook falls back to correct English mail rather
+> than to GoTrue's defaults — whose `{{ .ConfirmationURL }}` points at GoTrue instead of
+> `/auth/confirm` and is wrong for this app (the fragment bug, described below). Reading or
+> recovering those bytes is now a dashboard operation.
+>
+> **The local stack is the one place that regressed**, and it is development-only: the hook is
+> `enabled = false` there deliberately, so a local signup gets GoTrue's default body and the
+> fragment bug. `npm run auth-email:check` is the answer — it turns the hook on, walks all five
+> flows in all three languages, and turns it off again.
+>
+> Everything below is kept as the RECORD of what those files said and why they looked the way
+> they did, and because it is the reference `lib/email/layout.ts` mirrors — that file's ~35 hex
+> literals are sanctioned by the argument made here. Read it before changing the mail chrome.
+> Commands and file paths in it no longer resolve.
 
 # Auth email templates
 

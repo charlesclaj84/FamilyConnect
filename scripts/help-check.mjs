@@ -728,8 +728,10 @@ function main() {
 
 /**
  * `process.exitCode`, never `process.exit()` — the same reason scripts/migrations.mjs and
- * scripts/auth-templates.mjs both give: exiting while output is still draining loses it on
+ * scripts/stripe-catalogue.mjs both give: exiting while output is still draining loses it on
  * Windows, and a checker whose findings do not reach the log is worse than no checker.
+ * (It named scripts/auth-templates.mjs until 2026-09-03, when the auth email templates were
+ * retired and that script went with them.)
  */
 try {
   process.exitCode = main()

@@ -225,9 +225,10 @@ password_requirements = ""
 #
 # IT IS DELIBERATELY NOT PUSHED FROM HERE. `supabase config push` would send `site_url` and
 # `additional_redirect_urls` along with it, and those are DNS names that either resolve or
-# break every confirmation link in the product — which is why `npm run email:push` exists as
-# a ten-field script rather than as a config push (AGENTS.md, "Sending email is a plain
-# module"). Inventing a key this file does not have would also be worse than useless: unknown
+# break every confirmation link in the product — which is why the mail push was a ten-field
+# script rather than a config push (AGENTS.md, "Sending email is a plain module"). That script
+# is retired as of 2026-09-03 with the templates it sent, and the argument against `config
+# push` is unchanged: it is about this file, not about that script. Inventing a key this file does not have would also be worse than useless: unknown
 # keys in config.toml are silently IGNORED, measured 2026-08-22, so a plausible-looking line
 # here would read as the setting being on.
 #
@@ -388,16 +389,37 @@ otp_expiry = 3600
 # admin_email = "support@genorra.com"
 # sender_name = "GENORRA"
 
-# THIS TABLE IS ALSO WHAT REACHES PRODUCTION. The five blocks below are read by the
-# local stack AND by `npm run email:push` (scripts/auth-templates.mjs), which sends each
-# subject and body to the hosted project through the Management API. So this stays the
-# one statement of which file is which template — adding a template here is what makes it
-# pushable, and `npm run email:check` reports any hosted template that has drifted from
-# its file.
+# SUBJECTS ONLY, AND NOTHING HERE REACHES PRODUCTION ANY MORE — 2026-09-03. This said the
+# five blocks below were read by the local stack AND by `npm run email:push`, which sent each
+# subject and body to hosted through the Management API. The bodies are deleted and that
+# script is retired: `[auth.hook.send_email]` renders all five from `lib/email/auth-mail.ts`
+# on hosted, so what remains below is five `subject` lines that GoTrue uses either way.
+#
+# **SO A SUBJECT CHANGED HERE NO LONGER REACHES HOSTED BY ANY ROUTE.** It applies to the local
+# stack on the next `supabase start`, and hosted keeps whatever was last pushed. Changing one
+# in production is a dashboard edit, and there is no longer a check that would report the
+# divergence — which is the honest cost of the retirement rather than a gap to fix here.
 #
 # It is NOT `supabase config push`, deliberately: that sends this whole [auth] block,
 # site_url included. The script sends ten fields and refuses to transmit anything outside
 # mailer_subjects_* / mailer_templates_*_content. See supabase/templates/README.md.
+#
+# ── ONLY SUBJECTS SINCE 2026-09-03. THE BODIES ARE THE HOOK'S JOB NOW ────────────────
+# Each of the five blocks below carried a `content_path` into `supabase/templates/*.html`.
+# Those files are deleted: `[auth.hook.send_email]` is enabled on hosted, so GoTrue renders
+# no body of its own — `app/api/auth/send-email/route.ts` composes all five from
+# `lib/email/auth-mail.ts`, in three languages, which one HTML body cannot be.
+#
+# THE SUBJECTS STAY, AND THAT IS NOT AN OVERSIGHT. GoTrue uses `mailer_subjects_*` whether
+# the hook renders the body or not, all five were recovered from the dashboard on 2026-08-12
+# after drifting there, and they are better than what preceded them (see below). Dropping
+# them with the paths would have regressed five subject lines nobody was asking to change.
+#
+# WHAT THE LOCAL STACK SENDS NOW: `[auth.hook.send_email]` is `enabled = false` here — on
+# purpose, argued at that block — so a local signup gets GoTrue's DEFAULT body, which links
+# with `{{ .ConfirmationURL }}` and hits the fragment bug described below. That is a
+# development-only consequence and `npm run auth-email:check` is the answer: it turns the
+# hook on, walks all five flows in all three languages, and turns it back off.
 #
 # The sign-up confirmation email. Overridden rather than left to the default because
 # the default links to GoTrue's own /auth/v1/verify, which returns the session in a URL
@@ -420,7 +442,6 @@ otp_expiry = 3600
 # by a client that gets the encoding wrong.
 [auth.email.template.confirmation]
 subject = "GENORRA - You're almost in"
-content_path = "./supabase/templates/confirmation.html"
 
 # The remaining four, added 2026-08-11. Every one of GoTrue's defaults links with
 # {{ .ConfirmationURL }}, so leaving any of them stock means the first person to use that
@@ -443,15 +464,12 @@ content_path = "./supabase/templates/confirmation.html"
 
 [auth.email.template.recovery]
 subject = "GENORRA - Reset your password"
-content_path = "./supabase/templates/recovery.html"
 
 [auth.email.template.invite]
 subject = "GENORRA - Your family kept a place for you"
-content_path = "./supabase/templates/invite.html"
 
 [auth.email.template.email_change]
 subject = "GENORRA - Confirm your new address"
-content_path = "./supabase/templates/email-change.html"
 
 # No link in this one — GoTrue sends an 8-character .Token (otp_length above; the block
 # that renders it is sized for exactly that). The subject deliberately does NOT
@@ -460,7 +478,6 @@ content_path = "./supabase/templates/email-change.html"
 # warning that we never ask for it by phone, text or email.
 [auth.email.template.reauthentication]
 subject = "GENORRA - Just checking it's you"
-content_path = "./supabase/templates/reauthentication.html"
 
 # Uncomment to customize notification email template
 # [auth.email.notification.password_changed]
@@ -599,10 +616,15 @@ inactivity_timeout = "168h"
 # `lib/auth/hook-signature.ts` derives the key from it.
 #
 # ── ON HOSTED THIS IS NOT SET FROM HERE ─────────────────────────────────────────────
-# `npm run email:push` sends only the ten mailer template fields, deliberately — see
-# `scripts/auth-templates.mjs`. Enabling the hook on the hosted project is an auth-config
-# change and a GO LIVE item, because a hook enabled before the endpoint is deployed stops
-# every auth email in the product. TODO.md carries the order it has to happen in.
+# Nothing in CI has ever written this flag, and nothing may. Enabling the hook on the hosted
+# project is an auth-config change made by a person, because GoTrue calls the hook
+# SYNCHRONOUSLY and a non-2xx rolls the whole operation back — so a hook enabled before its
+# endpoint is deployed stops every auth email in the product and leaves no `auth.users` row
+# for an attempted signup. It IS enabled on hosted, done in that order, 2026-08-29.
+#
+# It stays `false` HERE, for the local stack, which is what makes `npm run auth-email:check`
+# the way to exercise it: that script turns it on, walks all five flows in three languages,
+# and turns it off again.
 # ─────────────────────────────────────────────────────────────────────────────────────
 [auth.hook.send_email]
 enabled = false

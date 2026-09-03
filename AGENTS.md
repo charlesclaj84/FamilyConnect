@@ -1433,7 +1433,7 @@ npm run db:audit -- --linked          # no superseded policy left beside its rep
 ```
 
 `scripts/migrations.mjs` exits 1 on a finding, so it reads as a test — the same job
-`npm run email:check` does for the auth templates. It reports a version hosted has and
+`npm run stripe:check` does for the Stripe catalogue. It reports a version hosted has and
 this repo does not (a hand-applied file, or a `migration repair` stamp), a pending
 migration that sorts before an applied one, an unversioned `.sql` sitting in
 `supabase/migrations/`, and a migration that documents itself as a `psql` command.
@@ -1949,7 +1949,7 @@ grants; it cannot open a websocket. That script signs in as a real member, write
 role, and asserts BOTH halves of each pair — the row that must arrive and the row that must be
 withheld, the second with an UNFILTERED subscription so the client filter cannot be what
 refused it. It reseeds `tests/rls`' fixture and needs the local stack, which is why it is
-hand-run like `email:check` and `art:check` rather than a step in `verify.yml`.
+hand-run like `auth-email:check` and `art:check` rather than a step in `verify.yml`.
 
 **One harness fact worth carrying anywhere else this is tested:** `SUBSCRIBED` is the CLIENT's
 acknowledgement, not walrus's. Realtime registers a subscription as a row in
@@ -4382,33 +4382,31 @@ let me" do not — the second is a token that needs adding to `globals.css` firs
 Two things follow for the email templates specifically, because they are unlike every
 other file here. **The template is the payload:** every byte ships to every recipient and
 is one "view source" away, which is why the rationale lives in the README and the files
-keep a short pointer comment. And **editing a template reaches production on the next
-merge to `master`, and by no other route** — `config.toml` wires up the local stack, while
-hosted keeps its own copy of every body until CI replaces it. This said "does nothing to
-production until it is pushed" until 2026-08-19, when the push became a step in `migrate.yml`;
-the paragraph below carries what that changes. Since 2026-08-12 that push is `npm run email:push`
-([scripts/auth-templates.mjs](scripts/auth-templates.mjs)), which reads the same
-`[auth.email.template.*]` table and sends only the ten mailer fields; `npm run
-email:check` reports drift and exits non-zero. It is deliberately **not** `supabase
-config push`, which would send `site_url` along with the copy edit. Pushing still proves
-only that the bytes arrived — send yourself a real signup before calling it done.
+keep a short pointer comment.
 
-**And since 2026-08-19 the push happens from CI on merge to `master`, not from a laptop** —
-a step named "Auth email templates match the repo" at the end of `migrate.yml`'s one job,
-using the `SUPABASE_ACCESS_TOKEN` that job already holds. Three consequences worth knowing
-before touching a template:
+**THE FIVE TEMPLATE FILES NO LONGER EXIST — 2026-09-03**, and neither does the push that sent
+them. See "THE TEMPLATES ARE DELETED" below for what replaced them and what a rollback now
+falls back to. What survives here is the RULE about hex literals, because
+`lib/email/layout.ts` still carries ~35 of them and still earns the exception for the same
+reason: it renders in somebody else's mail client, where nothing of ours is loaded and even a
+`<style>` block is unreliable.
 
-* **The repo is now unconditionally authoritative.** A template edited in the Supabase
-  dashboard is reverted on the next merge that finds drift, and one drifted template rewrites
-  all ten fields rather than only itself. `npm run email:pull` is the only route back.
-* **The laptop commands keep their jobs**, which are asking rather than writing:
-  `email:check` for drift and `email:pull` to recover a dashboard edit. Neither is in
-  `verify.yml` and neither may be — that workflow holds no secret at all, and this token is
-  account-wide, broader than the database password the argument beside `environment:
-  production` is written about.
-* **A green step is still not a rendered email.** It reports that the bytes arrived. The GO
-  LIVE item that survives in TODO.md is the human half: trigger a real signup and a real
-  reauthentication and look at them on a phone.
+The history is kept in one paragraph because each turn of it was a decision:
+
+* Until **2026-08-12** the bodies were pasted into the dashboard by hand, and `email:check`'s
+  first real run found all five SUBJECTS drifted with the bodies matching — the body is what
+  gets edited in the repo, the subject is what gets edited in the form above it.
+* From **2026-08-12** `npm run email:push` sent them, deliberately **not** `supabase config
+  push`, which would have sent `site_url` along with a copy edit.
+* From **2026-08-19** that push ran from CI on merge to `master`, making the repo
+  unconditionally authoritative — a dashboard edit was reverted on the next merge.
+* From **2026-09-03** there is nothing to push. The subjects live on in `config.toml` and the
+  words live in `lib/email/auth-mail.ts`, once.
+
+**A GREEN STEP WAS NEVER A RENDERED EMAIL**, and that half is still owed whatever the
+mechanism: trigger a real signup and a real reauthentication and look at both on a phone.
+`npm run auth-email:check` proves the bytes are composed in all three languages; it opens no
+mail client and renders nothing.
 
 ## Dark mode is real, and the brand has a dark treatment
 
@@ -4550,7 +4548,7 @@ Two things follow, and the second is the one a kit bump gets wrong:
 
 * **`npm run art:check` is a test, not a formality.** It exits 1 when the committed PNG is
   no longer what the kit derives to, so it reads like one — and `art:build` regenerates it.
-  It is deliberately **not** a step in `verify.yml`, on the same footing as `email:check`:
+  It is deliberately **not** a step in `verify.yml`, on the same footing as `stripe:check`:
   it runs on `sharp`, which reaches the tree as an *optional* dependency of Next, and a
   gate that a legitimate `npm ci --omit=optional` turns red is a gate people learn to
   ignore.
@@ -5186,16 +5184,44 @@ nothing else, so the metadata goes stale — and is shadowed from that moment on
 authoritative fact and one hint with a shorter life than the thing it hints at is not the
 `is_minor` trap; two maintained copies would be.
 
-### THE TEMPLATES ARE NOT DELETED
+### THE TEMPLATES ARE DELETED, AND SO IS THE MACHINERY THAT PUSHED THEM — 2026-09-03
 
-They are the fallback for a deployment where the hook is off, and GoTrue's own defaults link
-with `{{ .ConfirmationURL }}` — which points at GoTrue rather than `/auth/confirm` and is
-wrong for this app. So `email:push` keeps pushing them and they keep their hex literals.
+**THIS SECTION SAID "THE TEMPLATES ARE NOT DELETED" UNTIL TODAY**, and the reason it did is
+the reason they are gone now: they were the fallback for a deployment where the hook was off,
+so the English existed twice, and the mitigation was to FREEZE the HTML rather than maintain
+it — *"two copies both edited is how they come to disagree; two copies where one is retired is
+a migration in progress."* The hook is proven on hosted, so the migration finished the only way
+it could, by deleting the second copy.
 
-**WHICH MEANS THE ENGLISH EXISTS TWICE, and the mitigation is that the templates are FROZEN.**
-A change to any of those words is made in `lib/email/auth-mail.ts` and the HTML is left alone
-until the hook is on everywhere and it can be deleted. Two copies both edited is how they come
-to disagree; two copies where one is retired is a migration in progress.
+Gone with them: `supabase/config.toml`'s five `content_path` declarations, the
+`email:check` / `email:push` / `email:pull` scripts and `scripts/auth-templates.mjs`, and
+`migrate.yml`'s template-push step. **`lib/email/auth-mail.ts` is the only copy of those words
+now**, so a wording change is one edit and reaches production on the next deploy.
+
+**THE SUBJECTS STAYED, AND THAT IS DELIBERATE.** GoTrue uses `mailer_subjects_*` whether or not
+the hook renders the body, and all five were recovered from the dashboard on 2026-08-12 after
+drifting there. Dropping them alongside the paths would have regressed five subject lines in a
+commit about deleting bodies.
+
+**DELETING THE CI STEP WAS NOT OPTIONAL, AND IS THE REUSABLE LESSON.** The push script throws
+on a `content_path` that does not exist and exits **2** — measured — and `migrate.yml`'s job
+name is what Vercel binds its Deployment Check to. So deleting the bodies without deleting the
+step would have applied the schema to hosted and then **never aliased the build**, with the log
+naming a template rather than the deletion. That is this file's own *"a failure here holds the
+alias over mail copy"* trade, arriving for copy that no longer exists. **When a file a CI step
+reads is deleted, the step is part of the deletion.**
+
+**AND HOSTED STILL HOLDS THE LAST-PUSHED BODIES.** `email:push` only ever wrote, so disabling
+the hook falls back to correct English mail rather than to GoTrue's defaults — whose
+`{{ .ConfirmationURL }}` points at GoTrue instead of `/auth/confirm` and is wrong for this app.
+Nothing in the repo records what those bytes say; reading them is a dashboard operation.
+
+**THE LOCAL STACK IS THE ONE PLACE THAT REGRESSED**, development-only: the hook is
+`enabled = false` there on purpose, so a local signup now gets GoTrue's default body and its
+fragment bug. `npm run auth-email:check` turns the hook on, walks all five flows in all three
+languages, and turns it off again — which is what to use rather than putting a body back.
+`supabase/templates/README.md` survives as the record and as the reference
+`lib/email/layout.ts` mirrors.
 
 ### AND `lib/email/` IS OBSERVABLE LOCALLY NOW, WHICH IT NEVER WAS
 

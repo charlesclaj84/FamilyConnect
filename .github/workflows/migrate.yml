@@ -250,70 +250,33 @@ jobs:
       - name: Security advisors
         run: supabase db advisors --linked --type security --level warn --fail-on error
 
-      # ADDED 2026-08-19. The five auth email templates reach hosted from here, for exactly
-      # the reason the migrations do: the alternative was a laptop holding an account-wide
-      # Management API token, and the token this job already has is the same one
-      # `scripts/auth-templates.mjs` needs. TODO.md's GO LIVE list carried "push the two
-      # changed templates" as an open item for a week because nobody had one — and the drift
-      # it was describing was not cosmetic: hosted's reauthentication mail is still sized for
-      # a six-character code while `auth.email.otp_length` is 8, which overflows a 320px
-      # phone once Gmail strips the <style> block.
+      # ── THE AUTH EMAIL TEMPLATE PUSH WAS HERE, AND IT IS RETIRED — 2026-09-03 ──────────
+      # A step named "Auth email templates match the repo" ran `npm run email:push` from here
+      # between 2026-08-19 and today, for exactly the reason the migrations run from here: the
+      # alternative was a laptop holding an account-wide Management API token.
       #
-      # A STEP RATHER THAN A SECOND JOB, and that is deliberate. Vercel binds its Deployment
-      # Check to the check-run name `Database migrations`, so a second job would report a
-      # check nothing waits on — and it would falsify the paragraph at the top of this file
-      # that says there is one job here and therefore one kind of re-run. The cost is stated
-      # plainly: a failure here holds the alias over mail copy. That is the same trade the
-      # two audits and the advisors already make, and it is the safe direction — the schema
-      # is applied by now, the old code keeps serving, and the log names the template.
+      # IT IS GONE BECAUSE THE THING IT PUSHED IS GONE. `[auth.hook.send_email]` is enabled on
+      # hosted, so GoTrue renders none of its own bodies — `app/api/auth/send-email/route.ts`
+      # composes all five from `lib/email/auth-mail.ts`, which is what makes them readable in
+      # Spanish and French. `supabase/templates/*.html` were the fallback and were deleted with
+      # the hook proven; the script that pushed them went with them.
       #
-      # LAST, AFTER EVERY SCHEMA CHECK. Nothing about a mail body can affect a migration, so
-      # it goes where a failure costs least.
+      # **LEAVING THE STEP WOULD HAVE HELD THE VERY NEXT RELEASE.** The script throws on a
+      # `content_path` that does not exist and exits 2 — measured — and this job's name is what
+      # Vercel binds its Deployment Check to, so the build would have been applied to the
+      # database and never aliased, with the log naming a template rather than the deletion.
+      # That is this file's own "a failure here holds the alias over mail copy" trade arriving
+      # for copy that no longer exists.
       #
-      # `--yes` IS LOAD-BEARING, the same way it is on `db push`. Without it the script
-      # refuses to write from a non-interactive shell and exits 2 — a message that reads like
-      # a bug rather than like a missing flag. `--project-ref` is what makes this step
-      # independent of where it sits: the script's fallback is `supabase/.temp/project-ref`,
-      # which is gitignored and only exists because the Link step above happened to write it.
-      # Passing the ref explicitly also makes the script PRINT which project it wrote to,
-      # which is the whole point of that message.
+      # WHAT STILL HOLDS A COPY IS HOSTED, and it is worth knowing because nothing in the repo
+      # says it any more: `email:push` only ever wrote, so the bodies it last pushed are still
+      # stored on the project. Disabling the hook therefore falls back to CORRECT English mail
+      # rather than to GoTrue's defaults — which link with `{{ .ConfirmationURL }}` and are
+      # wrong for this app. There is no longer a repo copy of those bytes; recovering them is
+      # a dashboard read.
       #
-      # IT IS A NO-OP WHEN NOTHING HAS CHANGED. The script GETs the hosted config first and
-      # returns 0 without a PATCH when every subject and body already matches, so the steady
-      # state is zero writes to hosted and this step is one HTTPS round trip. When there IS
-      # drift it PATCHes all ten mailer fields — five subjects, five bodies — not just the
-      # drifted one, so from here on the repo is unconditionally authoritative and a template
-      # edited in the Supabase dashboard is reverted on the next merge that finds drift.
-      # `npm run email:pull` is the only route back and it is a laptop command.
-      #
-      # It sends TEN NAMED FIELDS and refuses anything else, which is why this is not
-      # `supabase config push` — that would send the whole [auth] block, `site_url` included.
-      # See supabase/templates/README.md, and do not "simplify" it into the CLI command.
-      #
-      # AND A GREEN STEP IS NOT A RENDERED EMAIL. It proves the bytes arrived. Somebody still
-      # has to trigger a real signup and a real reauthentication and look at them on a phone;
-      # TODO.md's GO LIVE list keeps that half.
-      #
-      # A RE-RUN OF AN OLD RUN MUST NOT PUSH, and the guard below is what makes the paragraph
-      # at the top of this file true again. Every other step here is read-only or keyed on
-      # `supabase_migrations.schema_migrations`, which is why "re-running the whole job is
-      # safe" held before this step existed: this one is a WRITE keyed on nothing but the
-      # checked-out tree, and GitHub replays a re-run against the same commit SHA. So a run
-      # for commit A, re-run after B has merged and pushed B's copy, would PATCH all ten
-      # fields back to A's — silently regressing production mail with nothing reporting it.
-      # Comparing the checkout against the current tip of `master` is the whole fix; skipping
-      # is correct because the newer run has already pushed, or is about to.
-      - name: Auth email templates match the repo
-        run: |
-          git fetch --depth=1 origin master
-          tip="$(git rev-parse FETCH_HEAD)"
-          if [ "$tip" != "$GITHUB_SHA" ]; then
-            echo "::notice::Skipping the auth email template push. This run is for" \
-                 "${GITHUB_SHA}, and origin/master is now ${tip} — pushing would revert" \
-                 "hosted to this commit's copies. The run for ${tip} owns them."
-            exit 0
-          fi
-          npm run email:push -- --yes --project-ref="$PROJECT_REF"
+      # `supabase/templates/README.md` survives as the record and as the reference
+      # `lib/email/layout.ts` mirrors. Do NOT re-add a push step without re-adding the bodies.
 
       # Nothing deploys from here. Vercel is already holding this commit's production
       # build; this job going green is what releases it. If you need to ship without the

@@ -30,7 +30,7 @@
  *   deploy-hook-era and was wrong — it GATES one: Vercel builds every push to master and a
  *   Deployment Check named `Database migrations` holds the build unaliased until
  *   `migrate.yml` passes. This script is the part that can be run at any time to ask whether
- *   that held — the same job `npm run email:check` does for the auth templates.
+ *   that held — the same job `npm run stripe:check` does for the Stripe catalogue.
  *
  * WHAT IT DELIBERATELY DOES NOT CHECK
  *   Whether an applied migration's FILE still matches what the database ran. It
@@ -365,7 +365,8 @@ function main() {
 }
 
 /**
- * `process.exitCode`, never `process.exit()` — same reason as scripts/auth-templates.mjs:
+ * `process.exitCode`, never `process.exit()` — same reason as scripts/stripe-catalogue.mjs
+ * (it named scripts/auth-templates.mjs until that script was retired on 2026-09-03):
  * exiting while a child process's pipes are still draining loses output on Windows, and a
  * checker whose findings do not reach the log is worse than no checker.
  */

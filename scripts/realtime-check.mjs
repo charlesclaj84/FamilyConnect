@@ -17,7 +17,7 @@
  * container, and a real signed-in member.
  *
  * This is that half. It is a test wearing a script's clothes: it exits 1 on a finding, exactly
- * as `npm run email:check` and `npm run art:check` do, so it reads like a gate at a call site.
+ * as `npm run auth-email:check` and `npm run art:check` do, so it reads like a gate at a call site.
  *
  * ── WHY IT IS NOT IN `tests/rls`, AND NOT IN `verify.yml` ───────────────────────────
  * `tests/rls` calls server ACTIONS over HTTP-shaped plumbing; there is no action here to call,

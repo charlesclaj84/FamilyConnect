@@ -14,7 +14,15 @@
  *   sanctioned in email at all. Read it before changing anything here, and change both
  *   sides together.
  *
- *   `npm run email:check` compares the two and fails on divergence.
+ *   ── THERE IS NO SECOND SIDE ANY MORE — 2026-09-03 ──
+ *   This said `npm run email:check` compared the two and failed on divergence, which
+ *   overstated it even then: that command compared HOSTED against the repo's HTML, never
+ *   this file against anything. The five templates are now deleted and the auth mail is
+ *   composed by `lib/email/auth-mail.ts` — which wraps THIS layout — so the scaffold
+ *   exists once and there is nothing left to drift against or to change in step.
+ *
+ *   The README survives as the RECORD, and it is still the argument for every decision
+ *   below, hex literals included. Read it before changing anything here.
  *
  * NOT A SERVER ACTION, and must never become one. This is a plain module: it has no URL
  * and composes strings. The sending is in ./send.ts, which is also a plain module for
