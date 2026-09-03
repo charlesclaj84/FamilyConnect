@@ -7,6 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { openDefaultFamily } from '@/app/actions/family'
 import { markIdleActivity } from '@/lib/idle-timeout'
 import { trackPixelEvent } from '@/lib/meta/pixel'
 import { registerUser } from '@/app/actions/register'
@@ -219,6 +220,14 @@ export function RegisterForm({
       // Same reason as LoginForm: the idle timer reads the shared marker once, at mount,
       // and a marker left by whoever used this browser last is not this member's.
       markIdleActivity()
+      // A REGISTRATION IS A SIGN-IN TOO, and it reaches this action for one case rather than
+      // for the obvious none: somebody who already belongs to a family, has a default set,
+      // and is now joining a second one by code or invitation. Their session is new, so the
+      // stale active selection applies to them exactly as it does at /login.
+      //
+      // For a genuinely new account it is a no-op — no settings row, so no default — which is
+      // what makes calling it here cheap rather than conditional.
+      await openDefaultFamily()
       setAutoSignedIn(true)
       // For join mode go straight to dashboard; create mode shows the family code first.
       // An invitation is a join: the membership already exists, pre-approved or queued.

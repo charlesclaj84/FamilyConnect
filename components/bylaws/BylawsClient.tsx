@@ -103,10 +103,13 @@ export function BylawsClient({ initialBylaws, rights }: {
     <div className="space-y-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="mb-1 text-3xl font-bold">{t('bylaws.heading')}</h1>
-          <p className="text-muted-foreground">
-            {t('bylaws.lede')}
-          </p>
+          {/* NO LEDE. It read "The rules the family agreed to live by. Search them, or read
+              them in order" — a sentence restating the heading and then narrating the two
+              controls directly beneath it, which a reader has already seen. The search box is
+              labelled, the list is a list, and `library/bylaws` has its own manual chapter for
+              what is actually worth explaining (which articles are searchable in full and
+              which are matched on title only). */}
+          <h1 className="text-3xl font-bold">{t('bylaws.heading')}</h1>
         </div>
         {rights.create && (
           <Button onClick={() => { setAdding(true); setError('') }}><Plus /> {t('bylaws.addArticle')}</Button>

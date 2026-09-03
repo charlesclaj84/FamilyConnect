@@ -452,7 +452,26 @@ function DuesTable({ title, rows, ...handlers }: {
     <section className="rounded-xl border bg-card">
       <h2 className="px-4 pt-4 text-lg font-semibold text-brand-ink sm:px-5 sm:pt-5">{title}</h2>
       <div className="px-4 pb-2 sm:px-5">
-        <table className="w-full text-sm">
+        {/* ── `border-separate`, AND IT IS NOT COSMETIC PLUMBING ─────────────────────
+            Tailwind's preflight sets `border-collapse: collapse` on every table, and in the
+            COLLAPSING borders model `border-radius` on a cell is ignored outright — CSS 2.1
+            says borders may only be set on the table and its cells in the SEPARATED model,
+            and browsers drop the radius accordingly. So a past-due row could not have
+            rounded corners while the table collapsed, however the class was written.
+
+            Switching models moves where the row rules live: in the separated model a border
+            on a `<tr>` is not painted either, so the three arbitrary variants below put them
+            on the CELLS instead — once, on the table, rather than on each of the ten `<th>`
+            and `<td>` elements, where the next column added would forget one.
+
+            `border-spacing-0` keeps the geometry identical to what collapse produced: without
+            it the browser inserts 2px between every pair of cells and the whole table drifts
+            wider than the heading above it. */}
+        <table className={cn(
+          'w-full border-separate border-spacing-0 text-sm',
+          '[&_thead_th]:border-b [&_tbody_td]:border-b',
+          '[&_tbody_tr:last-child>td]:border-b-0',
+        )}>
           {/* ── THE SCHEDULE COLUMN TAKES WHAT IS LEFT ──────────────────────────
               Widths on the four narrow headings and none on the first, which is what auto
               layout needs to hear: with nothing stated the browser shares the table
@@ -468,7 +487,9 @@ function DuesTable({ title, rows, ...handlers }: {
               `display: none` below `sm` contributes exactly nothing — which is the
               behaviour wanted, stated in one place. */}
           <thead>
-            <tr className="border-b">
+            {/* The rule under the headings is on the cells now — see the table's own
+                variants. A `border-b` here would paint nothing. */}
+            <tr>
               <SortTh label={t('money.schedule')} active={sort.col === 'schedule'} dir={sort.dir} onClick={() => sortBy('schedule')} />
               <SortTh label={t('plan.nextPayment')} active={sort.col === 'amount'} dir={sort.dir} onClick={() => sortBy('amount')} align="end" className="w-28 sm:w-36" />
               <SortTh label={t('plan.nextDue')} active={sort.col === 'due_date'} dir={sort.dir} onClick={() => sortBy('due_date')} className={cn(COLLAPSING_CELL, 'sm:w-28')} />
@@ -604,10 +625,23 @@ function DuesRow({
 
   return (
     <tr className={cn(
-      'border-b align-top last:border-0 sm:align-middle',
+      'align-top sm:align-middle',
       // THE PAST-DUE TINT. `/10` is the same weight the pill's own well uses, which is what
       // keeps a tinted row legible against every foreground on it in both themes.
-      pastDue ? 'bg-brand-withheld/10 hover:bg-brand-withheld/15'
+      //
+      // ── AND IT IS ROUNDED SINCE 2026-09-02 ────────────────────────────────────────
+      // The tint sits inside the card's own `px-4`, so it was a hard-edged rectangle
+      // floating in a panel whose every other edge is `rounded-xl` — the one square corner
+      // on the screen, on the one row a reader is drawn to. Reported as: the past-due block
+      // should be more curved.
+      //
+      // The radius is on the two END cells rather than on this `<tr>`, because a row is not
+      // a painted box: its background is drawn by the cells, and a radius on the row does
+      // nothing to them. `rounded-s-*`/`rounded-e-*` are the logical corners, so it mirrors
+      // with `dir` — `npm run i18n:rtl` is what keeps that true. Both are always visible:
+      // the two cells that fold below `sm` are the third and fourth (`COLLAPSING_CELL`),
+      // never the first or the last.
+      pastDue ? 'bg-brand-withheld/10 hover:bg-brand-withheld/15 [&>td:first-child]:rounded-s-xl [&>td:last-child]:rounded-e-xl'
         : quiet ? 'bg-muted/30 hover:bg-muted/40'
           : 'hover:bg-muted/30',
     )}>

@@ -131,10 +131,25 @@ export function stripeSecretKey(): string | null {
  * separate "annual" price would be a second figure that could disagree with the first, and
  * `TIER_PRICE` would no longer be the one place a price lives.
  *
- * BOTH PRICES FOR A TIER MUST AGREE WITH `TIER_PRICE[tier].monthlyCents`, and nothing in
- * this repo can check that — the figures live in Stripe. It is a GO LIVE item, and the
- * screen a family sees quotes `TIER_PRICE`, so a mismatch shows up as a hosted page asking
- * for a different number than the button promised.
+ * BOTH PRICES FOR A TIER MUST AGREE WITH `TIER_PRICE[tier].monthlyCents`. The figures live
+ * in Stripe, so no gate that reads this repo can see them, and the screen a family sees
+ * quotes `TIER_PRICE` — a mismatch shows up as a hosted page asking for a different number
+ * than the button promised.
+ *
+ * `npm run stripe:check` IS THE THING THAT ASKS (2026-09-02). It reads the six ids out of
+ * the environment, retrieves each price from whichever account the key points at, and
+ * compares the amount, the interval, the currency, whether the price is still active and
+ * the PRODUCT NAME a family reads at the till against what this repo believes. It is
+ * hand-run rather than a `verify.yml` step — it needs a live secret key and asks a third
+ * party — so it is a GO LIVE item still, just one with a command attached instead of an
+ * instruction addressed to a person.
+ *
+ * THE NAME IS THE ONE IT WAS BUILT FOR. A real sandbox checkout rendered its line as
+ * `STRIPE_PRICE_STANDARD_RECURRING`, because the Product had been named after the variable
+ * that holds its Price id — a wrong SHAPE charges the wrong money and `priceShapeError`
+ * refuses it, while a wrong NAME charges the right money and tells the family they are
+ * buying a configuration key. That script also overrides the per-plan naming this paragraph
+ * argues for above; see its header for why, and for the one edit that puts it back.
  */
 export type BillingShape = 'recurring' | 'prepaid'
 

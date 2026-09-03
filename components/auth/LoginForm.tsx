@@ -9,6 +9,7 @@ import Link from 'next/link'
 import { Mail } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { isEmailNotConfirmed } from '@/lib/auth/auth-errors'
+import { openDefaultFamily } from '@/app/actions/family'
 import { markIdleActivity } from '@/lib/idle-timeout'
 import { safeNext } from '@/lib/safe-next'
 import { Button } from '@/components/ui/button'
@@ -139,6 +140,12 @@ export function LoginForm({
       // 74 minutes old is not, and it would put this member a minute from the warning
       // dialog before they had done anything.
       markIdleActivity()
+      // OPEN THE FAMILY THEY CHOSE, which until `20260902000002` never happened: the active
+      // selection persisted in `user_family_settings` and always won, so every session after
+      // the first opened on whichever family they last looked at. Awaited BEFORE the push,
+      // because the page being navigated to resolves its family server-side and would
+      // otherwise render the old one. It never throws and never reports — see the action.
+      await openDefaultFamily()
       router.push(next)
       router.refresh()
     }

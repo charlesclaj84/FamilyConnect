@@ -110,17 +110,24 @@ async function seed() {
     + `INSERT INTO public.photo_collections (id, family_code, name) `
     + `VALUES ('${COLLECTION}', '${FAMILY}', 'Probe') ON CONFLICT DO NOTHING;`,
   )
-  for (const name of ['survivor.jpg', 'orphan.jpg']) {
+  // THREE OBJECTS, NOT TWO, SINCE 20260902000003. `survivor_thumb.jpg` is a real second
+  // object belonging to the surviving row through `photos.thumb_path` — the case the reaper
+  // could not see before that migration, and the one where getting it wrong is silent: a
+  // deleted thumbnail renders as the original and nothing on any screen goes wrong.
+  for (const name of ['survivor.jpg', 'survivor_thumb.jpg', 'orphan.jpg']) {
     const { error } = await db.storage.from(BUCKET).upload(
       `${FAMILY}/${name}`, Buffer.from('not really a jpeg'),
       { contentType: 'image/jpeg', upsert: true },
     )
     if (error) throw new Error(`upload ${name}: ${error.message}`)
   }
-  // Only the survivor keeps a row. The orphan's row is what the purge stands in for.
+  // Only the survivor keeps a row. The orphan's row is what the purge stands in for — and
+  // that one row points at TWO objects, which is what makes the assertions below evidence for
+  // `storage_thumb_column` rather than only for `file_path`.
   psql(
-    `INSERT INTO public.photos (collection_id, family_code, file_path) `
-    + `VALUES ('${COLLECTION}', '${FAMILY}', '${FAMILY}/survivor.jpg');`
+    `INSERT INTO public.photos (collection_id, family_code, file_path, thumb_path) `
+    + `VALUES ('${COLLECTION}', '${FAMILY}', '${FAMILY}/survivor.jpg', `
+    + `'${FAMILY}/survivor_thumb.jpg');`
     + `INSERT INTO public.platform_data_deletions (family_code, reason, tier_kept, deleted) `
     + `VALUES ('${FAMILY}', 'retention', 'free', '{"photos": 1}'::jsonb);`,
   )
@@ -141,7 +148,7 @@ describe('the storage reaper', () => {
 
     expect(result.removed).toBe(0)
     expect(result.abandoned).toBe(1)
-    expect(await names()).toEqual(['orphan.jpg', 'survivor.jpg'])
+    expect(await names()).toEqual(['orphan.jpg', 'survivor.jpg', 'survivor_thumb.jpg'])
     // AND THE PURGE IS STILL OWED, so a transient failure retries rather than stranding the
     // bytes permanently on one bad response.
     expect(psql(
@@ -160,13 +167,17 @@ describe('the storage reaper', () => {
     const result = await reap()
     expect(result.removed).toBe(1)
     expect(result.abandoned).toBe(0)
-    expect(await names()).toEqual(['survivor.jpg'])
+    // THE THUMBNAIL SURVIVES, and this is the assertion the whole `storage_thumb_column`
+    // mechanism exists for. Mutation-checked: with the map row nulled
+    // (`UPDATE tier_data_tables SET storage_thumb_column = NULL WHERE table_name='photos'`)
+    // this reports `removed: 2` and the surviving photograph's thumbnail is gone.
+    expect(await names()).toEqual(['survivor.jpg', 'survivor_thumb.jpg'])
   })
 
   it('does not re-walk a purge it has finished', async () => {
     const result = await reap()
     expect(result.claimed).toBe(0)
-    expect(await names()).toEqual(['survivor.jpg'])
+    expect(await names()).toEqual(['survivor.jpg', 'survivor_thumb.jpg'])
   })
 
   it('leaves a family alone when its purge deleted no files', async () => {
@@ -182,6 +193,6 @@ describe('the storage reaper', () => {
     expect(result.claimed).toBe(0)
     // BOTH objects survive — including the one with no row. A purge that took no files is not
     // a licence to tidy up bytes nobody asked about.
-    expect(await names()).toEqual(['orphan.jpg', 'survivor.jpg'])
+    expect(await names()).toEqual(['orphan.jpg', 'survivor.jpg', 'survivor_thumb.jpg'])
   })
 })

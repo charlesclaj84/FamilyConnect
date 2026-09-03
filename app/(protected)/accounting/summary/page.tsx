@@ -4,6 +4,9 @@ import { can, requireView } from '@/lib/auth/permissions'
 import { getMyDuesSummary, getMyPaymentHistory, getDonationProgress } from '@/app/actions/dues'
 import { getFunds } from '@/app/actions/funds'
 import { getDuesOnlineStatus } from '@/app/actions/pay-dues'
+import { HandHeart } from 'lucide-react'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { buttonVariants } from '@/components/ui/button'
 import { DonationsSection } from '@/components/account/DonationsSection'
 import { FundsSection } from '@/components/account/FundsSection'
 import { NextInstallmentsCard } from '@/components/account/NextInstallmentsCard'
@@ -167,46 +170,56 @@ export default async function AccountSummaryPage() {
           is filling — while a drive is a thing currently being asked for. Reading the
           pots first and then what is being raised into one is the order somebody thinks
           in; the reverse asked them to take an appeal in before they knew what it fed. */}
+      {/* ── THE SAME CARD AS FAMILY FUNDS ABOVE IT (2026-09-02) ────────────────────
+          It was a bare `SectionHeading` — an `h2` with a text link opposite — over an
+          unfenced list of bordered rows, sitting directly under a `Card` with an icon, a
+          `CardTitle` and an outline button. Two adjacent sections of one page, both of them
+          the FAMILY's money rather than the reader's, drawn as two different kinds of thing.
+          Reported as: open donations should look just like Family Funds.
+
+          THE CHROME IS BUILT HERE AND NOT MOVED INTO `DonationsSection`, deliberately. That
+          component says in its own header that it has no card because *"whatever heading is
+          above it names it"*, and it has a second caller — the Dues & Donations shell, where
+          it sits inside that screen's own pane and a card would be a box in a box. The card
+          belongs to the digest, which is the surface that has funds beside it to match.
+
+          `HandHeart` rather than `FundsSection`'s `Award`, because two identical icons is
+          worse than none: the shape of the panel is what says these are the same kind of
+          section, and the icon is what says which one you are looking at. */}
       {canDonations && openDrives.length > 0 && (
-        <section className="space-y-3">
-          <SectionHeading title={t('acct.openDonationDrives')} href="/accounting/dues-and-donations?pane=donations" linkLabel="All drives" />
-          {/* `chargesReady` so a drive carries a real Give button here as well as on
-              [Dues & Donations](/accounting/dues-and-donations?pane=donations). A digest that
-              shows the ask and cannot take the gift sends somebody to another screen to press
-              the same button. */}
-          <DonationsSection donations={openDrives} chargesReady={online.chargesReady} intl={intl} money={money} t={t} />
-          {closedCount > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {t(closedCount === 1 ? 'acct.closedDrivesOne' : 'acct.closedDrivesMany',
-                { n: String(closedCount) })}
-              {' '}<Link href="/accounting/dues-and-donations?pane=donations">see Donations</Link>{' '}
-              {t('acct.seeDonationsForFull')}
-            </p>
-          )}
-        </section>
+        <Card>
+          <CardHeader className="pb-2 flex flex-row items-center justify-between">
+            <CardTitle className="text-base flex items-center gap-2">
+              <HandHeart className="h-4 w-4 text-primary" />
+              {t('acct.openDonationDrives')}
+            </CardTitle>
+            <Link
+              href="/accounting/dues-and-donations?pane=donations"
+              className={buttonVariants({ size: 'sm', variant: 'outline' })}
+            >
+              {t('acct.allDrives')}
+            </Link>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {/* `chargesReady` so a drive carries a real Give button here as well as on
+                [Dues & Donations](/accounting/dues-and-donations?pane=donations). A digest
+                that shows the ask and cannot take the gift sends somebody to another screen
+                to press the same button. */}
+            <DonationsSection donations={openDrives} chargesReady={online.chargesReady} intl={intl} money={money} t={t} />
+            {closedCount > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {t(closedCount === 1 ? 'acct.closedDrivesOne' : 'acct.closedDrivesMany',
+                  { n: String(closedCount) })}
+                {' '}
+                <Link href="/accounting/dues-and-donations?pane=donations">
+                  {t('acct.seeDonations')}
+                </Link>{' '}
+                {t('acct.seeDonationsForFull')}
+              </p>
+            )}
+          </CardContent>
+        </Card>
       )}
     </PageShell>
-  )
-}
-
-/**
- * A section title with the way through to the screen it summarises.
- *
- * The link is what makes this a digest rather than a smaller copy: every section here
- * shows the part worth seeing at a glance and names where the rest is. No explicit text
- * colour needed — `globals.css`'s base `a { color: var(--brand-accent) }` is the right
- * answer for an ordinary link, and the rails that override it do so because they paint
- * their own grounds.
- */
-function SectionHeading({ title, href, linkLabel }: {
-  title: string
-  href: string
-  linkLabel: string
-}) {
-  return (
-    <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      <Link href={href} className="text-sm">{linkLabel}</Link>
-    </div>
   )
 }

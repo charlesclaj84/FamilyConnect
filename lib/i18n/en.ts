@@ -108,6 +108,9 @@ export const en: Catalogue = {
   'switcher.badge.removed': 'This family has been removed',
   'switcher.badge.default': 'Opens when you log in',
 
+  'switcher.badge.removedShort': 'Removed',
+  'switcher.badge.pendingShort': 'Pending',
+  'switcher.badge.defaultShort': 'Default',
   // ── THE ACCOUNT MENU ──────────────────────────────────────────────────────────────
   'account.profile': 'My Profile',
   'account.families': 'My Families',
@@ -151,6 +154,7 @@ export const en: Catalogue = {
   // translated, because a member looking for their own language scans for the word they would
   // use for it and that word does not change with the interface they are reading.
   'language.choose': 'Choose a language',
+  'language.changeFailed': 'Could not change the language.',
   // ── BATCH 1 OF THE 2026-08-29 SWEEP ────────────────────────────────────────
   // Found by rendering every route as a Spanish-reading member and again as an English
   // one and diffing the visible text — see the note above `i18n:literals`' ceiling on why
@@ -709,17 +713,14 @@ export const en: Catalogue = {
   'plan.perInstallment': 'per installment',
   'plan.nextPaymentCovering': 'Next payment {amount}, covering what has come due so far',
   'plan.payAmountNext': 'Pay {amount} next',
-  'tree.openedElsewhere':
-    'You have no parents or children recorded yet, so this opens on your family rather than on an empty page.',
   'tree.unattachedLede':
     '{who} in the family but not connected to anybody, so they do not appear anywhere above. Click a name to centre the tree on them, then fill in the relatives around them.',
   'tree.rosterLede':
     'The tree above shows the four generations around one person. Click anybody here to centre it on them.',
+  'tree.rosterFollowsFilter': 'This list follows the Bloodline filter too.',
   'tree.moreInGeneration': '+ {n} more in this generation. Find them under',
   'tree.removeLinkConfirm':
     'Remove the link between {a} and {b}? This only removes the connection — nobody is removed from the family, and nothing they have recorded is deleted.',
-  'tree.showingBloodline': 'Showing the {n} people marked as being in this family’s bloodline. Everybody else is hidden.',
-  'tree.showingEveryone': 'Everyone in the family — {total} people, {blood} of them by blood.',
   'tree.addSomeonesFather': 'Add {who}’s father',
   'tree.addSomeonesMother': 'Add {who}’s mother',
   'tree.addAnother': 'Add another {relation}',
@@ -1990,14 +1991,13 @@ export const en: Catalogue = {
   'notes.deleteThisNote': 'Delete this note',
   'notes.atTheEnd': 'It goes at the end of this entry, under your name.',
   'bylaws.heading': 'Bylaws',
-  'bylaws.lede': 'The rules the family agreed to live by. Search them, or read them in order.',
   'bylaws.addArticle': 'Add an article',
   'bylaws.addArticleAction': 'Add article',
   'bylaws.searchLabel': 'Search the bylaws',
-  'bylaws.searchPh': 'quorum, &ldquo;annual meeting&rdquo;, dues -proxy',
+  'bylaws.searchPh': 'quorum, “annual meeting”, dues -proxy',
   'bylaws.indexedFull': 'Searchable in full',
   'bylaws.typedIn': 'Typed in — searchable in full',
-  'bylaws.titleOnly': 'Title and summary only — the file&rsquo;s text has not been read',
+  'bylaws.titleOnly': 'Title and summary only — the file’s text has not been read',
   'bylaws.articleOptional': 'Article (optional)',
   'bylaws.summaryOptional': 'Summary (optional)',
   'bylaws.textOptional': 'The text (optional)',
@@ -2045,6 +2045,7 @@ export const en: Catalogue = {
   'gath.rail': 'Gathering areas',
   'gath.pane.gatherings': 'Gatherings',
   'gath.pane.myTasks': 'My Tasks',
+  'gath.pane.myTasksN': 'My Tasks ({n})',
   'gath.schedule': 'Schedule a gathering',
   'gath.scheduleAction': 'Schedule gathering',
   'gath.scheduling': 'Scheduling…',
@@ -2122,7 +2123,7 @@ export const en: Catalogue = {
   'meet.step.basics': 'The basics',
   'meet.step.whoIsComing': 'Who is coming',
   'meet.step.anybodyElse': 'Anybody else',
-  'meet.titlePh': 'Quarterly officers&rsquo; meeting',
+  'meet.titlePh': 'Quarterly officers’ meeting',
   'meet.startTime': 'Start time',
   'meet.endTime': 'End time',
   'meet.timezone': 'Timezone',
@@ -2321,7 +2322,6 @@ export const en: Catalogue = {
   'tree.invited': 'Invited',
   'tree.noEmail': 'No email',
   'tree.inBloodline': 'In the bloodline',
-  'tree.clickToCentre': 'Click anybody to centre the tree on them',
   'tree.marksBlood': 'Marks a blood relative',
   'tree.mode': 'Tree mode',
   'tree.whichRelatives': 'Which relatives to show',
@@ -2330,13 +2330,6 @@ export const en: Catalogue = {
   'tree.removeConnection': 'Remove this connection',
   'tree.removeConnectionAction': 'Remove connection',
   'tree.removeConnectionFailed': 'Could not remove that connection.',
-  'tree.editHint':
-    'Add relatives, correct records and remove connections. Editing shows the generations '
-    + 'either side of this person, so the gaps you can fill are the ones next to them. Nothing '
-    + 'here removes anybody from the family.',
-  'tree.readHint':
-    'Reading the tree — three generations up and five down. Switch to Edit to add relatives '
-    + 'or change a connection.',
   'tree.fullFamily': 'Full family',
   'tree.bloodline': 'Bloodline',
   'tree.father': 'Father',
@@ -2629,7 +2622,7 @@ export const en: Catalogue = {
   'soon.back': 'Back to dashboard',
   'upg.familyIsOn': 'Your family is on',
   'upg.changePlan': 'Change your plan',
-  'upg.askAdmin': 'Ask one of your family&rsquo;s administrators to change the plan.',
+  'upg.askAdmin': 'Ask one of your family’s administrators to change the plan.',
   'rep.group': 'Group',
   'rep.members': 'Members',
   'rep.share': 'Share',
@@ -3359,7 +3352,7 @@ export const en: Catalogue = {
   'agat.addSegment': 'Add another segment',
   'agat.createOneUnder': 'Create one under',
   'agat.somebodyAccounting':
-    'Somebody who runs the family&rsquo;s Accounting has to create one, and it becomes '
+    'Somebody who runs the family’s Accounting has to create one, and it becomes '
     + 'available here.',
   'agat.severalMayDraw':
     'Several gatherings may draw on one fund. Clearing the fund clears the budget with it.',
@@ -4388,6 +4381,8 @@ export const en: Catalogue = {
   'acct.seeAllDues': 'See all your dues',
   'acct.seeFullPaymentHistory': 'See your full payment history',
   'acct.openDonationDrives': 'Open donation drives',
+  'acct.allDrives': 'All drives',
+  'acct.seeDonations': 'see Donations',
   'adm.backElections': 'Back to Elections',
   'adm.weCouldNotLoad': 'We could not load this family’s details. Try again in a moment.',
   'comm.unableLoadChat': 'Unable to load chat',
@@ -4870,9 +4865,6 @@ export const en: Catalogue = {
   'ui.theseMinutesClosedNothing': 
     'These minutes are closed. Nothing about the meeting changes now — which '
     + 'is what makes them the record.',
-  'ui.whatFamilyMetAbout': 
-    'What the family met about, who was there, and what was decided. The '
-    + 'secretary writes it down; the room votes.',
   'ui.scheduleOneSayingWhat': 
     'Schedule one by saying what kind of meeting it is — the whole family, a '
     + 'chapter, a board, one office across every area, or just the people you '

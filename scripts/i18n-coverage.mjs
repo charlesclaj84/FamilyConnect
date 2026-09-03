@@ -590,6 +590,41 @@ for (const bundle of BUNDLES) {
   }
 }
 
+// 0. NO HTML ENTITY IN A CATALOGUE VALUE, in any language.
+//
+// ── WHY THIS IS A GATE AND NOT AN EYE ───────────────────────────────────────────────
+// A catalogue value reaches a reader by one of two routes and they disagree about entities.
+// As a JSX TEXT NODE — `<p>{t('x')}</p>` — React renders the string as text, so `&ldquo;`
+// is five characters on the screen. As an ATTRIBUTE — a `placeholder`, a `title`, an
+// `aria-label` — it is text either way. Neither decodes. The only place an entity would work
+// is inside HTML the string is INTERPOLATED into, and nothing in the shell bundle does that:
+// `lib/help/inline.ts` has exactly two forms and emits no HTML, and `lib/email/strings/en.ts`
+// says at its top that its bodies are not HTML.
+//
+// So an entity here is always a visible defect, and it is one nothing else could see:
+// `i18n:literals` asks whether a string is KEYED, `i18n:onscreen` diffs one language against
+// another and `&ldquo;` is equally wrong in both, so it cancels. `bylaws.searchPh` carried
+// `&ldquo;annual meeting&rdquo;` in ALL THREE languages and the search box read
+// `quorum, &ldquo;annual meeting&rdquo;, dues -proxy` to every member of every family.
+//
+// The fix is the character itself — “ ” ’ — which every one of these files already holds
+// hundreds of, so there is no argument for the entity form beyond somebody having typed it.
+const HTML_ENTITY = /&(?:[a-zA-Z][a-zA-Z0-9]{1,31}|#\d{1,7}|#[xX][0-9a-fA-F]{1,6});/
+for (const bundle of BUNDLES) {
+  for (const [code, catalogue] of Object.entries(bundle.catalogues)) {
+    for (const [key, value] of Object.entries(catalogue)) {
+      if (typeof value !== 'string') continue
+      const hit = value.match(HTML_ENTITY)
+      if (hit) {
+        findings.push({
+          kind: 'HTML-ENTITY', key,
+          detail: `${code} contains ${hit[0]} — catalogue values are rendered as TEXT, so it will show as those characters. Use the character itself.`,
+        })
+      }
+    }
+  }
+}
+
 // 1. Every key a call site names exists in English.
 for (const [key, where] of used) {
   if (!enKeys.has(key)) {

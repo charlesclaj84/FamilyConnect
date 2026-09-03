@@ -86,8 +86,10 @@ export function MeetingsClient({ initialMeetings, attendeeOptions, maySchedule, 
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="mb-1 text-3xl font-bold">{t('meet.heading')}</h1>
-          <p className="text-muted-foreground">{t('ui.whatFamilyMetAbout')}</p>
+          {/* NO LEDE, for the reason the Bylaws screen has none: "What the family met about,
+              and what it decided" says what the heading says. The list below is meetings with
+              their dates and their topic counts, which answers it directly. */}
+          <h1 className="text-3xl font-bold">{t('meet.heading')}</h1>
         </div>
         {maySchedule && (
           <Button onClick={() => setScheduling(true)}><Plus /> {t('meet.schedule')}</Button>

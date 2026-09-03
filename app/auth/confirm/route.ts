@@ -74,5 +74,18 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/update-password', request.url))
   }
 
+  // OPEN THE FAMILY THEY CHOSE. `verifyOtp` above has just written session cookies, so this
+  // is a sign-in like any other and inherits the stale-active-selection problem
+  // `20260902000002` fixes — a member confirming an email change, or following a signup link
+  // on a second device, would otherwise land in whichever family they last looked at.
+  //
+  // NOT ON THE RECOVERY BRANCH, deliberately: that lands on `/update-password`, which reads
+  // no family data at all, and `UpdatePasswordForm` signs them in properly afterwards. A call
+  // here would be a database write on the way to a page that cannot use it.
+  //
+  // Called with the same `supabase` client the verification used, so `auth.uid()` is the
+  // session that was just created. It never throws — see the action.
+  await supabase.rpc('open_default_family')
+
   return NextResponse.redirect(new URL(next, request.url))
 }

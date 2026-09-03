@@ -129,6 +129,9 @@ export const fr: Catalogue = {
   'switcher.badge.removed': 'Cette famille a été supprimée',
   'switcher.badge.default': 'S’ouvre à la connexion',
 
+  'switcher.badge.removedShort': 'Retirée',
+  'switcher.badge.pendingShort': 'En attente',
+  'switcher.badge.defaultShort': 'Défaut',
   // ── THE ACCOUNT MENU ─────────────────────────────────────────────────────────────
   // *Mon* and *Mes* are FIRST person and correct under formal address: the member is naming
   // their own things, not being addressed.
@@ -163,6 +166,7 @@ export const fr: Catalogue = {
   // ── THE LANGUAGE SWITCHER ────────────────────────────────────────────────────────
   // *Choisissez*, not *Choisis* — formal.
   'language.choose': 'Choisissez une langue',
+  'language.changeFailed': 'Impossible de changer la langue.',
   // ── BATCH 1 OF THE 2026-08-29 SWEEP ────────────────────────────────────────
   // Found by rendering every route as a Spanish-reading member and again as an English
   // one and diffing the visible text — see the note above `i18n:literals`' ceiling on why
@@ -718,17 +722,14 @@ export const fr: Catalogue = {
   'plan.perInstallment': 'par échéance',
   'plan.nextPaymentCovering': 'Prochain paiement {amount}, couvrant ce qui est dû jusqu’à présent',
   'plan.payAmountNext': 'Payer ensuite {amount}',
-  'tree.openedElsewhere':
-    'Vous n’avez encore aucun parent ni enfant enregistré, donc ceci s’ouvre sur votre famille plutôt que sur une page vide.',
   'tree.unattachedLede':
     '{who} dans la famille mais sans lien avec personne, elles n’apparaissent donc nulle part ci-dessus. Cliquez sur un nom pour y centrer l’arbre, puis renseignez les parents autour.',
   'tree.rosterLede':
     'L’arbre ci-dessus montre les quatre générations autour d’une personne. Cliquez sur n’importe qui ici pour y centrer l’arbre.',
+  'tree.rosterFollowsFilter': 'Cette liste suit également le filtre Lignée.',
   'tree.moreInGeneration': '+ {n} de plus dans cette génération. Retrouvez-les sous',
   'tree.removeLinkConfirm':
     'Supprimer le lien entre {a} et {b} ? Ceci ne supprime que la connexion — personne n’est retiré de la famille et rien de ce qu’ils ont enregistré n’est supprimé.',
-  'tree.showingBloodline': 'Affichage des {n} personnes marquées comme faisant partie de la lignée de cette famille. Tous les autres sont masqués.',
-  'tree.showingEveryone': 'Toute la famille — {total} personnes, dont {blood} par le sang.',
   'tree.addSomeonesFather': 'Ajouter le père de {who}',
   'tree.addSomeonesMother': 'Ajouter la mère de {who}',
   'tree.addAnother': 'Ajouter un autre {relation}',
@@ -1984,12 +1985,10 @@ export const fr: Catalogue = {
   'notes.deleteThisNote': 'Supprimer cette note',
   'notes.atTheEnd': 'Elle est ajoutée à la fin de ce sujet, sous votre nom.',
   'bylaws.heading': 'Statuts',
-  'bylaws.lede':
-    'Les règles que la famille s’est données. Cherchez-les, ou lisez-les dans l’ordre.',
   'bylaws.addArticle': 'Ajouter un article',
   'bylaws.addArticleAction': 'Ajouter l’article',
   'bylaws.searchLabel': 'Rechercher dans les statuts',
-  'bylaws.searchPh': 'quorum, &ldquo;assemblée annuelle&rdquo;, cotisations -procuration',
+  'bylaws.searchPh': 'quorum, “assemblée annuelle”, cotisations -procuration',
   'bylaws.indexedFull': 'Recherchable en entier',
   'bylaws.typedIn': 'Saisi — recherchable en entier',
   'bylaws.titleOnly': 'Titre et résumé seulement — le texte du fichier n’a pas été lu',
@@ -2041,6 +2040,7 @@ export const fr: Catalogue = {
   'gath.rail': 'Zones de rassemblement',
   'gath.pane.gatherings': 'Rassemblements',
   'gath.pane.myTasks': 'Mes tâches',
+  'gath.pane.myTasksN': 'Mes tâches ({n})',
   'gath.schedule': 'Planifier un rassemblement',
   'gath.scheduleAction': 'Planifier le rassemblement',
   'gath.scheduling': 'Planification…',
@@ -2324,7 +2324,6 @@ export const fr: Catalogue = {
   'tree.invited': 'Invité',
   'tree.noEmail': 'Sans courriel',
   'tree.inBloodline': 'Dans la lignée',
-  'tree.clickToCentre': 'Cliquez sur quelqu’un pour centrer l’arbre sur cette personne',
   'tree.marksBlood': 'Indique un parent par le sang',
   'tree.mode': 'Mode de l’arbre',
   'tree.whichRelatives': 'Quels parents afficher',
@@ -2333,13 +2332,6 @@ export const fr: Catalogue = {
   'tree.removeConnection': 'Retirer ce lien',
   'tree.removeConnectionAction': 'Retirer le lien',
   'tree.removeConnectionFailed': 'Ce lien n’a pas pu être retiré.',
-  'tree.editHint':
-    'Ajoutez des parents, corrigez des fiches et retirez des liens. La modification affiche '
-    + 'les générations de part et d’autre de cette personne, donc les vides que vous pouvez '
-    + 'combler sont ceux d’à côté. Rien ici ne retire quelqu’un de la famille.',
-  'tree.readHint':
-    'Vous lisez l’arbre — trois générations vers le haut et cinq vers le bas. Passez en mode '
-    + 'Modifier pour ajouter des parents ou changer un lien.',
   'tree.fullFamily': 'Toute la famille',
   'tree.bloodline': 'Lignée',
   'tree.father': 'Père',
@@ -4424,6 +4416,8 @@ export const fr: Catalogue = {
   'acct.seeAllDues': 'Voir toutes vos cotisations',
   'acct.seeFullPaymentHistory': 'Voir tout votre historique de paiements',
   'acct.openDonationDrives': 'Collectes en cours',
+  'acct.allDrives': 'Toutes les collectes',
+  'acct.seeDonations': 'voir Dons',
   'adm.backElections': 'Retour aux Élections',
   'adm.weCouldNotLoad': 
     'Nous n’avons pas pu charger les informations de cette famille. Réessayez '
@@ -4955,9 +4949,6 @@ export const fr: Catalogue = {
   'ui.theseMinutesClosedNothing': 
     'Ce procès-verbal est clos. Plus rien ne change au sujet de la réunion — '
     + 'et c’est ce qui en fait le compte rendu.',
-  'ui.whatFamilyMetAbout': 
-    'De quoi la famille a discuté, qui était là et ce qui a été décidé. La '
-    + 'personne chargée du procès-verbal l’écrit ; la salle vote.',
   'ui.scheduleOneSayingWhat': 
     'Programez-en une en indiquant de quel genre de réunion il s’agit — toute '
     + 'la famille, un chapitre, un conseil, une même fonction dans toutes les '

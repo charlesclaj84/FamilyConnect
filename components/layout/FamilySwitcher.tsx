@@ -146,7 +146,7 @@ export function FamilySwitcher({ families }: {
                         className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-brand-withheld"
                         title={t('switcher.badge.removed')}
                       >
-                        <PowerOff className="h-3 w-3" /> Removed
+                        <PowerOff className="h-3 w-3" /> {t('switcher.badge.removedShort')}
                       </span>
                     )}
                     {family.status === 'pending' && (
@@ -160,7 +160,7 @@ export function FamilySwitcher({ families }: {
                         className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-brand-accent"
                         title={t('switcher.badge.pending')}
                       >
-                        <Clock className="h-3 w-3" /> Pending
+                        <Clock className="h-3 w-3" /> {t('switcher.badge.pendingShort')}
                       </span>
                     )}
                     {family.isDefault && (
@@ -168,7 +168,7 @@ export function FamilySwitcher({ families }: {
                         className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
                         title={t('switcher.badge.default')}
                       >
-                        <Star className="h-3 w-3" /> Default
+                        <Star className="h-3 w-3" /> {t('switcher.badge.defaultShort')}
                       </span>
                     )}
                   </button>

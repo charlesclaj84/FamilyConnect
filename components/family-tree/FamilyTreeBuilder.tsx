@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Unlink, Users, Crown, Sprout, Pencil, Droplet } from 'lucide-react'
+import { Plus, Unlink, Users, Sprout, Pencil, Droplet } from 'lucide-react'
 import { Avatar } from '@/components/ui/Avatar'
 import { useConfirm } from '@/components/ui/confirm'
 import { FormError } from '@/components/ui/form-message'
@@ -295,8 +295,13 @@ export function FamilyTreeBuilder({
   // That asymmetry is the point rather than a limitation of the editor. Each extra band in
   // Edit is another row of "+" cards for relatives you are not currently placing, and the
   // dashed slots are the loudest thing on the canvas — a five-deep edit view is a screen of
-  // furniture with a tree behind it. The mode hint says the depth changes, because a canvas
-  // that silently shrinks when you press Edit reads as something having gone wrong.
+  // furniture with a tree behind it.
+  //
+  // A CANVAS THAT SILENTLY SHRINKS WHEN YOU PRESS EDIT READS AS SOMETHING HAVING GONE
+  // WRONG, so it is said somewhere. It used to be a sentence beside the View/Edit switch;
+  // on 2026-09-02 the two switches moved onto one row and the hints went with them, so it
+  // is `family-tree#view-vs-edit` in the manual now. If that paragraph is ever deleted,
+  // this behaviour is undocumented rather than merely unexplained.
   const levelsUp = canAct ? 2 : 3
   const levelsDown = canAct ? 1 : 5
 
@@ -461,23 +466,32 @@ export function FamilyTreeBuilder({
     /** A word under the pills — the relationship this card was reached by. */
     caption?: string
   }) => {
-    // MANAGE IS OFFERED FROM EVERY CARD WITH SOMETHING TO CHANGE, which is a record to
-    // correct or any connection at all. It used to be offered only for the edge this card
-    // was reached by, so a grandparent — drawn from their child's card, with no edge to
-    // the focus person — got no pencil, and there was no way anywhere in the product to
-    // say that a grandmother was a step-grandmother.
+    // MANAGE IS OFFERED FROM EVERY CARD, full stop, and the qualifier that used to be
+    // here is the bug this removed.
     //
-    // AND THE DIRECTORY GRANT, since 20260819000008. The panel is where a person's RECORD
-    // is read and corrected — names, nickname, birthday, gender, and the invitation — which
-    // is the Member Directory's question rather than the tree's, so it follows `members`
-    // and not `family-tree`. A family that restricted its roster gets the tree's SHAPE and
-    // not a way to read the roster one card at a time.
+    // It read `canViewDirectory && (!person.hasAccount || <has any connection>)`, and that
+    // second clause was correct for exactly as long as the panel had nothing to offer a
+    // connected-to-nobody member with an account: the details half is read-only for
+    // somebody with an account (they are the authority on their own name), the invitation
+    // half does not apply to them, and the connections list would be empty. Three empty
+    // halves is a dialog worth not opening.
+    //
+    // `20260902000000` PUT SOMETHING IN IT. The bloodline is a tick on the PERSON now,
+    // rendered above the connections and offered whether or not there are any — so the one
+    // case this clause excluded is precisely a member for whom the tick is the entire
+    // point, and there was no route to it anywhere in the product. Reported as: cannot set
+    // bloodline for a member who is not on the tree.
+    //
+    // THE DIRECTORY GRANT STAYS, since 20260819000008. The panel is where a person's
+    // RECORD is read and corrected — names, nickname, birthday, gender, and the invitation
+    // — which is the Member Directory's question rather than the tree's, so it follows
+    // `members` and not `family-tree`. A family that restricted its roster gets the tree's
+    // SHAPE and not a way to read the roster one card at a time.
     //
     // It ANDs with `canAct` below rather than replacing it: losing the Directory grant
     // closes the panel, and losing the tree's edit grant closes it too. Neither implies
     // the other.
-    const canManage =
-      canViewDirectory && (!person.hasAccount || (links.get(person.id)?.length ?? 0) > 0)
+    const canManage = canViewDirectory
     return (
       <PersonCard
         key={person.id}
@@ -503,109 +517,113 @@ export function FamilyTreeBuilder({
     <div className="space-y-4">
       <FormError message={error} />
 
-      {/* VIEW OR EDIT. Offered only to somebody who may actually edit, so it is not a
-          control that exists to be refused. Its own row above the Bloodline filter,
-          because the two are different kinds of thing: this one changes what the canvas
-          LETS YOU DO, the other changes who is on it. */}
-      {canEdit && (
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex rounded-xl border p-0.5" role="group" aria-label={t('tree.mode')}>
-            {/* IDS AND KEYS, not ids and English. `perm.action.view` / `perm.action.edit`
-                exist and are translated ('Ver' / 'Editar'), so this rendered English beside a
-                grid that did not — `npm run i18n:onscreen` found it, and neither static gate
-                could: a lone capitalised word in a registry is deliberately not prose they
-                recognise. */}
-            {([
-              { id: false, label: t('perm.action.view') },
-              { id: true, label: t('perm.action.edit') },
-            ] as const).map(o => (
-              <button
-                key={String(o.id)}
-                type="button"
-                onClick={() => setEditing(o.id)}
-                aria-pressed={editing === o.id}
-                className={cn(
-                  'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                  editing === o.id
-                    ? 'bg-brand-primary text-brand-on-primary'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-          {/* THE DEPTH IS PART OF THE MODE, so the hint says so. A canvas that quietly
-              collapses from eight bands to four when you press Edit reads as something
-              having gone wrong, and the reason it collapses — the "+" slots belong to the
-              person in the middle — is not guessable from the result. */}
-          <p className="text-xs text-muted-foreground">
-            {editing
-              ? t('tree.editHint')
-              : t('tree.readHint')}
-          </p>
+      {/* ── THE TWO MODE SWITCHES, ON ONE ROW, TOP RIGHT ───────────────────────────
+          They were two stacked rows, each with a sentence of hint beside it, and the older
+          comment argued for that: *"Its own row above the Bloodline filter, because the two
+          are different kinds of thing: this one changes what the canvas LETS YOU DO, the
+          other changes who is on it."* That distinction is real and it is not worth two
+          rows of vertical space above a canvas — which is the thing the page is for, and
+          which was being pushed down by chrome explaining itself.
+
+          `justify-end` puts them where a pair of view switches belongs and where the eye
+          already goes for them; `flex-wrap` is what keeps that honest below `sm`, where two
+          segmented controls do not fit a phone and the second drops under the first rather
+          than shrinking.
+
+          EACH IS STILL CONDITIONAL AND INDEPENDENTLY SO. A caller who cannot edit gets one
+          control, a family that has marked nobody gets the other, and somebody with neither
+          gets an empty row that collapses to nothing — no wrapper is rendered around them
+          beyond this flex, so there is no empty box left behind.
+
+          THE HINTS ARE GONE WITH THE ROWS and that is the trade being made. What they said
+          is still true and is now in the manual: the depth changing between View and Edit is
+          `family-tree#view-vs-edit`, and who the Bloodline toggle shows is `family-tree#bloodline`,
+          which the help link beside it goes straight to. */}
+      {(canEdit || canFilterBlood) && (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {canEdit && (
+            <div className="inline-flex rounded-xl border p-0.5" role="group" aria-label={t('tree.mode')}>
+              {/* IDS AND KEYS, not ids and English. `perm.action.view` / `perm.action.edit`
+                  exist and are translated ('Ver' / 'Editar'), so this rendered English beside
+                  a grid that did not — `npm run i18n:onscreen` found it, and neither static
+                  gate could: a lone capitalised word in a registry is deliberately not prose
+                  they recognise. */}
+              {([
+                { id: false, label: t('perm.action.view') },
+                { id: true, label: t('perm.action.edit') },
+              ] as const).map(o => (
+                <button
+                  key={String(o.id)}
+                  type="button"
+                  onClick={() => setEditing(o.id)}
+                  aria-pressed={editing === o.id}
+                  className={cn(
+                    'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                    editing === o.id
+                      ? 'bg-brand-primary text-brand-on-primary'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* BLOODLINE OR EVERYONE. Offered only when the family has marked SOME of its
+              relatives and not all of them — see `canFilterBlood`. */}
+          {canFilterBlood && (
+            <div className="inline-flex rounded-xl border p-0.5" role="group" aria-label={t('tree.whichRelatives')}>
+              {([
+                { id: false, label: t('tree.fullFamily') },
+                { id: true, label: t('tree.bloodline') },
+              ] as const).map(o => (
+                <button
+                  key={String(o.id)}
+                  type="button"
+                  onClick={() => setBloodOnly(o.id)}
+                  aria-pressed={bloodOnly === o.id}
+                  className={cn(
+                    'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                    bloodOnly === o.id
+                      ? 'bg-brand-primary text-brand-on-primary'
+                      : 'text-muted-foreground hover:text-foreground',
+                  )}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* THE HELP LINK STAYS, and it is the one piece of the old Bloodline row that has
+              to: what the toggle shows is genuinely worth a paragraph, and with the sentence
+              beside it gone this is the only route to it. `family-tree#bloodline` explains
+              that the answer is family-wide rather than per viewer, that an unmarked relative
+              is hidden rather than absent, and that a blood-only due prices against the same
+              ticks. */}
+          {canFilterBlood && (
+            <HelpLink
+              slug="family-tree"
+              section="bloodline"
+              label={t('tree.bloodlineHelp')}
+              className="size-6"
+            />
+          )}
         </div>
       )}
 
-      {/* BLOODLINE OR EVERYONE. Offered only when the family has marked SOME of its
-          relatives and not all of them — see `canFilterBlood`. */}
-      {canFilterBlood && (
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex rounded-xl border p-0.5" role="group" aria-label={t('tree.whichRelatives')}>
-            {([
-              { id: false, label: t('tree.fullFamily') },
-              { id: true, label: t('tree.bloodline') },
-            ] as const).map(o => (
-              <button
-                key={String(o.id)}
-                type="button"
-                onClick={() => setBloodOnly(o.id)}
-                aria-pressed={bloodOnly === o.id}
-                className={cn(
-                  'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-                  bloodOnly === o.id
-                    ? 'bg-brand-primary text-brand-on-primary'
-                    : 'text-muted-foreground hover:text-foreground',
-                )}
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {showingBlood
-              ? t('tree.showingBloodline', { n: String(bloodline.size) })
-              : t('tree.showingEveryone', {
-                  total: String(tree.people.length),
-                  blood: String(bloodline.size),
-                })}
-          </p>
-          {/* THE HELP LINK STAYS, AND WHAT IT HAS TO EXPLAIN HAS CHANGED COMPLETELY.
-              It was here because the toggle was the most misread control on the page: the
-              answer was walked from a named anchor, so somebody who married in could appear
-              as blood, and the lever a member reached for recorded a falsehood about their
-              own mother. `20260902000000` deleted all of that — the answer is now whatever
-              the family has ticked, one person at a time.
-              What is left to explain is smaller and still worth a paragraph: that the
-              setting is FAMILY-WIDE rather than per viewer, that an unmarked relative is
-              hidden rather than absent, and that `dues_schedules.bloodline_only` prices
-              against the same ticks. `family-tree#bloodline` carries it. */}
-          <HelpLink
-            slug="family-tree"
-            section="bloodline"
-            label={t('tree.bloodlineHelp')}
-            className="size-6"
-          />
-        </div>
-      )}
+      {/* THE WAY BACK TO YOUR OWN CARD, when the tree opened somewhere else — which
+          happens when your own line is empty (see `openingFocus`).
 
-      {/* WHY YOU ARE LOOKING AT SOMEBODY ELSE. Only when the tree opened somewhere other
-          than the caller's own card, which happens when their own line is empty — see
-          `openingFocus`. A tree that quietly centres on your spouse is more confusing than
-          one that starts empty, so it says so and offers the way back. */}
+          THE EXPLANATION WENT ON 2026-09-02 and the OFFER did not, which is the whole of
+          the change. It read "You have no parents or children recorded yet, so this opens on
+          your family rather than on an empty page" — a sentence about why, printed every
+          time, to somebody who mostly wants the link. A tree that quietly centres on your
+          spouse with no route back is what this block exists to prevent, and the button is
+          that route; the paragraph was the part that could go. */}
       {openedElsewhere && (
-        <p className="text-xs text-muted-foreground">
-          {t('tree.openedElsewhere')}{' '}
+        <p className="text-xs">
           <button
             type="button"
             onClick={() => setFocusId(tree.myPersonId!)}
@@ -912,7 +930,11 @@ export function FamilyTreeBuilder({
         </h2>
         <p className="mb-4 text-sm text-muted-foreground">
           {t('tree.rosterLede')}
-          {showingBlood && ' This list follows the Bloodline filter too.'}
+          {/* KEYED, and it was a bare English literal in a JSX expression until 2026-09-02
+              — the shape AGENTS.md's i18n section calls a MIXED JSX TEXT NODE, which the
+              first four literal shapes were blind to. A Spanish reader was told in English
+              that the index follows the filter. */}
+          {showingBlood && ` ${t('tree.rosterFollowsFilter')}`}
         </p>
         <div className="flex flex-wrap gap-2">
           {roster.map(p => {
@@ -1321,18 +1343,19 @@ function Pill({ children, title }: { children: React.ReactNode; title?: string }
 /**
  * The one-line key under the page heading.
  *
- * `Crown` belongs to the legend rather than to the cards: the gold focus ring already
- * marks the focus person, and a second marker on the same card would be two things saying
- * one thing.
+ * IT IS ONE MARK NOW. It carried a crown too, over the words "Click anybody to centre the
+ * tree on them" — which is not what a crown means. The crown marked the FOCUS person, the
+ * gold ring on that card already marks them, and the sentence beside it was describing the
+ * canvas's interaction rather than decoding a symbol. A legend is for the marks that are
+ * not self-evident; that row was instructions wearing a legend's clothes.
+ *
+ * The droplet is the one that earns a line, because nothing about a small blue drop says
+ * "this person is in the family's bloodline" and the toggle above depends on it.
  */
 export function TreeLegend() {
   const t = useT()
   return (
     <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-      <span className="flex items-center gap-1.5">
-        <Crown className="h-3 w-3 text-brand-legacy" aria-hidden="true" />
-        {t('tree.clickToCentre')}
-      </span>
       {/* The droplet is the one mark on a card that is not self-evident, so it is the one
           the legend spends a line on. A colour with no key is decoration. */}
       <span className="flex items-center gap-1.5">

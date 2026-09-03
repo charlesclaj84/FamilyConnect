@@ -10,7 +10,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { embedMany, embedOne, type PersonNameRow } from '@/lib/supabase/embed'
 import { IMAGE_FORMATS, isAllowedUpload, uploadRejection } from '@/lib/upload-types'
 import {
-  PHOTO_MAX_BYTES, PHOTO_UPLOAD_CHUNK, photoObjectPath, photoObjectPrefix,
+  PHOTO_MAX_BYTES, PHOTO_UPLOAD_CHUNK, photoObjectPath, photoObjectPrefix, photoThumbPath,
 } from '@/lib/photo-upload'
 import { currentUser } from '@/lib/auth/current-user'
 import { callerI18n } from '@/lib/i18n/server'
@@ -84,7 +84,23 @@ export interface Photo {
   id: string
   collection_id: string
   file_path: string
+  /** The FULL photograph. The lightbox and the download use this and nothing else. */
   url: string
+  /**
+   * What a GRID should draw — the thumbnail if there is one, otherwise the full photograph.
+   *
+   * ── RESOLVED HERE, NOT AT EVERY `<img>` ────────────────────────────────────────
+   * The fallback is the whole feature (`20260902000003`: every row written before thumbnails
+   * existed has none, and so does anything the uploading browser could not decode), so it has
+   * to be somewhere that cannot be forgotten. A component choosing `p.thumb_url ?? p.url`
+   * works until the day one of them does not, and the failure is invisible — the grid renders
+   * perfectly and downloads a hundred megabytes.
+   *
+   * It is a SEPARATE FIELD rather than `url` quietly becoming the small one, because the
+   * lightbox and the download need the original and a field that silently changed meaning is
+   * how a gallery starts serving 640px images as the photograph.
+   */
+  grid_url: string
   caption: string | null
   taken_at: string | null
   uploader_id: string | null
@@ -119,7 +135,7 @@ export async function getPhotoCollections(): Promise<PhotoCollection[]> {
   // tables — the collection's photos, and its `cover_photo_id` pointing back at one.
   const { data, error } = await supabase
     .from('photo_collections')
-    .select('*, photos!photos_collection_id_fkey(id, file_path)')
+    .select('*, photos!photos_collection_id_fkey(id, file_path, thumb_path)')
     .order('created_at', { ascending: false })
 
   if (error) {
@@ -128,8 +144,13 @@ export async function getPhotoCollections(): Promise<PhotoCollection[]> {
   }
 
   return (data ?? []).map(c => {
-    const photoArr = embedMany<{ id: string; file_path: string }>(c.photos)
-    const coverPath = photoArr[0]?.file_path ?? null
+    const photoArr = embedMany<{ id: string; file_path: string; thumb_path: string | null }>(c.photos)
+    // THE COVER IS A THUMBNAIL WHEREVER THERE IS ONE. This card is the single worst offender
+    // on the old behaviour: `/community/gallery` drew one full photograph per album at about
+    // 200px, so twelve albums was a dozen originals — tens of megabytes to render a page that
+    // shows no photograph at full size at all.
+    const cover = photoArr[0] ?? null
+    const coverPath = cover ? (cover.thumb_path ?? cover.file_path) : null
     const { data: { publicUrl } } = supabase.storage
       .from('photos')
       .getPublicUrl(coverPath ?? '')
@@ -187,6 +208,12 @@ export async function getCollectionDetail(id: string): Promise<{
 
   const photos: Photo[] = photoArr.map(p => {
     const { data: { publicUrl } } = supabase.storage.from('photos').getPublicUrl(p.file_path)
+    // THE FALLBACK IS THE FEATURE — see `Photo.grid_url`. A NULL `thumb_path` is the ordinary
+    // state of every photograph uploaded before 2026-09-02 and of anything the uploader's
+    // browser could not decode, so this is not an error path.
+    const gridUrl = p.thumb_path
+      ? supabase.storage.from('photos').getPublicUrl(p.thumb_path as string).data.publicUrl
+      : publicUrl
 
     const tags = embedMany<{ person_id: string; people: unknown }>(p.photo_tags).map(t => {
       const tagged = embedOne<PersonNameRow>(t.people)
@@ -203,6 +230,7 @@ export async function getCollectionDetail(id: string): Promise<{
       collection_id: p.collection_id,
       file_path: p.file_path,
       url: publicUrl,
+      grid_url: gridUrl,
       caption: p.caption,
       taken_at: p.taken_at,
       uploader_id: p.uploader_id,
@@ -315,6 +343,22 @@ export interface PhotoUploadTicket {
   path: string
   /** Supabase's one-shot upload token for that exact path. */
   token: string
+  /**
+   * Where the browser-made thumbnail goes, and the token for it — or null.
+   *
+   * ── NULL IS A REAL ANSWER AND THE CLIENT MUST HANDLE IT ─────────────────────────
+   * Signing the thumbnail is a second Storage call per file and it is allowed to fail on its
+   * own: an original with no thumbnail renders exactly as it did before this feature, from
+   * `file_path`. Failing the whole ticket over it would make a Storage hiccup on a derived,
+   * optional object cost the family their photograph.
+   *
+   * The client may also decline to use it — a format the canvas cannot decode (HEIC in
+   * Chrome) produces no blob, and the browser then uploads the original alone. Which is why
+   * `recordUploadedPhotos` takes `thumbPath` as optional rather than deriving it: the server
+   * cannot know whether the bytes arrived, and a column pointing at an object that is not
+   * there is worse than a NULL. It re-derives the path anyway and refuses a different one.
+   */
+  thumb: { path: string; token: string } | null
 }
 
 export async function createPhotoUploadTickets(
@@ -388,7 +432,23 @@ export async function createPhotoUploadTickets(
       failed.push(`${file.name}: ${error?.message ?? t('gal.couldNotStartUpload')}`)
       continue
     }
-    tickets.push({ name: file.name, path, token: data.token })
+    // ── AND A TICKET FOR THE THUMBNAIL, WHICH MAY FAIL ON ITS OWN ─────────────────
+    // Same bucket, same folder, `_thumb.jpg` suffix — see `photoThumbPath` for why it is not
+    // a `thumbs/` prefix. A failure here is logged and carried as `null`; the photograph is
+    // still uploaded and still shown, from the original, exactly as before thumbnails
+    // existed.
+    const thumbPath = photoThumbPath(path)
+    let thumb: PhotoUploadTicket['thumb'] = null
+    if (thumbPath) {
+      const signed = await supabase.storage.from('photos').createSignedUploadUrl(thumbPath)
+      if (signed.error || !signed.data) {
+        console.error(`[gallery] could not sign a thumbnail for ${thumbPath}: ${signed.error?.message}`)
+      } else {
+        thumb = { path: thumbPath, token: signed.data.token }
+      }
+    }
+
+    tickets.push({ name: file.name, path, token: data.token, thumb })
   }
 
   return { success: tickets.length > 0, tickets, failed }
@@ -422,7 +482,7 @@ export async function createPhotoUploadTickets(
  */
 export async function recordUploadedPhotos(
   collectionId: string,
-  entries: { name: string; path: string }[],
+  entries: { name: string; path: string; thumbPath?: string | null }[],
   caption: string,
 ): Promise<{ success: boolean; uploaded: number; failed: string[]; message?: string }> {
   const g = await requireMember()
@@ -481,11 +541,22 @@ export async function recordUploadedPhotos(
       continue
     }
 
+    // ── THE THUMBNAIL PATH IS RE-DERIVED, NEVER TRUSTED ───────────────────────────
+    // §4 in miniature: `thumbPath` arrives from the client, and a row carrying the caller's
+    // own `family_code` while pointing at another family's object satisfies every policy.
+    // So the client's value is only ever COMPARED against what this path must be — it says
+    // WHETHER a thumbnail was uploaded, and never WHERE. A mismatch is treated as "no
+    // thumbnail" rather than refused: the photograph is what the family came for, and the
+    // fallback to `file_path` is already the correct rendering.
+    const derivedThumb = photoThumbPath(entry.path)
+    const thumbPath = entry.thumbPath && entry.thumbPath === derivedThumb ? derivedThumb : null
+
     const { error: dbError } = await supabase.from('photos').insert({
       collection_id: collectionId,
       family_code: g.familyCode,
       uploader_id: g.personId || null,
       file_path: entry.path,
+      thumb_path: thumbPath,
       caption: trimmed,
     })
     if (dbError) {
@@ -635,13 +706,21 @@ export async function deletePhoto(
   // storage delete uses the path from the ROW rather than one the caller sent — a mismatched
   // path would take out a DIFFERENT photograph's file inside the same family.
   const outcome = await confirmWrite(() =>
-    supabase.from('photos').delete().eq('id', id).select('id, file_path'))
+    supabase.from('photos').delete().eq('id', id).select('id, file_path, thumb_path'))
   if (!outcome.ok) return { success: false, message: outcome.message }
 
   // Storage AFTER the row, and not fatal: a failed object delete leaves a file nothing points
   // at, while the reverse leaves a row pointing at nothing.
-  const removed = outcome.rows[0]?.file_path
-  if (removed) await supabase.storage.from('photos').remove([removed])
+  //
+  // BOTH OBJECTS. `thumb_path` is in the projection for the same reason `file_path` is — the
+  // paths come from the ROW rather than from anything a caller sent — and it is NULL for every
+  // photograph uploaded before 2026-09-02, which `filter(Boolean)` is what handles. Missing it
+  // would leave a thumbnail in a `public: true` bucket, fetchable by URL, after the family had
+  // deleted the photograph: exactly the failure `20260820000006` found on the `photos` DELETE
+  // policy, in a new place.
+  const gone = outcome.rows[0]
+  const paths = [gone?.file_path, gone?.thumb_path].filter((x): x is string => Boolean(x))
+  if (paths.length > 0) await supabase.storage.from('photos').remove(paths)
   revalidatePath(`/community/gallery/${row.collection_id}`)
   return { success: true }
 }
@@ -746,7 +825,7 @@ export async function deleteCollection(
   // rows are about to be unreachable, and a user-client read here would additionally miss any
   // photograph the caller cannot see — which would leave exactly those files behind.
   const { data: photos, error: readError } = await admin
-    .from('photos').select('file_path').eq('collection_id', id).eq('family_code', g.familyCode)
+    .from('photos').select('file_path, thumb_path').eq('collection_id', id).eq('family_code', g.familyCode)
   if (readError) {
     console.error(`[gallery] could not list ${id} before deleting it: ${readError.message}`)
     return { success: false, message: t('act.couldNotReadAlbumNothing') }
@@ -756,7 +835,11 @@ export async function deleteCollection(
     .from('photo_collections').delete().eq('id', id).eq('family_code', g.familyCode)
   if (error) return { success: false, message: error.message }
 
-  const paths = (photos ?? []).map(p => p.file_path as string)
+  // BOTH OBJECTS PER PHOTOGRAPH — see `deletePhoto` for why a missed thumbnail is a leak
+  // rather than a tidiness problem. `thumb_path` is NULL for everything uploaded before
+  // 2026-09-02 and for anything the uploader's browser could not decode.
+  const paths = (photos ?? []).flatMap(p => [p.file_path, p.thumb_path])
+    .filter((x): x is string => Boolean(x))
   let unremoved = 0
   for (let i = 0; i < paths.length; i += 100) {
     const { error: rmError } = await admin.storage.from('photos').remove(paths.slice(i, i + 100))

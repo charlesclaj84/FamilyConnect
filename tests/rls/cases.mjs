@@ -386,6 +386,63 @@ export const CASES = [
     expectAttack: (r) => Array.isArray(r) && r.every(m => m.familyCode !== 'ALPHATEST'),
   }),
 
+  // ── SIGNING IN OPENS THE LOGIN DEFAULT, AND ONLY INTO A FAMILY THAT IS YOURS ──
+  //
+  // `openDefaultFamily` wraps `open_default_family()` (`20260902000002`), which takes NO
+  // PARAMETER — so the shape most of this suite asserts does not exist here: there is nothing
+  // a caller can pass and therefore no id to point at another family. What it CAN do is write
+  // `user_family_settings.active_family_code`, and the whole security argument is that the
+  // only value it will write is a stated default it has just confirmed the caller belongs to.
+  //
+  // THAT CONJUNCT IS WHAT THIS CASE TESTS, and the setup is the case:
+  //
+  //   alphaMember   default ALPHATEST (theirs), active BRAVOTEST   -> must MOVE to ALPHATEST
+  //   bravoMember   default ALPHATEST (NOT theirs), active BRAVOTEST -> must NOT move
+  //
+  // One probe covers both halves because it reads BOTH rows and joins them: the attack must
+  // leave the pair identical and the control must change it. A probe reading one row could not
+  // do both, since the two callers write different rows.
+  //
+  // THE ATTACKER IS `bravoMember` and not the default `bravoAdmin`. `my-families.createFamily`
+  // runs bravoAdmin earlier in the suite, and creating a family makes it active — so their
+  // `active_family_code` is a third code by the time this runs and the assertion would be
+  // about the wrong thing.
+  //
+  // MUTATION-CHECKED: replace the `EXISTS (… FROM public.people …)` membership test in
+  // `open_default_family()` with `TRUE` and the attack half goes red — bravoMember is moved
+  // into ALPHATEST, which is a cross-family write with no argument passed to it.
+  {
+    kind: 'write',
+    id: 'family.openDefaultFamily',
+    mod: 'app/actions/family.ts', fn: 'openDefaultFamily',
+    attacker: 'bravoMember',
+    args: () => [],
+    setup: async (db, fx) => {
+      // SERVICE ROLE, because `user_family_settings` has no write policy at all — which is
+      // the reason the action is an RPC in the first place.
+      await db.from('user_family_settings').upsert({
+        user_id: fx.users.alphaMember.userId,
+        default_family_code: 'ALPHATEST',
+        active_family_code: 'BRAVOTEST',
+      })
+      await db.from('user_family_settings').upsert({
+        user_id: fx.users.bravoMember.userId,
+        default_family_code: 'ALPHATEST',
+        active_family_code: 'BRAVOTEST',
+      })
+    },
+    probe: async (db, fx) => {
+      const { data } = await db
+        .from('user_family_settings')
+        .select('user_id, active_family_code')
+        .in('user_id', [fx.users.alphaMember.userId, fx.users.bravoMember.userId])
+      return (data ?? [])
+        .map(r => `${r.user_id}=${r.active_family_code}`)
+        .sort()
+        .join('|')
+    },
+  },
+
   // ── community ─────────────────────────────────────────────────────────────
   read('announcements.getAnnouncements', 'app/actions/announcements.ts', 'getAnnouncements'),
   read('announcements.getMyAnnouncements', 'app/actions/announcements.ts', 'getMyAnnouncements'),

@@ -88,11 +88,29 @@ interface ClaimedReap {
 class AbandonFamily extends Error {}
 
 /**
- * Every `file_path` still pointing into `bucket` for this family.
+ * Every storage path still pointing into `bucket` for this family.
  *
  * Reads the map rather than a hard-coded list, so a table added to `tier_data_tables` with a
  * bucket named is included here with no edit — which is the property the migration's
  * completeness assertion is protecting.
+ *
+ * ── A ROW MAY POINT AT MORE THAN ONE OBJECT, SINCE 20260902000003 ─────────────────
+ * `photos` gained `thumb_path`: a second, smaller object beside the original, in the same
+ * folder. `storage_thumb_column` on the map is what names it, and reading the map rather than
+ * hard-coding `thumb_path` is the same decision as reading `storage_bucket` — a table that
+ * starts holding two objects per row is included here by adding a row value, not by editing
+ * this function.
+ *
+ * IT IS NOT DERIVED FROM `file_path`. Computing `<stem>_thumb.jpg` here would be a second
+ * copy of `photoThumbPath`'s naming scheme, and the day the two disagreed this function would
+ * delete live thumbnails — invisibly, because a missing thumbnail renders as the original and
+ * nothing on any screen goes wrong. The migration asserts the map against the real columns in
+ * both directions instead.
+ *
+ * A NULL SECOND PATH IS ORDINARY AND IS NOT AN ABANDON. Every photograph uploaded before
+ * 2026-09-02 has none, and so does anything the uploading browser could not decode. That is
+ * the opposite of `file_path`, where a NULL means a row whose object cannot be identified and
+ * the survivor set is therefore not provably complete.
  */
 async function survivingPaths(
   admin: ReturnType<typeof createAdminClient>,
@@ -101,13 +119,16 @@ async function survivingPaths(
 ): Promise<Set<string>> {
   const { data: tableRows, error: tableError } = await admin
     .from('tier_data_tables')
-    .select('table_name')
+    .select('table_name, storage_thumb_column')
     .eq('storage_bucket', bucket)
 
   if (tableError) {
     throw new AbandonFamily(`could not read the table map for ${bucket}: ${tableError.message}`)
   }
-  const tables = (tableRows ?? []).map(r => r.table_name as string)
+  const tables = (tableRows ?? []).map(r => ({
+    name: r.table_name as string,
+    thumbColumn: (r.storage_thumb_column as string | null) ?? null,
+  }))
   if (tables.length === 0) {
     // A bucket the claim named must have at least one table behind it, or the claim derived it
     // from nothing. Abandon rather than treat every object as an orphan.
@@ -116,26 +137,58 @@ async function survivingPaths(
 
   const paths = new Set<string>()
   for (const table of tables) {
+    // THE PROJECTION IS BUILT FROM THE MAP, and the column name is validated first. It is
+    // interpolated into a PostgREST `select`, so an arbitrary string here would be an
+    // injection point — and the map is a table the service role writes, which is exactly the
+    // sort of "trusted" input that stops being trusted the day something else can write it.
+    // `20260902000003` asserts the value resolves to a real column; this asserts its SHAPE, so
+    // the two failures are told apart rather than both arriving as a broken query.
+    if (table.thumbColumn && !/^[a-z_][a-z0-9_]*$/.test(table.thumbColumn)) {
+      throw new AbandonFamily(
+        `${table.name} names an unusable storage_thumb_column: ${table.thumbColumn}`)
+    }
+    const projection = table.thumbColumn
+      ? `file_path, ${table.thumbColumn}`
+      : 'file_path'
+
     // PAGED TO EXHAUSTION. See the header: a truncated survivor list is a delete list.
     for (let from = 0; ; from += PAGE) {
       const { data, error } = await admin
-        .from(table)
-        .select('file_path')
+        .from(table.name)
+        .select(projection)
         .eq('family_code', familyCode)
         .range(from, from + PAGE - 1)
 
       if (error) {
-        throw new AbandonFamily(`could not read surviving ${table} rows: ${error.message}`)
+        throw new AbandonFamily(`could not read surviving ${table.name} rows: ${error.message}`)
       }
       const rows = data ?? []
       for (const row of rows) {
-        const path = (row as { file_path: string | null }).file_path
+        // `as unknown as` because a DYNAMIC projection widens supabase-js' row type to a union
+        // that includes its `GenericStringError` — the compiler cannot know the string names
+        // real columns. The shape is checked field by field below rather than asserted here.
+        const record = row as unknown as Record<string, unknown>
+        const path = record.file_path as string | null
         if (!path) {
           // A row exists whose object cannot be identified, so the survivor set is not
           // provably complete. Abandoning is the only safe answer.
-          throw new AbandonFamily(`a surviving ${table} row has no file_path`)
+          throw new AbandonFamily(`a surviving ${table.name} row has no file_path`)
         }
         paths.add(path)
+
+        // THE SECOND OBJECT, WHERE THE ROW HAS ONE. NULL is ordinary here and is NOT an
+        // abandon — see the header. A non-string that is not null is, because it means the
+        // column is not what the map says it is.
+        if (table.thumbColumn) {
+          const second = record[table.thumbColumn]
+          if (second != null) {
+            if (typeof second !== 'string' || second.length === 0) {
+              throw new AbandonFamily(
+                `a surviving ${table.name} row has an unusable ${table.thumbColumn}`)
+            }
+            paths.add(second)
+          }
+        }
       }
       if (rows.length < PAGE) break
     }

@@ -1,8 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { ClipboardCheck, PartyPopper } from 'lucide-react'
+import { CirclePlus, ClipboardCheck, PartyPopper } from 'lucide-react'
 import { MainRail, type MainRailItem } from '@/components/layout/MainRail'
+import { Button } from '@/components/ui/button'
 import { GatheringsClient, type GatheringRow } from '@/components/gatherings/GatheringsClient'
 import { MyTasksClient } from '@/components/gatherings/MyTasksClient'
 import { type GatheringPane } from '@/lib/gathering-panes'
@@ -100,6 +101,10 @@ export function GatheringsShell({
   // never goes down is not a prompt.
   const waiting = tasks.filter(t => t.status === 'open' || t.status === 'denied').length
 
+  // THE SCHEDULE DIALOG'S OPEN FLAG, held here because the TRIGGER is on the rail and the
+  // FORM is in `GatheringsClient`. See that component's `open` prop for the whole argument.
+  const [scheduling, setScheduling] = useState(false)
+
   const items: MainRailItem<GatheringPane>[] = [
     ...(mayViewGatherings ? [{
       id: 'gatherings' as const,
@@ -109,7 +114,13 @@ export function GatheringsShell({
     }] : []),
     ...(mayViewMyTasks ? [{
       id: 'my-tasks' as const,
-      label: waiting > 0 ? `My Tasks (${waiting})` : t('gath.pane.myTasks'),
+      // KEYED, and it was a template literal with English prose in it until 2026-09-02
+      // — the shape AGENTS.md names as the biggest of the four the literal gate was blind
+      // to. A Spanish reader got "Mis tareas" with no count, or "My Tasks (3)" in English,
+      // depending only on whether anything was waiting on them.
+      label: waiting > 0
+        ? t('gath.pane.myTasksN', { n: String(waiting) })
+        : t('gath.pane.myTasks'),
       icon: ClipboardCheck,
       href: '/gatherings?pane=my-tasks',
     }] : []),
@@ -122,6 +133,20 @@ export function GatheringsShell({
         items={items}
         active={pane}
         onSelect={selectPane}
+        // ── THE CREATE TRIGGER, ON THE RAIL LIKE EVERY OTHER ONE ────────────────────
+        // It was a right-aligned button in its own row inside `GatheringsClient`, above
+        // the two lists. `MainRail`'s action slot is where Transactions and Accounting put
+        // theirs, and AGENTS.md' rule for that slot is ONE action belonging to the ACTIVE
+        // pane — so it is conditioned on the pane as well as on the grant, and My Tasks
+        // (which has no create action of its own) shows nothing.
+        //
+        // Affirm, never the default burgundy: that is what an active rail item looks like,
+        // and a create trigger sitting on the rail must not be mistaken for one.
+        action={pane === 'gatherings' && mayViewGatherings && mayCreate ? (
+          <Button variant="affirm" onClick={() => setScheduling(true)}>
+            <CirclePlus className="h-4 w-4 me-1" /> {t('gath.schedule')}
+          </Button>
+        ) : undefined}
       />
 
       {/* Both conjuncts are kept: the page falls back to a pane the caller can see, so the
@@ -136,6 +161,8 @@ export function GatheringsShell({
           templates={templates}
           zone={zone}
           mayAuthorTemplates={mayAuthorTemplates}
+          open={scheduling}
+          setOpen={setScheduling}
         />
       )}
 

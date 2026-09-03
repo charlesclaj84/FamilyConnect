@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { FieldError, FormError } from '@/components/ui/form-message'
+import { openDefaultFamily } from '@/app/actions/family'
 import { useT } from '@/components/layout/LocaleProvider'
 import type { T } from '@/lib/i18n/t'
 
@@ -74,6 +75,12 @@ export function UpdatePasswordForm() {
       )
       return
     }
+
+    // OPEN THE FAMILY THEY CHOSE. The session arrived through `/auth/confirm`'s recovery
+    // branch, which deliberately does NOT call this — that branch lands on this page, which
+    // reads no family data — so this is where a recovery gets it, and it is the last point
+    // before the dashboard resolves a family server-side.
+    await openDefaultFamily()
 
     // The session is already signed in, so there is nowhere to send them but in.
     // refresh() first: the layout above renders from server state that now differs.

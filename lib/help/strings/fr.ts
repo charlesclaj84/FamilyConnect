@@ -3025,6 +3025,14 @@ export const helpFr: Catalogue = {
     + 'une personne à la fois. Le canevas lui-même dessine toujours chaque nom et montre '
     + 'comment tout le monde se rattache.',
   'help.family-tree.view-vs-edit.b2':
+    '**Modifier** change aussi la portion de l’arbre qui est dessinée, et c’est '
+    + 'délibéré. **Voir** affiche trois générations vers le haut et cinq vers le bas, ce qui '
+    + 'vous permet de suivre une longue lignée depuis une seule fiche. **Modifier** en '
+    + 'affiche deux vers le haut et une vers le bas — chaque case qui revient à la personne '
+    + 'au centre, et rien de plus, car chaque bande supplémentaire est une rangée de plus de '
+    + 'boutons **+** pour des proches que vous n’êtes pas en train de placer. Si le plan se '
+    + 'raccourcit quand vous appuyez sur **Modifier**, c’est cela, et non un problème.',
+  'help.family-tree.view-vs-edit.b3':
     'Rien sur l’arbre ne retire personne de la famille. Retirer un lien retire le *lien* '
     + 'entre deux personnes, non l’une ou l’autre.',
   'help.family-tree.adding.heading': 'Ajouter un proche',

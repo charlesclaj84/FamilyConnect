@@ -3,7 +3,7 @@
 import { useState, useTransition } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { CalendarDays, CirclePlus, MapPin, Star } from 'lucide-react'
+import { CalendarDays, MapPin, Star } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -102,6 +102,22 @@ interface Props {
   past: GatheringRow[]
   /** `gatherings:create` at scope `'any'` — what `scheduleGathering` itself demands. */
   mayCreate: boolean
+  /**
+   * Whether the schedule dialog is open, and how to change that.
+   *
+   * ── CONTROLLED FROM THE SHELL SINCE 2026-09-02, AND ONLY BECAUSE OF THE TRIGGER ────
+   * The "Schedule a gathering" button used to sit in this component, right-aligned above
+   * the two lists, and it moved onto the rail's `action` slot — where every other create
+   * trigger in the product lives (Transactions' "New Dues Payment", Accounting's "New
+   * Fund"). The rail belongs to `GatheringsShell`, so the button had to move there, and a
+   * button in one component opening a dialog in another is what a lifted boolean is for.
+   *
+   * NOTHING ELSE MOVED. The whole form, its validation, its partial-create recovery and
+   * the `wasOpen` re-seed below are still here, because they are about scheduling rather
+   * than about which pane is showing. The shell holds one boolean and knows nothing else.
+   */
+  open: boolean
+  setOpen: (open: boolean) => void
   /** Only the templates this caller may schedule FROM. Empty unless `mayCreate`. */
   templates: { id: string; name: string; description: string | null }[]
   /** Whether the "no templates" sentence may link to the library. */
@@ -136,10 +152,11 @@ function todayWhen(zone: string): GatheringWhen {
   }
 }
 
-export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuthorTemplates, zone }: Props) {
+export function GatheringsClient({
+  upcoming, past, mayCreate, templates, mayAuthorTemplates, zone, open, setOpen,
+}: Props) {
   const t = useT()
   const router = useRouter()
-  const [open, setOpen] = useState(false)
   const [chosen, setChosen] = useState<string[]>([])
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
@@ -254,21 +271,18 @@ export function GatheringsClient({ upcoming, past, mayCreate, templates, mayAuth
 
   return (
     <div className="space-y-8">
-      {/* THE TRIGGER NO LONGER DEPENDS ON THERE BEING A TEMPLATE, and until 2026-08-19 it
-          did: a family with none got a paragraph here INSTEAD of the button, because a
-          gathering could only exist as an instance of one. It can exist as a date now, which
-          is what Free sells — so the button is offered to anybody who may schedule, and the
-          templates, if there are any, are an optional fieldset inside the dialog. */}
-      {mayCreate && (
-        <div className="flex justify-end">
-          {/* Affirm, never the default burgundy — that is what an active rail item looks
-              like, and this is a create trigger. */}
-          <Button variant="affirm" onClick={() => setOpen(true)}>
-            <CirclePlus className="h-4 w-4 me-1" /> {t('gath.schedule')}
-          </Button>
-        </div>
-      )}
+      {/* THE TRIGGER IS ON THE RAIL NOW (2026-09-02) — see `GatheringsShell`, and the
+          `open`/`setOpen` props above for what that cost. It sat here, in a row of its
+          own above the two lists and pushed to the far end of it — a row of page spent on
+          one button, and not
+          where any other create trigger in the product is. `MainRail`'s `action` slot is,
+          and it also gets the below-`sm` treatment for free: full width under the stacked
+          rail rather than floating over the first heading.
 
+          The note that survives the move: the trigger no longer depends on there being a
+          TEMPLATE, and until 2026-08-19 it did — a family with none got a paragraph here
+          INSTEAD of the button, because a gathering could only exist as an instance of one.
+          It can exist as a date now, which is what Free sells. */}
       <Section
         heading={t('gath.comingUp')}
         rows={upcoming}

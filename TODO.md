@@ -212,6 +212,62 @@ lives in the checkout, and none does.)* And the durable replacement is live, so 
 merge and gate the Vercel release, reviewed and recorded, with nobody holding write
 credentials. See AGENTS.md, "How migrations reach the hosted project".
 
+### [ ] Stripe: the CATALOGUE is dashboard data, and `npm run stripe:check` is what asks about it
+
+**Action:** run `npm run stripe:check` against whichever account is being set up, and
+`npm run stripe:fix` if the only findings are names. Added 2026-09-02.
+
+`lib/stripe/config.ts` said from the day it was written that the amounts *"live in Stripe"*
+and that nothing in this repo could check them. `scripts/stripe-catalogue.mjs` is that check:
+it retrieves each of the six configured prices and compares the amount against
+`TIER_PRICE[tier].monthlyCents`, the interval against the slot it is in, the currency, whether
+the price is still active, and the PRODUCT NAME a family reads on the hosted page.
+
+**IT WAS THE NAME THAT PROMPTED IT.** A real Standard checkout rendered its line as
+`STRIPE_PRICE_STANDARD_RECURRING` — the Product had been named after the environment variable
+that holds its Price id. That is the one class of misconfiguration nothing in the product
+could see: `priceShapeError` refuses a wrong SHAPE because it charges the wrong money, and a
+wrong NAME charges the right money while telling the family they are buying a configuration
+key.
+
+`--fix` renames and nothing else, deliberately — a wrong amount could be Stripe that is right,
+and rewriting a live price from a script would change what every subscriber is billed at their
+next renewal. Not a `verify.yml` step: it needs a live secret key and asks a third party.
+
+**TWO THINGS THE SAME REPORT ASKED FOR THAT STRIPE DOES NOT ALLOW**, recorded here so they are
+not re-attempted:
+
+* **"Pay" as the button on a monthly checkout.** `submit_type` is a closed enum and Stripe
+  refuses `'pay'` in `subscription` mode outright — *"You can not pass `submit_type: 'pay'` in
+  `subscription` mode"*, measured 2026-08-29, and it 400'd every monthly checkout for a day. A
+  subscription session's button says **Subscribe** and there is no free-text label at any
+  price. `app/actions/billing.ts` carries the whole finding at its `submit_type`.
+* **Removing the "N days free" badge.** Every family bills on the 1st, which Stripe models as
+  a trial (`trial_end`) — that is not a marketing claim, it is the only way to say "do not
+  charge until this date" on a session that also carries a one-time price. Checkout renders
+  its own badge for a trial and there is no parameter that suppresses it. What IS in our
+  control is the sentence beside the button, and it already says the true thing:
+  `custom_text.submit.message` reads *"$X today covers you to the end of {month}. {Plan} then
+  renews at $Y a month, on the 1st."*
+
+### [ ] Back-fill thumbnails for photographs uploaded before 2026-09-02
+
+**Action:** a script that lists the `photos` bucket, downloads each object whose row has a
+NULL `thumb_path`, resizes it, uploads the thumbnail beside it and writes the column.
+
+`20260902000003` added `photos.thumb_path` and the uploading browser now writes one for every
+new photograph — so a grid draws a ~40 KB JPEG instead of a 3–5 MB original. **Nothing was
+backfilled**, because the bytes are in a storage bucket rather than in the database and
+resizing them means downloading and re-uploading every object in the product. Until this runs,
+an old album is exactly as fast as it was before and no slower; the column is nullable
+permanently and every reader falls back to `file_path`, so there is no broken state to fix —
+only an optimisation not yet applied.
+
+Two things it has to get right, both of which the reaper's own header argues at length: the
+thumbnail's path is `photoThumbPath(file_path)` and nothing else (a second definition of that
+naming scheme is how live thumbnails get reaped), and a row whose object cannot be read is
+SKIPPED rather than written with a guess.
+
 ### [ ] Stripe: two flags, seven variables, two webhook endpoints, one Dashboard switch, one tax decision
 
 **Action:** set the environment variables, create the two webhook endpoints, and flip one

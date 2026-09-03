@@ -2907,6 +2907,14 @@ export const helpEs: Catalogue = {
     + 'una persona a la vez. El lienzo en sí sigue dibujando todos los nombres y mostrando '
     + 'cómo se conecta todo el mundo.',
   'help.family-tree.view-vs-edit.b2':
+    '**Editar** también cambia cuánto del árbol se dibuja, y eso es deliberado. **Ver** '
+    + 'muestra tres generaciones hacia arriba y cinco hacia abajo, de modo que usted puede '
+    + 'ver una línea larga desde una sola tarjeta. **Editar** muestra dos hacia arriba y una '
+    + 'hacia abajo — cada hueco que le corresponde a la persona del centro, y nada más, '
+    + 'porque cada banda adicional es otra fila de botones **+** para familiares que usted no '
+    + 'está colocando. Que el lienzo se acorte al pulsar **Editar** es eso, no algo que haya '
+    + 'salido mal.',
+  'help.family-tree.view-vs-edit.b3':
     'Nada en el árbol quita a nadie de la familia. Quitar una conexión quita el *vínculo* '
     + 'entre dos personas, no a ninguna de las dos.',
   'help.family-tree.adding.heading': 'Añadir un familiar',

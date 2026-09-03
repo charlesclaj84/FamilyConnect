@@ -26,6 +26,7 @@ import {
 } from '@/app/actions/gallery'
 import { PHOTO_UPLOAD_CHUNK } from '@/lib/photo-upload'
 import { createClient } from '@/lib/supabase/client'
+import { makeThumbnail } from '@/lib/image-thumbnail'
 import { useT } from '@/components/layout/LocaleProvider'
 
 interface Person { id: string; first_name: string; last_name: string; nick_name?: string | null }
@@ -328,11 +329,18 @@ export function CollectionView({
               aria-label={photo.caption ? `Open “${photo.caption}”` : t('gal.openPhoto')}
               className="group relative aspect-square overflow-hidden rounded-lg bg-muted"
             >
-              {/* Plain <img> — see CollectionCard for the whole argument. This is the grid
-                  that would benefit most from resizing and the one TODO.md's entry is really
-                  about: N uploads of up to 10 MB each, rendered at a quarter width. */}
+              {/* `grid_url`, NOT `url` — the thumbnail written at upload time, falling back
+                  to the original where there is none (`20260902000003`). This grid is what
+                  the whole feature is for: N originals of up to 10 MB each, drawn at a
+                  quarter of the width, was tens of megabytes to render a page of tiles.
+                  The fallback is resolved server-side in `getPhotoCollection` so no `<img>`
+                  in this file can forget it — see `Photo.grid_url`.
+
+                  Still a plain <img>: see CollectionCard for that argument, which is about
+                  the bucket being public and served straight from Supabase and is unchanged
+                  by any of this. */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={photo.url} alt={photo.caption ?? ''}
+              <img src={photo.grid_url} alt={photo.caption ?? ''} loading="lazy" decoding="async"
                 className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
               {photo.tags.length > 0 && (
                 <span className="absolute bottom-1 start-1 flex flex-wrap gap-0.5">
@@ -482,10 +490,34 @@ function UploadDialog({ collectionId, onClose, onDone }: {
           return null
         }
         setDone(n => n + 1)
-        return { name: ticket.name, path: ticket.path }
+
+        // ── AND A THUMBNAIL, WHICH IS ALLOWED TO NOT HAPPEN ───────────────────────
+        // AFTER the original has landed, never instead of it and never before it: a grid
+        // reads `thumb_path` and falls back to `file_path`, so a photograph with no
+        // thumbnail is exactly what every row uploaded before 2026-09-02 is. Making the
+        // photograph wait on a derived, optional object would be an optimisation that can
+        // fail the thing it optimises.
+        //
+        // THREE WAYS IT ENDS UP NULL and all three are ordinary: the server could not sign
+        // it (`ticket.thumb`), this browser cannot decode the format (`makeThumbnail` —
+        // HEIC in Chrome), or the upload of the small object itself failed. None is
+        // reported to the member, because none of them costs them anything.
+        let thumbPath: string | null = null
+        if (ticket.thumb) {
+          const blob = await makeThumbnail(file)
+          if (blob) {
+            const put = await storage.uploadToSignedUrl(
+              ticket.thumb.path, ticket.thumb.token, blob, { contentType: 'image/jpeg' },
+            )
+            if (!put.error) thumbPath = ticket.thumb.path
+          }
+        }
+
+        return { name: ticket.name, path: ticket.path, thumbPath }
       }))
 
-      const entries = landed.filter((e): e is { name: string; path: string } => e !== null)
+      const entries = landed.filter(
+        (e): e is { name: string; path: string; thumbPath: string | null } => e !== null)
       if (entries.length === 0) continue
 
       const recorded = await recordUploadedPhotos(collectionId, entries, caption)
@@ -631,9 +663,10 @@ function PhotoRow({ photo, allMembers, mayEdit, mayDelete, busy, onChanged, onEr
   return (
     <li className="flex flex-col gap-3 p-3 sm:flex-row">
       {/* SMALLER IMAGES, which is what the list view is for. `h-20 w-20` is big enough to know
-          which photograph it is and small enough that thirty fit on a screen. */}
+          which photograph it is and small enough that thirty fit on a screen — so this is the
+          view where fetching the original was most absurd, and `grid_url` is the fix. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={photo.url} alt={photo.caption ?? ''}
+      <img src={photo.grid_url} alt={photo.caption ?? ''} loading="lazy" decoding="async"
         className="h-20 w-20 shrink-0 rounded-lg object-cover" />
 
       <div className="min-w-0 flex-1 space-y-2">
@@ -759,8 +792,10 @@ function Lightbox({ photo, index, total, onClose, onPrev, onNext, mayDelete, onD
           <X className="h-6 w-6" />
         </button>
 
-        {/* THE ONE PLACE THE FULL-SIZE FILE IS THE POINT, so even if the grids ever move to
-            next/image, this one should not: somebody has clicked a photograph to look at it.
+        {/* THE ONE PLACE THE FULL-SIZE FILE IS THE POINT, which is why this is `url` and
+            the two grids above are `grid_url`: somebody has clicked a photograph to look at
+            it, and a 640px thumbnail blown up to 70vh is the failure this whole feature must
+            not cause. Even if the grids ever move to next/image, this one should not.
             It also has no fixed box to fill — `max-h-[70vh] object-contain` with a free aspect
             ratio is exactly what `fill` cannot express without inventing dimensions. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
