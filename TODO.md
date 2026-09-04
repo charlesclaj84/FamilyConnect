@@ -698,7 +698,11 @@ zip-crosswalk-rows.ts` reads it, and `/api/geo/zip-counties` runs weekly off a d
 cron. **`HUD_USPS_API_TOKEN` IS SET ON VERCEL — reported 2026-09-03**, so the credential half
 of this is closed and its GO LIVE item is gone.
 
-**THE REQUEST IS SETTLED — 2026-09-04 — AND IT WAS RIGHT ALL ALONG.**
+**THE CROSSWALK IS LOADED ON HOSTED — reported 2026-09-04.** ~54,000 (zip, county) pairs.
+`people.zip_code` can be joined to the county FIPS an NWS alert carries, which is the DATA
+dependency this whole entry was named for, and it is closed.
+
+**THE REQUEST WAS RIGHT ALL ALONG.**
 `type=2&query=TX` returns 3,410 (zip, county) pairs with 5-digit county geoids. Measured, and
 the route to it is worth keeping because the same evidence was read wrongly twice:
 
@@ -729,6 +733,27 @@ old refusal, so the behaviour this cost two days cannot come back quietly.
 **THE PROBE THAT ANSWERED IT IS RETIRED**, as its own header said it should be: it was
 scaffolding for a question, and a diagnostic endpoint nobody uses is a live endpoint nobody
 exercises. `git show cc39440` has it if a fifth reading of this API is ever needed.
+
+**AND THE AUDIT GAP IS CLOSED — differently from how this entry said it would be.** The
+`allowed_empty` entry recorded that the honest move, once loaded, was to take both tables off
+that list and put `zip_counties` on `lookup_names` where an empty crosswalk becomes a finding.
+**That would have been wrong**, and the reason is the one assumption
+`audit_global_lookups.sql`'s own header makes: *"`db reset` re-seeds a laptop from the original
+migrations, so local is always right."* True of every other table on that list and false of
+this one — the crosswalk is filled by a network job with a credential no development machine
+holds, so a laptop's copy is empty permanently. A non-empty assertion would pass on hosted and
+fail on every laptop, and a check that cries wolf where people run it is one they learn to
+ignore.
+
+So §3 of that script asks the question that IS answerable in both places: **if a refresh has
+ever succeeded, the crosswalk must not be empty.** Local has no successful refresh and is
+silent; hosted has one and asserts. Verified in both directions against the local stack, and it
+carries the repair — `POST /api/geo/zip-counties?force=1` — because unlike
+`audit_cross_family_refs.sql` there is a cheap correct one.
+
+The staff **System Status** page tells the two states apart too, and no longer says "empty is
+expected": never-loaded is muted, loaded-and-now-empty is `--brand-withheld`. `lastSuccess` was
+already on that panel and is exactly the discriminator.
 
 **WHAT IS STILL UNKNOWN, AND IS DELIBERATELY NOT BEING CHASED:** whether `query=All` would have
 worked. It probably would. The per-state form is the one that has been measured end to end, 56
@@ -799,9 +824,18 @@ argument for the extension.**
 FutureFeature.md §5 item 3. What remains after the crosswalk is one matching problem and one
 delivery problem, and only the second is blocking.
 
-**THE MATCH IS NOW AVAILABLE AND IS COUNTY-LEVEL.** NWS alerts carry county FIPS and UGC zones;
-`people.zip_code` joins `zip_counties` on `zip`, and `county_fips` is the 5-digit state+county
-code an alert names. `res_ratio` is carried for a consumer that needs ONE county out of several
+**THE MATCH IS AVAILABLE AND POPULATED, AS OF 2026-09-04.** NWS alerts carry county FIPS and
+UGC zones; `people.zip_code` joins `zip_counties` on `zip`, and `county_fips` is the 5-digit
+state+county code an alert names. ~54,000 pairs are loaded on hosted, so this is a join that
+works today rather than a table waiting for data.
+
+**ONE THING TO KNOW BEFORE WRITING THAT JOIN: A ZIP MAY BE ABSENT.** HUD cannot allocate every
+ZIP to a county and reports those at state level; `rowsFrom` skips and counts them, so a member
+whose ZIP is one of those has no row here at all. A LEFT JOIN and an honest *"we could not
+place this address"* is the shape — an INNER JOIN would silently drop those relatives from an
+emergency roster, which is the one failure mode this feature cannot have. The count is on the
+staff System Status page and in the refresh's `ok` detail, so the size of that set is knowable
+rather than a surprise. `res_ratio` is carried for a consumer that needs ONE county out of several
 and is deliberately nullable — a null means the source did not say, which a highest-ratio sort
 reads as last rather than as zero.
 

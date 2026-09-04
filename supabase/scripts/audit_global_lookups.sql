@@ -199,29 +199,29 @@ DECLARE
     'marketing_attribution',
     'marketing_conversion_events',
     'stripe_webhook_events',
-    -- ── EMPTY UNTIL THE FIRST REFRESH RUNS (20260903000002) ───────────────────────
+    -- ── EMPTY ON A LAPTOP, FOREVER, AND NOT A FINDING THERE (20260903000002) ──────
     -- The ZIP-to-county crosswalk and its refresh log. Neither has a `family_code` and
     -- neither can, so §2 derives them as candidates — correctly, because that is what an
     -- emptied global lookup looks like.
     --
-    -- THIS SAID "UNTIL A CREDENTIAL EXISTS" UNTIL 2026-09-03, and `HUD_USPS_API_TOKEN` is now
-    -- set on Vercel. The reason changed rather than went away: they are empty because nothing
-    -- has RUN. /api/geo/zip-counties fills them on the first daily cycle after the migration
-    -- reaches hosted, and no development machine holds the token, so a local `db reset` will
-    -- always leave them empty.
+    -- **HOSTED IS POPULATED — reported 2026-09-04, ~54,000 pairs.** So these are no longer
+    -- "empty until something runs", and the note that used to live here said the honest move
+    -- at this point was to take them OFF this list and put `zip_counties` on `lookup_names`,
+    -- where an empty crosswalk becomes a real finding.
     --
-    -- **THE ENTRY CANNOT BE REMOVED IN ADVANCE OF THAT RUN.** This script is a step in
-    -- migrate.yml, so the very merge that CREATES the empty table also runs the audit that
-    -- would name it — which is the `stripe_webhook_events` incident precisely: a table with no
-    -- `family_code` held the Vercel alias with the schema already applied.
+    -- **THAT WOULD HAVE BEEN WRONG, AND THE REASON IS THE ONE ASSUMPTION THIS FILE'S OWN
+    -- HEADER MAKES.** That header says *"`db reset` re-seeds a laptop from the original
+    -- migrations, so local is always right. Only production can be wrong."* True of every
+    -- other table here and FALSE of this one: `zip_counties` is filled by a network job with
+    -- a credential no development machine holds, not by a migration, so a laptop's copy is
+    -- permanently empty. An assertion that it is non-empty would pass on hosted and fail on
+    -- every laptop — and a check that cries wolf where people run it is one they learn to
+    -- ignore, which is the argument `art:check` and `email:check` are both kept out of
+    -- `verify.yml` by.
     --
-    -- SO THIS IS STILL THE "empty BY DESIGN" CASE and not the "something emptied it" one, and
-    -- the cost of that is worth stating: while these two sit here, an empty crosswalk is
-    -- PERMITTED, so nothing would report the refresh silently never working. Once a
-    -- `zip_county_refreshes` row on hosted reads `state = 'ok'` with `pairs` near 54,000, take
-    -- both OFF this list and put `zip_counties` on the lookup_names list above — where an
-    -- empty crosswalk becomes a real finding, exactly as an empty `relationship_types` is.
-    -- TODO.md's crosswalk section carries it as the open follow-up.
+    -- SO THEY STAY HERE, AND §3 BELOW IS WHAT CLOSES THE GAP INSTEAD. It asks the question
+    -- that IS answerable in both places: has a refresh ever succeeded, and if so is the
+    -- crosswalk still there. Local answers no and is silent; hosted answers yes and asserts.
     'zip_counties',
     'zip_county_refreshes'
   ];
@@ -307,6 +307,40 @@ BEGIN
       'pages included — and Members & Access cannot repair it because it renders from that '
       'table.',
       array_to_string(empty, E'\n  ');
+  END IF;
+
+  -- ── §3. A CROSSWALK THAT ONCE LOADED MUST NOT BE EMPTY ──────────────────────
+  -- The gap §1's `allowed_empty` entry leaves, closed by a condition rather than by a list.
+  --
+  -- `zip_counties` cannot be asserted non-empty outright: it is filled by a network job with
+  -- a credential only the deployed environment has, so a laptop's copy is empty forever and
+  -- a flat assertion would fail there every time. What IS true in both places is this: **if a
+  -- refresh has ever succeeded, the rows it wrote should still be there.**
+  --
+  -- Local has no successful refresh, so this is silent. Hosted has one, so an empty crosswalk
+  -- after a successful load is a real finding — something emptied it, which is precisely the
+  -- damage this whole file exists to catch and the one case its derived §2 check cannot see
+  -- while the table is on the allowed-empty list.
+  --
+  -- IT IS A RAISE AND NOT A NOTICE, unlike `audit_cross_family_refs.sql`, because there is a
+  -- cheap correct repair: `POST /api/geo/zip-counties?force=1`. That is what separates this
+  -- from the cross-family audit's refusal to act — there, no automatic repair is correct.
+  --
+  -- NOT GUARDED ON THE TABLES EXISTING. Both are created by 20260903000002; a database old
+  -- enough to lack them is old enough that this script's §1 list names tables it does not
+  -- have either, and a missing-table error names itself clearly.
+  SELECT count(*) INTO v_count FROM public.zip_county_refreshes WHERE state = 'ok';
+  IF v_count > 0 THEN
+    SELECT count(*) INTO v_count FROM public.zip_counties;
+    IF v_count = 0 THEN
+      RAISE EXCEPTION E'THE ZIP-COUNTY CROSSWALK IS EMPTY AND A REFRESH HAS SUCCEEDED.\n\n'
+        'zip_county_refreshes holds at least one row with state = ''ok'', so this table has '
+        'been loaded and is now empty — something emptied it. It is not seeded by any '
+        'migration, so no `db reset` and nothing in the chain will put it back.\n\n'
+        'THE REPAIR: POST /api/geo/zip-counties?force=1 with the CRON_SECRET bearer token, '
+        'which skips the weekly throttle. It refuses to write a payload below 20,000 pairs, '
+        'so a bad fetch cannot make this worse.';
+    END IF;
   END IF;
 
   IF array_length(unknown, 1) IS NOT NULL THEN

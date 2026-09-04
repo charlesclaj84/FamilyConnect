@@ -139,11 +139,27 @@ function ZipCrosswalkPanel({ status, t }: { status: SystemStatus['zipCrosswalk']
               <p className="text-2xl font-semibold">
                 {status.pairs === null ? '—' : status.pairs.toLocaleString()}
               </p>
-              {/* AN EMPTY TABLE IS EXPECTED UNTIL THE CREDENTIAL EXISTS, and saying so here
-                  is what stops somebody treating it as an incident. It is the same sentence
-                  `audit_global_lookups.sql` carries on its `allowed_empty` entry. */}
+              {/* ── EMPTY MEANS TWO DIFFERENT THINGS, AND THE LAST SUCCESS SAYS WHICH ──
+                  This said "empty is expected until the token is set" unconditionally, which
+                  was true when it was written and stopped being true on 2026-09-04 when the
+                  crosswalk loaded. An empty table now depends entirely on whether it has EVER
+                  loaded:
+
+                    never loaded   nothing has run. Not a fault — the job skips silently
+                                   without HUD_USPS_API_TOKEN.
+                    loaded once    SOMETHING EMPTIED IT, and no migration will put it back.
+
+                  `lastSuccess` is already on this panel and is exactly the discriminator, so
+                  the two states are told apart rather than collapsed into the reassuring one.
+                  `audit_global_lookups.sql` §3 asserts the same condition on every deploy;
+                  this is the surface for somebody who is looking. */}
               {status.pairs === 0 && (
-                <p className="mt-1 text-xs text-muted-foreground">{t('stf.zipEmpty')}</p>
+                <p className={cn(
+                  'mt-1 text-xs',
+                  status.lastSuccess ? 'text-brand-withheld' : 'text-muted-foreground',
+                )}>
+                  {status.lastSuccess ? t('stf.zipEmptied') : t('stf.zipNeverLoaded')}
+                </p>
               )}
             </div>
           </>

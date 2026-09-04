@@ -4112,8 +4112,11 @@ export const fr: Catalogue = {
   'stf.zipLatest': 'Dernière tentative',
   'stf.zipLastOk': 'Dernière réussite',
   'stf.zipPairs': 'Paires code postal-comté enregistrées',
-  'stf.zipEmpty':
-    'Vide est l’état attendu jusqu’à ce que HUD_USPS_API_TOKEN soit défini et que la première actualisation s’exécute.',
+  'stf.zipNeverLoaded':
+    'Rien ne l’a encore chargé. L’actualisation est ignorée en silence sans HUD_USPS_API_TOKEN.',
+  'stf.zipEmptied':
+    'Cela a déjà été chargé et est maintenant vide — quelque chose l’a vidé, et aucune '
+    + 'migration ne le restaurera. Forcez une actualisation.',
   'stf.grantsTitle': 'Forfaits accordés par le personnel',
   'stf.grantsBlurb':
     'Familles placées sur un forfait payant sans abonnement, les plus récentes d’abord. '

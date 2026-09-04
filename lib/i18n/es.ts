@@ -4017,8 +4017,11 @@ export const es: Catalogue = {
   'stf.zipLatest': 'Último intento',
   'stf.zipLastOk': 'Último éxito',
   'stf.zipPairs': 'Pares código postal-condado almacenados',
-  'stf.zipEmpty':
-    'Que esté vacío es lo esperado hasta que se defina HUD_USPS_API_TOKEN y se ejecute la primera actualización.',
+  'stf.zipNeverLoaded':
+    'Todavía no se ha cargado. La actualización se omite en silencio sin HUD_USPS_API_TOKEN.',
+  'stf.zipEmptied':
+    'Esto ya se había cargado antes y ahora está vacío: algo lo vació, y ninguna migración lo '
+    + 'restaurará. Fuerce una actualización.',
   'stf.grantsTitle': 'Planes concedidos por el personal',
   'stf.grantsBlurb':
     'Familias puestas en un plan de pago sin suscripción, las más recientes primero. Cada '

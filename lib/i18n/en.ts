@@ -4115,7 +4115,14 @@ export const en: Catalogue = {
   'stf.zipLatest': 'Last attempt',
   'stf.zipLastOk': 'Last success',
   'stf.zipPairs': 'ZIP-county pairs held',
-  'stf.zipEmpty': 'Empty is expected until HUD_USPS_API_TOKEN is set and the first refresh runs.',
+  // TWO SENTENCES, BECAUSE EMPTY MEANS TWO THINGS. One key said "expected until the token
+  // is set", which became false the day the crosswalk loaded — and the reassuring reading is
+  // the dangerous one to leave in place.
+  'stf.zipNeverLoaded':
+    'Nothing has loaded it yet. The refresh skips silently without HUD_USPS_API_TOKEN.',
+  'stf.zipEmptied':
+    'This has loaded before and is now empty — something emptied it, and no migration will '
+    + 'put it back. Force a refresh.',
   'stf.grantsTitle': 'Plans granted by staff',
   'stf.grantsBlurb':
     'Families put on a paid plan without a subscription, most recent first. Each row is '
