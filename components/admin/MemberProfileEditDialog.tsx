@@ -1,10 +1,14 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Loader2, KeyRound } from 'lucide-react'
+import { Loader2, KeyRound, Clock3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { AddressAutocomplete } from '@/components/ui/address-autocomplete'
+import {
+  EMPTY_GEO, geoExtras, type AddressFields, type GeoExtras,
+} from '@/lib/geo/geoapify-address'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
 import { FormError } from '@/components/ui/form-message'
@@ -86,9 +90,29 @@ import { useT } from '@/components/layout/LocaleProvider'
  * patch as well, for the reason that action deletes `primary_email`: the dialog in front of it
  * is a convenience and not a gate (§2).
  */
+/**
+ * THE SIX GEOCODING COLUMNS ARE EXCLUDED TOO, and for a different reason from the three
+ * above: they are not fields anybody types. They arrive only from picking an address in the
+ * autocomplete and are held in `geo` beside this state — `latitude` is a NUMBER, so it
+ * cannot live in a form whose every value is a string without making all of them
+ * `string | number`. `lib/geo/geoapify-address.ts` argues the split.
+ */
 type FormState = Required<Omit<PersonalInfoData,
   'primary_email' | 'chapter_id' | 'locale'
+  | 'county' | 'county_code' | 'state_code' | 'country_code' | 'latitude' | 'longitude'
 >>
+
+/**
+ * The address fields whose hand-editing invalidates a geocode.
+ *
+ * `apartment` IS DELIBERATELY ABSENT. No geocoder returns an apartment or suite — they are
+ * below the deliverable-address level — so adding "Apt 4" says nothing about whether the
+ * coordinate still describes the building, and clearing the county over it would be wrong.
+ * It is the same reason picking a suggestion leaves that field alone.
+ */
+const GEO_INVALIDATING_FIELDS = new Set<keyof FormState>([
+  'street_address', 'city', 'state', 'zip_code', 'country',
+])
 
 const EMPTY: FormState = {
   prefix: '', first_name: '', middle_name: '', last_name: '', nick_name: '', suffix: '',
@@ -145,6 +169,13 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
   const confirm = useConfirm()
   const [profile, setProfile] = useState<MemberProfileForEdit | null>(null)
   const [form, setForm] = useState<FormState>(EMPTY)
+  // ── THE GEOCODER'S HALF, HELD APART FROM WHAT AN ADMINISTRATOR TYPES ──────────
+  // Same split and same reasons as the member's own address form: `latitude` is a number and
+  // `FormState` is all strings. `lib/geo/geoapify-address.ts` argues it.
+  const [geo, setGeo] = useState<GeoExtras>(EMPTY_GEO)
+  // The zone a pick set, so this dialog can say it moved — an administrator overwriting
+  // somebody ELSE's timezone from an address is the case that most needs saying out loud.
+  const [pickedZone, setPickedZone] = useState<string | null>(null)
   // ── THE CHAPTER IS ITS OWN FIELD AND ITS OWN WRITE ────────────────────────────────
   // It is NOT in `form`, and that is not tidiness: `chapter_id` is deliberately absent from
   // `WRITABLE_PROFILE_COLUMNS`, so `updateUserProfile` would silently drop it — the allow-list
@@ -195,19 +226,68 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
       }
       setProfile(result.profile)
       setForm({ ...EMPTY, ...result.profile.fields } as FormState)
+      // Seeded from the row, so saving a corrected apartment does not wipe a county that was
+      // already there. `?? null` on each: the fetched shape has them optional.
+      const f = result.profile.fields as unknown as Record<string, unknown>
+      setGeo({
+        state_code: (f.state_code as string | null) ?? null,
+        county: (f.county as string | null) ?? null,
+        county_code: (f.county_code as string | null) ?? null,
+        country_code: (f.country_code as string | null) ?? null,
+        latitude: (f.latitude as number | null) ?? null,
+        longitude: (f.longitude as number | null) ?? null,
+      })
+      setPickedZone(null)
       setChapterId(result.profile.chapterId)
     })
     return () => { live = false }
   }, [peopleId, t])
 
-  const set = <K extends keyof FormState>(key: K, value: FormState[K]) =>
+  // A BLOCK BODY NOW, because it does two things. It was a concise arrow returning
+  // `setForm(...)`, and the geocode-invalidating line below landed OUTSIDE it — which
+  // typechecked as a stray statement referencing an out-of-scope `key`.
+  const set = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm(prev => ({ ...prev, [key]: value }))
+    // ── A HAND EDIT TO AN ADDRESS FIELD DROPS THE GEOCODE ───────────────────────
+    // A coordinate that describes the picked address while the city says somewhere else is
+    // two stored facts that disagree, and the coordinate is the one nothing on screen would
+    // reveal as stale (§4b). `apartment` is excluded because no geocoder returns one, so
+    // editing it says nothing about whether the coordinate still describes the building.
+    if (GEO_INVALIDATING_FIELDS.has(key)) { setGeo(EMPTY_GEO); setPickedZone(null) }
+  }
 
   const country = form.country as Country | ''
   const availableRegions = country && country in REGIONS ? REGIONS[country as Country] : []
   const stateLabel = country === 'Canada' ? t('field.province') : 'State'
   const category = form.tshirt_category as TshirtCategory | ''
   const availableSizes = category && category in TSHIRT_SIZES ? TSHIRT_SIZES[category as TshirtCategory] : []
+
+  /**
+   * An administrator picked an address for somebody else.
+   *
+   * Identical rule to the member's own form: it REPLACES the address rather than merging
+   * into it, every field including the empty ones, and `apartment` is left alone.
+   */
+  function handleAddressPick(fields: AddressFields) {
+    setForm(prev => ({
+      ...prev,
+      street_address: fields.street_address ?? '',
+      city: fields.city ?? '',
+      state: fields.state ?? '',
+      zip_code: fields.zip_code ?? '',
+      country: fields.country ?? '',
+    }))
+    setGeo(geoExtras(fields))
+    // ── THE VISIBLE FIELD MOVES WITH IT, unlike on the member's own form ────────
+    // This dialog RENDERS the timezone, three bands down. Setting only `pickedZone` would
+    // leave that Select showing the old zone while the save sent the new one — the screen
+    // disagreeing with what is about to be written, which is worse than either answer.
+    //
+    // The member's own address form cannot do this: `time_zone` lives in a different
+    // section there, so the notice is the only surface it has.
+    if (fields.time_zone) setForm(prev => ({ ...prev, time_zone: fields.time_zone as string }))
+    setPickedZone(fields.time_zone)
+  }
 
   async function handleSave() {
     if (!profile) return
@@ -233,7 +313,13 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
     // in, so every key here is one the server would accept anyway, and a diff would need
     // this component to decide what "unchanged" means for a field the member had never
     // filled in — where '' and null are the same fact and would flip back and forth.
-    const result = await updateUserProfile(profile.peopleId, form)
+    // THE EXTRAS RIDE WITH THE TYPED FIELDS. `updateUserProfile` allow-lists through
+    // `pickProfileColumns`, so an unrecognised key never reaches the row.
+    //
+    // NO SEPARATE `time_zone` HERE, unlike the member's own form: a pick writes it straight
+    // into `form` because this dialog shows that field, so it is already in the patch. One
+    // source for what is about to be saved.
+    const result = await updateUserProfile(profile.peopleId, { ...form, ...geo })
     if (!result.success) {
       setSaving(false)
       setError(result.error ?? t('mpe.saveFailed'))
@@ -406,14 +492,25 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
               <Select
                 id="mp-country"
                 value={form.country}
-                onChange={e => setForm(prev => ({ ...prev, country: e.target.value, state: '' }))}
+                onChange={e => {
+                  setForm(prev => ({ ...prev, country: e.target.value, state: '' }))
+                  setGeo(EMPTY_GEO)
+                  setPickedZone(null)
+                }}
               >
                 <option value="">— Select —</option>
                 {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
               </Select>
             </Cell>
             <Cell label={t('field.street')} htmlFor="mp-street">
-              <Input id="mp-street" value={form.street_address} onChange={e => set('street_address', e.target.value)} />
+              {/* Type and pick, and still typeable by hand — see the member's own form. The
+                  same component, so the two surfaces cannot drift about what a pick does. */}
+              <AddressAutocomplete
+                id="mp-street"
+                value={form.street_address}
+                onChange={v => set('street_address', v)}
+                onPick={handleAddressPick}
+              />
             </Cell>
             <Cell label={t('field.apartment')} htmlFor="mp-apt">
               <Input id="mp-apt" value={form.apartment} onChange={e => set('apartment', e.target.value)} />
@@ -473,7 +570,27 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
               <Select id="mp-tz" value={form.time_zone ?? ''} onChange={e => set('time_zone', e.target.value)}>
                 <option value="">— Select —</option>
                 {TIMEZONES.map(tz => <option key={tz} value={tz}>{timezoneLabel(t, tz)}</option>)}
+                {/* ── A PICKED ZONE OUTSIDE THE CURATED LIST STILL SHOWS ──────────
+                    `TIMEZONES` is the list this product offers; autocomplete is WORLDWIDE, so
+                    an address in Lagos yields `Africa/Lagos`, which is a perfectly good IANA
+                    name and not on it. A `<select>` whose value matches no option renders
+                    BLANK, so without this the zone would vanish from the form and save as
+                    empty — losing the very thing the pick just worked out. Same fix as the
+                    country Select on the member's own address form. */}
+                {form.time_zone && !TIMEZONES.includes(form.time_zone as typeof TIMEZONES[number]) && (
+                  <option value={form.time_zone}>{form.time_zone}</option>
+                )}
               </Select>
+              {/* ── AND IT SAYS THE ADDRESS MOVED IT ──────────────────────────────
+                  An administrator overwriting somebody ELSE's timezone from an address is the
+                  case that most needs saying out loud: the member did not do it and will not
+                  be told. `--brand-affirm` because nothing has gone wrong. */}
+              {pickedZone && (
+                <p className="flex items-start gap-2 text-xs text-brand-affirm">
+                  <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  {t('addr.timezoneSet', { zone: timezoneLabel(t, pickedZone) })}
+                </p>
+              )}
             </Cell>
           </Band>
 

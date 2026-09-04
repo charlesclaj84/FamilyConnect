@@ -30,6 +30,15 @@ export const WRITABLE_PROFILE_COLUMNS: readonly string[] = [
   'prefix', 'first_name', 'middle_name', 'last_name', 'nick_name', 'suffix',
   'primary_email', 'primary_phone',
   'street_address', 'apartment', 'city', 'state', 'zip_code', 'country',
+  // ── FROM THE GEOCODER, AND WRITABLE FOR THE SAME REASON THE SIX ABOVE ARE ────────
+  // 20260904000000 argues why none of these needs a guard trigger: not one decides money,
+  // membership or access. The nearest is `county`, which could influence whether somebody is
+  // SUGGESTED for a safety check-in — and a member already controls `zip_code`, which is what
+  // decides that today through the crosswalk.
+  //
+  // `county_code` IS NOT A FIPS. Never join it to `zip_counties.county_fips`; the column's
+  // own comment says so at length.
+  'county', 'county_code', 'state_code', 'country_code', 'latitude', 'longitude',
   'date_of_birth', 'sunset_date',
   // Writable, but NOT validated here — this list decides which keys reach the row and
   // says nothing about their contents. `gender` is confined to its two values by a

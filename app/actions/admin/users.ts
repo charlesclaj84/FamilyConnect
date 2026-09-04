@@ -278,7 +278,7 @@ export async function getMemberProfileForEdit(
     // literal it is handed, so `'a, b' + 'c'` types every column as GenericStringError and
     // the whole projection stops compiling — which is the useful direction of that inference
     // and the reason this line is long rather than wrapped.
-    .select('id, user_id, first_name, last_name, nick_name, prefix, middle_name, suffix, primary_email, primary_phone, email_is_placeholder, street_address, apartment, city, state, zip_code, country, date_of_birth, sunset_date, gender, tshirt_category, tshirt_size, time_zone, chapter_id')
+    .select('id, user_id, first_name, last_name, nick_name, prefix, middle_name, suffix, primary_email, primary_phone, email_is_placeholder, street_address, apartment, city, state, zip_code, country, date_of_birth, sunset_date, gender, tshirt_category, tshirt_size, time_zone, chapter_id, county, county_code, state_code, country_code, latitude, longitude')
     .eq('id', peopleId)
     .eq('family_code', familyCode)
     .maybeSingle(),
@@ -324,6 +324,18 @@ export async function getMemberProfileForEdit(
         gender: str(data.gender),
         tshirt_category: str(data.tshirt_category), tshirt_size: str(data.tshirt_size),
         time_zone: str(data.time_zone),
+        // ── THE GEOCODER'S SIX, READ SO A SAVE DOES NOT WIPE THEM ──────────────
+        // Not for display: nothing in the dialog renders a county. They are read because
+        // `MemberProfileEditDialog` sends the whole patch back on save, so a column it never
+        // fetched would go out as null — an administrator correcting an apartment would
+        // silently clear the county, the coordinates and the state code.
+        //
+        // `str()` on the four text columns for the rest of this projection's reason; the
+        // coordinates are numbers and pass through as they are.
+        county: str(data.county), county_code: str(data.county_code),
+        state_code: str(data.state_code), country_code: str(data.country_code),
+        latitude: (data.latitude as number | null) ?? null,
+        longitude: (data.longitude as number | null) ?? null,
       },
       chapterId: str(data.chapter_id),
       chapters: (chaptersRes.data ?? []) as { id: string; name: string }[],

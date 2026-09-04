@@ -151,6 +151,26 @@ export interface PersonalInfoData {
   state?: string
   zip_code?: string
   country?: string
+  /**
+   * ── FROM THE GEOCODER (20260904000000) ─────────────────────────────────────────
+   * Set only by picking an address from the autocomplete, and cleared the moment any
+   * address field is hand-edited — see `AddressSection`. Every one is legitimately absent:
+   * for a member who typed their address before this shipped, and for a country with no
+   * counties.
+   *
+   * `county_code` IS NOT A FIPS and must never be joined to `zip_counties.county_fips`.
+   */
+  // `| null` RATHER THAN MERELY OPTIONAL, the way `chapter_id` below already is. ABSENT
+  // means "do not change this"; NULL means "clear it" — and picking a Paris address after a
+  // Houston one has to clear the state code and the county, or the row ends up describing
+  // two places at once. `saveProfileSection` writes `val ?? null` for a non-string, so the
+  // null reaches the column rather than being dropped as undefined.
+  county?: string | null
+  county_code?: string | null
+  state_code?: string | null
+  country_code?: string | null
+  latitude?: number | null
+  longitude?: number | null
   date_of_birth?: string
   sunset_date?: string
   /** 'male' | 'female', or absent. Constrained by a CHECK — see lib/gender.ts. */

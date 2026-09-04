@@ -121,6 +121,13 @@ export const es: Catalogue = {
   'account.staff': 'Consola de personal de GENORRA',
   'account.staffHint': 'Todas las familias · se abre en una ventana nueva',
   'account.signOut': 'Cerrar sesión',
+  'addr.poweredBy': 'Con tecnología de Geoapify',
+  'addr.osm': '© Colaboradores de OpenStreetMap',
+  'addr.startTyping':
+    'Empiece a escribir y elija su dirección, o rellene los campos usted mismo.',
+  'addr.lookupUnavailable':
+    'La búsqueda de direcciones no está disponible ahora: rellene los campos de abajo.',
+  'addr.timezoneSet': 'Zona horaria definida a partir de esta dirección: {zone}',
   'account.signOutFailed': 'No pudimos cerrar su sesión ahora. Inténtelo de nuevo.',
 
   // ── THE THEME TOGGLE ─────────────────────────────────────────────────────────────

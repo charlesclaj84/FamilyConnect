@@ -304,6 +304,40 @@ but worth saying in the same breath: none of these values lives in `config.toml`
 They are Vercel environment variables and Meta dashboard settings.
 
 Recorded 2026-08-23.
+### [ ] `NEXT_PUBLIC_GEOAPIFY_API_KEY`, and the referrer restriction that is the real control
+
+**Action:** register free at `geoapify.com`, set `NEXT_PUBLIC_GEOAPIFY_API_KEY` on Vercel, and
+**restrict the key to `genorra.com` by HTTP referrer in Geoapify's dashboard.** Recorded
+2026-09-04 with the address autocomplete.
+
+**THE KEY IS IN THE BROWSER, DELIBERATELY, AND THAT IS WHY THE RESTRICTION MATTERS.** Typeahead
+needs the request to be client-side, so it ships in the bundle like the Supabase anon key. The
+alternative was a `'use server'` proxy and AGENTS.md's open-relay argument is exactly why it was
+not taken: every export of such a file gets a URL, so an action taking arbitrary text and
+calling a third party is a public endpoint any signed-in member can drive — spending our quota
+with our credential, from our IP, with no rate limiter in front of it and nowhere in this
+product to run one.
+
+So the referrer restriction is the whole boundary, and **it is dashboard state** — the same
+invisibility class as realtime publication membership, a `cron.job` row and the Send Email
+hook. Nothing in this repo can check it, which is why it is here rather than in a script.
+
+**WITHOUT THE KEY THE FIELD IS AN ORDINARY TEXT BOX**, on purpose: no error, no empty state,
+no broken form. `AddressAutocomplete` returns before it fetches anything, and every one of the
+six address fields still works — `sendEmail`'s fails-soft reasoning applied to a lookup. So a
+deployment that never sets this is degraded rather than broken, and the manual says the fields
+can always be typed by hand.
+
+**THE FREE TIER IS 3,000 REQUESTS A DAY AND THIS WILL NOT APPROACH IT.** An address is entered
+once per member, ever — a 140-relative family is ~140 addresses in its lifetime, each a handful
+of debounced requests. If a quota ever does become a problem, `DEBOUNCE_MS` and `MIN_CHARS` in
+that component are the two numbers to look at first.
+
+**AND THE ATTRIBUTION IS A LICENCE OBLIGATION, NOT COPY.** The free plan requires "Powered by
+Geoapify" and the data is OpenStreetMap, which requires its own credit. Both render under the
+suggestion list, translated, as real links. **Do not remove either without moving off the free
+plan** — that is a licensing change, not a design one.
+
 ### [ ] SMS: an account, a registered campaign, and four environment variables
 
 **Action:** open a Twilio account, register a brand and campaign, set four Vercel variables.

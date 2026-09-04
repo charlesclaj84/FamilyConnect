@@ -191,7 +191,8 @@ export const helpFr: Catalogue = {
     'Nom, nom d’usage, téléphone, courriel, date de naissance et votre photo.',
   'help.my-profile.sections.b1.i1.term': 'Adresse',
   'help.my-profile.sections.b1.i1.text':
-    'Où vous habitez. Utilisée par le Répertoire et par tout ce que la famille vous envoie.',
+    'Où vous habitez. Utilisée par le Répertoire et par tout ce que la famille vous envoie. '
+    + 'Commencez à saisir la rue et choisissez votre adresse dans la liste : voyez ci-dessous.',
   'help.my-profile.sections.b1.i2.term': 'Informations complémentaires',
   'help.my-profile.sections.b1.i2.text':
     'Taille de t-shirt, section, et les autres détails que demandent les rassemblements et '
@@ -203,6 +204,36 @@ export const helpFr: Catalogue = {
   'help.my-profile.sections.b1.i4.term': 'Connexion et sécurité',
   'help.my-profile.sections.b1.i4.text':
     'L’adresse avec laquelle vous vous connectez, et votre mot de passe.',
+  'help.my-profile.address.heading': 'Renseigner votre adresse',
+  'help.my-profile.address.b0':
+    'Commencez à saisir la rue et une liste de dix adresses au maximum apparaît en dessous. '
+    + 'Choisissez-en une et la ville, l’état ou la province, le code postal et le pays se '
+    + 'remplissent d’eux-mêmes. Cela fonctionne partout dans le monde, et les suggestions '
+    + 'sont dans la langue dans laquelle vous lisez le produit.',
+  'help.my-profile.address.b1':
+    '**Vous n’êtes jamais obligé de l’utiliser.** Chaque champ reste une case dans laquelle '
+    + 'vous pouvez écrire : une adresse qu’aucune carte ne connaît — une construction neuve, '
+    + 'une route de campagne, un endroit où les données sont tout simplement fausses — se '
+    + 'saisit à la main exactement comme avant. Si la recherche est indisponible, la page le '
+    + 'dit et les champs fonctionnent toujours.',
+  'help.my-profile.address.b2':
+    '**L’appartement ou le bureau est le seul champ que la liste ne peut pas remplir.** '
+    + 'Aucun service d’adresses ne les connaît : choisir une suggestion laisse donc intact ce '
+    + 'que vous avez saisi là.',
+  'help.my-profile.address.b3':
+    'Choisir une adresse définit aussi **votre fuseau horaire**, et la page indique lequel '
+    + 'elle a retenu. C’est important parce que le produit affiche les dates et les heures '
+    + 'dans votre fuseau : si vous en avez délibérément choisi un autre, remettez-le dans '
+    + '**Informations complémentaires** après avoir enregistré.',
+  'help.my-profile.address.b4':
+    'Choisir une adresse REMPLACE l’adresse entière, y compris en effaçant ce que la '
+    + 'précédente contenait et que la nouvelle n’a pas. Modifier ensuite un champ à la main ne '
+    + 'pose aucun problème ; cela signifie simplement que l’adresse est la vôtre et non celle '
+    + 'de la carte.',
+  'help.my-profile.address.b5':
+    'La liste d’adresses est fournie par Geoapify à partir des données d’OpenStreetMap, '
+    + 'créditées sous les suggestions. Rien à votre sujet n’est envoyé : seulement les lettres '
+    + 'que vous avez saisies.',
   'help.my-profile.notifications.heading': 'Notifications',
   'help.my-profile.notifications.b0':
     '**Notifications** est une grille : une ligne pour chaque chose sur laquelle votre '

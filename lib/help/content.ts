@@ -246,11 +246,23 @@ export const HELP_PARTS: readonly HelpPart[] = [
               p('The rail across the top of the page switches between them. Each saves on its own, so you can fill in one and come back later.'),
               defs(
                 { term: 'General', text: 'Name, preferred name, phone, email, birthday, and your photo.' },
-                { term: 'Address', text: 'Where you live. Used by the Directory and by anything the family posts to you.' },
+                { term: 'Address', text: 'Where you live. Used by the Directory and by anything the family posts to you. Start typing the street and pick your address from the list — see below.' },
                 { term: 'Additional Information', text: 'T-shirt size, chapter, and the other details events and reports ask for.' },
                 { term: 'Notifications', text: 'What your family may contact you about and how — a switch per notification, per channel.' },
                 { term: 'Sign-in & Security', text: 'The address you sign in with, and your password.' },
               ),
+            ],
+          },
+          {
+            id: 'address',
+            heading: 'Filling in your address',
+            blocks: [
+              p('Start typing the street and a list of up to ten addresses appears underneath. Pick one and the city, state or province, postcode and country fill themselves in. It works anywhere in the world, and the suggestions are in whichever language you are reading the product in.'),
+              p('**You never have to use it.** Every field is still a box you can type into, so an address no map knows — a new build, a rural route, somewhere the data is simply wrong — is entered by hand exactly as before. If the lookup is unavailable the page says so and the fields still work.'),
+              p('**Apartment or suite is the one field the list cannot fill.** No address service knows them, so picking a suggestion leaves whatever you typed there alone.'),
+              p('Picking an address also **sets your time zone**, and the page says which one it chose. That matters because the product shows dates and times in your zone — so if you have deliberately set a different one, change it back on **Additional Information** after saving.'),
+              note('Picking an address REPLACES the whole address, including clearing anything the previous one had that the new one does not. Editing any field by hand afterwards is fine; it just means the address is yours rather than the map\'s.'),
+              p('The address list is provided by Geoapify using OpenStreetMap data, credited under the suggestions. Nothing about you is sent — only the letters you have typed.'),
             ],
           },
           {

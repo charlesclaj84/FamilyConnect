@@ -6,11 +6,15 @@ import { useRouter } from 'next/navigation'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Pencil, User, MapPin, Info, Bell, ShieldCheck } from 'lucide-react'
+import { Pencil, User, MapPin, Info, Bell, ShieldCheck, Clock3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select } from '@/components/ui/select'
+import { AddressAutocomplete } from '@/components/ui/address-autocomplete'
+import {
+  EMPTY_GEO, geoExtras, type AddressFields, type GeoExtras,
+} from '@/lib/geo/geoapify-address'
 import { useConfirm } from '@/components/ui/confirm'
 import { saveProfileSection, saveChapterAndPropagate, type PersonalInfoRecord } from '@/app/actions/personal-info'
 import type { Chapter } from '@/app/actions/admin/chapters'
@@ -456,6 +460,21 @@ function AddressSection({
   const t = useT()
   const confirm = useConfirm()
   const [serverError, setServerError] = useState('')
+  // ── WHAT THE GEOCODER KNOWS, HELD APART FROM WHAT A MEMBER TYPES ───────────────
+  // Seeded from the row so a save that changes only the apartment does not wipe a county
+  // that was already there, and replaced wholesale by a pick. See EMPTY_GEO for why every
+  // key is an explicit null rather than an absent one.
+  const [geo, setGeo] = useState<GeoExtras>(() => ({
+    state_code: existing?.state_code ?? null,
+    county: existing?.county ?? null,
+    county_code: existing?.county_code ?? null,
+    country_code: existing?.country_code ?? null,
+    latitude: existing?.latitude ?? null,
+    longitude: existing?.longitude ?? null,
+  }))
+  // The zone a pick set, so the form can SAY it moved. Null until one does — this is not the
+  // member's current zone and must never be rendered as though it were.
+  const [pickedZone, setPickedZone] = useState<string | null>(null)
 
   const { register, handleSubmit, reset, control, setValue, formState: { isSubmitting } } = useForm<AddressData>({
     resolver: zodResolver(addressSchema),
@@ -465,6 +484,9 @@ function AddressSection({
   // `useWatch`, NOT `watch()` — see the note below the imports.
   const selectedCountry  = (useWatch({ control, name: 'country' }) ?? '') as Country | ''
   const selectedState    = useWatch({ control, name: 'state' }) ?? ''
+  // Watched rather than `register`ed, because the autocomplete needs to READ it to know what
+  // to look up. `useWatch` and not `watch()` — see the note below the imports.
+  const streetValue      = useWatch({ control, name: 'street_address' }) ?? ''
   const availableRegions = selectedCountry && selectedCountry in REGIONS ? REGIONS[selectedCountry as Country] : []
 
   // 'Canada' is the STORED VALUE of the country field, not a caption — it stays English.
@@ -474,12 +496,68 @@ function AddressSection({
   function handleCountryChange(e: React.ChangeEvent<HTMLSelectElement>) {
     setValue('country', e.target.value)
     setValue('state', '')
+    // A HAND-CHOSEN COUNTRY INVALIDATES THE GEOCODE, same rule as every other field.
+    setGeo(EMPTY_GEO)
+    setPickedZone(null)
+  }
+
+  /**
+   * A member picked a suggestion.
+   *
+   * ── IT REPLACES THE ADDRESS, IT DOES NOT MERGE INTO IT ─────────────────────────
+   * Every field is written including the empty ones, which is why `addressFrom` returns a
+   * `null` for each key rather than omitting it: picking a Paris address after a Houston one
+   * has to CLEAR the state and the county, and a merge would leave "Texas" under a French
+   * postcode.
+   *
+   * `apartment` IS THE ONE FIELD LEFT ALONE. No geocoder returns an apartment or a suite —
+   * they are below the deliverable-address level — so whatever the member typed there is
+   * still true of the address they just picked.
+   */
+  function handleAddressPick(fields: AddressFields) {
+    setValue('street_address', fields.street_address ?? '')
+    setValue('city', fields.city ?? '')
+    setValue('state', fields.state ?? '')
+    setValue('zip_code', fields.zip_code ?? '')
+    setValue('country', fields.country ?? '')
+    setGeo(geoExtras(fields))
+    // OVERWRITES A ZONE THE MEMBER MAY HAVE CHOSEN, and therefore SAYS SO — see the notice
+    // this drives, below the fields. Only when the geocoder supplied one: a null must never
+    // be written over a good stored zone.
+    setPickedZone(fields.time_zone)
+  }
+
+  /**
+   * A field was edited by hand, so the geocode no longer describes what is in the boxes.
+   *
+   * ── CLEARED RATHER THAN KEPT, WHICH IS THE `is_minor` RULE (§4b) ───────────────
+   * A latitude that describes the picked address while the city says somewhere else is two
+   * stored facts that disagree, and the coordinate is the one nothing on screen would reveal
+   * as stale. So any hand edit drops the extras, and picking again restores them.
+   *
+   * It fires on every keystroke in the street box, which is correct: while somebody is
+   * typing there IS no valid geocode.
+   */
+  function invalidateGeo() {
+    setGeo(EMPTY_GEO)
+    setPickedZone(null)
   }
 
   // Resets to the CURRENT `existing`, not to the mount-time defaults — see
   // GeneralSection for why that replaced a re-seed on entering edit.
   function handleCancel() {
     reset({ country: tv(existing?.country), street_address: tv(existing?.street_address), apartment: tv(existing?.apartment), city: tv(existing?.city), state: tv(existing?.state), zip_code: tv(existing?.zip_code) })
+    // Back to the row's own extras, not to EMPTY_GEO: cancelling must restore what was
+    // stored rather than clear a county the member never touched.
+    setGeo({
+      state_code: existing?.state_code ?? null,
+      county: existing?.county ?? null,
+      county_code: existing?.county_code ?? null,
+      country_code: existing?.country_code ?? null,
+      latitude: existing?.latitude ?? null,
+      longitude: existing?.longitude ?? null,
+    })
+    setPickedZone(null)
     setServerError('')
     onEditDone()
   }
@@ -492,7 +570,18 @@ function AddressSection({
     })
     if (!ok) return
     setServerError('')
-    const result = await saveProfileSection(data)
+    // THE EXTRAS RIDE WITH THE TYPED FIELDS, in one patch. `saveProfileSection` allow-lists
+    // by `pickProfileColumns`, so a key it does not recognise never reaches the row.
+    //
+    // `time_zone` ONLY WHEN A PICK SET ONE. Spreading `{ time_zone: null }` on every save
+    // would clear a zone the member chose in the Additional Info section, from a form that
+    // does not show it — which is the silent cross-section side effect this whole product
+    // argues against.
+    const result = await saveProfileSection({
+      ...data,
+      ...geo,
+      ...(pickedZone ? { time_zone: pickedZone } : {}),
+    })
     if (result.success) { onEditDone(); onSaved() }
     else setServerError(result.message ?? t('profile.wentWrong'))
   }
@@ -519,45 +608,95 @@ function AddressSection({
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="country">{t('field.country')}</Label>
+            {/* ── THE PICKED COUNTRY IS ADDED AS AN OPTION IF IT IS NOT ONE ──────────
+                `COUNTRIES` is a curated three — United States, Canada, Mexico — chosen
+                because those are the ones with region lists behind them. Autocomplete is
+                WORLDWIDE (decided 2026-09-04), so a member can pick an address in France
+                and `country` becomes a value this Select has no option for.
+
+                A `<select>` whose value matches no option renders BLANK, so without this
+                the country would silently vanish from the form and save as empty — the
+                address would lose the one field that says which country's postcode format
+                it is in. The extra option is added only when needed, so the list stays
+                three long for everybody it already served. */}
             <Select id="country" value={selectedCountry} onChange={handleCountryChange} className="max-w-xs">
               <option value="">— Select Country —</option>
               {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
+              {selectedCountry && !(COUNTRIES as readonly string[]).includes(selectedCountry) && (
+                <option value={selectedCountry}>{selectedCountry}</option>
+              )}
             </Select>
           </div>
 
           <div className="space-y-3">
             <div className="space-y-1.5">
               <Label htmlFor="street_address">{t('field.street')}</Label>
-              <Input id="street_address" placeholder={t('field.ph.street')} {...register('street_address')} />
+              {/* ── TYPE AND PICK, AND STILL TYPEABLE BY HAND ──────────────────────
+                  `AddressAutocomplete` is a text box with a suggestion list under it, so a
+                  member on a deployment with no Geoapify key — or with an address no
+                  geocoder knows — types it exactly as before. That is the whole reason it
+                  wraps an `Input` rather than replacing the six fields with one.
+
+                  `useWatch` + `setValue` rather than `register`, because the value has to be
+                  readable HERE to drive the lookup. `onChange` invalidates the geocode: see
+                  `invalidateGeo`. */}
+              <AddressAutocomplete
+                id="street_address"
+                value={streetValue}
+                onChange={v => { setValue('street_address', v); invalidateGeo() }}
+                onPick={handleAddressPick}
+                placeholder={t('field.ph.street')}
+              />
+              <p className="text-xs text-muted-foreground">{t('addr.startTyping')}</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="apartment">{t('field.apartment')}</Label>
+              {/* NOT INVALIDATED BY THIS ONE. No geocoder returns an apartment or suite, so
+                  editing it says nothing about whether the coordinate still describes the
+                  building — and clearing the county because somebody added "Apt 4" would be
+                  wrong. It is also why picking a suggestion leaves this field alone. */}
               <Input id="apartment" placeholder={t('field.ph.apartment')} {...register('apartment')} />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="col-span-2 space-y-1.5">
                 <Label htmlFor="city">{t('field.city')}</Label>
-                <Input id="city" placeholder={t('field.ph.city')} {...register('city')} />
+                <Input id="city" placeholder={t('field.ph.city')} {...register('city', { onChange: invalidateGeo })} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="state">
                   {selectedCountry === 'Canada' ? t('field.province') : selectedCountry ? t('field.state') : t('field.stateProvince')}
                 </Label>
                 {availableRegions.length > 0 ? (
-                  <Select id="state" value={selectedState} onChange={e => setValue('state', e.target.value)}>
+                  <Select id="state" value={selectedState} onChange={e => { setValue('state', e.target.value); invalidateGeo() }}>
                     <option value="">— Select —</option>
                     {availableRegions.map(r => <option key={r} value={r}>{r}</option>)}
                   </Select>
                 ) : (
-                  <Input id="state" placeholder={t('field.state')} disabled={!selectedCountry} {...register('state')} />
+                  <Input id="state" placeholder={t('field.state')} disabled={!selectedCountry} {...register('state', { onChange: invalidateGeo })} />
                 )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="zip_code">{t('field.zip')}</Label>
-                <Input id="zip_code" placeholder={t('field.ph.zip')} {...register('zip_code')} />
+                <Input id="zip_code" placeholder={t('field.ph.zip')} {...register('zip_code', { onChange: invalidateGeo })} />
               </div>
             </div>
           </div>
+          {/* ── THE TIMEZONE MOVED, AND IT SAYS SO ────────────────────────────────
+              Asked for as automatic, and shown rather than silent. A member may have chosen
+              their zone deliberately in Additional Info, and this overwrites it from the
+              address — so the one thing this notice has to do is let somebody who did that
+              see it move and put it back.
+
+              `--brand-affirm` and not withheld or destructive: nothing has gone wrong and
+              nothing is being taken away. It renders only when a pick actually supplied a
+              zone, which is why `pickedZone` starts null and is not the member's current
+              zone. */}
+          {pickedZone && (
+            <p className="flex items-start gap-2 text-xs text-brand-affirm">
+              <Clock3 className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              {t('addr.timezoneSet', { zone: timezoneLabel(t, pickedZone) })}
+            </p>
+          )}
           <FormActions isSubmitting={isSubmitting} onCancel={handleCancel} error={serverError} />
         </form>
       )}

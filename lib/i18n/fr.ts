@@ -141,6 +141,13 @@ export const fr: Catalogue = {
   'account.staff': 'Console du personnel GENORRA',
   'account.staffHint': 'Toutes les familles · s’ouvre dans une nouvelle fenêtre',
   'account.signOut': 'Se déconnecter',
+  'addr.poweredBy': 'Propulsé par Geoapify',
+  'addr.osm': '© Les contributeurs d’OpenStreetMap',
+  'addr.startTyping':
+    'Commencez à saisir puis choisissez votre adresse, ou remplissez les champs vous-même.',
+  'addr.lookupUnavailable':
+    'La recherche d’adresse est indisponible pour le moment — remplissez les champs ci-dessous.',
+  'addr.timezoneSet': 'Fuseau horaire défini d’après cette adresse : {zone}',
   'account.signOutFailed':
     'Nous n’avons pas pu vous déconnecter pour le moment. Veuillez réessayer.',
 

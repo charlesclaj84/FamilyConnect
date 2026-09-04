@@ -185,7 +185,8 @@ export const helpEs: Catalogue = {
     'Nombre, nombre preferido, teléfono, correo, cumpleaños y su foto.',
   'help.my-profile.sections.b1.i1.term': 'Dirección',
   'help.my-profile.sections.b1.i1.text':
-    'Dónde vive. Lo usan el Directorio y todo lo que la familia le envíe por correo postal.',
+    'Dónde vive. Lo usan el Directorio y todo lo que la familia le envíe por correo postal. '
+    + 'Empiece a escribir la calle y elija su dirección de la lista: véase más abajo.',
   'help.my-profile.sections.b1.i2.term': 'Información adicional',
   'help.my-profile.sections.b1.i2.text':
     'Talla de camiseta, capítulo y los demás datos que piden las reuniones y los informes.',
@@ -195,6 +196,34 @@ export const helpEs: Catalogue = {
     + 'notificación y por canal.',
   'help.my-profile.sections.b1.i4.term': 'Inicio de sesión y seguridad',
   'help.my-profile.sections.b1.i4.text': 'La dirección con la que inicia sesión, y su contraseña.',
+  'help.my-profile.address.heading': 'Rellenar su dirección',
+  'help.my-profile.address.b0':
+    'Empiece a escribir la calle y aparecerá debajo una lista de hasta diez direcciones. '
+    + 'Elija una y la ciudad, el estado o la provincia, el código postal y el país se '
+    + 'rellenan solos. Funciona en cualquier parte del mundo, y las sugerencias aparecen en '
+    + 'el idioma en el que usted esté leyendo el producto.',
+  'help.my-profile.address.b1':
+    '**Nunca está obligado a usarla.** Cada campo sigue siendo una casilla en la que puede '
+    + 'escribir, así que una dirección que ningún mapa conoce —una obra nueva, una ruta '
+    + 'rural, un lugar donde los datos simplemente están mal— se introduce a mano igual que '
+    + 'antes. Si la búsqueda no está disponible, la página lo dice y los campos siguen '
+    + 'funcionando.',
+  'help.my-profile.address.b2':
+    '**El apartamento o la suite es el único campo que la lista no puede rellenar.** Ningún '
+    + 'servicio de direcciones los conoce, así que al elegir una sugerencia se deja intacto '
+    + 'lo que usted haya escrito ahí.',
+  'help.my-profile.address.b3':
+    'Elegir una dirección también **define su zona horaria**, y la página dice cuál ha '
+    + 'elegido. Eso importa porque el producto muestra las fechas y las horas en su zona: si '
+    + 'usted ha definido otra a propósito, vuelva a cambiarla en **Información adicional** '
+    + 'después de guardar.',
+  'help.my-profile.address.b4':
+    'Elegir una dirección SUSTITUYE la dirección completa, incluido borrar lo que tuviera la '
+    + 'anterior y no tenga la nueva. Editar cualquier campo a mano después no tiene nada de '
+    + 'malo; solo significa que la dirección es suya y no la del mapa.',
+  'help.my-profile.address.b5':
+    'La lista de direcciones la proporciona Geoapify con datos de OpenStreetMap, acreditados '
+    + 'debajo de las sugerencias. No se envía nada sobre usted: solo las letras que ha escrito.',
   'help.my-profile.notifications.heading': 'Notificaciones',
   'help.my-profile.notifications.b0':
     '**Notificaciones** es una cuadrícula: una fila por cada cosa sobre la que su familia '

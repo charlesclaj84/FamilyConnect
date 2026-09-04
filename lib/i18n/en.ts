@@ -118,6 +118,22 @@ export const en: Catalogue = {
   'account.staff': 'GENORRA staff console',
   'account.staffHint': 'Every family · opens in a new window',
   'account.signOut': 'Sign out',
+  // ── ADDRESS AUTOCOMPLETE (Geoapify) ──────────────────────────────────────────────
+  // `addr.poweredBy` and `addr.osm` ARE A LICENCE OBLIGATION, not copy. Geoapify's free
+  // plan requires the attribution and the underlying data is OpenStreetMap, which requires
+  // its own. Both are translated because they are read by members, and neither may be
+  // removed without moving off the free plan.
+  //
+  // "Geoapify" and "OpenStreetMap" are PROPER NOUNS and stay untranslated in all three, the
+  // same rule the product name and a plan name keep.
+  'addr.poweredBy': 'Powered by Geoapify',
+  'addr.osm': '© OpenStreetMap contributors',
+  'addr.startTyping': 'Start typing and pick your address, or fill the fields in yourself.',
+  // SAID, NOT ALARMED. The six fields underneath still work, so this is a notice about a
+  // convenience being unavailable rather than a refused operation.
+  'addr.lookupUnavailable': 'Address lookup is unavailable just now — type the fields in below.',
+  // WHY IT CHANGED, because a member may have chosen their zone deliberately.
+  'addr.timezoneSet': 'Time zone set from this address: {zone}',
   // A REFUSED SIGN-OUT, which used to be invisible: the button navigated to Home, and Home
   // renders perfectly well for somebody still signed in. It lands on /login now, so a silent
   // failure would show a login form to a live session — see lib/sign-out.ts.
