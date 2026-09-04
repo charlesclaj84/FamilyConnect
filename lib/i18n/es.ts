@@ -128,6 +128,17 @@ export const es: Catalogue = {
   'addr.lookupUnavailable':
     'La búsqueda de direcciones no está disponible ahora: rellene los campos de abajo.',
   'addr.timezoneSet': 'Zona horaria definida a partir de esta dirección: {zone}',
+  'addr.manualAsk': 'Escribir mi dirección a mano',
+  'addr.manualTitle': '¿Escribir la dirección usted mismo?',
+  'addr.manualBody':
+    'Elegirla de la lista confirma que la dirección existe y registra dónde está, que es lo '
+    + 'que permite a su familia localizarle si ocurre algo en su zona, y además define su '
+    + 'zona horaria. Escribirla usted mismo no confirma nada: un error en el código postal no '
+    + 'se detectará, y su zona horaria se queda como está. Hágalo solo si su dirección no '
+    + 'aparece en la lista.',
+  'addr.manualConfirm': 'Déjeme escribirla',
+  'addr.manualOn':
+    'Está escribiendo esta dirección usted mismo. Elija una de la lista para confirmarla.',
   'account.signOutFailed': 'No pudimos cerrar su sesión ahora. Inténtelo de nuevo.',
 
   // ── THE THEME TOGGLE ─────────────────────────────────────────────────────────────

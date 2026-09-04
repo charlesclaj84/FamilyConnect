@@ -203,15 +203,17 @@ export const helpEs: Catalogue = {
     + 'rellenan solos. Funciona en cualquier parte del mundo, y las sugerencias aparecen en '
     + 'el idioma en el que usted esté leyendo el producto.',
   'help.my-profile.address.b1':
-    '**Nunca está obligado a usarla.** Cada campo sigue siendo una casilla en la que puede '
-    + 'escribir, así que una dirección que ningún mapa conoce —una obra nueva, una ruta '
-    + 'rural, un lugar donde los datos simplemente están mal— se introduce a mano igual que '
-    + 'antes. Si la búsqueda no está disponible, la página lo dice y los campos siguen '
-    + 'funcionando.',
+    '**Los demás campos se rellenan por usted y no se pueden escribir.** La ciudad, el estado '
+    + 'o la provincia, el código postal y el país vienen de la dirección que elija, así que '
+    + 'siempre concuerdan con ella. **El apartamento o la suite es la excepción**: ningún '
+    + 'servicio de direcciones los conoce, así que esa casilla siempre es suya y al elegir una '
+    + 'sugerencia se deja intacto lo que haya puesto en ella.',
   'help.my-profile.address.b2':
-    '**El apartamento o la suite es el único campo que la lista no puede rellenar.** Ningún '
-    + 'servicio de direcciones los conoce, así que al elegir una sugerencia se deja intacto '
-    + 'lo que usted haya escrito ahí.',
+    '**Si su dirección no aparece en la lista, pulse «Escribir mi dirección a mano».** Antes '
+    + 'le pide que lo confirme, porque una dirección escrita no se comprueba: un error en el '
+    + 'código postal no se detectará, y su zona horaria se queda como está. Cuando acepte, '
+    + 'todos los campos serán casillas en las que puede escribir, y elegir después una '
+    + 'sugerencia sigue funcionando y los rellena todos de nuevo.',
   'help.my-profile.address.b3':
     'Elegir una dirección también **define su zona horaria**, y la página dice cuál ha '
     + 'elegido. Eso importa porque el producto muestra las fechas y las horas en su zona: si '
@@ -219,8 +221,7 @@ export const helpEs: Catalogue = {
     + 'después de guardar.',
   'help.my-profile.address.b4':
     'Elegir una dirección SUSTITUYE la dirección completa, incluido borrar lo que tuviera la '
-    + 'anterior y no tenga la nueva. Editar cualquier campo a mano después no tiene nada de '
-    + 'malo; solo significa que la dirección es suya y no la del mapa.',
+    + 'anterior y no tenga la nueva.',
   'help.my-profile.address.b5':
     'La lista de direcciones la proporciona Geoapify con datos de OpenStreetMap, acreditados '
     + 'debajo de las sugerencias. No se envía nada sobre usted: solo las letras que ha escrito.',

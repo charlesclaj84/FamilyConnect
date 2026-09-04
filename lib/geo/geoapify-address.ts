@@ -257,3 +257,45 @@ export function geoExtras(fields: AddressFields): GeoExtras {
     longitude: fields.longitude,
   }
 }
+
+/**
+ * The suggestions out of a response, whichever shape it arrived in.
+ *
+ * ── WHY THIS EXISTS: A 200 THAT RENDERED NOTHING ──────────────────────────────────
+ * The component read `body.results` and Geoapify's autocomplete endpoint answers **GeoJSON by
+ * default** — a `FeatureCollection` whose fields live under `features[].properties`. So
+ * `results` was `undefined`, the list came out empty, and the panel never opened: requests
+ * visible in the Network tab, a valid 200, and no dropdown. Reported 2026-09-04.
+ *
+ * That is `const { data } = await supabase…` in a new costume — a response whose shape was not
+ * what the reader assumed, producing an empty answer indistinguishable from a real one. The
+ * request now asks for `format=json` explicitly, and this reads BOTH shapes so a changed
+ * default cannot empty the list again.
+ *
+ * ── AND "NO MATCHES" IS TOLD APART FROM "SHAPE I DO NOT RECOGNISE" ────────────────
+ * The `null` return is the whole point. An empty array is a real answer — nobody has an
+ * address matching "zzzz" — and a payload with neither key is a change at the far end. The
+ * first shows nothing; the second says the lookup is unavailable, because silently showing
+ * nothing is exactly what cost a day here.
+ */
+export function suggestionsFrom(payload: unknown): GeoapifySuggestion[] | null {
+  const body = payload as {
+    results?: unknown
+    features?: unknown
+  } | null | undefined
+  if (!body || typeof body !== 'object') return null
+
+  // `format=json` — what the request now asks for.
+  if (Array.isArray(body.results)) return body.results as GeoapifySuggestion[]
+
+  // GeoJSON, which is the default and what was actually arriving. A feature with no
+  // `properties` is dropped rather than refusing the batch: unlike the ZIP crosswalk, a
+  // missing suggestion costs a member one row of a list they can retype past.
+  if (Array.isArray(body.features)) {
+    return (body.features as { properties?: unknown }[])
+      .map(f => f?.properties)
+      .filter((p): p is GeoapifySuggestion => Boolean(p) && typeof p === 'object')
+  }
+
+  return null
+}

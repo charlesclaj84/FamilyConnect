@@ -134,6 +134,25 @@ export const en: Catalogue = {
   'addr.lookupUnavailable': 'Address lookup is unavailable just now — type the fields in below.',
   // WHY IT CHANGED, because a member may have chosen their zone deliberately.
   'addr.timezoneSet': 'Time zone set from this address: {zone}',
+  // ── MANUAL ENTRY, BEHIND A WARNING ───────────────────────────────────────────────
+  // THE WARNING IS ACCURATE RATHER THAN FRIGHTENING, which took some care. "You will not
+  // receive disaster notifications" is FALSE: a typed postcode still resolves to a county
+  // through the ZIP crosswalk, so a correct one still matches an alert. What is genuinely
+  // lost is the CONFIRMATION — nothing has checked the address exists — plus the coordinate
+  // and the time zone.
+  //
+  // An overstated warning is worse than none: the first member who types an address, gets an
+  // alert anyway and says so has taught everybody to click past the dialog.
+  'addr.manualAsk': 'Enter my address manually instead',
+  'addr.manualTitle': 'Type the address yourself?',
+  'addr.manualBody':
+    'Picking from the list confirms the address exists and records where it is, which is what '
+    + 'lets your family reach you about something happening in your area — and it sets your '
+    + 'time zone. Typing it yourself confirms nothing: a mistake in the postcode will not be '
+    + 'noticed, and your time zone stays as it is. Only do this if your address is not in the '
+    + 'list.',
+  'addr.manualConfirm': 'Let me type it',
+  'addr.manualOn': 'You are typing this address yourself. Pick one from the list to confirm it instead.',
   // A REFUSED SIGN-OUT, which used to be invisible: the button navigated to Home, and Home
   // renders perfectly well for somebody still signed in. It lands on /login now, so a silent
   // failure would show a login form to a live session — see lib/sign-out.ts.

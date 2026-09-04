@@ -110,6 +110,21 @@ type FormState = Required<Omit<PersonalInfoData,
  * coordinate still describes the building, and clearing the county over it would be wrong.
  * It is the same reason picking a suggestion leaves that field alone.
  */
+/**
+ * The muted treatment for a field the lookup owns.
+ *
+ * A bare `readOnly` box looks identical to an editable one, so somebody types in it and is
+ * silently ignored — which is the same complaint this change answers, from the other side.
+ *
+ * DUPLICATED FROM `PersonalInfoForm` RATHER THAN SHARED, and that is a deliberately small
+ * exception to this codebase's one-copy rule: it is four utility classes, and the alternative
+ * is either an import between two feature components or a third module holding one string.
+ * If it grows past this, it belongs in `components/ui`.
+ */
+function readOnlyClass(manual: boolean): string | undefined {
+  return manual ? undefined : 'bg-muted/50 text-muted-foreground cursor-not-allowed'
+}
+
 const GEO_INVALIDATING_FIELDS = new Set<keyof FormState>([
   'street_address', 'city', 'state', 'zip_code', 'country',
 ])
@@ -176,6 +191,21 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
   // The zone a pick set, so this dialog can say it moved — an administrator overwriting
   // somebody ELSE's timezone from an address is the case that most needs saying out loud.
   const [pickedZone, setPickedZone] = useState<string | null>(null)
+  /**
+   * Free-form entry, off by default here too.
+   *
+   * ── THE SAME RULE FOR AN ADMINISTRATOR, AND IT IS NOT OBVIOUS THAT IT SHOULD BE ──
+   * The argument for exempting this surface is real: an administrator correcting somebody
+   * else's record is the case where a lookup is most likely to be wrong about a rural
+   * address, and they cannot ask the member mid-edit.
+   *
+   * It loses to the consequence being the SAME. An unverified address stored from here is
+   * indistinguishable from one stored from My Profile — same columns, same missing
+   * coordinate, same unset timezone — and the member it belongs to never sees the dialog
+   * that would have warned them. If anything that argues for the warning being shown here
+   * MORE firmly, not less: the person bearing the cost is not the person clicking.
+   */
+  const [manual, setManual] = useState(false)
   // ── THE CHAPTER IS ITS OWN FIELD AND ITS OWN WRITE ────────────────────────────────
   // It is NOT in `form`, and that is not tidiness: `chapter_id` is deliberately absent from
   // `WRITABLE_PROFILE_COLUMNS`, so `updateUserProfile` would silently drop it — the allow-list
@@ -238,6 +268,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
         longitude: (f.longitude as number | null) ?? null,
       })
       setPickedZone(null)
+      setManual(false)
       setChapterId(result.profile.chapterId)
     })
     return () => { live = false }
@@ -287,6 +318,23 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
     // section there, so the notice is the only surface it has.
     if (fields.time_zone) setForm(prev => ({ ...prev, time_zone: fields.time_zone as string }))
     setPickedZone(fields.time_zone)
+  }
+
+  /**
+   * Ask for free-form entry. Same warning as the member's own form, deliberately.
+   *
+   * ONE SET OF STRINGS, so the two surfaces cannot come to describe the same trade-off
+   * differently — which is the drift `lib/notifications.ts` exists to prevent about a
+   * sentence, applied to a dialog.
+   */
+  async function askForManual() {
+    const ok = await confirm({
+      title: t('addr.manualTitle'),
+      description: t('addr.manualBody'),
+      confirmLabel: t('addr.manualConfirm'),
+    })
+    if (!ok) return
+    setManual(true)
   }
 
   async function handleSave() {
@@ -492,6 +540,7 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
               <Select
                 id="mp-country"
                 value={form.country}
+                disabled={!manual}
                 onChange={e => {
                   setForm(prev => ({ ...prev, country: e.target.value, state: '' }))
                   setGeo(EMPTY_GEO)
@@ -511,12 +560,34 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
                 onChange={v => set('street_address', v)}
                 onPick={handleAddressPick}
               />
+              {/* ── WHICH MODE, AND THE WAY INTO THE OTHER ──────────────────────
+                  A row of read-only boxes with nothing saying why is the failure this is
+                  answering: somebody tries to fix a city, nothing happens, and the screen
+                  offers no explanation. */}
+              <p className="text-xs text-muted-foreground">
+                {manual ? t('addr.manualOn') : t('addr.startTyping')}
+              </p>
+              {!manual && (
+                <button
+                  type="button"
+                  onClick={() => { void askForManual() }}
+                  className="text-xs font-medium text-brand-accent hover:underline"
+                >
+                  {t('addr.manualAsk')}
+                </button>
+              )}
             </Cell>
             <Cell label={t('field.apartment')} htmlFor="mp-apt">
               <Input id="mp-apt" value={form.apartment} onChange={e => set('apartment', e.target.value)} />
             </Cell>
             <Cell label={t('field.city')} htmlFor="mp-city">
-              <Input id="mp-city" value={form.city} onChange={e => set('city', e.target.value)} />
+              {/* `readOnly`, NEVER `disabled` — a disabled input is excluded from
+                  submission, so locking these that way would have saved them all as empty
+                  the first time anybody corrected an apartment. The country Select above IS
+                  disabled, safely: it reads from `form`, not from the DOM. */}
+              <Input id="mp-city" value={form.city} readOnly={!manual}
+                className={readOnlyClass(manual)}
+                onChange={e => set('city', e.target.value)} />
             </Cell>
             <Cell
               label={stateLabel}
@@ -524,17 +595,20 @@ export function MemberProfileEditDialog({ peopleId, onClose, onSaved }: {
               hint={!form.country ? t('mpe.chooseCountry') : undefined}
             >
               {availableRegions.length > 0 ? (
-                <Select id="mp-state" value={form.state} onChange={e => set('state', e.target.value)}>
+                <Select id="mp-state" value={form.state} disabled={!manual} onChange={e => set('state', e.target.value)}>
                   <option value="">— Select —</option>
                   {availableRegions.map(r => <option key={r} value={r}>{r}</option>)}
                 </Select>
               ) : (
                 <Input id="mp-state" placeholder={stateLabel} disabled={!form.country}
+                  readOnly={!manual} className={readOnlyClass(manual)}
                   value={form.state} onChange={e => set('state', e.target.value)} />
               )}
             </Cell>
             <Cell label={t('field.zip')} htmlFor="mp-zip">
-              <Input id="mp-zip" placeholder={t('field.ph.zip')} value={form.zip_code} onChange={e => set('zip_code', e.target.value)} />
+              <Input id="mp-zip" placeholder={t('field.ph.zip')} value={form.zip_code}
+                readOnly={!manual} className={readOnlyClass(manual)}
+                onChange={e => set('zip_code', e.target.value)} />
             </Cell>
           </Band>
 

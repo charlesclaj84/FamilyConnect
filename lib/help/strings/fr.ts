@@ -211,15 +211,18 @@ export const helpFr: Catalogue = {
     + 'remplissent d’eux-mêmes. Cela fonctionne partout dans le monde, et les suggestions '
     + 'sont dans la langue dans laquelle vous lisez le produit.',
   'help.my-profile.address.b1':
-    '**Vous n’êtes jamais obligé de l’utiliser.** Chaque champ reste une case dans laquelle '
-    + 'vous pouvez écrire : une adresse qu’aucune carte ne connaît — une construction neuve, '
-    + 'une route de campagne, un endroit où les données sont tout simplement fausses — se '
-    + 'saisit à la main exactement comme avant. Si la recherche est indisponible, la page le '
-    + 'dit et les champs fonctionnent toujours.',
+    '**Les autres champs sont remplis pour vous et ne peuvent pas être saisis.** La ville, '
+    + 'l’état ou la province, le code postal et le pays viennent de l’adresse que vous '
+    + 'choisissez : ils concordent donc toujours avec elle. **L’appartement ou le bureau est '
+    + 'l’exception** — aucun service d’adresses ne les connaît, cette case est donc toujours '
+    + 'la vôtre et choisir une suggestion laisse intact ce que vous y avez mis.',
   'help.my-profile.address.b2':
-    '**L’appartement ou le bureau est le seul champ que la liste ne peut pas remplir.** '
-    + 'Aucun service d’adresses ne les connaît : choisir une suggestion laisse donc intact ce '
-    + 'que vous avez saisi là.',
+    '**Si votre adresse n’est pas dans la liste, appuyez sur « Saisir mon adresse '
+    + 'moi-même ».** Une confirmation vous est demandée d’abord, car une adresse saisie n’est '
+    + 'pas vérifiée : une erreur dans le code postal passera inaperçue, et votre fuseau '
+    + 'horaire reste tel quel. Une fois que vous acceptez, chaque champ est une case dans '
+    + 'laquelle vous pouvez écrire — et choisir ensuite une suggestion fonctionne toujours et '
+    + 'les remplit tous à nouveau.',
   'help.my-profile.address.b3':
     'Choisir une adresse définit aussi **votre fuseau horaire**, et la page indique lequel '
     + 'elle a retenu. C’est important parce que le produit affiche les dates et les heures '
@@ -227,9 +230,7 @@ export const helpFr: Catalogue = {
     + '**Informations complémentaires** après avoir enregistré.',
   'help.my-profile.address.b4':
     'Choisir une adresse REMPLACE l’adresse entière, y compris en effaçant ce que la '
-    + 'précédente contenait et que la nouvelle n’a pas. Modifier ensuite un champ à la main ne '
-    + 'pose aucun problème ; cela signifie simplement que l’adresse est la vôtre et non celle '
-    + 'de la carte.',
+    + 'précédente contenait et que la nouvelle n’a pas.',
   'help.my-profile.address.b5':
     'La liste d’adresses est fournie par Geoapify à partir des données d’OpenStreetMap, '
     + 'créditées sous les suggestions. Rien à votre sujet n’est envoyé : seulement les lettres '

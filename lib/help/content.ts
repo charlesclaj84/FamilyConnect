@@ -258,10 +258,10 @@ export const HELP_PARTS: readonly HelpPart[] = [
             heading: 'Filling in your address',
             blocks: [
               p('Start typing the street and a list of up to ten addresses appears underneath. Pick one and the city, state or province, postcode and country fill themselves in. It works anywhere in the world, and the suggestions are in whichever language you are reading the product in.'),
-              p('**You never have to use it.** Every field is still a box you can type into, so an address no map knows — a new build, a rural route, somewhere the data is simply wrong — is entered by hand exactly as before. If the lookup is unavailable the page says so and the fields still work.'),
-              p('**Apartment or suite is the one field the list cannot fill.** No address service knows them, so picking a suggestion leaves whatever you typed there alone.'),
+              p('**The other fields are filled in for you and cannot be typed into.** City, state or province, postcode and country come from the address you pick, so they always agree with it. **Apartment or suite is the exception** — no address service knows those, so that box is always yours and picking a suggestion leaves whatever you put in it alone.'),
+              p('**If your address is not in the list, press “Enter my address manually instead”.** It asks you to confirm first, because a typed address is not checked: a mistake in the postcode will not be noticed, and your time zone stays as it is. Once you agree, every field is a box you can type into — and picking a suggestion afterwards still works and fills them all in again.'),
               p('Picking an address also **sets your time zone**, and the page says which one it chose. That matters because the product shows dates and times in your zone — so if you have deliberately set a different one, change it back on **Additional Information** after saving.'),
-              note('Picking an address REPLACES the whole address, including clearing anything the previous one had that the new one does not. Editing any field by hand afterwards is fine; it just means the address is yours rather than the map\'s.'),
+              note('Picking an address REPLACES the whole address, including clearing anything the previous one had that the new one does not.'),
               p('The address list is provided by Geoapify using OpenStreetMap data, credited under the suggestions. Nothing about you is sent — only the letters you have typed.'),
             ],
           },

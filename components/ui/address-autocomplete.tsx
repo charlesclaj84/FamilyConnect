@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Loader2, MapPin } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import {
-  addressFrom, suggestionLabel,
+  addressFrom, suggestionLabel, suggestionsFrom,
   type AddressFields, type GeoapifySuggestion,
 } from '@/lib/geo/geoapify-address'
 import { useLocale, useT } from '@/components/layout/LocaleProvider'
@@ -128,6 +128,13 @@ export function AddressAutocomplete({
         const url = new URL('https://api.geoapify.com/v1/geocode/autocomplete')
         url.searchParams.set('text', text)
         url.searchParams.set('limit', String(LIMIT))
+        // ── `format=json` EXPLICITLY, AND IT IS WHY THE LIST WAS EMPTY ─────────
+        // The endpoint answers GeoJSON by DEFAULT — a FeatureCollection whose fields live
+        // under `features[].properties` — so reading `body.results` got `undefined` and the
+        // panel never opened: requests in the Network tab, a valid 200, no dropdown.
+        // Asking for the shape we read is the fix; `suggestionsFrom` accepts both anyway, so
+        // a changed default cannot empty the list a second time.
+        url.searchParams.set('format', 'json')
         // THE READER'S LANGUAGE. Geoapify takes ISO 639-1 and `locale` is already exactly
         // that — 'en', 'es', 'fr' — so a French member reads French place names. It is one of
         // the two places in the product where the reader's language reaches a third party;
@@ -139,11 +146,16 @@ export function AddressAutocomplete({
 
         const response = await fetch(url, { signal: AbortSignal.timeout(8_000) })
         if (!response.ok) throw new Error(`Geoapify answered ${response.status}`)
-        const body = await response.json() as { results?: GeoapifySuggestion[] }
+        const body = await response.json()
         // A LATE RESPONSE FOR AN OLD QUERY IS DROPPED. `asked` moved on, so this list is
         // about text the member has already changed.
         if (asked.current !== text) return
-        const results = Array.isArray(body.results) ? body.results : []
+        const results = suggestionsFrom(body)
+        // NULL IS A SHAPE NOBODY RECOGNISED, and it is told apart from an empty list on
+        // purpose — see `suggestionsFrom`. An empty list is a real answer and shows nothing;
+        // an unreadable payload says the lookup is unavailable, because rendering nothing is
+        // precisely what made this bug invisible.
+        if (results === null) throw new Error('unrecognised response shape')
         setSuggestions(results)
         setOpen(results.length > 0)
         setActive(-1)

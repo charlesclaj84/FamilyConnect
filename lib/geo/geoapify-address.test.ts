@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { addressFrom, suggestionLabel } from '@/lib/geo/geoapify-address'
+import { addressFrom, suggestionLabel, suggestionsFrom } from '@/lib/geo/geoapify-address'
 
 /**
  * The reshaping between Geoapify and `people`, which is the only part of the address
@@ -209,5 +209,63 @@ describe('suggestionLabel', () => {
 
   it('is an empty string for an empty suggestion rather than throwing', () => {
     expect(suggestionLabel({})).toBe('')
+  })
+})
+
+describe('suggestionsFrom', () => {
+  /**
+   * ── THE BUG THIS FILE EXISTS TO PIN ─────────────────────────────────────────────
+   * The component read `body.results` and the endpoint answers GeoJSON by default, so the
+   * list was always empty: requests visible in the Network tab, a valid 200, and no
+   * dropdown. Reported 2026-09-04.
+   *
+   * Both shapes are read now, and — the part that keeps it from recurring — an unreadable
+   * payload is told apart from an empty one.
+   */
+
+  it('reads the `format=json` shape', () => {
+    const out = suggestionsFrom({ results: [{ city: 'Austin' }, { city: 'Dallas' }] })
+    expect(out?.map(s => s.city)).toEqual(['Austin', 'Dallas'])
+  })
+
+  it('reads the GeoJSON shape, which is what was actually arriving', () => {
+    const out = suggestionsFrom({
+      type: 'FeatureCollection',
+      features: [
+        { properties: { city: 'Austin' }, geometry: { coordinates: [0, 0] } },
+        { properties: { city: 'Dallas' }, geometry: { coordinates: [0, 0] } },
+      ],
+    })
+    expect(out?.map(s => s.city)).toEqual(['Austin', 'Dallas'])
+  })
+
+  it('drops a feature with no properties rather than refusing the batch', () => {
+    // Unlike the ZIP crosswalk, where a row this code cannot read means a partial county
+    // list nothing could notice. Here a missing suggestion costs one row of a list the
+    // member can type past, so nine good ones are worth more than a refusal.
+    const out = suggestionsFrom({ features: [{ properties: { city: 'Austin' } }, {}, null] })
+    expect(out?.map(s => s.city)).toEqual(['Austin'])
+  })
+
+  it('answers an EMPTY ARRAY for a real no-match, which shows nothing', () => {
+    expect(suggestionsFrom({ results: [] })).toEqual([])
+    expect(suggestionsFrom({ features: [] })).toEqual([])
+  })
+
+  it('answers NULL for a shape nobody recognises, which says the lookup is unavailable', () => {
+    // The distinction that makes the original bug impossible to reproduce silently: a
+    // payload with neither key is a change at the far end, not an address nobody has.
+    for (const payload of [null, undefined, {}, { type: 'FeatureCollection' }, 'nope', 42, []]) {
+      expect(suggestionsFrom(payload), JSON.stringify(payload)).toBeNull()
+    }
+  })
+
+  it('prefers `results` when a response somehow carries both', () => {
+    // It is what the request asks for, so it is the shape the far end agreed to send.
+    const out = suggestionsFrom({
+      results: [{ city: 'Austin' }],
+      features: [{ properties: { city: 'Dallas' } }],
+    })
+    expect(out?.map(s => s.city)).toEqual(['Austin'])
   })
 })

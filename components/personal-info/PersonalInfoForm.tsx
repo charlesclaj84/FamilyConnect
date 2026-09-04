@@ -444,6 +444,17 @@ const addressSchema = z.object({
 })
 type AddressData = z.infer<typeof addressSchema>
 
+/**
+ * The muted treatment for a field the lookup owns.
+ *
+ * `readOnly` alone looks identical to an editable box, so a member would try to type in it
+ * and be silently ignored — which is the complaint this whole change is answering, arriving
+ * from the other direction. `cursor-not-allowed` is what says "not here" before the click.
+ */
+function readOnlyClass(manual: boolean): string | undefined {
+  return manual ? undefined : 'bg-muted/50 text-muted-foreground cursor-not-allowed'
+}
+
 function AddressSection({
   existing,
   onSaved,
@@ -475,6 +486,25 @@ function AddressSection({
   // The zone a pick set, so the form can SAY it moved. Null until one does — this is not the
   // member's current zone and must never be rendered as though it were.
   const [pickedZone, setPickedZone] = useState<string | null>(null)
+  /**
+   * Free-form entry, off by default and opened only by agreeing to a warning.
+   *
+   * ── WHY THE FIELDS ARE LOCKED AT ALL ───────────────────────────────────────────
+   * Asked for 2026-09-04: always force the lookup, and put manual entry behind a warning.
+   * The reason it is worth the friction is that a typed address is not a WORSE version of a
+   * picked one — it is a different kind of thing. A picked address is confirmed to exist and
+   * carries a coordinate, a county and a timezone; a typed one is a string somebody believes.
+   *
+   * ── IT IS `readOnly`, NEVER `disabled`, AND THAT IS LOAD-BEARING ───────────────
+   * A `disabled` input is excluded from submission, and react-hook-form's `register` reports
+   * `undefined` for one — so locking these fields with `disabled` would have SAVED THEM ALL
+   * AS EMPTY the first time anybody edited their apartment. `readOnly` keeps the value in the
+   * form and out of the member's hands, which is the actual requirement.
+   *
+   * The country Select is the exception and is genuinely `disabled`: it is controlled from
+   * form state via `setValue` rather than registered, so its value survives regardless.
+   */
+  const [manual, setManual] = useState(false)
 
   const { register, handleSubmit, reset, control, setValue, formState: { isSubmitting } } = useForm<AddressData>({
     resolver: zodResolver(addressSchema),
@@ -543,6 +573,36 @@ function AddressSection({
     setPickedZone(null)
   }
 
+  /**
+   * Ask for free-form entry, and say what it costs before granting it.
+   *
+   * ── THE WARNING IS ACCURATE, WHICH MATTERED MORE THAN IT BEING FRIGHTENING ────
+   * The temptation was "you will not receive disaster notifications", and that is not true:
+   * a typed POSTCODE still resolves to a county through `zip_counties`, so a correct one
+   * still matches an alert. What is actually lost is the CONFIRMATION — nothing has checked
+   * that the address exists, so a typo or a postcode HUD cannot place goes unnoticed, and
+   * there is no coordinate to fall back on. Plus the timezone, which a pick sets and typing
+   * does not.
+   *
+   * An overstated warning is worse than none: the first member who types an address, gets
+   * an alert anyway and mentions it has taught everybody to ignore the dialog.
+   *
+   * ── AND IT IS ONE-WAY FOR THIS EDIT, DELIBERATELY ─────────────────────────────
+   * There is no "go back to the lookup" button. The autocomplete is still the street field
+   * in manual mode — picking a suggestion works and re-fills everything — so the way back is
+   * to use it, not to press something. A second toggle would be a control whose only job is
+   * undoing the first.
+   */
+  async function askForManual() {
+    const ok = await confirm({
+      title: t('addr.manualTitle'),
+      description: t('addr.manualBody'),
+      confirmLabel: t('addr.manualConfirm'),
+    })
+    if (!ok) return
+    setManual(true)
+  }
+
   // Resets to the CURRENT `existing`, not to the mount-time defaults — see
   // GeneralSection for why that replaced a re-seed on entering edit.
   function handleCancel() {
@@ -558,6 +618,9 @@ function AddressSection({
       longitude: existing?.longitude ?? null,
     })
     setPickedZone(null)
+    // BACK TO THE LOOKUP. Manual entry is granted per edit, so cancelling and re-opening
+    // asks again — the warning is about the address being saved, not about the member.
+    setManual(false)
     setServerError('')
     onEditDone()
   }
@@ -619,7 +682,7 @@ function AddressSection({
                 address would lose the one field that says which country's postcode format
                 it is in. The extra option is added only when needed, so the list stays
                 three long for everybody it already served. */}
-            <Select id="country" value={selectedCountry} onChange={handleCountryChange} className="max-w-xs">
+            <Select id="country" value={selectedCountry} disabled={!manual} onChange={handleCountryChange} className="max-w-xs">
               <option value="">— Select Country —</option>
               {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
               {selectedCountry && !(COUNTRIES as readonly string[]).includes(selectedCountry) && (
@@ -647,7 +710,23 @@ function AddressSection({
                 onPick={handleAddressPick}
                 placeholder={t('field.ph.street')}
               />
-              <p className="text-xs text-muted-foreground">{t('addr.startTyping')}</p>
+              {/* ── THE HINT SAYS WHICH MODE THIS IS, AND OFFERS THE OTHER ────────
+                  A row of read-only boxes with no explanation is the worst version of this:
+                  a member tries to correct their city, nothing happens, and there is nothing
+                  on screen saying why. So the hint states the rule and the button is beside
+                  it rather than somewhere else on the form. */}
+              <p className="text-xs text-muted-foreground">
+                {manual ? t('addr.manualOn') : t('addr.startTyping')}
+              </p>
+              {!manual && (
+                <button
+                  type="button"
+                  onClick={() => { void askForManual() }}
+                  className="text-xs font-medium text-brand-accent hover:underline"
+                >
+                  {t('addr.manualAsk')}
+                </button>
+              )}
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="apartment">{t('field.apartment')}</Label>
@@ -655,29 +734,32 @@ function AddressSection({
                   editing it says nothing about whether the coordinate still describes the
                   building — and clearing the county because somebody added "Apt 4" would be
                   wrong. It is also why picking a suggestion leaves this field alone. */}
+              {/* ALWAYS EDITABLE, in either mode. No geocoder returns an apartment or a
+                  suite, so there is nothing to force a member through a lookup for — and
+                  locking it would mean pressing through a warning dialog to add "Apt 4". */}
               <Input id="apartment" placeholder={t('field.ph.apartment')} {...register('apartment')} />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div className="col-span-2 space-y-1.5">
                 <Label htmlFor="city">{t('field.city')}</Label>
-                <Input id="city" placeholder={t('field.ph.city')} {...register('city', { onChange: invalidateGeo })} />
+                <Input id="city" placeholder={t('field.ph.city')} readOnly={!manual} className={readOnlyClass(manual)} {...register('city', { onChange: invalidateGeo })} />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="state">
                   {selectedCountry === 'Canada' ? t('field.province') : selectedCountry ? t('field.state') : t('field.stateProvince')}
                 </Label>
                 {availableRegions.length > 0 ? (
-                  <Select id="state" value={selectedState} onChange={e => { setValue('state', e.target.value); invalidateGeo() }}>
+                  <Select id="state" value={selectedState} disabled={!manual} onChange={e => { setValue('state', e.target.value); invalidateGeo() }}>
                     <option value="">— Select —</option>
                     {availableRegions.map(r => <option key={r} value={r}>{r}</option>)}
                   </Select>
                 ) : (
-                  <Input id="state" placeholder={t('field.state')} disabled={!selectedCountry} {...register('state', { onChange: invalidateGeo })} />
+                  <Input id="state" placeholder={t('field.state')} disabled={!selectedCountry} readOnly={!manual} className={readOnlyClass(manual)} {...register('state', { onChange: invalidateGeo })} />
                 )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="zip_code">{t('field.zip')}</Label>
-                <Input id="zip_code" placeholder={t('field.ph.zip')} {...register('zip_code', { onChange: invalidateGeo })} />
+                <Input id="zip_code" placeholder={t('field.ph.zip')} readOnly={!manual} className={readOnlyClass(manual)} {...register('zip_code', { onChange: invalidateGeo })} />
               </div>
             </div>
           </div>

@@ -148,6 +148,17 @@ export const fr: Catalogue = {
   'addr.lookupUnavailable':
     'La recherche d’adresse est indisponible pour le moment — remplissez les champs ci-dessous.',
   'addr.timezoneSet': 'Fuseau horaire défini d’après cette adresse : {zone}',
+  'addr.manualAsk': 'Saisir mon adresse moi-même',
+  'addr.manualTitle': 'Saisir l’adresse vous-même ?',
+  'addr.manualBody':
+    'La choisir dans la liste confirme que l’adresse existe et enregistre où elle se trouve, '
+    + 'ce qui permet à votre famille de vous joindre si quelque chose survient dans votre '
+    + 'secteur — et cela définit votre fuseau horaire. La saisir vous-même ne confirme rien : '
+    + 'une erreur dans le code postal passera inaperçue, et votre fuseau horaire reste tel '
+    + 'quel. Ne le faites que si votre adresse n’est pas dans la liste.',
+  'addr.manualConfirm': 'Laissez-moi la saisir',
+  'addr.manualOn':
+    'Vous saisissez cette adresse vous-même. Choisissez-en une dans la liste pour la confirmer.',
   'account.signOutFailed':
     'Nous n’avons pas pu vous déconnecter pour le moment. Veuillez réessayer.',
 
