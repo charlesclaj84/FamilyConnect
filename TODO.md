@@ -310,6 +310,27 @@ Recorded 2026-08-23.
 **restrict the key to `genorra.com` by HTTP referrer in Geoapify's dashboard.** Recorded
 2026-09-04 with the address autocomplete.
 
+**IT IS CONFIG, NOT A SECRET, AND THE PREFIX IS LOAD-BEARING.** `NEXT_PUBLIC_` makes Next.js
+inline the value into the client bundle at build time, so it is readable by anybody who loads
+the page — the same standing as `NEXT_PUBLIC_SUPABASE_ANON_KEY` two lines above it in
+`.env.local`, whose boundary is RLS rather than secrecy.
+
+**SET IT WITH THE PREFIX OR THE FEATURE SILENTLY DOES NOT EXIST.** The instinct for anything
+called an API key is to keep it server-side, and a variable named `GEOAPIFY_API_KEY` would
+leave `process.env.NEXT_PUBLIC_GEOAPIFY_API_KEY` undefined — at which point
+`AddressAutocomplete` degrades to an ordinary text box with NO ERROR ANYWHERE, by design. It
+would look exactly like the feature was never built. That is the one way to get this wrong and
+not find out.
+
+**AND CHANGING IT NEEDS A REDEPLOY**, unlike every server-side variable in this product: it is
+baked into the bundle at build time rather than read per request, so editing the Vercel value
+alone does nothing to the running site. Worth knowing before rotating it.
+
+**IT IS STILL A METERED CREDENTIAL, WHICH IS THE THIRD CATEGORY.** Not a secret, and not
+free-to-leak config either — unlike `NEXT_PUBLIC_SITE_URL`, abuse of this one costs money.
+Somebody lifting it from the bundle spends the 3,000/day, which is quota theft rather than data
+access, and is why the referrer restriction below is the whole control.
+
 **THE KEY IS IN THE BROWSER, DELIBERATELY, AND THAT IS WHY THE RESTRICTION MATTERS.** Typeahead
 needs the request to be client-side, so it ships in the bundle like the Supabase anon key. The
 alternative was a `'use server'` proxy and AGENTS.md's open-relay argument is exactly why it was
