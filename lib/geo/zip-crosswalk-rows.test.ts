@@ -21,6 +21,8 @@ import { rowsFrom } from '@/lib/geo/zip-crosswalk-rows'
  * which is the property worth having, because a mutation that reddens everything is caught by
  * any test at all:
  *
+ *   the 2-digit skip -> a refusal (its pre-2026-09-04 behaviour)  (1)
+ *   the 2-digit skip -> accepted as a county                       (1)
  *   each of the three `return { error }` refusals -> `continue`   (1, 2 and 1 case)
  *   `if (!Array.isArray(results))`                -> `if (false)` (1)
  *   the stated-ratio read                         -> `Number(r.res_ratio)` (1)
@@ -48,6 +50,8 @@ describe('rowsFrom', () => {
     const out = parse([good()])
     expect('rows' in out).toBe(true)
     if (!('rows' in out)) return
+    // Nothing unplaceable in a clean document — the counter must not creep.
+    expect(out.unplaceable).toBe(0)
     expect(out.rows).toEqual([{
       zip: '02134',
       county_fips: '25025',
@@ -73,7 +77,7 @@ describe('rowsFrom', () => {
     // An empty file is a legitimate answer to read — the FLOOR that refuses a suspiciously
     // small payload is in the caller, on the whole document, because a parser cannot know
     // whether 200 rows is wrong.
-    expect(parse([])).toEqual({ rows: [] })
+    expect(parse([])).toEqual({ rows: [], unplaceable: 0 })
   })
 
   // ── THE REFUSALS ────────────────────────────────────────────────────────────────
@@ -98,6 +102,8 @@ describe('rowsFrom', () => {
   })
 
   it('refuses a malformed county geoid, and names the ZIP it belongs to', () => {
+    // Two digits is deliberately absent from this list: it is the one value that is NOT
+    // malformed, and the case below pins that. Everything here is a shape HUD has never sent.
     for (const geoid of [undefined, null, '', '2502', '250255', 'BAD', 25025]) {
       const out = parse([good({ geoid })])
       expect('error' in out, String(geoid)).toBe(true)
@@ -107,22 +113,52 @@ describe('rowsFrom', () => {
     }
   })
 
-  it('refuses a 2-digit STATE fips in the county column, and says that is what it is', () => {
-    // THE REGRESSION. Reported 2026-09-03 against the real API: `zip 77352 has no usable
-    // county geoid ("48")`. 48 is Texas. `type=2&query=All` answers a state-level rollup, so
-    // every row named a state where a county was wanted — and refusing was right, because a
-    // state code in the county column would have made every Texas ZIP resolve to one "county"
-    // no NWS alert will ever name, with nothing downstream able to notice.
-    const out = parse([good({ zip: '77352', geoid: '48' })])
-    expect('error' in out).toBe(true)
-    if (!('error' in out)) return
-    expect(out.error).toContain('77352')
-    // The message has to name the CAUSE, or the next person reads it as a bad row rather than
-    // as a bad request. The fix was `STATE_FIPS`, one module over.
-    expect(out.error).toContain('STATE FIPS')
-    expect(out.error).toContain('never `query=All`')
-    // ...and the fields present, because a shape change is the other reason to land here.
-    expect(out.error).toContain('Fields present:')
+  it('SKIPS a ZIP HUD cannot place, and counts it', () => {
+    // ── THIS CASE ASSERTED THE OPPOSITE FOR A DAY, AND THE ASSERTION WAS THE BUG ──
+    // It was written on 2026-09-03 to pin a refusal: `zip 77352 has no usable county geoid
+    // ("48")` was read as proof that the REQUEST was wrong, and the case demanded that the
+    // whole document be refused with a message naming a state rollup.
+    //
+    // Asking HUD about that one ZIP settled it:
+    //
+    //     type=2&query=77352  ->  1 row: { zip: '77352', geoid: '48', city: 'LIVINGSTON',
+    //                             state: 'TX', res_ratio: 1, bus_ratio: 1, tot_ratio: 1 }
+    //
+    // One row, the state as the geography, every ratio 1 — HUD saying "all of this ZIP is in
+    // Texas and I have no county for it". The document it came in carried proper county rows
+    // either side of it. So the request was right, the row is understood, and refusing 54,000
+    // pairs over it was the defect.
+    //
+    // KEPT AS A NAMED CASE RATHER THAN REWRITTEN QUIETLY, because a test that pinned wrong
+    // behaviour is the most useful kind to leave a note on: the next person reading a
+    // 2-digit geoid should find this rather than re-derive it.
+    const out = parse([
+      good({ zip: '73301', geoid: '48453' }),
+      good({ zip: '77352', geoid: '48' }),
+      good({ zip: '73960', geoid: '48421' }),
+    ])
+    expect('rows' in out).toBe(true)
+    if (!('rows' in out)) return
+    // THE ROWS EITHER SIDE SURVIVE. That is the whole point: one unplaceable ZIP must not
+    // cost a state's crosswalk.
+    expect(out.rows.map(r => r.zip)).toEqual(['73301', '73960'])
+    // AND IT IS COUNTED, never silently dropped — AGENTS.md's "no silent caps". A jump in
+    // this figure between quarters is a change in HUD's data somebody should see.
+    expect(out.unplaceable).toBe(1)
+  })
+
+  it('still refuses a geoid that is neither 5 digits nor a state, and names the fields', () => {
+    // The exception above is exactly two digits. Three, or letters, or absent is a SHAPE
+    // change and the header's refuse-rather-than-filter argument still applies to it — the
+    // field list is what identified the state-level case and is what would identify the next.
+    for (const geoid of [undefined, null, '', '2502', '250255', 'BAD', 25025, '4']) {
+      const out = parse([good({ zip: '77352', geoid })])
+      expect('error' in out, String(geoid)).toBe(true)
+      if ('error' in out) {
+        expect(out.error).toContain('77352')
+        expect(out.error).toContain('Fields present:')
+      }
+    }
   })
 
   it('refuses a malformed state', () => {
@@ -136,6 +172,8 @@ describe('rowsFrom', () => {
     // The assertion the header is about. One unreadable row among three good ones stops all
     // three — because the two good ones may be the OTHER counties of the bad one's ZIP, and
     // writing them would be exactly the partial county list this is meant to prevent.
+    // `'BAD'` and not `'48'`: two digits is the understood case that is skipped, so using
+    // it here would assert the opposite of what this case is about.
     const out = parse([good(), good({ geoid: 'BAD' }), good({ zip: '78701', geoid: '48453' })])
     expect('error' in out).toBe(true)
   })

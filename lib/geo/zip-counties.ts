@@ -24,8 +24,8 @@ import { rowsFrom, type CrosswalkRow } from '@/lib/geo/zip-crosswalk-rows'
  * ZIP→County. HUD builds it from USPS delivery data and publishes it QUARTERLY. It needs a
  * free API token from a huduser.gov registration, in `HUD_USPS_API_TOKEN`.
  *
- * **NOT `query=All`, AND NOT A FIPS CODE** — `STATE_CODES` below records what each of those
- * returned, because both looked right and neither was.
+ * **NOT A FIPS CODE** — that is a 400. `STATE_CODES` below records the three requests this
+ * was measured against, including the one whose result was read wrongly for two days.
  *
  * **WITH NO TOKEN THIS RETURNS `skipped`, NOT AN ERROR.** A missing credential is a deployment
  * state rather than a fault, and the daily route it rides on carries three other jobs — one
@@ -70,35 +70,38 @@ import { rowsFrom, type CrosswalkRow } from '@/lib/geo/zip-crosswalk-rows'
 const SOURCE = 'hud-usps-zip-county'
 
 /**
- * ── THE CROSSWALK IS FETCHED PER STATE, AND THE QUERY IS AN ABBREVIATION ──────────
- * Two measurements got this here, and both are worth keeping because each ruled something
- * out that looked right:
+ * ── THE CROSSWALK IS FETCHED PER STATE, BY USPS ABBREVIATION ──────────────────────
+ * `type=2&query=TX` returns 3,410 (zip, county) pairs with 5-digit county geoids. Measured
+ * 2026-09-04, and it is worth recording what it took to establish that, because two earlier
+ * readings of the same evidence were wrong:
  *
- *   `type=2&query=All`  ->  200, and every row carried `geoid: "48"` for a Texas ZIP. That
- *                           is the 2-digit STATE FIPS: the "All" response is a state-level
- *                           rollup, not the ZIP-County crosswalk. The parser refused the
- *                           whole document, correctly — a state code in the county column
- *                           would have made every Texas ZIP resolve to one "county" no NWS
- *                           alert will ever name.
- *   `type=2&query=01`   ->  **400**. A 2-digit FIPS is not what `query` takes.
+ *   `type=2&query=All`  ->  200. A Texas ZIP came back with `geoid: "48"`, which was read as
+ *                           "the All response is a state-level rollup". **THAT WAS WRONG** —
+ *                           see below. This request was probably fine.
+ *   `type=2&query=01`   ->  400. A 2-digit FIPS genuinely is not what `query` takes; HUD's
+ *                           own published example is `query=VA`.
+ *   `type=2&query=TX`   ->  200, county geoids, and the SAME "48" row further down.
  *
- * HUD's own published example is a two-letter USPS abbreviation — `query=VA` — so that is
- * what this sends. The R and Python wrappers document `query` for types 1–5 as a 5-digit
- * ZIP and say nothing about states, which is the other reading available; if the
- * abbreviation is refused too, the failure now carries HUD's own explanation (below) rather
- * than a bare status code, and asking 56 times is not the way to find that out.
+ * **THE "48" WAS NEVER ABOUT THE REQUEST.** It is one ZIP HUD cannot allocate to a county,
+ * reported as the state with every ratio at 1 — `type=2&query=77352` returns exactly that one
+ * row and nothing else. `rowsFrom` skips and counts those now, and that is the fix; the
+ * request was right on the first attempt.
  *
- * ── `page` IS NOT SENT ON THE FIRST REQUEST, AND THAT IS DELIBERATE ───────────────
- * The 400 above carried BOTH a changed `query` and an added `page`, so either could have
- * caused it. The first request for each state now sends neither variable — just
- * `type` and `query` — and `page` is added only for a second page, once the response has
- * said there is one. If pagination was the offender, every first page now succeeds; if it
- * was the query, the body says so.
+ * SO WHY KEEP THE PER-STATE FORM? Because it is the one that has been MEASURED end to end,
+ * because 56 bounded requests are easier to reason about than one multi-megabyte body, and
+ * because a per-state failure leaves the other 55 states' ZIPs refreshed rather than none.
+ * `query=All` may well work; it has not been shown to, and there is nothing to gain by
+ * finding out.
+ *
+ * ── `page` IS NOT SENT ON THE FIRST REQUEST ───────────────────────────────────────
+ * Retained from the 400 investigation, where a changed `query` and an added `page` were
+ * confounded. TX answers 3,410 rows in one response with no page parameter at all — plausibly
+ * complete, since Texas has ~2,600 ZIPs and 254 counties — so in practice this reads one page
+ * per state and `nextPage` defaults to stopping.
  *
  * ── THE LIST IS EXPLICIT ──────────────────────────────────────────────────────────
  * 50 states, DC and the five territories HUD publishes. Written out rather than derived:
- * there is no list of these anywhere else in the product, and generating them from FIPS
- * numbers is what produced the 400 in the first place.
+ * generating them from FIPS numbers is what produced the 400.
  *
  * A STATE THAT ANSWERS NOTHING IS LOGGED AND SKIPPED, never treated as a failure: HUD may
  * hold no rows for a territory in a given quarter, and `replace_zip_counties` replaces per
@@ -303,6 +306,8 @@ export async function refreshZipCounties(
   // admit an error page for a small state or refuse a legitimate one.
   const all: CrosswalkRow[] = []
   const emptyStates: string[] = []
+  // ZIPs HUD has no county for. Reported rather than swallowed — see `CrosswalkDocument`.
+  let unplaceable = 0
 
   for (const stateCode of STATE_CODES) {
     let page = 1
@@ -366,6 +371,7 @@ export async function refreshZipCounties(
       }
 
       all.push(...parsed.rows)
+      unplaceable += parsed.unplaceable
       stateRows += parsed.rows.length
       pagesRead += 1
 
@@ -413,6 +419,19 @@ export async function refreshZipCounties(
     for (const row of batch) zips.add(row.zip)
   }
 
+  if (unplaceable > 0) {
+    // NOT SILENT, and not a failure either. A ZIP HUD cannot place is a ZIP no alert will
+    // ever match, so the figure belongs where somebody reading the status page can see it
+    // move between quarters.
+    console.log(`[zip-counties] ${unplaceable} ZIP(s) HUD has no county for; skipped`)
+  }
   await finish('ok', { pairs: written, zips: zips.size })
-  return { outcome: 'ok', pairs: written, zips: zips.size }
+  return {
+    outcome: 'ok',
+    pairs: written,
+    zips: zips.size,
+    detail: unplaceable > 0
+      ? `${unplaceable} ZIP(s) had no county at HUD and were skipped`
+      : undefined,
+  }
 }

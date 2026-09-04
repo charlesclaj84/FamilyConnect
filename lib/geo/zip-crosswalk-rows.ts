@@ -12,11 +12,17 @@
  * door, where they cannot. That is the same split `lib/dues-utils.ts` has from
  * `app/actions/dues.ts` and for the same reason.
  *
- * ── IT REFUSES RATHER THAN FILTERS, AND THAT IS THE WHOLE OF ITS JOB ───────────────
+ * ── IT REFUSES RATHER THAN FILTERS, WITH ONE MEASURED EXCEPTION ───────────────────
  * A row this cannot understand means the FILE's shape has changed. Dropping it and carrying on
  * would refresh a ZIP with a PARTIAL county list — a straddling ZIP silently reduced to one
  * county — which is worse than not refreshing that ZIP at all, and is invisible afterwards
  * because the row that survives looks perfectly normal.
+ *
+ * **THE EXCEPTION IS A 2-DIGIT GEOID, AND IT IS UNDERSTOOD RATHER THAN TOLERATED.** HUD
+ * reports a ZIP it cannot allocate to a county as one row carrying the STATE with every ratio
+ * at 1. That is not a shape it failed to state — it is the answer *"I have no county for
+ * this"* — so the row is skipped and COUNTED, and `unplaceable` comes back with the document.
+ * The branch says how that was established; it refused the whole file for two days first.
  *
  * `replace_zip_counties` refuses the same class again in SQL. Both, because this one can say
  * WHICH field of WHICH row and that one is the layer nothing can bypass.
@@ -44,13 +50,29 @@ interface HudResponse {
   data?: { results?: unknown[] }
 }
 
-export function rowsFrom(payload: unknown): { rows: CrosswalkRow[] } | { error: string } {
+/**
+ * What a document yielded: the pairs, and how many ZIPs HUD could not place.
+ *
+ * ── THE COUNT IS RETURNED RATHER THAN SWALLOWED ───────────────────────────────────
+ * AGENTS.md's *"no silent caps — if a workflow bounds coverage, `log()` what was dropped;
+ * silent truncation reads as covered-everything when it didn't"*. An unplaceable ZIP is a ZIP
+ * no alert will ever match, so a sudden jump in this figure is a change in HUD's data that
+ * somebody should see rather than infer from a smaller table.
+ */
+export interface CrosswalkDocument {
+  rows: CrosswalkRow[]
+  /** ZIPs HUD reported at STATE level because it has no county for them. See `rowsFrom`. */
+  unplaceable: number
+}
+
+export function rowsFrom(payload: unknown): CrosswalkDocument | { error: string } {
   const results = (payload as HudResponse)?.data?.results
   if (!Array.isArray(results)) {
     return { error: 'the response has no data.results array — the API shape has changed' }
   }
 
   const rows: CrosswalkRow[] = []
+  let unplaceable = 0
   for (const raw of results) {
     const r = (raw ?? {}) as Record<string, unknown>
     // HUD names them `zip` and `geoid`; for `type=2` the geoid is the 5-digit state+county
@@ -67,22 +89,38 @@ export function rowsFrom(payload: unknown): { rows: CrosswalkRow[] } | { error: 
     if (!zip || !/^[0-9]{5}$/.test(zip)) {
       return { error: `a result has no usable zip (${JSON.stringify(r.zip)})` }
     }
+    // ── A 2-DIGIT GEOID IS A ZIP HUD CANNOT PLACE. SKIP IT — measured 2026-09-04 ──
+    // This REFUSED the whole document for two days and the refusal was wrong. What settled it
+    // was asking HUD about one ZIP directly:
+    //
+    //     type=2&query=77352  ->  1 row: { zip: '77352', geoid: '48', city: 'LIVINGSTON',
+    //                             state: 'TX', res_ratio: 1, bus_ratio: 1, tot_ratio: 1 }
+    //
+    // A single row, the STATE as the geography, and every ratio 1. That is not a rollup and
+    // not a corrupt row: it is HUD saying *"all of this ZIP is in Texas and I have no county
+    // for it"*. The same document carries proper county rows either side of it —
+    // `73301 -> 48453`, `73960 -> 48421` — so `query=TX` was correct all along and 77352 was
+    // simply a later row in it.
+    //
+    // SO THE ROW IS DROPPED AND COUNTED, WHICH IS NOT THE FILTER THE HEADER FORBIDS. That rule
+    // is about a row this code cannot UNDERSTAND, where dropping it leaves a ZIP with a
+    // partial county list nothing downstream could notice. This row is understood completely:
+    // there is no county in it to lose, and writing the state into `county_fips` would put a
+    // value there that no NWS alert will ever name — the worst of the three available answers,
+    // and the one this branch was originally written to prevent.
+    //
+    // ANYTHING ELSE MALFORMED STILL REFUSES. Two digits is the documented case; three, or
+    // letters, or absent, is a shape change and belongs in the header's argument.
+    if (fips && /^[0-9]{2}$/.test(fips)) {
+      unplaceable += 1
+      continue
+    }
     if (!fips || !/^[0-9]{5}$/.test(fips)) {
-      // A 2-DIGIT GEOID IS THE KNOWN TRAP AND IT GETS ITS OWN SENTENCE — measured against the
-      // real API on 2026-09-03, which answered `geoid: "48"` for a Texas ZIP. That is the
-      // STATE FIPS: `query=All` returns a state-level rollup rather than the county crosswalk,
-      // whatever `type=2` asks for. The REQUEST was wrong, not the row, so refusing was right
-      // and deriving a county from a state would have been the worst available answer.
-      // `STATE_FIPS` in zip-counties.ts is the fix; this message is what names it if it
-      // regresses.
-      const hint = /^[0-9]{2}$/.test(fips ?? '')
-        ? ' — that is a 2-digit STATE FIPS, so this response is a state-level rollup rather '
-          + 'than the ZIP-County crosswalk. Query per state, never `query=All`'
-        : ''
       return {
-        error: `zip ${zip} has no usable county geoid (${JSON.stringify(r.geoid)})${hint}`
-          // The KEYS, because a shape change is the other reason to be here and a message
-          // naming one field sends somebody looking at the wrong thing.
+        error: `zip ${zip} has no usable county geoid (${JSON.stringify(r.geoid)})`
+          // The KEYS, because a shape change is the reason to be here now that the
+          // state-level case is handled — and a message naming one field sends somebody
+          // looking at the wrong thing. This is what identified the case above.
           + `. Fields present: ${Object.keys(r).sort().join(', ')}`,
       }
     }
@@ -113,5 +151,5 @@ export function rowsFrom(payload: unknown): { rows: CrosswalkRow[] } | { error: 
       res_ratio: Number.isFinite(stated) && stated >= 0 && stated <= 1 ? stated : null,
     })
   }
-  return { rows }
+  return { rows, unplaceable }
 }

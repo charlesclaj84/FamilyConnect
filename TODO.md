@@ -698,38 +698,43 @@ zip-crosswalk-rows.ts` reads it, and `/api/geo/zip-counties` runs weekly off a d
 cron. **`HUD_USPS_API_TOKEN` IS SET ON VERCEL — reported 2026-09-03**, so the credential half
 of this is closed and its GO LIVE item is gone.
 
-**AND THE TABLE IS STILL EMPTY, BECAUSE THE BULK REQUEST IS NOT SETTLED — 2026-09-04.**
-This is the open item on the crosswalk and it is a QUESTION rather than work. Three
-measurements against the real API, each of which looked right beforehand:
+**THE REQUEST IS SETTLED — 2026-09-04 — AND IT WAS RIGHT ALL ALONG.**
+`type=2&query=TX` returns 3,410 (zip, county) pairs with 5-digit county geoids. Measured, and
+the route to it is worth keeping because the same evidence was read wrongly twice:
 
 | request | result |
 |---|---|
-| `type=2&query=All` | 200. Rows carried `geoid: "48"` for a Texas ZIP — the 2-digit STATE FIPS |
-| `type=2&query=01` | **400.** A FIPS code is not what `query` takes |
-| `type=2&query=TX` | 200, and the SAME state-level rows |
+| `type=2&query=All` | 200. A Texas ZIP came back `geoid: "48"` — read as "All is a state rollup". **Wrong.** |
+| `type=2&query=01` | **400.** A 2-digit FIPS genuinely is not what `query` takes |
+| `type=2&query=TX` | 200, county geoids, and the same `"48"` row further down |
+| `type=2&query=77352` | 200, **one** row: `geoid: "48"`, every ratio `1` |
 
-The third is the informative one, and it is what the failure diagnostics were added to get:
-`bus_ratio, city, geoid, oth_ratio, res_ratio, state, tot_ratio, zip`. Those are crosswalk
-rows — the four allocation ratios are unmistakable — but the geography they allocate to is the
-STATE. **So a state-level `query` does not FILTER the ZIP-County crosswalk; it changes which
-crosswalk you get.** HUD's documented usage for types 1–5 is a single ZIP, and 41,000 requests
-is not a job that fits in a serverless function.
+**THE `"48"` WAS NEVER ABOUT THE REQUEST.** That last line is the one that settled it: 77352 is
+a ZIP HUD cannot allocate to any county, so it reports the STATE with every ratio at 1. It is
+not a rollup and not a corrupt row — it is the answer *"all of this ZIP is in Texas and I have
+no county for it"*. The document it arrived in carried proper county rows either side of it
+(`73301 -> 48453`, `73960 -> 48421`).
 
-**THE NEXT STEP IS A PROBE, NOT A FOURTH GUESS.** `?probe=1` on `/api/geo/zip-counties`, behind
-the same `CRON_SECRET`, asks HUD five candidate requests and reports the first rows verbatim —
-`lib/geo/zip-crosswalk-probe.ts` says what each candidate is for. The control is
-`type=2&query=77352`: if one ZIP returns a 5-digit `geoid` the model is confirmed and only bulk
-is the problem, and if it returns `"48"` as well then `type=2` is not ZIP-County at all and the
-type is wrong.
+**SO THE PARSER WAS THE BUG, NOT THE URL.** `rowsFrom` refused the whole 3,410-row document
+over one such row for two days. It skips and COUNTS them now, and `unplaceable` comes back with
+the document and into the log and the `ok` detail — AGENTS.md's "no silent caps", because a ZIP
+HUD cannot place is a ZIP no alert will ever match and a jump in that figure between quarters is
+a change somebody should see.
 
-The likeliest answer is the reverse direction — `type=7` (County-ZIP) asked per state, which is
-~3,100 counties nationally against 41,000 ZIPs — and it is a candidate rather than a decision
-for the reason the probe exists. **IT REPORTS AND NEVER DECIDES:** having the refresh try
-candidates until one answered 200 would pick a shape on the strength of a status code, which is
-exactly how a state FIPS came to be written into a column named `county_fips`.
+**ANYTHING OTHER THAN EXACTLY TWO DIGITS STILL REFUSES.** Two is the understood case; three, or
+letters, or absent is a shape change and the refuse-rather-than-filter argument still holds for
+it. Both directions are pinned and mutation-checked eight ways — including one that restores the
+old refusal, so the behaviour this cost two days cannot come back quietly.
 
-**IT IS SCAFFOLDING FOR A QUESTION.** When the working combination is known it becomes the
-request in `zip-counties.ts`, and the probe module and its route branch go with it.
+**THE PROBE THAT ANSWERED IT IS RETIRED**, as its own header said it should be: it was
+scaffolding for a question, and a diagnostic endpoint nobody uses is a live endpoint nobody
+exercises. `git show cc39440` has it if a fifth reading of this API is ever needed.
+
+**WHAT IS STILL UNKNOWN, AND IS DELIBERATELY NOT BEING CHASED:** whether `query=All` would have
+worked. It probably would. The per-state form is the one that has been measured end to end, 56
+bounded requests are easier to reason about than one multi-megabyte body, and a per-state
+failure leaves the other 55 states refreshed rather than none. There is nothing to gain by
+finding out.
 
 **AND A REFRESH HAS STILL NEVER RUN AGAINST HOSTED.** The migration is not there, so
 `zip_counties` does not exist; the first run is one merge plus one 03:00 UTC cycle away.
