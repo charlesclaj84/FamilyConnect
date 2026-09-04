@@ -1,6 +1,7 @@
 import { timingSafeEqual } from 'node:crypto'
 import type { NextRequest } from 'next/server'
 import { refreshZipCounties } from '@/lib/geo/zip-counties'
+import { probeZipCrosswalk } from '@/lib/geo/zip-crosswalk-probe'
 
 /**
  * The daily run that keeps the ZIP-to-county crosswalk current.
@@ -73,6 +74,21 @@ async function run(request: NextRequest): Promise<Response> {
   }
   if (!authorized(request)) {
     return Response.json({ error: 'Not authorized' }, { status: 401 })
+  }
+
+  // ── `?probe=1` ASKS HUD WHAT EACH CANDIDATE REQUEST RETURNS, AND WRITES NOTHING ──
+  // Behind the same secret as the run. It exists because the bulk shape of this API has been
+  // guessed from documentation twice and been wrong twice — see `lib/geo/zip-crosswalk-probe.ts`
+  // — and a third guess costs another merge, deploy and day. It reports and never decides:
+  // having the refresh try candidates until one answered 200 is exactly how a state FIPS
+  // ended up in a column named `county_fips`.
+  //
+  // SCAFFOLDING FOR A QUESTION. When the working combination is known it becomes the request
+  // in `zip-counties.ts` and this branch goes with the module.
+  if (new URL(request.url).searchParams.get('probe') === '1') {
+    const probe = await probeZipCrosswalk()
+    console.log(`[zip-counties] probe: ${JSON.stringify(probe)}`)
+    return Response.json(probe)
   }
 
   // `?force=1` SKIPS THE WEEKLY THROTTLE AND NOTHING ELSE. It is behind the same secret as the

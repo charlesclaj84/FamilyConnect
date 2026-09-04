@@ -698,8 +698,41 @@ zip-crosswalk-rows.ts` reads it, and `/api/geo/zip-counties` runs weekly off a d
 cron. **`HUD_USPS_API_TOKEN` IS SET ON VERCEL — reported 2026-09-03**, so the credential half
 of this is closed and its GO LIVE item is gone.
 
-**WHAT HAS NOT HAPPENED IS A REFRESH, AND IT CANNOT YET.** The migration is not on hosted, so
-`zip_counties` does not exist there; the first run is one merge plus one 03:00 UTC cycle away.
+**AND THE TABLE IS STILL EMPTY, BECAUSE THE BULK REQUEST IS NOT SETTLED — 2026-09-04.**
+This is the open item on the crosswalk and it is a QUESTION rather than work. Three
+measurements against the real API, each of which looked right beforehand:
+
+| request | result |
+|---|---|
+| `type=2&query=All` | 200. Rows carried `geoid: "48"` for a Texas ZIP — the 2-digit STATE FIPS |
+| `type=2&query=01` | **400.** A FIPS code is not what `query` takes |
+| `type=2&query=TX` | 200, and the SAME state-level rows |
+
+The third is the informative one, and it is what the failure diagnostics were added to get:
+`bus_ratio, city, geoid, oth_ratio, res_ratio, state, tot_ratio, zip`. Those are crosswalk
+rows — the four allocation ratios are unmistakable — but the geography they allocate to is the
+STATE. **So a state-level `query` does not FILTER the ZIP-County crosswalk; it changes which
+crosswalk you get.** HUD's documented usage for types 1–5 is a single ZIP, and 41,000 requests
+is not a job that fits in a serverless function.
+
+**THE NEXT STEP IS A PROBE, NOT A FOURTH GUESS.** `?probe=1` on `/api/geo/zip-counties`, behind
+the same `CRON_SECRET`, asks HUD five candidate requests and reports the first rows verbatim —
+`lib/geo/zip-crosswalk-probe.ts` says what each candidate is for. The control is
+`type=2&query=77352`: if one ZIP returns a 5-digit `geoid` the model is confirmed and only bulk
+is the problem, and if it returns `"48"` as well then `type=2` is not ZIP-County at all and the
+type is wrong.
+
+The likeliest answer is the reverse direction — `type=7` (County-ZIP) asked per state, which is
+~3,100 counties nationally against 41,000 ZIPs — and it is a candidate rather than a decision
+for the reason the probe exists. **IT REPORTS AND NEVER DECIDES:** having the refresh try
+candidates until one answered 200 would pick a shape on the strength of a status code, which is
+exactly how a state FIPS came to be written into a column named `county_fips`.
+
+**IT IS SCAFFOLDING FOR A QUESTION.** When the working combination is known it becomes the
+request in `zip-counties.ts`, and the probe module and its route branch go with it.
+
+**AND A REFRESH HAS STILL NEVER RUN AGAINST HOSTED.** The migration is not there, so
+`zip_counties` does not exist; the first run is one merge plus one 03:00 UTC cycle away.
 The token is not on any development machine either — deliberately, since nothing local reads
 the crosswalk — so **nothing in this repo has ever seen HUD answer.** Both tables therefore
 stay on `audit_global_lookups.sql`'s `allowed_empty` list, and the reason changed rather than
