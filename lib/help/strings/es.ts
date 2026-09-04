@@ -3041,11 +3041,13 @@ export const helpEs: Catalogue = {
     + 'alguien y el árbol no tiene otra forma de decir de qué lado está. Registre primero un '
     + 'progenitor y aparecen los huecos.',
   'help.family-tree.adding.b4':
-    '**Por ahora no se puede marcar un matrimonio como anterior.** El control para renombrar '
-    + 'una conexión — **Marido** a **Exmarido** — estaba en una sección del cuadro de gestión '
-    + 'que se ha retirado, y todavía no hay otro lugar donde hacerlo. Un cónyuge se registra '
-    + 'como **Marido**, **Esposa** o **Pareja** y así queda. Un ex, cuando esto vuelva, se '
-    + 'dibuja al lado de la persona exactamente donde va un cónyuge actual, y a propósito: '
+    'Un matrimonio anterior se registra añadiendo al cónyuge y abriendo después el cuadro de '
+    + 'gestión de cualquiera de los dos: en **Matrimonios**, cada cónyuge tiene tres '
+    + 'palabras — **Esposa**, **Exesposa** y **Pareja**, o las tres equivalentes para un '
+    + 'marido. Pulse una y luego **Guardar**. **Pareja** es la palabra para dos personas que '
+    + 'no están casadas; no hay opción en blanco, porque toda conexión del árbol tiene una '
+    + 'palabra. Un ex se dibuja al lado de la persona exactamente donde va un cónyuge '
+    + 'actual, y a propósito: '
     + 'a menudo es de donde vinieron la mitad de los hijos.',
   'help.family-tree.adding.b5':
     'Todas las conexiones se registran desde los dos extremos, así que añadir a su madre '
@@ -3082,9 +3084,9 @@ export const helpEs: Catalogue = {
     + 'la familia, y para un pariente político, adoptivo o de acogida. El diálogo lo '
     + 'pregunta cuando añade un pariente nuevo; después, abra la ficha de cualquiera y '
     + 'márquelo ahí. **Nada en ese cuadro surte efecto hasta que pulsa Guardar**: la marca, '
-    + 'y el nombre y la fecha de nacimiento de una ficha sin cuenta propia, se guardan juntos '
-    + 'con el único botón al pie, y **Cancelar** lo cierra y descarta todo lo que haya '
-    + 'cambiado.',
+    + 'las palabras de los matrimonios, y el nombre y la fecha de nacimiento de una ficha sin '
+    + 'cuenta propia, se guardan juntos con el único botón al pie, y **Cerrar** sale sin '
+    + 'conservar nada de lo que haya cambiado.',
   'help.family-tree.blood.b2':
     'Decide dos cosas, y la segunda es dinero: quién aparece en **Linaje** en el árbol, y '
     + 'quién debe una cuota fijada como **Solo linaje**. Si un pariente que usted espera '
@@ -3133,9 +3135,10 @@ export const helpEs: Catalogue = {
     + 'aquí, así que esta pantalla y esa cifra no pueden discrepar.',
   'help.family-tree.fixing.heading': 'Corregir un error',
   'help.family-tree.fixing.b0.i0':
-    'Relación equivocada: elimine la conexión y vuelva a trazarla. Por ahora un matrimonio '
-    + 'no se puede renombrar; véase más arriba. Que alguien pertenezca al linaje es una marca '
-    + 'en el cuadro de gestión de su propia ficha.',
+    'Relación equivocada: un matrimonio se puede renombrar en el cuadro de gestión, en '
+    + '**Matrimonios**, de **Marido** a **Exmarido**; cualquier otra se elimina y se vuelve a '
+    + 'trazar. Que alguien pertenezca al linaje es una marca en ese mismo cuadro, en su '
+    + 'propia ficha.',
   'help.family-tree.fixing.b0.i1':
     'Datos equivocados en una ficha: el control de editar de la tarjeta. Se ofrece solo '
     + 'para personas sin cuenta propia; un integrante es dueño de su propio nombre y lo '

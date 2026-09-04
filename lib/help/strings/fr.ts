@@ -3162,13 +3162,13 @@ export const helpFr: Catalogue = {
     + 'la mère ou le père de quelqu’un et l’arbre n’a aucune autre façon de dire de quel côté '
     + 'il est. Enregistrez d’abord un parent et les emplacements apparaissent.',
   'help.family-tree.adding.b4':
-    '**Un mariage ne peut pas être marqué comme antérieur pour le moment.** La commande qui '
-    + 'renommait un lien — **Mari** en **Ex-mari** — se trouvait dans une section de la boîte '
-    + 'de gestion qui a été retirée, et il n’existe pas encore d’autre endroit pour le faire. '
-    + 'Un conjoint est enregistré comme **Mari**, **Épouse** ou **Partenaire** et le reste. Un '
-    + 'ex, quand cela reviendra, est dessiné à côté de la personne exactement là où va un '
-    + 'conjoint actuel, et c’est délibéré — c’est souvent de là que la moitié des enfants '
-    + 'sont venus.',
+    'Un mariage antérieur s’enregistre en ajoutant le conjoint puis en ouvrant la boîte de '
+    + 'gestion de l’un ou l’autre : sous **Mariages**, chaque conjoint a trois mots — '
+    + '**Épouse**, **Ex-épouse** et **Partenaire**, ou les trois équivalents pour un mari. '
+    + 'Appuyez sur l’un puis sur **Enregistrer**. **Partenaire** est le mot pour un couple non '
+    + 'marié ; il n’y a pas d’option vide, car chaque lien de l’arbre a un mot. Un ex est '
+    + 'dessiné à côté de la personne exactement là où va un conjoint actuel, et c’est '
+    + 'délibéré — c’est souvent de là que la moitié des enfants sont venus.',
   'help.family-tree.adding.b5':
     'Chaque lien est enregistré des deux côtés : ajouter votre mère lui donne donc aussi un '
     + 'enfant, qui est vous. Chaque personne peut porter plus d’un mariage ; le **+** d’un '
@@ -3203,10 +3203,10 @@ export const helpFr: Catalogue = {
     + 'épousé un membre de la famille, et pour un parent par alliance, adoptif ou '
     + 'd’accueil. La boîte de dialogue le demande lorsque vous ajoutez un nouveau parent ; '
     + 'ensuite, ouvrez la fiche de n’importe qui et cochez-la là. **Rien dans cette boîte ne '
-    + 'prend effet avant que vous n’appuyiez sur Enregistrer** : la case, ainsi que le nom et '
-    + 'la date de naissance d’une fiche sans compte propre, sont enregistrés ensemble par le '
-    + 'seul bouton au bas de la boîte, et **Annuler** la ferme en abandonnant tout ce que vous '
-    + 'avez modifié.',
+    + 'prend effet avant que vous n’appuyiez sur Enregistrer** : la case, les mots des '
+    + 'mariages, ainsi que le nom et la date de naissance d’une fiche sans compte propre, sont '
+    + 'enregistrés ensemble par le seul bouton au bas de la boîte, et **Fermer** la quitte sans '
+    + 'rien conserver de ce que vous avez modifié.',
   'help.family-tree.blood.b2':
     'Cela décide deux choses, et la seconde est de l’argent : qui apparaît sous '
     + '**Lignée** dans l’arbre, et qui doit une cotisation réglée sur **Lignée '
@@ -3258,9 +3258,10 @@ export const helpFr: Catalogue = {
     + 'cochées ici, donc cet écran et ce chiffre ne peuvent pas être en désaccord.',
   'help.family-tree.fixing.heading': 'Corriger une erreur',
   'help.family-tree.fixing.b0.i0':
-    'Mauvaise relation : supprimez le lien et retracez-le. Un mariage ne peut pas être '
-    + 'renommé pour le moment ; voyez ci-dessus. Le fait que quelqu’un fasse partie de la '
-    + 'lignée est une case dans la boîte de gestion de sa propre fiche.',
+    'Mauvaise relation : un mariage peut être renommé dans la boîte de gestion, sous '
+    + '**Mariages**, de **Mari** en **Ex-mari** ; tout autre lien se supprime et se retrace. '
+    + 'Le fait que quelqu’un fasse partie de la lignée est une case dans cette même boîte, sur '
+    + 'sa propre fiche.',
   'help.family-tree.fixing.b0.i1':
     'Informations erronées sur une fiche — la commande de modification de la carte. Elle '
     + 'n’est proposée que pour les personnes sans compte propre ; un membre est maître de son '

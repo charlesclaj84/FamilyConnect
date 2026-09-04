@@ -1225,7 +1225,12 @@ export const fr: Catalogue = {
   'rel.inBloodlineQuestion': 'Cette personne fait partie de la lignée de la famille',
   'rel.inBloodlineHint': 'Cochez ceci pour un parent par le sang. Laissez décoché pour quelqu’un qui a épousé un membre de la famille, et pour un parent par alliance, adoptif ou d’accueil. Cela décide qui apparaît sous {control} dans l’arbre, et qui doit une cotisation réservée à la lignée.',
   'rec.inBloodline': '{name} fait partie de la lignée de la famille',
-  'rec.inBloodlineHint': 'Décide qui apparaît sous {view} dans l’arbre, et qui doit une cotisation réservée à la lignée. Enregistré dès que vous cochez.',
+  'rec.inBloodlineHint': 'Décide qui apparaît sous {view} dans l’arbre, et qui doit une cotisation réservée à la lignée. Appuyez sur Enregistrer pour l’appliquer.',
+  'rec.marriages': 'Mariages',
+  'rec.marriagesHint':
+    'Le mariage est la seule relation dont le mot peut changer. **Partenaire** est pour un '
+    + 'couple non marié : il n’y a pas d’option vide, car chaque relation a un mot.',
+  'rec.connectionFailed': 'Cette relation n’a pas pu être modifiée.',
   'rec.bloodlineFailed': 'Impossible de changer cela.',
   'proj.bloodlineEmptyNote': 'Personne ne doit ceci : votre famille n’a marqué personne comme faisant partie de sa lignée, il n’y a donc personne à facturer. Cochez {control} dans l’arbre familial.',
   'gal.fileTooLarge': '{name} dépasse 10 Mo.',

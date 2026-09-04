@@ -20,12 +20,12 @@ import { rowsFrom, type CrosswalkRow } from '@/lib/geo/zip-crosswalk-rows'
  * improvement on `fetch` in a route.
  *
  * ── THE SOURCE, AND THE CREDENTIAL NOBODY IN THIS REPO CAN SUPPLY ──────────────────
- * `https://www.huduser.gov/hudapi/public/usps?type=2&query=<state FIPS>&page=<n>` — `type=2`
- * is ZIP→County. HUD builds it from USPS delivery data and publishes it QUARTERLY. It needs a
+ * `https://www.huduser.gov/hudapi/public/usps?type=2&query=<2-letter state>` — `type=2` is
+ * ZIP→County. HUD builds it from USPS delivery data and publishes it QUARTERLY. It needs a
  * free API token from a huduser.gov registration, in `HUD_USPS_API_TOKEN`.
  *
- * **NOT `query=All`** — see `STATE_FIPS` below, which records what that returned and why the
- * parser was right to refuse it.
+ * **NOT `query=All`, AND NOT A FIPS CODE** — `STATE_CODES` below records what each of those
+ * returned, because both looked right and neither was.
  *
  * **WITH NO TOKEN THIS RETURNS `skipped`, NOT AN ERROR.** A missing credential is a deployment
  * state rather than a fault, and the daily route it rides on carries three other jobs — one
@@ -70,46 +70,70 @@ import { rowsFrom, type CrosswalkRow } from '@/lib/geo/zip-crosswalk-rows'
 const SOURCE = 'hud-usps-zip-county'
 
 /**
- * ── THE CROSSWALK IS FETCHED PER STATE, AND `query=All` IS WRONG ───────────────────
- * Measured against the real API on 2026-09-03, reported as *"failed status and nothing
- * imported: zip 77352 has no usable county geoid (\"48\")"*. `48` is **Texas's 2-digit state
- * FIPS**: `type=2&query=All` answers a STATE-level rollup, so every row named a state where a
- * county was wanted, and the parser refused the document. That refusal was correct — a state
- * code in a county column would have made every ZIP in Texas resolve to one "county" that no
- * NWS alert will ever name, and nothing downstream could have noticed.
+ * ── THE CROSSWALK IS FETCHED PER STATE, AND THE QUERY IS AN ABBREVIATION ──────────
+ * Two measurements got this here, and both are worth keeping because each ruled something
+ * out that looked right:
  *
- * A state FIPS in `query` is what makes `geoid` a 5-digit county code. So this is 56 requests
- * rather than one, and that fixes a SECOND bug in the same edit: the single `query=All` call
- * followed no pagination at all, so even a correct rollup would have written whatever fitted
- * in page one and reported success.
+ *   `type=2&query=All`  ->  200, and every row carried `geoid: "48"` for a Texas ZIP. That
+ *                           is the 2-digit STATE FIPS: the "All" response is a state-level
+ *                           rollup, not the ZIP-County crosswalk. The parser refused the
+ *                           whole document, correctly — a state code in the county column
+ *                           would have made every Texas ZIP resolve to one "county" no NWS
+ *                           alert will ever name.
+ *   `type=2&query=01`   ->  **400**. A 2-digit FIPS is not what `query` takes.
  *
- * ── THE LIST IS EXPLICIT, AND TERRITORIES ARE IN IT ────────────────────────────────
- * 50 states, DC (11) and the five territories HUD publishes — PR (72), VI (78), GU (66), AS
- * (60), MP (69). Written out rather than generated, because the sequence has gaps (03, 07, 14,
- * 43, 52 are unassigned) and a loop from 1 to 78 would spend a third of its requests asking
- * for states that do not exist and then have to decide whether a 404 is a failure.
+ * HUD's own published example is a two-letter USPS abbreviation — `query=VA` — so that is
+ * what this sends. The R and Python wrappers document `query` for types 1–5 as a 5-digit
+ * ZIP and say nothing about states, which is the other reading available; if the
+ * abbreviation is refused too, the failure now carries HUD's own explanation (below) rather
+ * than a bare status code, and asking 56 times is not the way to find that out.
+ *
+ * ── `page` IS NOT SENT ON THE FIRST REQUEST, AND THAT IS DELIBERATE ───────────────
+ * The 400 above carried BOTH a changed `query` and an added `page`, so either could have
+ * caused it. The first request for each state now sends neither variable — just
+ * `type` and `query` — and `page` is added only for a second page, once the response has
+ * said there is one. If pagination was the offender, every first page now succeeds; if it
+ * was the query, the body says so.
+ *
+ * ── THE LIST IS EXPLICIT ──────────────────────────────────────────────────────────
+ * 50 states, DC and the five territories HUD publishes. Written out rather than derived:
+ * there is no list of these anywhere else in the product, and generating them from FIPS
+ * numbers is what produced the 400 in the first place.
  *
  * A STATE THAT ANSWERS NOTHING IS LOGGED AND SKIPPED, never treated as a failure: HUD may
- * legitimately hold no rows for a territory in a given quarter, and `replace_zip_counties`
- * replaces per ZIP — so a missing state leaves its ZIPs exactly as they were rather than
- * deleting them. `MINIMUM_PAIRS` is what catches losing a state that should have been there.
+ * hold no rows for a territory in a given quarter, and `replace_zip_counties` replaces per
+ * ZIP — so a missing state leaves its ZIPs exactly as they were rather than deleting them.
+ * `MINIMUM_PAIRS` is what catches losing a state that should have been there.
  */
-const STATE_FIPS = [
-  '01', '02', '04', '05', '06', '08', '09', '10', '11', '12', '13', '15', '16', '17', '18',
-  '19', '20', '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33',
-  '34', '35', '36', '37', '38', '39', '40', '41', '42', '44', '45', '46', '47', '48', '49',
-  '50', '51', '53', '54', '55', '56',
-  '60', '66', '69', '72', '78',
+const STATE_CODES = [
+  'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN',
+  'IA', 'KS', 'KY', 'LA', 'ME', 'MD', 'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH',
+  'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC', 'SD', 'TN', 'TX', 'UT',
+  'VT', 'VA', 'WA', 'WV', 'WI', 'WY',
+  'AS', 'GU', 'MP', 'PR', 'VI',
 ] as const
+
+/**
+ * How much of HUD's response body to carry into a failure message.
+ *
+ * ── A STATUS CODE IS NOT A DIAGNOSIS, WHICH THIS JOB HAS NOW PROVED TWICE ────────
+ * `HUD answered 400 for state 01 page 1` is exactly as much as we knew after the run, and
+ * it cost a round trip through somebody else's Vercel deployment to learn what a 400 means.
+ * An API that refuses a request almost always says why in the body; that sentence is the
+ * single most useful thing this job can report, and it was being thrown away.
+ *
+ * Bounded because it is going into a database column and a log line, and an HTML error page
+ * is a plausible thing to get back from a government host.
+ */
+const ERROR_BODY_CHARS = 400
 
 /**
  * How many pages of one state to follow before giving up on it.
  *
- * HUD paginates and the field names are not something this code should assume, so
- * `nextPage` reads several candidates and stops when none of them says there is more. This
- * bound is the runaway guard: a response that always claims another page would otherwise loop
- * until the platform kills the request, taking the three jobs that share the route with it.
- * A state has at most a few thousand ZIPs, so 40 pages is far above any real answer.
+ * `nextPage` reads several candidate field names and stops when none of them says there is
+ * more, so this is the runaway guard: a response that always claims another page would
+ * otherwise loop until the platform kills the request, taking the three jobs that share the
+ * route with it. A state has at most a few thousand ZIPs, so 40 is far above any real answer.
  */
 const MAX_PAGES_PER_STATE = 40
 
@@ -280,7 +304,7 @@ export async function refreshZipCounties(
   const all: CrosswalkRow[] = []
   const emptyStates: string[] = []
 
-  for (const fips of STATE_FIPS) {
+  for (const stateCode of STATE_CODES) {
     let page = 1
     let pagesRead = 0
     let stateRows = 0
@@ -292,8 +316,12 @@ export async function refreshZipCounties(
         // daily route open until the platform kills it — taking the dues reminders and the two
         // reapers that run after it with it. 60s per page rather than 120s for the lot, because
         // there are now up to 56 of these and the ceiling has to be the sum.
+        // `page` ONLY FROM THE SECOND PAGE ON — see the header. The first request sends the
+        // two parameters HUD documents and nothing else.
+        const url = `https://www.huduser.gov/hudapi/public/usps?type=2&query=${stateCode}`
+          + (page > 1 ? `&page=${page}` : '')
         const response = await fetch(
-          `https://www.huduser.gov/hudapi/public/usps?type=2&query=${fips}&page=${page}`,
+          url,
           {
             headers: { Authorization: `Bearer ${token}` },
             signal: AbortSignal.timeout(60_000),
@@ -307,14 +335,21 @@ export async function refreshZipCounties(
         // the other 55 from ever refreshing.
         if (response.status === 404) break
         if (!response.ok) {
-          const detail = `HUD answered ${response.status} for state ${fips} page ${page}`
+          // HUD'S OWN EXPLANATION, CARRIED. See `ERROR_BODY_CHARS`: a bare status code cost a
+          // deploy-and-wait to interpret, and a refusal almost always says why in the body.
+          // `.catch` because a body that cannot be read must not turn a 400 into an
+          // unhandled rejection — the status is still worth reporting on its own.
+          const body = (await response.text().catch(() => '')).trim()
+          const detail = `HUD answered ${response.status} for ${stateCode}`
+            + (page > 1 ? ` page ${page}` : '')
+            + (body ? `: ${body.slice(0, ERROR_BODY_CHARS)}` : '')
           await finish('failed', { error: detail, pairs: all.length })
           return { outcome: 'failed', detail }
         }
         payload = await response.json()
       } catch (e) {
         const detail =
-          `fetch failed for state ${fips} page ${page}: `
+          `fetch failed for ${stateCode} page ${page}: `
           + (e instanceof Error ? e.message : String(e))
         await finish('failed', { error: detail, pairs: all.length })
         return { outcome: 'failed', detail }
@@ -325,7 +360,7 @@ export async function refreshZipCounties(
         // THE STATE AND PAGE ARE IN THE MESSAGE. The first version of this said only what the
         // row was missing, and the report that came back — *"zip 77352 has no usable county
         // geoid"* — could not say which of 56 requests produced it.
-        const detail = `state ${fips} page ${page}: ${parsed.error}`
+        const detail = `${stateCode} page ${page}: ${parsed.error}`
         await finish('failed', { error: detail, pairs: all.length })
         return { outcome: 'failed', detail }
       }
@@ -339,14 +374,14 @@ export async function refreshZipCounties(
       page = next
     }
 
-    if (stateRows === 0) emptyStates.push(fips)
+    if (stateRows === 0) emptyStates.push(stateCode)
   }
 
   if (emptyStates.length) {
     // NOT SILENT. AGENTS.md's rule about a skip being visible: a state that answered nothing
     // leaves its ZIPs untouched, which is safe and is also exactly what losing a state looks
     // like. The floor below is what decides whether it mattered.
-    console.warn(`[zip-counties] no rows for state FIPS: ${emptyStates.join(', ')}`)
+    console.warn(`[zip-counties] no rows for: ${emptyStates.join(', ')}`)
   }
 
   // ── THE FLOOR, BEFORE ANYTHING IS WRITTEN ────────────────────────────────────────

@@ -10,10 +10,51 @@ import { FormError } from '@/components/ui/form-message'
 import { GENDERS, GENDER_LABELS } from '@/lib/gender'
 import { cn } from '@/lib/utils'
 import {
-  editPersonRecord, invitePersonRecord, setPersonBloodline,
+  editPersonRecord, invitePersonRecord, setPersonBloodline, setRelationshipType,
   type TreePerson,
 } from '@/app/actions/family-tree'
+import { InlineText } from '@/components/ui/inline-text'
+import { relationshipMeta } from '@/lib/family-tree'
 import { useT } from '@/components/layout/LocaleProvider'
+
+/**
+ * The three words offered for one marriage, narrowed by the spouse's recorded gender.
+ *
+ * ── SIX WORDS EXIST AND THREE ARE EVER APPLICABLE ─────────────────────────────────
+ * `TREE_RELATIONSHIPS` carries Husband/Wife/Partner and the three Ex- forms. The old
+ * control offered every one, which put four impossible options beside a woman — and made
+ * the row a six-button grid nobody read.
+ *
+ * CURRENT, FORMER, PARTNER, in that order, because that is the order they are true in.
+ *
+ * A NULL GENDER FALLS BACK TO THE UNGENDERED PAIR rather than guessing. Most of a real
+ * tree has no gender recorded — `relationLabelFor` said so before it was deleted — and
+ * inferring one from a name is the kind of thing this product does not do.
+ */
+function spouseOptions(gender: string | null): string[] {
+  if (gender === 'male') return ['Husband', 'Ex-Husband', 'Partner']
+  if (gender === 'female') return ['Wife', 'Ex-Wife', 'Partner']
+  return ['Partner', 'Ex-Partner']
+}
+
+/**
+ * One marriage, as the dialog needs it.
+ *
+ * `otherGender` is what narrows six words to three: a spouse recorded as female is offered
+ * Wife, Ex-wife and Partner and never the three that could not apply to her. A null gender
+ * falls back to the ungendered pair, which is the honest answer for somebody whose gender
+ * nobody has recorded rather than a guess from their name.
+ */
+export interface TreeSpouse {
+  /** The `person_relationships` row, which is what `setRelationshipType` takes. */
+  edgeId: string
+  /** The person on the other end — the SUBJECT of the word. See `save`. */
+  otherId: string
+  otherName: string
+  otherGender: string | null
+  /** The word as it stands, or '' where the inverse could not be named. */
+  typeName: string
+}
 
 /**
  * Managing somebody on the tree: how they are related, and — for a record nobody has
@@ -58,13 +99,27 @@ import { useT } from '@/components/layout/LocaleProvider'
  * is what lets the connection controls be seeded straight from the edges.
  */
 export function PersonRecordDialog({
-  open, onClose, person, name,
+  open, onClose, person, name, spouses = [],
 }: {
   open: boolean
   onClose: () => void
   person: TreePerson
   /** The disambiguated name, so two Martha Allens are told apart in the title. */
   name: string
+  /**
+   * This person's SPOUSE connections, and only those.
+   *
+   * ── THE CONNECTION LIST IS NOT COMING BACK ──────────────────────────────────────
+   * The dialog used to take every edge and render a roll of who somebody was attached to,
+   * which was removed on 2026-09-03 because it was noise. This is the one thing that list
+   * carried which nothing else could do: a marriage is the only relationship with a word
+   * that CHANGES, and removing it left a family with a divorce in it unable to record one.
+   *
+   * So these rows are the marriages and nothing else. Every other edge is a word somebody
+   * chose when they drew it, and reading it back to them is what made the old section
+   * something to scroll past.
+   */
+  spouses?: TreeSpouse[]
 }) {
   const t = useT()
   const router = useRouter()
@@ -73,6 +128,12 @@ export function PersonRecordDialog({
   // corrected on refusal, which is what keeps the control showing what the database holds
   // rather than what was clicked.
   const [isBloodline, setIsBloodline] = useState(person.isBloodline)
+  // One word per marriage, seeded from the edges and saved by the same button as everything
+  // else here. It was a `Record` of six-way pickers that wrote on click; it is three buttons
+  // and no autosave now.
+  const [types, setTypes] = useState<Record<string, string>>(
+    () => Object.fromEntries(spouses.map(sp => [sp.edgeId, sp.typeName])),
+  )
   const [firstName, setFirstName] = useState(person.firstName ?? '')
   const [lastName, setLastName] = useState(person.lastName ?? '')
   const [nickName, setNickName] = useState(person.nickName ?? '')
@@ -95,6 +156,7 @@ export function PersonRecordDialog({
    */
   function close() {
     setIsBloodline(person.isBloodline)
+    setTypes(Object.fromEntries(spouses.map(sp => [sp.edgeId, sp.typeName])))
     setFirstName(person.firstName ?? '')
     setLastName(person.lastName ?? '')
     setNickName(person.nickName ?? '')
@@ -131,7 +193,8 @@ export function PersonRecordDialog({
     || dateOfBirth !== (person.dateOfBirth ?? '')
     || gender !== (person.gender ?? '')
   )
-  const dirty = bloodlineDirty || detailsDirty
+  const changedSpouses = spouses.filter(sp => (types[sp.edgeId] ?? '') !== sp.typeName)
+  const dirty = bloodlineDirty || detailsDirty || changedSpouses.length > 0
 
   /**
    * Save what changed, and only what changed.
@@ -168,6 +231,22 @@ export function PersonRecordDialog({
           // Put the control back where the database still is, so nobody reads a permission
           // they do not have off their own screen.
           setIsBloodline(person.isBloodline)
+          return
+        }
+      }
+      // ── THE MARRIAGES FIRST, ONE CALL EACH, AND ONLY THE CHANGED ONES ──────────
+      // `setRelationshipType` takes the OTHER person as the subject, because the word names
+      // the far end: the edge points out of the person this dialog is about, so 'Ex-Wife' on
+      // it describes THEM. The action turns the word round when the stored row runs the
+      // other way — and getting this wrong is a SILENT inversion rather than an error, which
+      // is why the argument is stated at both ends.
+      for (const sp of changedSpouses) {
+        const r = await setRelationshipType(sp.edgeId, types[sp.edgeId] ?? '', sp.otherId)
+        if (!r.success) {
+          setError(r.message ?? t('rec.connectionFailed'))
+          // Put the control back where the database still is, so nobody reads a change off
+          // their own screen that did not land.
+          setTypes(prev => ({ ...prev, [sp.edgeId]: sp.typeName }))
           return
         }
       }
@@ -245,6 +324,72 @@ export function PersonRecordDialog({
             {t('rec.inBloodlineHint', { view: t('tree.bloodline') })}
           </p>
         </div>
+
+        {/* ── THE MARRIAGES, AND ONLY THE MARRIAGES — restored 2026-09-03 ────────────
+            Asked for as "wife, ex-wife, and also nothing for peoples partners". A marriage
+            is the one relationship whose WORD can change: everything else on the tree is a
+            fact somebody stated when they drew it, and a divorce is a fact that arrives
+            afterwards. Removing the connection list took this with it and left a family
+            unable to record one.
+
+            THREE WORDS, NOT SIX. `SPOUSE_TYPES` holds Husband, Wife, Partner and the three
+            Ex- forms; offering all of them put four impossible options beside every spouse.
+            `spouseOptions` narrows by the OTHER person's recorded gender, so a wife is
+            offered Wife, Ex-wife and Partner.
+
+            AND PARTNER IS THE "NOTHING". There is no unlabelled state — every
+            `person_relationships` row has a type, and a blank one would be a fourth meaning
+            for a column that already has three. Partner IS the word for a couple who are
+            not married, which is what "nothing" is asking for, and it says so on screen
+            rather than being left to be inferred from an absence. */}
+        {spouses.length > 0 && (
+          <div className="space-y-3">
+            <div>
+              <Label>{t('rec.marriages')}</Label>
+              {/* `InlineText`, because the hint emphasises the one word a reader has to
+                  notice — **Partner** is the answer to "what if they are not married" and
+                  it is the option nobody expects to find here. A bare `{t(...)}` would
+                  render the asterisks; this is the same parser `PlanSetupBanner` uses. */}
+              <p className="mt-1 text-xs text-muted-foreground">
+                <InlineText text={t('rec.marriagesHint')} />
+              </p>
+            </div>
+            {spouses.map(sp => {
+              const options = spouseOptions(sp.otherGender)
+              const current = types[sp.edgeId] ?? ''
+              return (
+                <div key={sp.edgeId} className="space-y-2 rounded-xl border px-3 py-3">
+                  <p className="text-xs font-medium">{sp.otherName}</p>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {options.map(option => {
+                      const active = current === option
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => {
+                            setTypes(prev => ({ ...prev, [sp.edgeId]: option }))
+                            setSaved(false)
+                          }}
+                          disabled={isPending}
+                          aria-pressed={active}
+                          className={cn(
+                            'rounded-xl border px-3 py-2 text-xs font-medium transition-colors disabled:opacity-60',
+                            active
+                              ? 'border-brand-primary bg-brand-soft text-brand-on-soft'
+                              : 'border-input text-muted-foreground hover:border-brand-primary/40 hover:text-foreground',
+                          )}
+                        >
+                          {relationshipMeta(option)?.label ?? option}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         {!person.hasAccount && (
         <form
@@ -390,12 +535,16 @@ export function PersonRecordDialog({
               {t('rec.savedShort')}
             </span>
           )}
+          {/* CLOSE, NOT CANCEL — asked for 2026-09-03. It still discards: there is nothing
+              to undo, because nothing here has been written yet. "Cancel" reads as
+              reversing something that happened, and beside a Save that has not been pressed
+              the honest word is the one that says what the button does. */}
           <button
             type="button"
             onClick={close}
             className="rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted"
           >
-            {t('action.cancel')}
+            {t('action.close')}
           </button>
           <button
             type="button"

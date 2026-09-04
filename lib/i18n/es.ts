@@ -1188,7 +1188,12 @@ export const es: Catalogue = {
   'rel.inBloodlineQuestion': 'Esta persona pertenece al linaje de la familia',
   'rel.inBloodlineHint': 'Marque esto para un pariente de sangre. Déjelo sin marcar para alguien que se casó con la familia, y para un pariente político, adoptivo o de acogida. Decide quién aparece en {control} en el árbol, y quién debe una cuota restringida al linaje.',
   'rec.inBloodline': '{name} pertenece al linaje de la familia',
-  'rec.inBloodlineHint': 'Decide quién aparece en {view} en el árbol, y quién debe una cuota restringida al linaje. Se guarda en cuanto lo marca.',
+  'rec.inBloodlineHint': 'Decide quién aparece en {view} en el árbol, y quién debe una cuota restringida al linaje. Pulse Guardar para aplicarlo.',
+  'rec.marriages': 'Matrimonios',
+  'rec.marriagesHint':
+    'El matrimonio es la única conexión cuya palabra puede cambiar. **Pareja** es para dos '
+    + 'personas que no están casadas: no hay opción en blanco, porque toda conexión tiene una palabra.',
+  'rec.connectionFailed': 'No se pudo cambiar esa conexión.',
   'rec.bloodlineFailed': 'No se pudo cambiar eso.',
   'proj.bloodlineEmptyNote': 'Nadie debe esto: su familia no ha marcado a nadie como perteneciente a su linaje, así que no hay a quién cobrar. Marque {control} en el árbol familiar.',
   'gal.fileTooLarge': '{name} pesa más de 10 MB.',

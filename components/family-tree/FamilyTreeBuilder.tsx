@@ -12,7 +12,7 @@ import { disambiguatedName } from '@/lib/name-utils'
 import { HelpLink } from '@/components/help/HelpLink'
 import { AddRelativeDialog } from '@/components/family-tree/AddRelativeDialog'
 import {
-  PersonRecordDialog,
+  PersonRecordDialog, type TreeSpouse,
 } from '@/components/family-tree/PersonRecordDialog'
 import {
   TREE_RELATIONSHIPS, leafIds, relationshipMeta,
@@ -147,12 +147,13 @@ export function FamilyTreeBuilder({
   // nowhere to be carried out.
   //
   // THE CONNECTION LIST LEFT THE DIALOG ON 2026-09-03, asked for: "Manage xyz" no longer
-  // shows a "How xyz is related" section. What that section still carried was the one
-  // control for renaming a marriage — Wife to Ex-Wife — so `setRelationshipType` has no
-  // caller in the product now. TODO.md records that rather than the action being deleted
-  // in passing: a caller-less `'use server'` export is still a live HTTP endpoint
-  // (AGENTS.md, "COMING SOON WITHHOLDS A PAGE"), and where the control should re-appear is
-  // a product decision rather than a tidy-up.
+  // shows a "How xyz is related" section. What that section carried besides the roll-call
+  // was the one control for renaming a marriage — Wife to Ex-Wife — and removing it left a
+  // family with a divorce in it unable to record one.
+  //
+  // THAT HALF CAME BACK THE SAME DAY, narrower: `spousesFor` hands the dialog the SPOUSE
+  // edges only, and it offers three words per marriage rather than six. The roll-call is
+  // gone for good; the control is not, and `setRelationshipType` has a caller again.
   const [managing, setManaging] = useState<TreePerson | null>(null)
 
   // Bloodline or the whole family. UI-local and deliberately NOT keyed on familyCode: it
@@ -442,6 +443,33 @@ export function FamilyTreeBuilder({
 
   const displayName = (person: TreePerson) =>
     nameOf.get(person.id) ?? `${person.firstName} ${person.lastName}`.trim()
+
+  /**
+   * The marriages one person has, for the manage dialog.
+   *
+   * ── NARROWER THAN `connectionsFor` WAS, DELIBERATELY ────────────────────────────
+   * Its predecessor returned EVERY edge so the dialog could render a roll of who somebody
+   * was attached to. That list was removed on 2026-09-03 and this is the half that had to
+   * come back: a marriage is the only relationship whose word can change, so it is the only
+   * one with a control.
+   *
+   * `otherGender` is what lets the dialog offer three words rather than six.
+   */
+  const spousesFor = (person: TreePerson): TreeSpouse[] =>
+    (links.get(person.id) ?? []).flatMap(edge => {
+      if (edge.relation !== 'spouse') return []
+      const other = byId.get(edge.to)
+      if (!other) return []
+      return [{
+        edgeId: edge.id,
+        otherId: other.id,
+        otherName: displayName(other),
+        otherGender: other.gender ?? null,
+        // '' where the inverse could not be named, which is what the dialog seeds from —
+        // so an unnamed marriage shows no button pressed rather than a wrong one.
+        typeName: edge.typeName ?? '',
+      }]
+    })
 
   const card = (person: TreePerson, opts?: {
     edge?: TreeEdge
@@ -996,6 +1024,9 @@ export function FamilyTreeBuilder({
           onClose={() => setManaging(null)}
           person={managing}
           name={displayName(managing)}
+          // ONLY THE MARRIAGES. See `spousesFor` — the connection list is not coming back,
+          // and this is the one control it carried that nothing else could.
+          spouses={spousesFor(managing)}
         />
       )}
     </div>

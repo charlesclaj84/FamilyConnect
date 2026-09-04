@@ -1223,7 +1223,15 @@ export const en: Catalogue = {
   'rel.inBloodlineQuestion': 'This person is in the family’s bloodline',
   'rel.inBloodlineHint': 'Tick this for a blood relative. Leave it clear for somebody who married in, and for a step, adopted or foster relative. It decides who appears under {control} on the tree, and who owes a due restricted to the bloodline.',
   'rec.inBloodline': '{name} is in the family’s bloodline',
-  'rec.inBloodlineHint': 'Decides who appears under {view} on the tree, and who owes a due restricted to the bloodline. Saved as soon as you tick it.',
+  'rec.inBloodlineHint': 'Decides who appears under {view} on the tree, and who owes a due restricted to the bloodline. Press Save to apply it.',
+  // ── THE MARRIAGES ────────────────────────────────────────────────────────────────
+  // "Marriages" and not "Relationships": this section is only ever the spouse edges, and
+  // the wider word would promise the roll-call that was deliberately removed.
+  'rec.marriages': 'Marriages',
+  'rec.marriagesHint':
+    'A marriage is the one connection whose word can change. **Partner** is for a couple '
+    + 'who are not married — there is no blank option, because every connection has a word.',
+  'rec.connectionFailed': 'Could not change that connection.',
   'rec.bloodlineFailed': 'Could not change that.',
   'proj.bloodlineEmptyNote': 'Nobody owes this: your family has not marked anybody as being in its bloodline, so there is nobody to charge. Tick {control} on the family tree.',
   'gal.fileTooLarge': '{name} is larger than 10 MB.',
